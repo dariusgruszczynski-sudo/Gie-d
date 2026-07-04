@@ -95,7 +95,7 @@ export function ControlPanel({ status, onChanged }: { status: StatusResponse; on
       </p>
 
       <button className="btn-primary" style={{ marginTop: 10 }} disabled={busy} onClick={sendTestReport}>
-        ✉️ Wyślij raport testowy
+        ✉️ WYŚLIJ RAPORT
       </button>
       <p className="subtitle" style={{ marginTop: 6 }}>
         Codzienny raport idzie automatycznie o 6:00 — tym przyciskiem możesz sprawdzić czy SMTP działa bez czekania.
