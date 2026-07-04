@@ -1,11 +1,13 @@
 import logging
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 from app.config import get_settings
 from app.db import SessionLocal
 from app.services.binance_client import BinanceClient
 from app.services.claude_advisor import ClaudeAdvisor
+from app.services.email_reporter import send_daily_report
 from app.services.news_client import NewsClient
 from app.services.trading_engine import run_cycle
 
@@ -30,6 +32,17 @@ def _job() -> None:
         db.close()
 
 
+def _report_job() -> None:
+    settings = get_settings()
+    db = SessionLocal()
+    try:
+        send_daily_report(db, settings)
+    except Exception:
+        logger.exception("Daily report email failed")
+    finally:
+        db.close()
+
+
 def start_scheduler() -> BackgroundScheduler:
     global _scheduler
     if _scheduler is not None:
@@ -42,6 +55,15 @@ def start_scheduler() -> BackgroundScheduler:
         "interval",
         minutes=settings.poll_interval_minutes,
         id="trading_cycle",
+    )
+    scheduler.add_job(
+        _report_job,
+        CronTrigger(
+            hour=settings.report_hour,
+            minute=settings.report_minute,
+            timezone=settings.report_timezone,
+        ),
+        id="daily_report",
     )
     scheduler.start()
     _scheduler = scheduler

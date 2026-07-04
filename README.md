@@ -98,6 +98,33 @@ przypomnieniem o doładowaniu konta na **console.anthropic.com**. To przybliżen
 (nie chroni przed realnym zatrzymaniem API, gdy saldo faktycznie się wyczerpie) —
 warto dodatkowo włączyć auto-reload w ustawieniach billingu Anthropica.
 
+## Codzienny raport mailowy
+
+Codziennie o **6:00 (czasu Europe/Warsaw)** system wysyła mail z wykresem
+wartości portfela, statusem, budżetem Claude, perspektywą rynkową z ostatniej
+analizy Opusa oraz ostatnimi decyzjami/transakcjami.
+
+Wysyłka idzie przez SMTP — najprościej użyć własnego konta Gmail z
+**hasłem aplikacji** (App Password, nie zwykłe hasło):
+
+1. Włącz weryfikację dwuetapową na koncie Google (jeśli jeszcze nie jest włączona): https://myaccount.google.com/security
+2. Wygeneruj hasło aplikacji: https://myaccount.google.com/apppasswords → wybierz "Mail", nazwij np. "Gie-d" → skopiuj 16-znakowe hasło
+3. W `.env` uzupełnij:
+   - `SMTP_USERNAME` = Twój adres Gmail (nadawca)
+   - `SMTP_PASSWORD` = wygenerowane hasło aplikacji (bez spacji)
+   - `SMTP_FROM_EMAIL` = ten sam adres Gmail
+   - `REPORT_RECIPIENT_EMAIL` = adres odbiorcy (domyślnie `0grucha0@gmail.com`)
+
+| Zmienna | Domyślnie | Opis |
+|---|---|---|
+| `SMTP_HOST` / `SMTP_PORT` | `smtp.gmail.com` / `587` | Zmień jeśli używasz innego dostawcy SMTP |
+| `REPORT_HOUR` / `REPORT_MINUTE` | `6` / `0` | O której godzinie wysyłać raport |
+| `REPORT_TIMEZONE` | `Europe/Warsaw` | Strefa czasowa dla harmonogramu (niezależnie od strefy serwera) |
+
+Po uzupełnieniu i restarcie (`docker compose up -d --build`) możesz kliknąć
+**"Wyślij raport testowy"** w panelu kontroli na dashboardzie, żeby sprawdzić
+konfigurację SMTP bez czekania do 6:00.
+
 ## Uruchomienie lokalne (development)
 
 Backend:

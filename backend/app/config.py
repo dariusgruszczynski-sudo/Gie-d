@@ -26,6 +26,16 @@ class Settings(BaseSettings):
     claude_monthly_budget_usd: float = 20.0
     claude_budget_alert_threshold_pct: float = 80.0
 
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+    report_recipient_email: str = "0grucha0@gmail.com"
+    report_hour: int = 6
+    report_minute: int = 0
+    report_timezone: str = "Europe/Warsaw"
+
     database_url: str = "sqlite:///./data/trading.db"
 
     @property

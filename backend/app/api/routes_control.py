@@ -10,6 +10,7 @@ from app.serialization import serialize
 from app.services import risk_manager
 from app.services.binance_client import BinanceClient
 from app.services.claude_advisor import ClaudeAdvisor
+from app.services.email_reporter import send_daily_report
 from app.services.news_client import NewsClient
 from app.services.trading_engine import execute_manual_trade, run_cycle
 
@@ -76,3 +77,19 @@ def run_cycle_now(db: Session = Depends(get_db), settings: Settings = Depends(ge
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
     return serialize(decision) if decision is not None else {"message": "Brak wyzwolenia (no trigger) w tym cyklu"}
+
+
+@router.post("/send-report-now")
+def send_report_now(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """Sends the daily email report immediately -- useful for testing SMTP
+    config without waiting for the scheduled hour."""
+    if not settings.smtp_username or not settings.smtp_password:
+        raise HTTPException(
+            status_code=400,
+            detail="SMTP nie jest skonfigurowane (SMTP_USERNAME/SMTP_PASSWORD puste w .env)",
+        )
+    try:
+        send_daily_report(db, settings)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
+    return {"message": f"Raport wysłany na {settings.report_recipient_email}"}

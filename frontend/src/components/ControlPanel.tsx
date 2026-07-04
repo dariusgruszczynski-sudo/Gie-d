@@ -7,6 +7,7 @@ export function ControlPanel({ status, onChanged }: { status: StatusResponse; on
   const [side, setSide] = useState<"BUY" | "SELL">("BUY");
   const [usdtAmount, setUsdtAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [reportMessage, setReportMessage] = useState<string | null>(null);
 
   const isStopped = status.is_paused || status.is_halted;
 
@@ -33,6 +34,20 @@ export function ControlPanel({ status, onChanged }: { status: StatusResponse; on
     try {
       await api.runCycleNow();
       onChanged();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendTestReport() {
+    setBusy(true);
+    setError(null);
+    setReportMessage(null);
+    try {
+      const res = await api.sendReportNow();
+      setReportMessage(res.message);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -78,6 +93,14 @@ export function ControlPanel({ status, onChanged }: { status: StatusResponse; on
       <p className="subtitle" style={{ marginTop: 6 }}>
         Nie czeka na harmonogram — od razu pyta Opusa o decyzję na podstawie aktualnych danych.
       </p>
+
+      <button className="btn-primary" style={{ marginTop: 10 }} disabled={busy} onClick={sendTestReport}>
+        ✉️ Wyślij raport testowy
+      </button>
+      <p className="subtitle" style={{ marginTop: 6 }}>
+        Codzienny raport idzie automatycznie o 6:00 — tym przyciskiem możesz sprawdzić czy SMTP działa bez czekania.
+      </p>
+      {reportMessage && <p className="subtitle" style={{ color: "var(--green)" }}>{reportMessage}</p>}
 
       <h2 style={{ marginTop: 22 }}>Ręczna transakcja (pomija Opus)</h2>
       <form className="control-form" onSubmit={submitManualTrade}>
