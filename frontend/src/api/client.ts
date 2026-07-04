@@ -88,6 +88,7 @@ export const api = {
   portfolio: () => apiFetch<PortfolioResponse>("/api/portfolio?limit=2000"),
   trades: () => apiFetch<Trade[]>("/api/trades"),
   decisions: () => apiFetch<Decision[]>("/api/decisions"),
+  logout: () => apiFetch<{ message: string }>("/api/auth/logout", { method: "POST" }),
   pause: () => apiFetch<unknown>("/api/control/pause", { method: "POST" }),
   resume: () => apiFetch<unknown>("/api/control/resume", { method: "POST" }),
   runCycleNow: () => apiFetch<unknown>("/api/control/run-cycle-now", { method: "POST" }),

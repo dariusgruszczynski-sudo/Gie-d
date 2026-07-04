@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, StatusResponse } from "../api/client";
 
-type IconName = "pause" | "play" | "bolt" | "mail" | "restart";
+type IconName = "pause" | "play" | "bolt" | "mail" | "restart" | "logout";
 
 function Icon({ name }: { name: IconName }) {
   switch (name) {
@@ -43,6 +43,18 @@ function Icon({ name }: { name: IconName }) {
           />
         </svg>
       );
+    case "logout":
+      return (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M9 4 H5 a1 1 0 0 0 -1 1 v14 a1 1 0 0 0 1 1 h4 M16 8 L21 12 L16 16 M21 12 H9"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
   }
 }
 
@@ -72,6 +84,20 @@ export function ControlToolbar({ status, onChanged }: { status: StatusResponse; 
     }
   }
 
+  async function logOff() {
+    setBusy(true);
+    try {
+      await api.logout();
+    } catch {
+      // Cookie may already be gone/expired -- either way, force back to the
+      // login screen below rather than leaving the user stuck.
+    } finally {
+      // Full reload (not just local state) so AuthGate re-runs its /api/status
+      // check against the now-cleared cookie and renders the login screen.
+      window.location.reload();
+    }
+  }
+
   return (
     <div className="toolbar-wrap">
       <div className="toolbar">
@@ -90,6 +116,10 @@ export function ControlToolbar({ status, onChanged }: { status: StatusResponse; 
         <button className="btn-danger" disabled={busy} onClick={() => run(api.restart, false)}>
           <Icon name="restart" />
           Restart
+        </button>
+        <button className="btn-secondary" disabled={busy} onClick={logOff}>
+          <Icon name="logout" />
+          Wyloguj
         </button>
       </div>
       {feedback && <p className={feedback.kind === "error" ? "error-text" : "toolbar-feedback"}>{feedback.text}</p>}

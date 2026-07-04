@@ -736,6 +736,22 @@ button {
   cursor: not-allowed;
 }
 
+.btn-secondary {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--gold) 40%, var(--border));
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .control-form {
   display: flex;
   flex-direction: column;
