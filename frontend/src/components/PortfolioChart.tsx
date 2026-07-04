@@ -1,5 +1,15 @@
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PortfolioSnapshot } from "../api/client";
+
+function ChartTooltip({ active, payload, label }: any) {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div className="chart-tooltip">
+      <div className="chart-tooltip-time">{label}</div>
+      <div className="chart-tooltip-value">${Number(payload[0].value).toFixed(2)}</div>
+    </div>
+  );
+}
 
 export function PortfolioChart({ history, current }: { history: PortfolioSnapshot[]; current: PortfolioSnapshot | null }) {
   const data = history.map((h) => ({
@@ -7,25 +17,43 @@ export function PortfolioChart({ history, current }: { history: PortfolioSnapsho
     value: h.total_value_usdt,
   }));
 
+  const first = data[0]?.value ?? 0;
+  const last = data[data.length - 1]?.value ?? 0;
+  const isUp = last >= first;
+
   return (
     <div className="panel">
-      <h2>Wartość portfela (USDT)</h2>
-      {current && (
-        <div style={{ marginBottom: 10 }}>
-          <span className="stat">
-            Aktualna wartość
+      <div className="panel-header-row">
+        <h2>Wartość portfela (USDT)</h2>
+        {current && (
+          <div className="chart-current-value">
             <strong>${current.total_value_usdt.toFixed(2)}</strong>
-          </span>
-        </div>
-      )}
-      <div style={{ width: "100%", height: 260 }}>
+          </div>
+        )}
+      </div>
+      <div style={{ width: "100%", height: 280 }}>
         <ResponsiveContainer>
-          <LineChart data={data}>
-            <XAxis dataKey="time" tick={{ fontSize: 10 }} minTickGap={30} />
-            <YAxis domain={["auto", "auto"]} tick={{ fontSize: 10 }} width={70} />
-            <Tooltip />
-            <Line type="monotone" dataKey="value" stroke="var(--accent, #2563eb)" dot={false} strokeWidth={2} />
-          </LineChart>
+          <AreaChart data={data} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="portfolioFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={isUp ? "var(--green)" : "var(--red)"} stopOpacity={0.35} />
+                <stop offset="100%" stopColor={isUp ? "var(--green)" : "var(--red)"} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 6" stroke="var(--border)" vertical={false} />
+            <XAxis dataKey="time" tick={{ fontSize: 10, fill: "var(--muted)" }} minTickGap={30} axisLine={{ stroke: "var(--border)" }} tickLine={false} />
+            <YAxis domain={["auto", "auto"]} tick={{ fontSize: 10, fill: "var(--muted)" }} width={70} axisLine={false} tickLine={false} />
+            <Tooltip content={<ChartTooltip />} />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke={isUp ? "var(--green)" : "var(--red)"}
+              strokeWidth={2}
+              fill="url(#portfolioFill)"
+              dot={false}
+              activeDot={{ r: 4 }}
+            />
+          </AreaChart>
         </ResponsiveContainer>
       </div>
       {data.length === 0 && <p className="subtitle">Brak jeszcze danych — pierwszy cykl automatu je utworzy.</p>}
