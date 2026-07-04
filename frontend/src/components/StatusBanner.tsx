@@ -144,7 +144,9 @@ export function StatusBanner({ status }: { status: StatusResponse }) {
         <div className="banner-callout red">⛔ AUTOMAT ZATRZYMANY: {status.halted_reason}</div>
       )}
       {status.is_paused && !status.is_halted && (
-        <div className="banner-callout amber">⏸ Automat zapauzowany ręcznie</div>
+        <div className="banner-callout amber">
+          ⏸ Automat zatrzymany — kliknij „START", aby rozpocząć automatyczny handel
+        </div>
       )}
     </div>
   );

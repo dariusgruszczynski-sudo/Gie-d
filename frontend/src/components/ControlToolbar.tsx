@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, StatusResponse } from "../api/client";
 
-type IconName = "pause" | "play" | "bolt" | "mail" | "restart" | "logout";
+type IconName = "pause" | "play" | "bolt" | "mail" | "restart" | "logout" | "refresh";
 
 function Icon({ name }: { name: IconName }) {
   switch (name) {
@@ -55,6 +55,18 @@ function Icon({ name }: { name: IconName }) {
           />
         </svg>
       );
+    case "refresh":
+      return (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
   }
 }
 
@@ -84,6 +96,25 @@ export function ControlToolbar({ status, onChanged }: { status: StatusResponse; 
     }
   }
 
+  async function refreshPortfolio() {
+    setBusy(true);
+    setFeedback(null);
+    try {
+      const p = await api.refreshPortfolio();
+      const cur = p.quote_currency === "EUR" ? "€" : p.quote_currency + " ";
+      const failed = p.failed_symbols.length > 0 ? ` · brak ceny dla: ${p.failed_symbols.join(", ")}` : "";
+      setFeedback({
+        text: `Kraken OK — saldo ${cur}${p.total_value.toFixed(2)} (wolne ${cur}${p.quote_balance.toFixed(2)})${failed}`,
+        kind: "ok",
+      });
+      onChanged();
+    } catch (e) {
+      setFeedback({ text: `Kraken niedostępny: ${String(e)}`, kind: "error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function logOff() {
     setBusy(true);
     try {
@@ -104,6 +135,10 @@ export function ControlToolbar({ status, onChanged }: { status: StatusResponse; 
         <button className={isStopped ? "btn-primary" : "btn-danger"} disabled={busy} onClick={() => run(isStopped ? api.resume : api.pause)}>
           <Icon name={isStopped ? "play" : "pause"} />
           {isStopped ? "START — automatyczny zakup/sprzedaż" : "STOP automat"}
+        </button>
+        <button className="btn-secondary" disabled={busy} onClick={refreshPortfolio}>
+          <Icon name="refresh" />
+          Odśwież portfel
         </button>
         <button className="btn-primary" disabled={busy} onClick={() => run(api.runCycleNow)}>
           <Icon name="bolt" />

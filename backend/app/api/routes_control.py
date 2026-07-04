@@ -15,7 +15,7 @@ from app.services.email_reporter import send_daily_report
 from app.services.kraken_client import KrakenClient
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
-from app.services.trading_engine import execute_manual_trade, run_cycle
+from app.services.trading_engine import compute_portfolio, execute_manual_trade, run_cycle
 
 router = APIRouter(prefix="/api/control", tags=["control"])
 
@@ -82,6 +82,29 @@ def run_cycle_now(db: Session = Depends(get_db), settings: Settings = Depends(ge
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
     return serialize(decision) if decision is not None else {"message": "Brak danych rynkowych z Kraken w tym cyklu"}
+
+
+@router.post("/refresh-portfolio")
+def refresh_portfolio(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """Reads the live account balance + current prices from Kraken and records
+    one portfolio snapshot -- WITHOUT calling Claude and WITHOUT placing any
+    order. This is the safe "sprawdź czy widzę Krakena" button: it proves the
+    API key works and populates the dashboard (saldo, ceny, pozycje) on demand,
+    at zero Claude cost and zero trading risk, even while the automat is
+    stopped before START."""
+    kraken = KrakenClient(settings)
+    try:
+        portfolio = compute_portfolio(db, settings, kraken)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
+    return {
+        "total_value": portfolio["total_value_usdt"],
+        "quote_balance": portfolio["usdt_balance"],
+        "balances": portfolio["balances"],
+        "prices": portfolio["prices"],
+        "failed_symbols": portfolio["failed_symbols"],
+        "quote_currency": settings.quote_currency,
+    }
 
 
 @router.post("/send-report-now")

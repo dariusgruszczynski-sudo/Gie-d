@@ -75,6 +75,31 @@ def init_db() -> None:
     _drop_column_if_exists("portfolio_snapshots", "eth_price")
     _drop_column_if_exists("system_state", "last_btc_check_price")
     _drop_column_if_exists("system_state", "last_eth_check_price")
+    _seed_stopped_state_on_fresh_deploy()
+
+
+def seed_stopped_state(session) -> None:
+    """Live-money safety: a brand-new deployment must sit STOPPED until the
+    human explicitly presses START in the dashboard -- never place a real
+    order on its own before that. Seeds the singleton SystemState with
+    is_paused=True only when it doesn't exist yet; an existing (possibly
+    running) state is left untouched on restart, so a restart never silently
+    re-pauses a bot the user had already started. Tests use in-memory DBs and
+    never call init_db(), so their model-default (is_paused=False, i.e. active)
+    behaviour is unaffected unless they call this explicitly."""
+    from datetime import date
+
+    from app.models import SystemState
+
+    if session.get(SystemState, 1) is None:
+        today = date.today().isoformat()
+        session.add(SystemState(id=1, is_paused=True, day_start_date=today, week_start_date=today))
+        session.commit()
+
+
+def _seed_stopped_state_on_fresh_deploy() -> None:
+    with SessionLocal() as session:
+        seed_stopped_state(session)
 
 
 def get_db() -> Session:
