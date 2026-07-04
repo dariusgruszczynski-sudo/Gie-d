@@ -165,17 +165,20 @@ z Dockerem. Jeśli VPS ma publiczny adres IP, koniecznie ustaw `DASHBOARD_USERS`
 ## Logowanie do dashboardu
 
 Domyślnie dashboard **nie wymaga logowania** (`DASHBOARD_USERS` puste w `.env`) —
-zachowanie zgodne z poprzednimi wersjami. Żeby włączyć logowanie (przeglądarka
-poprosi o login/hasło standardowym oknem HTTP Basic Auth), ustaw w `.env`:
+zachowanie zgodne z poprzednimi wersjami. Żeby włączyć logowanie (własny ekran
+logowania w aplikacji, nie systemowe okienko przeglądarki), ustaw w `.env`:
 
 ```
 DASHBOARD_USERS=uzytkownik1:haslo1,uzytkownik2:haslo2
 ```
 
 Każde konto ma pełny dostęp (podgląd + pauza/wznów/ręczna transakcja/restart) —
-to narzędzie prywatne bez rozróżnienia ról. Dla dodatkowego bezpieczeństwa na
-publicznym IP rozważ też reverse proxy (np. Caddy/Nginx) z HTTPS, żeby hasła
-nie szły przez sieć w czystym tekście.
+to narzędzie prywatne bez rozróżnienia ról. Logowanie działa przez podpisane
+ciasteczko sesji (httpOnly, ważne 7 dni) ustawiane po poprawnym zalogowaniu —
+nie przez HTTP Basic Auth, żeby uniknąć natywnego okienka logowania
+przeglądarki. Dla dodatkowego bezpieczeństwa na publicznym IP rozważ też
+reverse proxy (np. Caddy/Nginx) z HTTPS, żeby hasła nie szły przez sieć w
+czystym tekście.
 
 ## Testy
 

@@ -47,6 +47,7 @@ def init_db() -> None:
     _add_column_if_missing("portfolio_snapshots", "balances_json", "TEXT", "'{}'")
     _add_column_if_missing("portfolio_snapshots", "prices_json", "TEXT", "'{}'")
     _add_column_if_missing("decisions", "market_context_snapshot", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "session_secret", "VARCHAR(64)", "''")
 
 
 def get_db() -> Session:
