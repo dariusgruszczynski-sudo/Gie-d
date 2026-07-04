@@ -648,3 +648,115 @@ button {
 .rejection {
   color: var(--amber);
 }
+
+/* --- Decision splash --- */
+
+.decision-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  animation: splash-fade-in 0.25s ease-out;
+}
+
+.decision-splash::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+.splash-buy::before {
+  background: radial-gradient(ellipse at center, rgba(76, 175, 96, 0.32), rgba(4, 4, 4, 0.95) 70%);
+}
+
+.splash-sell::before {
+  background: radial-gradient(ellipse at center, rgba(229, 72, 77, 0.3), rgba(4, 4, 4, 0.95) 70%);
+}
+
+.splash-hold::before {
+  background: radial-gradient(ellipse at center, rgba(212, 175, 55, 0.26), rgba(4, 4, 4, 0.95) 70%);
+}
+
+.decision-splash-inner {
+  text-align: center;
+  max-width: 480px;
+  padding: 0 24px;
+  animation: splash-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.decision-splash-inner h2 {
+  font-family: var(--font-display);
+  font-size: 2.6rem;
+  margin: 16px 0 6px;
+  letter-spacing: 0.03em;
+}
+
+.splash-buy h2 {
+  color: var(--green);
+  text-shadow: 0 0 32px rgba(76, 175, 96, 0.55);
+}
+
+.splash-sell h2 {
+  color: var(--red);
+  text-shadow: 0 0 32px rgba(229, 72, 77, 0.55);
+}
+
+.splash-hold h2 {
+  color: var(--gold-bright);
+  text-shadow: 0 0 32px rgba(212, 175, 55, 0.55);
+}
+
+.decision-splash-symbol {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  color: var(--text);
+  margin: 0 0 14px;
+  letter-spacing: 0.05em;
+}
+
+.decision-splash-reason {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  margin: 0 0 18px;
+}
+
+.decision-splash-hint {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+}
+
+@keyframes splash-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes splash-pop {
+  0% {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .decision-splash,
+  .decision-splash-inner {
+    animation: none;
+  }
+}

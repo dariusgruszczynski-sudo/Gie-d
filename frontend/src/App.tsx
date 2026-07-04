@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, Decision, PortfolioResponse, StatusResponse, Trade } from "./api/client";
 import { ControlToolbar } from "./components/ControlToolbar";
+import { DecisionSplash } from "./components/DecisionSplash";
 import { DecisionsLog } from "./components/DecisionsLog";
 import { EmberBackground } from "./components/EmberBackground";
 import { ManualTradePanel } from "./components/ManualTradePanel";
@@ -34,6 +35,8 @@ export default function App() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [splashDecision, setSplashDecision] = useState<Decision | null>(null);
+  const seenDecisionIds = useRef<Set<number> | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -48,6 +51,15 @@ export default function App() {
       setTrades(t);
       setDecisions(d);
       setError(null);
+
+      if (seenDecisionIds.current === null) {
+        // First load -- just remember what already exists, don't splash for history.
+        seenDecisionIds.current = new Set(d.map((x) => x.id));
+      } else {
+        const fresh = d.filter((x) => !seenDecisionIds.current!.has(x.id));
+        fresh.forEach((x) => seenDecisionIds.current!.add(x.id));
+        if (fresh.length > 0) setSplashDecision(fresh[0]);
+      }
     } catch (e) {
       setError(String(e));
     }
@@ -61,6 +73,7 @@ export default function App() {
 
   return (
     <>
+      {splashDecision && <DecisionSplash decision={splashDecision} onDismiss={() => setSplashDecision(null)} />}
       <EmberBackground />
       <PriceTicker history={portfolio?.history ?? []} whitelist={status?.whitelist ?? []} />
       <div className="app">
