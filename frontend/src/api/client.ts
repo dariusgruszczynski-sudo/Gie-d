@@ -26,6 +26,10 @@ export interface PortfolioSnapshot {
   // future UI needs the per-coin breakdown; not currently rendered.
   balances_json: string;
   prices_json: string;
+  // JSON list of whitelist symbols that failed to price this cycle (e.g. not
+  // listed on Binance Testnet) -- distinguishes "genuinely unavailable" from
+  // "just hasn't loaded yet" in the UI.
+  failed_symbols_json: string;
 }
 
 export interface PortfolioResponse {

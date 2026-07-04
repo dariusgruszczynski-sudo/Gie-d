@@ -8,6 +8,7 @@ import { EmberBackground } from "./components/EmberBackground";
 import { ManualTradePanel } from "./components/ManualTradePanel";
 import { MarketLog } from "./components/MarketLog";
 import { PortfolioChart } from "./components/PortfolioChart";
+import { PortfolioHoldings } from "./components/PortfolioHoldings";
 import { PriceTicker } from "./components/PriceTicker";
 import { StatusBanner } from "./components/StatusBanner";
 import { TradesTable } from "./components/TradesTable";
@@ -106,6 +107,10 @@ export default function App() {
         <div className="grid">
           {portfolio && <PortfolioChart history={portfolio.history} current={portfolio.current} />}
           {status && <ManualTradePanel status={status} onChanged={refresh} />}
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <PortfolioHoldings current={portfolio?.current ?? null} />
         </div>
 
         <div style={{ marginBottom: 16 }}>

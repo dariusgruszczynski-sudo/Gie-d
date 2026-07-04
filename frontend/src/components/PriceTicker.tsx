@@ -5,6 +5,7 @@ interface TickerEntry {
   price: number | null;
   changePct: number | null;
   sparkline: number[];
+  unavailable: boolean;
 }
 
 function priceFor(snapshot: PortfolioSnapshot, symbol: string): number | null {
@@ -37,7 +38,13 @@ function buildEntries(history: PortfolioSnapshot[], whitelist: string[]): Ticker
       .filter((v): v is number => v !== null)
       .slice(-30);
 
-    return { symbol, price, changePct, sparkline };
+    // Only the most recent cycle's failure list matters -- a symbol that
+    // failed once but recovered shouldn't stay flagged as unavailable.
+    const latest = history[history.length - 1];
+    const latestFailed: string[] = latest ? JSON.parse(latest.failed_symbols_json || "[]") : [];
+    const unavailable = price === null && latestFailed.includes(symbol);
+
+    return { symbol, price, changePct, sparkline, unavailable };
   });
 }
 
@@ -98,6 +105,10 @@ export function PriceTicker({ history, whitelist }: { history: PortfolioSnapshot
                   </span>
                 )}
               </>
+            ) : e.unavailable ? (
+              <span className="ticker-price ticker-price-unavailable" title="Binance nie zwraca ceny dla tej pary w bieżącym trybie (testnet?) -- para pominięta w tym cyklu.">
+                niedostępne na Binance
+              </span>
             ) : (
               <span className="ticker-price ticker-price-pending">oczekiwanie na dane…</span>
             )}

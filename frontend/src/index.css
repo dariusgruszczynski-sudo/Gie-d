@@ -180,6 +180,14 @@ body {
   font-size: 0.75rem;
 }
 
+.ticker-price-unavailable {
+  color: var(--red);
+  font-weight: 500;
+  font-style: italic;
+  font-size: 0.75rem;
+  cursor: help;
+}
+
 .ticker-sparkline {
   display: block;
   opacity: 0.9;

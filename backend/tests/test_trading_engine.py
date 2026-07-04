@@ -274,6 +274,25 @@ def test_symbol_unavailable_on_binance_does_not_abort_whole_cycle(db_session, se
     assert set(advisor.last_kwargs["market_data"].keys()) == {"BTCUSDT", "ETHUSDT", "BNBUSDT"}
 
 
+def test_compute_portfolio_records_failed_symbols(db_session, settings):
+    """The dashboard needs to tell 'Binance genuinely doesn't have this pair'
+    apart from 'no data yet' -- so a symbol that fails to price must be
+    recorded on the snapshot, not just silently dropped."""
+    from app.models import PortfolioSnapshot
+
+    four_coin_settings = settings.model_copy(update={"trading_whitelist": "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT"})
+    binance = FakeBinance(
+        prices={"BTCUSDT": 50000.0, "ETHUSDT": 3000.0, "BNBUSDT": 400.0},  # SOLUSDT missing on purpose
+        balances={"USDT": 1000.0, "BTC": 0.0, "ETH": 0.0, "SOL": 0.0, "BNB": 0.0},
+    )
+
+    portfolio = trading_engine.compute_portfolio(db_session, four_coin_settings, binance)
+
+    assert portfolio["failed_symbols"] == ["SOLUSDT"]
+    snapshot = db_session.query(PortfolioSnapshot).order_by(PortfolioSnapshot.id.desc()).first()
+    assert json.loads(snapshot.failed_symbols_json) == ["SOLUSDT"]
+
+
 def test_whitelist_rejects_symbol_not_in_four_coin_list(db_session, settings):
     four_coin_settings = settings.model_copy(update={"trading_whitelist": "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT"})
     binance = FakeBinance(

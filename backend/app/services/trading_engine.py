@@ -34,6 +34,7 @@ def compute_portfolio(db: Session, settings: Settings, binance: BinanceClient) -
 
     prices: dict[str, float] = {}
     coin_balances: dict[str, float] = {}
+    failed_symbols: list[str] = []
     total_value = usdt_balance
 
     for symbol in settings.whitelist_symbols:
@@ -41,6 +42,7 @@ def compute_portfolio(db: Session, settings: Settings, binance: BinanceClient) -
             price = binance.get_price(symbol)
         except Exception:
             logger.warning("Failed to fetch price for %s, skipping it this cycle", symbol, exc_info=True)
+            failed_symbols.append(symbol)
             continue
         base = _base_asset(symbol)
         qty = balances.get(base, 0.0)
@@ -53,6 +55,7 @@ def compute_portfolio(db: Session, settings: Settings, binance: BinanceClient) -
         usdt_balance=usdt_balance,
         balances_json=json.dumps(coin_balances),
         prices_json=json.dumps(prices),
+        failed_symbols_json=json.dumps(failed_symbols),
     )
     db.add(snapshot)
     db.commit()
@@ -62,6 +65,7 @@ def compute_portfolio(db: Session, settings: Settings, binance: BinanceClient) -
         "usdt_balance": usdt_balance,
         "balances": coin_balances,
         "prices": prices,
+        "failed_symbols": failed_symbols,
     }
 
 
