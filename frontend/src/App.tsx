@@ -41,6 +41,10 @@ export default function App() {
 
   return (
     <div className="app">
+      <div className="brand-banner">
+        <p className="slogan">Kto gra grubo, wygrać musi</p>
+      </div>
+
       <h1>Gie-d — automatyczny bot inwestycyjny</h1>
       <p className="subtitle">
         Decyzje: Claude Opus · Wykonanie: Binance · To narzędzie prywatne, nie jest to porada inwestycyjna.
