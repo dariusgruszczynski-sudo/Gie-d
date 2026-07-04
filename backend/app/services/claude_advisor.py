@@ -87,6 +87,7 @@ class ClaudeAdvisor:
         news: list[dict],
         portfolio: dict,
         risk_context: dict,
+        market_context: dict | None = None,
         trigger_reason: str,
     ) -> TradingDecision:
         tool = _build_tool_schema(whitelist)
@@ -99,6 +100,7 @@ class ClaudeAdvisor:
                 "recent_news": news,
                 "portfolio": portfolio,
                 "risk_context": risk_context,
+                "market_context": market_context or {},
             },
             ensure_ascii=False,
             indent=2,

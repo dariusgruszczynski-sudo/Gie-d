@@ -12,7 +12,9 @@ from app.models import Decision, PortfolioSnapshot, Trade, TradeAction, TradeMod
 from app.services import budget_tracker, risk_manager
 from app.services.binance_client import BinanceClient
 from app.services.claude_advisor import ClaudeAdvisor
+from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
+from app.services.technical_indicators import compute_technical_indicators
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +101,7 @@ def run_cycle(
     binance: BinanceClient,
     news: NewsClient,
     advisor: ClaudeAdvisor,
+    market_ctx: MarketContextClient | None = None,
 ) -> Decision | None:
     portfolio = compute_portfolio(db, settings, binance)
     state = risk_manager.update_portfolio_value(db, settings, portfolio["total_value_usdt"])
@@ -109,14 +112,16 @@ def run_cycle(
 
     trade_check = risk_manager.can_trade_automated(db)
 
-    market_data = {
-        symbol: {
+    market_data = {}
+    for symbol in settings.whitelist_symbols:
+        indicator_closes = [float(row[4]) for row in binance.get_klines(symbol, "1h", 200)]
+        market_data[symbol] = {
             "price": portfolio["prices"][symbol],
             "klines_1h_24": binance.get_klines(symbol, "1h", 24),
+            "technical": compute_technical_indicators(indicator_closes),
         }
-        for symbol in settings.whitelist_symbols
-    }
     headlines = news.get_headlines([_base_asset(s) for s in settings.whitelist_symbols])
+    global_context = market_ctx.get_market_context() if market_ctx is not None else {}
 
     day_loss_budget_left_pct = max(
         0.0,
@@ -137,6 +142,7 @@ def run_cycle(
         news=headlines,
         portfolio=portfolio,
         risk_context=risk_context,
+        market_context=global_context,
         trigger_reason=trigger_reason.value,
     )
     _mark_analysis_done_today(db)
@@ -150,6 +156,7 @@ def run_cycle(
         reasoning=decision_data.reasoning,
         market_data_snapshot=json.dumps(market_data, default=str),
         news_snapshot=json.dumps(headlines),
+        market_context_snapshot=json.dumps(global_context),
         triggered_by=trigger_reason,
         executed=False,
     )

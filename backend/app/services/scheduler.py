@@ -8,6 +8,7 @@ from app.db import SessionLocal
 from app.services.binance_client import BinanceClient
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.email_reporter import send_daily_report
+from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.trading_engine import run_cycle
 
@@ -23,7 +24,8 @@ def _job() -> None:
         binance = BinanceClient(settings)
         news = NewsClient(settings)
         advisor = ClaudeAdvisor(settings)
-        decision = run_cycle(db, settings, binance, news, advisor)
+        market_ctx = MarketContextClient()
+        decision = run_cycle(db, settings, binance, news, advisor, market_ctx)
         if decision is not None:
             logger.info("Cycle produced decision: %s %s", decision.action, decision.symbol)
     except Exception:

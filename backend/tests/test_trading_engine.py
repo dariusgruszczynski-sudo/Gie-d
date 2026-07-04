@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass, field
 
 import pytest
@@ -69,10 +70,17 @@ class FakeAdvisor:
     def __init__(self, decision: TradingDecision):
         self.decision = decision
         self.calls = 0
+        self.last_kwargs = None
 
     def decide(self, **kwargs):
         self.calls += 1
+        self.last_kwargs = kwargs
         return self.decision
+
+
+class FakeMarketContext:
+    def get_market_context(self):
+        return {"fear_greed_index": 62, "btc_dominance_pct": 54.1, "global_market_cap_change_24h_pct": 1.8}
 
 
 def test_hold_decision_creates_no_trade(db_session, settings):
@@ -230,3 +238,29 @@ def test_failed_analysis_does_not_burn_the_daily_trigger(db_session, settings):
     # (e.g. after Claude recovers) should still be able to trigger today.
     state = risk_manager.get_state(db_session)
     assert state.last_full_analysis_date == ""
+
+
+def test_market_context_reaches_advisor_and_gets_logged(db_session, settings):
+    binance = FakeBinance()
+    advisor = FakeAdvisor(TradingDecision("HOLD", None, 0, 0.8, "Rynek stabilny, czekamy."))
+
+    decision = trading_engine.run_cycle(db_session, settings, binance, FakeNews(), advisor, FakeMarketContext())
+
+    assert advisor.last_kwargs["market_context"] == {
+        "fear_greed_index": 62,
+        "btc_dominance_pct": 54.1,
+        "global_market_cap_change_24h_pct": 1.8,
+    }
+    assert json.loads(decision.market_context_snapshot)["fear_greed_index"] == 62
+
+
+def test_run_cycle_without_market_ctx_does_not_crash(db_session, settings):
+    """market_ctx is optional so existing callers/tests that omit it keep
+    working, and the trading engine never hard-depends on this data source."""
+    binance = FakeBinance()
+    advisor = FakeAdvisor(TradingDecision("HOLD", None, 0, 0.8, "Rynek stabilny, czekamy."))
+
+    decision = trading_engine.run_cycle(db_session, settings, binance, FakeNews(), advisor)
+
+    assert decision is not None
+    assert advisor.last_kwargs["market_context"] == {}

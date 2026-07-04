@@ -40,6 +40,7 @@ class Decision(Base):
     reasoning: Mapped[str] = mapped_column(Text, default="")
     market_data_snapshot: Mapped[str] = mapped_column(Text, default="{}")
     news_snapshot: Mapped[str] = mapped_column(Text, default="[]")
+    market_context_snapshot: Mapped[str] = mapped_column(Text, default="{}")
     triggered_by: Mapped[TriggerType] = mapped_column(Enum(TriggerType), default=TriggerType.SCHEDULED_DAILY)
     executed: Mapped[bool] = mapped_column(Boolean, default=False)
     rejection_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)

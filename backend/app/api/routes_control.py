@@ -11,6 +11,7 @@ from app.services import risk_manager
 from app.services.binance_client import BinanceClient
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.email_reporter import send_daily_report
+from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.trading_engine import execute_manual_trade, run_cycle
 
@@ -72,8 +73,9 @@ def run_cycle_now(db: Session = Depends(get_db), settings: Settings = Depends(ge
     binance = BinanceClient(settings)
     news = NewsClient(settings)
     advisor = ClaudeAdvisor(settings)
+    market_ctx = MarketContextClient()
     try:
-        decision = run_cycle(db, settings, binance, news, advisor)
+        decision = run_cycle(db, settings, binance, news, advisor, market_ctx)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
     return serialize(decision) if decision is not None else {"message": "Brak wyzwolenia (no trigger) w tym cyklu"}
