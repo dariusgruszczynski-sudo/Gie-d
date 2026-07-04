@@ -1,0 +1,124 @@
+# Gie-d — automatyczny bot inwestycyjny (crypto)
+
+Aplikacja do automatycznego inwestowania w kryptowaluty (BTC, ETH) na Binance,
+w której decyzje inwestycyjne (co / kiedy / ile) podejmuje Claude Opus na
+podstawie danych rynkowych i newsów. System ma dashboard z wynikami,
+pełny log decyzji i transakcji, oraz przełącznik pauzy/wznowienia i panel do
+ręcznej transakcji z pominięciem automatu.
+
+## ⚠️ Ważne zastrzeżenia
+
+- To jest **prywatne narzędzie na własny użytek i własny kapitał** — nie jest
+  to licencjonowana usługa zarządzania aktywami ani porada inwestycyjna.
+- Decyzje generowane przez model językowy (Claude Opus) **mogą być błędne**.
+  Handel automatyczny wiąże się z ryzykiem szybkiej i istotnej utraty kapitału.
+- Zanim podepniesz prawdziwe środki, **przetestuj system na Binance Testnet**
+  (patrz sekcja "Tryb testnet vs. produkcja" niżej).
+- Nigdy nie commituj prawdziwych kluczy API do repozytorium — używaj `.env`
+  (jest w `.gitignore`).
+- Autor/asystent AI, który zbudował ten kod, nie ponosi odpowiedzialności za
+  straty finansowe wynikające z jego użycia. Używasz na własne ryzyko.
+
+## Architektura
+
+```
+backend/   FastAPI + SQLite + APScheduler — silnik tradingowy, API, logika ryzyka
+frontend/  React + Vite — dashboard (wyniki, log decyzji, panel kontroli)
+```
+
+Przepływ decyzyjny:
+
+1. Scheduler co `POLL_INTERVAL_MINUTES` sprawdza ceny BTC/USDT i ETH/USDT.
+2. Jeśli cena zmieniła się o więcej niż `PRICE_MOVE_TRIGGER_PCT` od ostatniego
+   sprawdzenia (albo minął dzień od ostatniej pełnej analizy — fallback),
+   system uznaje to za "zdarzenie" i woła Claude Opus.
+3. Opus dostaje: aktualne dane cenowe/świece, ostatnie newsy (jeśli skonfigurowany
+   klucz CryptoPanic), stan portfela i pozostały dzienny budżet ryzyka —
+   i zwraca ustrukturyzowaną decyzję (BUY/SELL/HOLD, symbol, wielkość, uzasadnienie).
+4. Risk manager sprawdza whitelistę coinów, limit wielkości pojedynczej pozycji
+   i dzienny/tygodniowy limit strat. Jeśli wszystko OK i automat nie jest
+   zapauzowany/zatrzymany — zlecenie idzie na Binance.
+5. Wszystko (decyzje, transakcje, zmiany wartości portfela, zdarzenia ryzyka)
+   jest logowane do bazy i widoczne w dashboardzie.
+
+## Wymagane klucze API
+
+Skopiuj `.env.example` do `.env` i uzupełnij:
+
+| Zmienna | Wymagane | Opis |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | tak | Klucz do Claude API (Opus podejmuje decyzje) |
+| `BINANCE_API_KEY` / `BINANCE_API_SECRET` | tak | Klucz do Binance (testnet lub produkcja — patrz niżej) |
+| `BINANCE_TESTNET` | tak | `true` / `false` — przełącznik testnet vs. produkcja |
+| `CRYPTOPANIC_API_KEY` | nie | Opcjonalny — jeśli brak, system pomija newsy i decyduje na podstawie samych danych cenowych |
+
+## Tryb testnet vs. produkcja
+
+Zgodnie z ustaleniami: **start na Binance Testnet**, dopiero potem przełączenie
+na produkcję jednym ustawieniem w `.env`:
+
+1. Załóż konto na https://testnet.binance.vision/ i wygeneruj testnetowe klucze API.
+2. W `.env` ustaw `BINANCE_TESTNET=true` i wklej testnetowe klucze.
+3. Uruchom system, obserwuj dashboard przez kilka dni (rekomendowane: 2-3 dni),
+   sprawdź czy decyzje, limity ryzyka i transakcje działają zgodnie z oczekiwaniami.
+4. Dopiero gdy jesteś zadowolony z działania — wygeneruj **prawdziwe** klucze API
+   na Binance (z uprawnieniami tylko do spot trading, **bez** uprawnień do
+   wypłat/withdraw), ustaw `BINANCE_TESTNET=false`, zrestartuj system.
+
+## Konfiguracja ryzyka (`.env`)
+
+| Zmienna | Domyślnie | Opis |
+|---|---|---|
+| `DAILY_LOSS_LIMIT_PCT` | `50` | Przy spadku wartości portfela o tyle % w ciągu dnia — automat zatrzymuje handel automatyczny (wymaga ręcznego wznowienia w dashboardzie) |
+| `MAX_POSITION_PCT` | `25` | Maks. % dostępnego kapitału, jaki automat może zaangażować w jedną transakcję |
+| `TRADING_WHITELIST` | `BTCUSDT,ETHUSDT` | Lista par, którymi automat może handlować |
+| `POLL_INTERVAL_MINUTES` | `15` | Co ile minut sprawdzać ceny/newsy |
+| `PRICE_MOVE_TRIGGER_PCT` | `2` | Próg zmiany ceny traktowany jako "zdarzenie" wywołujące analizę Opus |
+
+Zatrzymanie po przekroczeniu limitu strat **nie resetuje się automatycznie**
+następnego dnia — wymaga świadomego kliknięcia "Wznów" w dashboardzie, żebyś
+zawsze wiedział, że coś się wydarzyło i mógł ocenić sytuację.
+
+## Uruchomienie lokalne (development)
+
+Backend:
+
+```bash
+cd backend
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+cp ../.env.example ../.env   # uzupełnij klucze
+uvicorn app.main:app --reload --port 8000
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Dashboard: http://localhost:5173 (proxy do API na :8000)
+
+## Uruchomienie produkcyjne (Docker, VPS)
+
+```bash
+cp .env.example .env   # uzupełnij klucze i limity ryzyka
+docker compose up -d --build
+```
+
+Aplikacja (API + zbudowany dashboard) będzie dostępna pod `http://<adres-vps>:8000`.
+Baza danych (SQLite) trzyma się w wolumenie `./data` — rób jej kopie zapasowe.
+
+Rekomendowany hosting: tani VPS (np. Hetzner CX22, DigitalOcean Basic Droplet)
+z Dockerem. Warto postawić reverse proxy (np. Caddy/Nginx) z HTTPS i podstawowym
+uwierzytelnianiem przed dashboardem, jeśli VPS ma publiczny adres IP —
+dashboard w obecnej wersji **nie ma wbudowanego logowania**.
+
+## Testy
+
+```bash
+cd backend
+pytest
+```
