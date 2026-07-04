@@ -210,6 +210,28 @@ def test_whitelist_supports_more_than_two_coins(db_session, settings):
     assert abs(binance.orders[0].usdt_value - 100.0) < 1e-6
 
 
+def test_symbol_unavailable_on_binance_does_not_abort_whole_cycle(db_session, settings):
+    """Simulates SOLUSDT not being listed on Binance Testnet (or a transient
+    API failure) -- the cycle must still succeed for the other coins instead
+    of the whole analysis silently failing every time (which is exactly what
+    happened before this fix: one bad symbol killed compute_portfolio, which
+    killed the entire cycle, forever, for every coin)."""
+    four_coin_settings = settings.model_copy(update={"trading_whitelist": "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT"})
+    binance = FakeBinance(
+        prices={"BTCUSDT": 50000.0, "ETHUSDT": 3000.0, "BNBUSDT": 400.0},  # SOLUSDT missing on purpose
+        balances={"USDT": 1000.0, "BTC": 0.0, "ETH": 0.0, "SOL": 0.0, "BNB": 0.0},
+    )
+    advisor = FakeAdvisor(TradingDecision("BUY", "BTCUSDT", 10, 0.9, "BTC wygląda mocno."))
+
+    decision = trading_engine.run_cycle(db_session, four_coin_settings, binance, FakeNews(), advisor)
+
+    assert decision.executed is True
+    assert len(binance.orders) == 1
+    assert binance.orders[0].symbol == "BTCUSDT"
+    assert "SOLUSDT" not in advisor.last_kwargs["whitelist"]
+    assert set(advisor.last_kwargs["market_data"].keys()) == {"BTCUSDT", "ETHUSDT", "BNBUSDT"}
+
+
 def test_whitelist_rejects_symbol_not_in_four_coin_list(db_session, settings):
     four_coin_settings = settings.model_copy(update={"trading_whitelist": "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT"})
     binance = FakeBinance(

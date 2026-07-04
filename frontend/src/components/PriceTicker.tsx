@@ -74,7 +74,7 @@ export function PriceTicker({ history, whitelist }: { history: PortfolioSnapshot
   const track = [...entries, ...entries];
 
   return (
-    <div className="ticker">
+    <div className="ticker-scroll">
       <div className="ticker-track">
         {track.map((e, i) => (
           <div className="ticker-item" key={`${e.symbol}-${i}`}>

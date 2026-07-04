@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, Decision, PortfolioResponse, StatusResponse, Trade } from "./api/client";
+import { AccountSummary } from "./components/AccountSummary";
 import { ControlToolbar } from "./components/ControlToolbar";
 import { DecisionSplash } from "./components/DecisionSplash";
 import { DecisionsLog } from "./components/DecisionsLog";
@@ -75,7 +76,12 @@ export default function App() {
     <>
       {splashDecision && <DecisionSplash decision={splashDecision} onDismiss={() => setSplashDecision(null)} />}
       <EmberBackground />
-      <PriceTicker history={portfolio?.history ?? []} whitelist={status?.whitelist ?? []} />
+      {status && (
+        <div className="ticker">
+          <AccountSummary current={portfolio?.current ?? null} inception={portfolio?.inception ?? null} />
+          <PriceTicker history={portfolio?.history ?? []} whitelist={status.whitelist} />
+        </div>
+      )}
       <div className="app">
         <div className="brand-banner">
           <p className="slogan">Kto gra grubo, wygrać musi</p>

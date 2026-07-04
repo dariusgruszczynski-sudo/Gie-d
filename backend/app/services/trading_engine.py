@@ -25,7 +25,10 @@ def _base_asset(symbol: str) -> str:
 
 def compute_portfolio(db: Session, settings: Settings, binance: BinanceClient) -> dict:
     """Generic across the whole whitelist -- works for 2 coins or 10 without
-    any schema or code change per coin."""
+    any schema or code change per coin. A single symbol failing on Binance
+    (e.g. not listed on testnet) is skipped rather than aborting the whole
+    cycle -- otherwise one bad symbol silently kills every scheduled cycle
+    and manual "run now" indefinitely."""
     balances = binance.get_account_balances()
     usdt_balance = balances.get("USDT", 0.0)
 
@@ -34,7 +37,11 @@ def compute_portfolio(db: Session, settings: Settings, binance: BinanceClient) -
     total_value = usdt_balance
 
     for symbol in settings.whitelist_symbols:
-        price = binance.get_price(symbol)
+        try:
+            price = binance.get_price(symbol)
+        except Exception:
+            logger.warning("Failed to fetch price for %s, skipping it this cycle", symbol, exc_info=True)
+            continue
         base = _base_asset(symbol)
         qty = balances.get(base, 0.0)
         prices[symbol] = price
@@ -114,12 +121,23 @@ def run_cycle(
 
     market_data = {}
     for symbol in settings.whitelist_symbols:
-        indicator_closes = [float(row[4]) for row in binance.get_klines(symbol, "1h", 200)]
+        if symbol not in portfolio["prices"]:
+            continue  # Binance couldn't price this symbol this cycle -- see compute_portfolio
+        try:
+            klines_24 = binance.get_klines(symbol, "1h", 24)
+            indicator_closes = [float(row[4]) for row in binance.get_klines(symbol, "1h", 200)]
+        except Exception:
+            logger.warning("Failed to fetch klines for %s, excluding it from this cycle", symbol, exc_info=True)
+            continue
         market_data[symbol] = {
             "price": portfolio["prices"][symbol],
-            "klines_1h_24": binance.get_klines(symbol, "1h", 24),
+            "klines_1h_24": klines_24,
             "technical": compute_technical_indicators(indicator_closes),
         }
+    # Only offer Opus symbols it actually has data for this cycle -- a symbol
+    # missing from market_data (Binance failure above) must not be a choosable
+    # BUY/SELL target.
+    tradable_symbols = list(market_data.keys())
     headlines = news.get_headlines([_base_asset(s) for s in settings.whitelist_symbols])
     global_context = market_ctx.get_market_context() if market_ctx is not None else {}
 
@@ -137,7 +155,7 @@ def run_cycle(
     }
 
     decision_data = advisor.decide(
-        whitelist=settings.whitelist_symbols,
+        whitelist=tradable_symbols,
         market_data=market_data,
         news=headlines,
         portfolio=portfolio,

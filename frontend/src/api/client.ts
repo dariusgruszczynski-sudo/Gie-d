@@ -31,6 +31,9 @@ export interface PortfolioSnapshot {
 export interface PortfolioResponse {
   current: PortfolioSnapshot | null;
   history: PortfolioSnapshot[];
+  // The very first snapshot ever recorded (independent of the `history`
+  // window/limit) -- baseline for "since the beginning" P&L.
+  inception: PortfolioSnapshot | null;
 }
 
 export interface Trade {

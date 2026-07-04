@@ -62,10 +62,17 @@ body {
   position: sticky;
   top: 0;
   z-index: 50;
-  overflow: hidden;
+  display: flex;
+  align-items: stretch;
   background: linear-gradient(180deg, #050505 0%, #100d07 100%);
   border-bottom: 1px solid var(--border);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+}
+
+.ticker-scroll {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .ticker-track {
@@ -74,8 +81,63 @@ body {
   animation: ticker-scroll 32s linear infinite;
 }
 
-.ticker:hover .ticker-track {
+.ticker-scroll:hover .ticker-track {
   animation-play-state: paused;
+}
+
+/* --- Account summary (pinned, doesn't scroll) --- */
+
+.account-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 9px 20px;
+  flex-shrink: 0;
+  background: rgba(212, 175, 55, 0.06);
+  border-right: 1px solid var(--border);
+}
+
+.account-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.account-summary-label {
+  font-size: 0.62rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.account-summary-value {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--gold-bright);
+  white-space: nowrap;
+}
+
+.account-summary-value.up {
+  color: var(--green);
+}
+
+.account-summary-value.down {
+  color: var(--red);
+}
+
+.account-summary-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+}
+
+.account-summary-pending {
+  padding: 9px 20px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-style: italic;
+  white-space: nowrap;
 }
 
 .ticker-item {

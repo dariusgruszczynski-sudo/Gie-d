@@ -51,7 +51,15 @@ def get_portfolio(limit: int = Query(200, le=2000), db: Session = Depends(get_db
     ).scalars().all()
     history = [serialize(r) for r in reversed(rows)]
     current = history[-1] if history else None
-    return {"current": current, "history": history}
+
+    # Queried separately (not just history[0]) so "since the very beginning"
+    # P&L stays correct even once more than `limit` snapshots have accumulated.
+    inception_row = db.execute(
+        select(PortfolioSnapshot).order_by(PortfolioSnapshot.timestamp.asc()).limit(1)
+    ).scalar_one_or_none()
+    inception = serialize(inception_row) if inception_row else None
+
+    return {"current": current, "history": history, "inception": inception}
 
 
 @router.get("/trades")
