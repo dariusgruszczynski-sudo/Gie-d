@@ -10,7 +10,17 @@ interface Ember {
   opacity: number;
 }
 
+interface Orb {
+  x: number;
+  y: number;
+  r: number;
+  speed: number;
+  drift: number;
+  opacity: number;
+}
+
 const PARTICLE_COUNT = 55;
+const ORB_COUNT = 5;
 
 export function EmberBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -38,6 +48,17 @@ export function EmberBackground() {
     resize();
     window.addEventListener("resize", resize);
 
+    // Large, slow, soft glow blobs -- distant parallax layer.
+    const orbs: Orb[] = Array.from({ length: ORB_COUNT }, () => ({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      r: 140 + Math.random() * 220,
+      speed: 0.012 + Math.random() * 0.02,
+      drift: (Math.random() - 0.5) * 0.03,
+      opacity: 0.03 + Math.random() * 0.035,
+    }));
+
+    // Small, fast, bright embers -- foreground layer.
     const embers: Ember[] = Array.from({ length: PARTICLE_COUNT }, () => ({
       x: Math.random() * width,
       y: Math.random() * height,
@@ -50,6 +71,17 @@ export function EmberBackground() {
 
     function drawFrame() {
       ctx!.clearRect(0, 0, width, height);
+
+      for (const o of orbs) {
+        const gradient = ctx!.createRadialGradient(o.x, o.y, 0, o.x, o.y, o.r);
+        gradient.addColorStop(0, `rgba(212, 175, 55, ${o.opacity})`);
+        gradient.addColorStop(1, "rgba(212, 175, 55, 0)");
+        ctx!.fillStyle = gradient;
+        ctx!.beginPath();
+        ctx!.arc(o.x, o.y, o.r, 0, Math.PI * 2);
+        ctx!.fill();
+      }
+
       for (const e of embers) {
         const flicker = 0.7 + 0.3 * Math.sin(e.phase);
         const gradient = ctx!.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.r * 5);
@@ -64,6 +96,16 @@ export function EmberBackground() {
 
     let raf = 0;
     function step() {
+      for (const o of orbs) {
+        o.y -= o.speed;
+        o.x += o.drift;
+        if (o.y < -o.r) {
+          o.y = height + o.r;
+          o.x = Math.random() * width;
+        }
+        if (o.x < -o.r) o.x = width + o.r;
+        if (o.x > width + o.r) o.x = -o.r;
+      }
       for (const e of embers) {
         e.phase += 0.012;
         e.y -= e.speed;

@@ -4,6 +4,7 @@ import { ControlToolbar } from "./components/ControlToolbar";
 import { DecisionsLog } from "./components/DecisionsLog";
 import { EmberBackground } from "./components/EmberBackground";
 import { ManualTradePanel } from "./components/ManualTradePanel";
+import { MarketLog } from "./components/MarketLog";
 import { PortfolioChart } from "./components/PortfolioChart";
 import { PriceTicker } from "./components/PriceTicker";
 import { StatusBanner } from "./components/StatusBanner";
@@ -90,6 +91,10 @@ export default function App() {
 
         <div style={{ marginBottom: 16 }}>
           <DecisionsLog decisions={decisions} />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <MarketLog history={portfolio?.history ?? []} whitelist={status?.whitelist ?? []} />
         </div>
 
         <TradesTable trades={trades} />

@@ -1,5 +1,6 @@
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PortfolioSnapshot } from "../api/client";
+import { useCountUp } from "../hooks/useCountUp";
 
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload || !payload.length) return null;
@@ -20,6 +21,7 @@ export function PortfolioChart({ history, current }: { history: PortfolioSnapsho
   const first = data[0]?.value ?? 0;
   const last = data[data.length - 1]?.value ?? 0;
   const isUp = last >= first;
+  const animatedValue = useCountUp(current?.total_value_usdt ?? 0);
 
   return (
     <div className="panel">
@@ -27,7 +29,7 @@ export function PortfolioChart({ history, current }: { history: PortfolioSnapsho
         <h2>Wartość portfela (USDT)</h2>
         {current && (
           <div className="chart-current-value">
-            <strong>${current.total_value_usdt.toFixed(2)}</strong>
+            <strong>${animatedValue.toFixed(2)}</strong>
           </div>
         )}
       </div>

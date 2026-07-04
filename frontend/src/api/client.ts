@@ -58,6 +58,10 @@ export interface Decision {
   triggered_by: string;
   executed: boolean;
   rejection_reason: string | null;
+  // JSON-encoded snapshots of what Opus saw for this decision -- parse with
+  // JSON.parse for per-symbol technical indicators / market sentiment.
+  market_data_snapshot: string;
+  market_context_snapshot: string;
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
