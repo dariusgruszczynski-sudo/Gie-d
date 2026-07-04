@@ -2,6 +2,7 @@
 the raw SDK directly. Supports a testnet/live switch driven by config."""
 
 from dataclasses import dataclass
+from decimal import ROUND_DOWN, Decimal
 
 from binance.client import Client
 
@@ -53,14 +54,26 @@ class BinanceClient:
         return self._client.get_symbol_info(symbol)
 
     def _round_step_size(self, quantity: float, symbol: str) -> float:
+        """Floors `quantity` down to the exchange's LOT_SIZE step for `symbol`.
+
+        Uses Decimal on the raw stepSize string rather than float/str parsing --
+        for small step sizes (e.g. BTCUSDT's "0.00001000") Python renders the
+        float in scientific notation ("1e-05"), which has no "." character and
+        previously made the computed precision collapse to 0, rounding every
+        BTC order down to a whole coin (and usually to 0).
+        """
         info = self.get_symbol_info(symbol)
-        step_size = 1.0
+        step_size_str = "1"
         for f in info.get("filters", []):
             if f.get("filterType") == "LOT_SIZE":
-                step_size = float(f["stepSize"])
+                step_size_str = f["stepSize"]
                 break
-        precision = max(0, str(step_size)[::-1].find(".")) if step_size < 1 else 0
-        return float(f"{quantity:.{precision}f}")
+
+        step = Decimal(step_size_str)
+        if step <= 0:
+            return quantity
+        quantized = (Decimal(str(quantity)) / step).to_integral_value(rounding=ROUND_DOWN) * step
+        return float(quantized)
 
     def place_market_order_usdt_amount(self, symbol: str, side: str, usdt_amount: float) -> OrderResult:
         """Place a market order sized by a USDT notional amount (buys/sells the

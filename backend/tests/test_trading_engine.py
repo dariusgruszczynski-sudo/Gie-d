@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 
+import pytest
+
 from app.services import risk_manager, trading_engine
 from app.services.claude_advisor import TradingDecision
 
@@ -137,3 +139,61 @@ def test_manual_trade_executes_even_when_halted(db_session, settings):
 
     assert trade.is_manual is True
     assert len(binance.orders) == 1
+
+
+def test_manual_trade_rejects_symbol_outside_whitelist(db_session, settings):
+    binance = FakeBinance()
+
+    with pytest.raises(ValueError, match="whiteli"):
+        trading_engine.execute_manual_trade(
+            db_session, settings, binance, symbol="DOGEUSDT", side="BUY", usdt_amount=100.0
+        )
+    assert len(binance.orders) == 0
+
+
+def test_resume_resets_daily_baseline_so_it_does_not_immediately_rehalt(db_session, settings):
+    risk_manager.update_portfolio_value(db_session, settings, 1000.0)
+    risk_manager.update_portfolio_value(db_session, settings, 850.0)  # trips 10% daily limit
+    assert risk_manager.get_state(db_session).is_halted is True
+
+    risk_manager.resume(db_session)
+    # Portfolio is still down 15% from the *original* baseline, but resume()
+    # should have reset the baseline to today's current value so this does
+    # not immediately re-trip the halt.
+    state = risk_manager.update_portfolio_value(db_session, settings, 850.0)
+
+    assert state.is_halted is False
+
+
+def test_pause_mid_analysis_blocks_execution_before_order_placed(db_session, settings):
+    """Simulates a user clicking 'Zatrzymaj' while Opus is still 'thinking' --
+    the advisor's decide() call, as a side effect, pauses the automat before
+    returning its decision. run_cycle must re-check right before executing."""
+    binance = FakeBinance()
+
+    class PausingAdvisor:
+        def decide(self, **kwargs):
+            risk_manager.pause(db_session)
+            return TradingDecision("BUY", "BTCUSDT", 10, 0.9, "Silny sygnał.")
+
+    decision = trading_engine.run_cycle(db_session, settings, binance, FakeNews(), PausingAdvisor())
+
+    assert decision.executed is False
+    assert decision.rejection_reason is not None
+    assert len(binance.orders) == 0
+
+
+def test_failed_analysis_does_not_burn_the_daily_trigger(db_session, settings):
+    binance = FakeBinance()
+
+    class FailingAdvisor:
+        def decide(self, **kwargs):
+            raise RuntimeError("Anthropic API down")
+
+    with pytest.raises(RuntimeError):
+        trading_engine.run_cycle(db_session, settings, binance, FakeNews(), FailingAdvisor())
+
+    # last_full_analysis_date must NOT have been marked -- the next cycle
+    # (e.g. after Claude recovers) should still be able to trigger today.
+    state = risk_manager.get_state(db_session)
+    assert state.last_full_analysis_date == ""

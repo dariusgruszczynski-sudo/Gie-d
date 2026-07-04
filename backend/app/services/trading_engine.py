@@ -75,11 +75,16 @@ def check_trigger(db: Session, settings: Settings, prices: dict) -> tuple[bool, 
         if reason != TriggerType.PRICE_MOVE:
             reason = TriggerType.SCHEDULED_DAILY
 
-    if triggered:
-        state.last_full_analysis_date = today_str
-
     db.commit()
     return triggered, reason
+
+
+def _mark_analysis_done_today(db: Session) -> None:
+    """Called only after advisor.decide() actually succeeds, so a transient
+    Claude/network failure doesn't burn today's scheduled-fallback trigger."""
+    state = risk_manager.get_state(db)
+    state.last_full_analysis_date = date.today().isoformat()
+    db.commit()
 
 
 def run_cycle(
@@ -131,6 +136,7 @@ def run_cycle(
         risk_context=risk_context,
         trigger_reason=trigger_reason.value,
     )
+    _mark_analysis_done_today(db)
     budget_tracker.record_usage(db, decision_data.input_tokens, decision_data.output_tokens)
 
     decision = Decision(
@@ -174,6 +180,16 @@ def run_cycle(
     db.add(decision)
     db.commit()
     db.refresh(decision)
+
+    # Re-check right before placing the order: the Opus call above can take
+    # several seconds, and a "Zatrzymaj automat" click during that window
+    # should still stop the trade rather than only affecting the *next* cycle.
+    final_check = risk_manager.can_trade_automated(db)
+    if not final_check.approved:
+        decision.rejection_reason = f"Zatrzymano tuż przed wykonaniem: {final_check.reason}"
+        db.commit()
+        db.refresh(decision)
+        return decision
 
     _execute_trade(
         db=db,
@@ -245,9 +261,14 @@ def execute_manual_trade(
     quantity: float | None = None,
 ) -> Trade:
     """Human-initiated trade from the dashboard, bypassing Opus entirely.
-    Intentionally NOT gated by the pause/halt state -- that state only
-    governs the automated decision loop, per the product's manual-override
-    requirement."""
+    Intentionally NOT gated by the pause/halt state or the automated
+    max_position_pct cap -- that's the whole point of a manual override. Still
+    enforced: the trading whitelist, as a safety net against a typo'd or
+    otherwise unintended symbol reaching a real order."""
+    whitelist_check = risk_manager.validate_symbol_whitelist(settings, symbol)
+    if not whitelist_check.approved:
+        raise ValueError(whitelist_check.reason)
+
     mode = TradeMode.TESTNET if settings.binance_testnet else TradeMode.LIVE
 
     if usdt_amount is not None:

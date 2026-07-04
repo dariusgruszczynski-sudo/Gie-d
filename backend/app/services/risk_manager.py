@@ -14,6 +14,7 @@ design — that is the whole point of keeping a manual override available.
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -36,8 +37,16 @@ def get_state(db: Session) -> SystemState:
             week_start_date=today,
         )
         db.add(state)
-        db.commit()
-        db.refresh(state)
+        try:
+            db.commit()
+        except IntegrityError:
+            # Another session (scheduler thread vs. an API request, both
+            # hitting an empty table for the first time) already inserted the
+            # singleton row concurrently -- back off and read what it wrote.
+            db.rollback()
+            state = db.get(SystemState, 1)
+        else:
+            db.refresh(state)
     return state
 
 
@@ -112,6 +121,17 @@ def can_trade_automated(db: Session) -> ValidationResult:
     return ValidationResult(True)
 
 
+def validate_symbol_whitelist(settings: Settings, symbol: str) -> ValidationResult:
+    """Whitelist-only check, used for manual trades. Manual overrides
+    intentionally skip the pause/halt gate and the automated max_position_pct
+    cap (the whole point of a manual override is discretion over size), but
+    a fat-fingered or malicious symbol outside the whitelist is never a
+    deliberate choice worth allowing."""
+    if symbol not in settings.whitelist_symbols:
+        return ValidationResult(False, f"{symbol} nie jest na whiteliście ({settings.whitelist_symbols})")
+    return ValidationResult(True)
+
+
 def validate_trade(
     *,
     settings: Settings,
@@ -151,6 +171,12 @@ def resume(db: Session) -> SystemState:
     state.is_paused = False
     state.is_halted = False
     state.halted_reason = None
+    # Force the day/week loss baselines to re-initialize to the current
+    # portfolio value on the next update_portfolio_value() call -- otherwise a
+    # halt tripped earlier today re-trips itself on the very next cycle,
+    # since the old (pre-loss) baseline is still in place.
+    state.day_start_date = ""
+    state.week_start_date = ""
     db.commit()
     _log_event(db, "manual_resume", "Automat wznowiony ręcznie z dashboardu")
     db.refresh(state)
