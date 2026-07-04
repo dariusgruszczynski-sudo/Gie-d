@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, Decision, PortfolioResponse, StatusResponse, Trade } from "./api/client";
-import { ControlPanel } from "./components/ControlPanel";
+import { ControlToolbar } from "./components/ControlToolbar";
 import { DecisionsLog } from "./components/DecisionsLog";
+import { EmberBackground } from "./components/EmberBackground";
+import { ManualTradePanel } from "./components/ManualTradePanel";
 import { PortfolioChart } from "./components/PortfolioChart";
 import { PriceTicker } from "./components/PriceTicker";
 import { StatusBanner } from "./components/StatusBanner";
@@ -58,6 +60,7 @@ export default function App() {
 
   return (
     <>
+      <EmberBackground />
       <PriceTicker history={portfolio?.history ?? []} whitelist={status?.whitelist ?? []} />
       <div className="app">
         <div className="brand-banner">
@@ -78,9 +81,11 @@ export default function App() {
 
         {status && <StatusBanner status={status} />}
 
+        {status && <ControlToolbar status={status} onChanged={refresh} />}
+
         <div className="grid">
           {portfolio && <PortfolioChart history={portfolio.history} current={portfolio.current} />}
-          {status && <ControlPanel status={status} onChanged={refresh} />}
+          {status && <ManualTradePanel status={status} onChanged={refresh} />}
         </div>
 
         <div style={{ marginBottom: 16 }}>

@@ -8,6 +8,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes_control import router as control_router
 from app.api.routes_dashboard import router as dashboard_router
+from app.auth import BasicAuthMiddleware
+from app.config import get_settings
 from app.db import init_db
 from app.services.scheduler import start_scheduler, stop_scheduler
 
@@ -32,6 +34,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(BasicAuthMiddleware, credentials=get_settings().dashboard_credentials)
 
 app.include_router(dashboard_router)
 app.include_router(control_router)

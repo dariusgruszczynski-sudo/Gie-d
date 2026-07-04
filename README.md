@@ -159,9 +159,23 @@ Aplikacja (API + zbudowany dashboard) będzie dostępna pod `http://<adres-vps>:
 Baza danych (SQLite) trzyma się w wolumenie `./data` — rób jej kopie zapasowe.
 
 Rekomendowany hosting: tani VPS (np. Hetzner CX22, DigitalOcean Basic Droplet)
-z Dockerem. Warto postawić reverse proxy (np. Caddy/Nginx) z HTTPS i podstawowym
-uwierzytelnianiem przed dashboardem, jeśli VPS ma publiczny adres IP —
-dashboard w obecnej wersji **nie ma wbudowanego logowania**.
+z Dockerem. Jeśli VPS ma publiczny adres IP, koniecznie ustaw `DASHBOARD_USERS`
+(patrz niżej) — bez tego każdy, kto zna adres, ma pełną kontrolę nad automatem.
+
+## Logowanie do dashboardu
+
+Domyślnie dashboard **nie wymaga logowania** (`DASHBOARD_USERS` puste w `.env`) —
+zachowanie zgodne z poprzednimi wersjami. Żeby włączyć logowanie (przeglądarka
+poprosi o login/hasło standardowym oknem HTTP Basic Auth), ustaw w `.env`:
+
+```
+DASHBOARD_USERS=uzytkownik1:haslo1,uzytkownik2:haslo2
+```
+
+Każde konto ma pełny dostęp (podgląd + pauza/wznów/ręczna transakcja/restart) —
+to narzędzie prywatne bez rozróżnienia ról. Dla dodatkowego bezpieczeństwa na
+publicznym IP rozważ też reverse proxy (np. Caddy/Nginx) z HTTPS, żeby hasła
+nie szły przez sieć w czystym tekście.
 
 ## Testy
 

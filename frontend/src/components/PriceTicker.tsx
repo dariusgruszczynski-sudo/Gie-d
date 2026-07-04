@@ -39,7 +39,9 @@ export function PriceTicker({ history, whitelist }: { history: PortfolioSnapshot
         {track.map((e, i) => (
           <div className="ticker-item" key={`${e.symbol}-${i}`}>
             <span className="ticker-symbol">{e.symbol.replace("USDT", "")}/USDT</span>
-            <span className="ticker-price">${fmtPrice(e.price)}</span>
+            <span className={`ticker-price ${e.changePct !== null ? (e.changePct >= 0 ? "up" : "down") : ""}`}>
+              ${fmtPrice(e.price)}
+            </span>
             {e.changePct !== null && (
               <span className={`ticker-change ${e.changePct >= 0 ? "up" : "down"}`}>
                 <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">

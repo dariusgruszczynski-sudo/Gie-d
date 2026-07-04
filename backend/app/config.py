@@ -38,9 +38,25 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./data/trading.db"
 
+    # Empty = no login required (backward-compatible default for existing
+    # deployments). Format: "user1:pass1,user2:pass2".
+    dashboard_users: str = ""
+
     @property
     def whitelist_symbols(self) -> list[str]:
         return [s.strip().upper() for s in self.trading_whitelist.split(",") if s.strip()]
+
+    @property
+    def dashboard_credentials(self) -> dict[str, str]:
+        creds: dict[str, str] = {}
+        for pair in self.dashboard_users.split(","):
+            if ":" not in pair:
+                continue
+            user, pw = pair.split(":", 1)
+            user = user.strip()
+            if user:
+                creds[user] = pw.strip()
+        return creds
 
 
 @lru_cache
