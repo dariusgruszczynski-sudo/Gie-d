@@ -27,7 +27,7 @@ function contextSummary(d: Decision): string | null {
 export function DecisionsLog({ decisions }: { decisions: Decision[] }) {
   return (
     <div className="panel">
-      <h2>Log decyzji Claude Opus</h2>
+      <h2>Log decyzji Claude</h2>
       <div className="table-wrap">
         <table>
           <thead>

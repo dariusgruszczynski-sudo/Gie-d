@@ -29,7 +29,8 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
             )
 
     return {
-        "mode": "testnet" if settings.binance_testnet else "live",
+        "mode": "live",
+        "quote_currency": settings.quote_currency,
         "is_paused": state.is_paused,
         "is_halted": state.is_halted,
         "halted_reason": state.halted_reason,

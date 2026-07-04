@@ -1,20 +1,24 @@
 # GielDarek — automatyczny bot inwestycyjny (crypto)
 
 Aplikacja do automatycznego inwestowania w kryptowaluty (domyślnie BTC, ETH,
-SOL, BNB — lista jest w pełni konfigurowalna) na Binance,
-w której decyzje inwestycyjne (co / kiedy / ile) podejmuje Claude Opus na
-podstawie danych rynkowych i newsów. System ma dashboard z wynikami,
-pełny log decyzji i transakcji, oraz przełącznik pauzy/wznowienia i panel do
-ręcznej transakcji z pominięciem automatu.
+SOL, XRP — lista jest w pełni konfigurowalna) na Kraken (rynek spot, EUR),
+w której decyzje inwestycyjne (co / kiedy / ile) podejmuje Claude -- Sonnet
+analizuje każdy cykl, a Opus podejmuje ostateczną decyzję tylko gdy Sonnet
+sam zgłasza niepewność co do BUY/SELL -- na podstawie danych rynkowych i
+newsów z kilkunastu źródeł. System ma dashboard z wynikami, pełny log decyzji
+i transakcji, oraz przełącznik start/stop i panel do ręcznej transakcji z
+pominięciem automatu.
 
 ## ⚠️ Ważne zastrzeżenia
 
 - To jest **prywatne narzędzie na własny użytek i własny kapitał** — nie jest
   to licencjonowana usługa zarządzania aktywami ani porada inwestycyjna.
-- Decyzje generowane przez model językowy (Claude Opus) **mogą być błędne**.
+- Decyzje generowane przez modele językowe (Claude) **mogą być błędne**.
   Handel automatyczny wiąże się z ryzykiem szybkiej i istotnej utraty kapitału.
-- Zanim podepniesz prawdziwe środki, **przetestuj system na Binance Testnet**
-  (patrz sekcja "Tryb testnet vs. produkcja" niżej).
+- **Kraken nie ma publicznego testnetu dla rynku spot** (w odróżnieniu od
+  Binance) — każde zlecenie idzie od razu na Twoje prawdziwe środki. Zanim
+  podepniesz klucz API, przeczytaj sekcję "Konfiguracja Kraken" niżej i
+  koniecznie ogranicz uprawnienia klucza (bez withdraw).
 - Nigdy nie commituj prawdziwych kluczy API do repozytorium — używaj `.env`
   (jest w `.gitignore`).
 - Autor/asystent AI, który zbudował ten kod, nie ponosi odpowiedzialności za
@@ -29,16 +33,20 @@ frontend/  React + Vite — dashboard (wyniki, log decyzji, panel kontroli)
 
 Przepływ decyzyjny:
 
-1. Scheduler co `POLL_INTERVAL_MINUTES` sprawdza ceny wszystkich par z `TRADING_WHITELIST`.
+1. Scheduler co `POLL_INTERVAL_MINUTES` sprawdza ceny wszystkich par z `TRADING_WHITELIST` na Kraken.
 2. Jeśli cena zmieniła się o więcej niż `PRICE_MOVE_TRIGGER_PCT` od ostatniego
    sprawdzenia (albo minął dzień od ostatniej pełnej analizy — fallback),
-   system uznaje to za "zdarzenie" i woła Claude Opus.
-3. Opus dostaje: aktualne dane cenowe/świece, ostatnie newsy (jeśli skonfigurowany
-   klucz CryptoPanic), stan portfela i pozostały dzienny budżet ryzyka —
-   i zwraca ustrukturyzowaną decyzję (BUY/SELL/HOLD, symbol, wielkość, uzasadnienie).
+   system uznaje to za "zdarzenie" i woła Claude.
+3. Claude dostaje: aktualne dane cenowe/świece, newsy i kontekst rynkowy z
+   kilkunastu źródeł (CryptoPanic, RSS największych portali crypto, Reddit,
+   CoinGecko, Fear & Greed Index, DeFiLlama), stan portfela i pozostały
+   dzienny budżet ryzyka. Najpierw odpowiada szybszy/tańszy model (Sonnet);
+   jeśli sam zgłosi niską pewność co do BUY/SELL, o ostateczną decyzję pytany
+   jest Opus. Wynik to zawsze jedna ustrukturyzowana decyzja (BUY/SELL/HOLD,
+   symbol, wielkość, uzasadnienie).
 4. Risk manager sprawdza whitelistę coinów, limit wielkości pojedynczej pozycji
    i dzienny/tygodniowy limit strat. Jeśli wszystko OK i automat nie jest
-   zapauzowany/zatrzymany — zlecenie idzie na Binance.
+   zapauzowany/zatrzymany — zlecenie idzie na Kraken.
 5. Wszystko (decyzje, transakcje, zmiany wartości portfela, zdarzenia ryzyka)
    jest logowane do bazy i widoczne w dashboardzie.
 
@@ -48,36 +56,41 @@ Skopiuj `.env.example` do `.env` i uzupełnij:
 
 | Zmienna | Wymagane | Opis |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | tak | Klucz do Claude API (Opus podejmuje decyzje) |
-| `BINANCE_API_KEY` / `BINANCE_API_SECRET` | tak | Klucz do Binance (testnet lub produkcja — patrz niżej) |
-| `BINANCE_TESTNET` | tak | `true` / `false` — przełącznik testnet vs. produkcja |
-| `CRYPTOPANIC_API_KEY` | nie | Opcjonalny — jeśli brak, system pomija newsy i decyduje na podstawie samych danych cenowych |
+| `ANTHROPIC_API_KEY` | tak | Klucz do Claude API (Sonnet analizuje, Opus decyduje w niepewnych przypadkach) |
+| `KRAKEN_API_KEY` / `KRAKEN_API_SECRET` | tak | Klucz do Kraken — patrz sekcja "Konfiguracja Kraken" niżej |
+| `CRYPTOPANIC_API_KEY` | nie | Opcjonalny — reszta źródeł newsów/kontekstu działa bez klucza |
 
-## Tryb testnet vs. produkcja
+## Konfiguracja Kraken
 
-Zgodnie z ustaleniami: **start na Binance Testnet**, dopiero potem przełączenie
-na produkcję jednym ustawieniem w `.env`:
+Kraken **nie ma publicznego testnetu dla rynku spot** — nie da się tu
+"przetestować na sucho" tak jak wcześniej na Binance Testnet. Każde zlecenie
+od pierwszego cyklu po wdrożeniu jest realne.
 
-1. Załóż konto na https://testnet.binance.vision/ i wygeneruj testnetowe klucze API.
-2. W `.env` ustaw `BINANCE_TESTNET=true` i wklej testnetowe klucze.
-3. Uruchom system, obserwuj dashboard przez kilka dni (rekomendowane: 2-3 dni),
-   sprawdź czy decyzje, limity ryzyka i transakcje działają zgodnie z oczekiwaniami.
-4. Dopiero gdy jesteś zadowolony z działania — wygeneruj **prawdziwe** klucze API
-   na Binance (z uprawnieniami tylko do spot trading, **bez** uprawnień do
-   wypłat/withdraw), ustaw `BINANCE_TESTNET=false`, zrestartuj system.
+1. Załóż/zaloguj się na konto Kraken, przejdź do
+   https://www.kraken.com/u/security/api i wygeneruj nowy klucz API.
+2. Nadaj **tylko** uprawnienia `Query Funds` i `Create & Modify Orders`.
+   **Nigdy** nie włączaj `Withdraw Funds` — bot nie potrzebuje tego
+   uprawnienia do niczego, a jego włączenie to jedyny sposób, żeby błąd w
+   kluczu skończył się utratą środków poza samym handlem.
+3. W `.env` wklej `KRAKEN_API_KEY` / `KRAKEN_API_SECRET`.
+4. Whitelist (`TRADING_WHITELIST`) używa nazw par Kraken — Bitcoin to tam
+   `XBT`, nie `BTC` (np. `XBTEUR`, nie `BTCEUR`).
+5. Zanim uruchomisz automat na produkcji, rozważ start z niskim
+   `MAX_POSITION_PCT` i niskim `DAILY_LOSS_LIMIT_PCT`, i obserwuj pierwsze
+   cykle ręcznie z poziomu dashboardu.
 
 ## Konfiguracja ryzyka (`.env`)
 
 | Zmienna | Domyślnie | Opis |
 |---|---|---|
-| `DAILY_LOSS_LIMIT_PCT` | `50` | Przy spadku wartości portfela o tyle % w ciągu dnia — automat zatrzymuje handel automatyczny (wymaga ręcznego wznowienia w dashboardzie) |
+| `DAILY_LOSS_LIMIT_PCT` | `20` | Przy spadku wartości portfela o tyle % w ciągu dnia — automat zatrzymuje handel automatyczny (wymaga ręcznego wznowienia w dashboardzie) |
 | `MAX_POSITION_PCT` | `25` | Maks. % dostępnego kapitału, jaki automat może zaangażować w jedną transakcję |
-| `TRADING_WHITELIST` | `BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT` | Lista par, którymi automat może handlować — w pełni generyczna, dowolna liczba par obsługiwanych przez Binance (format `<COIN>USDT`, przecinek jako separator) |
+| `TRADING_WHITELIST` | `XBTEUR,ETHEUR,SOLEUR,XRPEUR` | Lista par, którymi automat może handlować — w pełni generyczna, dowolna liczba par obsługiwanych przez Kraken (format `<COIN><QUOTE_CURRENCY>`, przecinek jako separator) |
 | `POLL_INTERVAL_MINUTES` | `15` | Co ile minut sprawdzać ceny/newsy |
-| `PRICE_MOVE_TRIGGER_PCT` | `2` | Próg zmiany ceny traktowany jako "zdarzenie" wywołujące analizę Opus |
+| `PRICE_MOVE_TRIGGER_PCT` | `2` | Próg zmiany ceny traktowany jako "zdarzenie" wywołujące analizę Claude |
 
 Zatrzymanie po przekroczeniu limitu strat **nie resetuje się automatycznie**
-następnego dnia — wymaga świadomego kliknięcia "Wznów" w dashboardzie, żebyś
+następnego dnia — wymaga świadomego kliknięcia "START" w dashboardzie, żebyś
 zawsze wiedział, że coś się wydarzyło i mógł ocenić sytuację.
 
 ## Budżet Claude (alert o koszcie API)
@@ -85,9 +98,10 @@ zawsze wiedział, że coś się wydarzyło i mógł ocenić sytuację.
 Anthropic **nie udostępnia w API prawdziwego salda konta** — nie ma sposobu,
 żeby aplikacja odczytała ile realnie zostało Ci środków na
 console.anthropic.com. Dashboard pokazuje więc **szacunek**: sumuje rzeczywiste
-tokeny z każdej odpowiedzi Opusa i przelicza je po znanym cenniku
-($5 / 1M tokenów wejściowych, $25 / 1M wyjściowych), resetując licznik co
-miesiąc.
+tokeny z każdej odpowiedzi (osobno wycenione wg modelu, który faktycznie
+odpowiedział — Sonnet $3 / 1M wejściowych, $15 / 1M wyjściowych; Opus $5 / 1M
+wejściowych, $25 / 1M wyjściowych), resetując licznik co miesiąc. Większość
+cykli kosztuje tyle co Sonnet — Opus włącza się tylko przy niepewnym BUY/SELL.
 
 | Zmienna | Domyślnie | Opis |
 |---|---|---|
@@ -103,7 +117,7 @@ warto dodatkowo włączyć auto-reload w ustawieniach billingu Anthropica.
 
 Codziennie o **6:00 (czasu Europe/Warsaw)** system wysyła mail z wykresem
 wartości portfela, statusem, budżetem Claude, perspektywą rynkową z ostatniej
-analizy Opusa oraz ostatnimi decyzjami/transakcjami.
+analizy Claude oraz ostatnimi decyzjami/transakcjami.
 
 Wysyłka idzie przez SMTP — najprościej użyć własnego konta Gmail z
 **hasłem aplikacji** (App Password, nie zwykłe hasło):

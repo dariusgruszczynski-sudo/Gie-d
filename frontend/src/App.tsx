@@ -93,7 +93,7 @@ export default function App() {
           <div>
             <h1>GielDarek — automatyczny bot inwestycyjny</h1>
             <p className="subtitle">
-              Decyzje: Claude Opus · Wykonanie: Binance · To narzędzie prywatne, nie jest to porada inwestycyjna.
+              Decyzje: Claude (Sonnet + Opus) · Wykonanie: Kraken · To narzędzie prywatne, nie jest to porada inwestycyjna.
             </p>
           </div>
         </div>

@@ -73,13 +73,13 @@ class PortfolioSnapshot(Base):
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     total_value_usdt: Mapped[float] = mapped_column(Float)
     usdt_balance: Mapped[float] = mapped_column(Float)
-    # JSON dicts keyed by base asset ("BTC", "SOL", ...) / trading pair
-    # ("BTCUSDT", ...) so the whitelist can hold any number of coins without
+    # JSON dicts keyed by base asset ("XBT", "SOL", ...) / trading pair
+    # ("XBTEUR", ...) so the whitelist can hold any number of coins without
     # a schema change per coin.
     balances_json: Mapped[str] = mapped_column(Text, default="{}")
     prices_json: Mapped[str] = mapped_column(Text, default="{}")
-    # JSON list of whitelist symbols that failed to price this cycle (e.g. not
-    # listed on Binance Testnet) -- lets the dashboard tell "genuinely
+    # JSON list of whitelist symbols that failed to price this cycle (network
+    # hiccup, delisted pair, ...) -- lets the dashboard tell "genuinely
     # unavailable" apart from "just hasn't loaded yet" instead of showing
     # "oczekiwanie na dane" forever.
     failed_symbols_json: Mapped[str] = mapped_column(Text, default="[]")

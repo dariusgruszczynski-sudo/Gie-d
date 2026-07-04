@@ -2,7 +2,7 @@
 
 Anthropic's API has no endpoint to read the actual prepaid console balance --
 this is a self-tracked estimate (real token usage from each response x known
-Opus 4.8 pricing) measured against a monthly budget the user sets to match
+per-model pricing) measured against a monthly budget the user sets to match
 what they've loaded on console.anthropic.com. Treat it as a directional
 warning, not an exact balance reading.
 """
@@ -14,23 +14,31 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.services import risk_manager
 
-OPUS_INPUT_USD_PER_MTOK = 5.0
-OPUS_OUTPUT_USD_PER_MTOK = 25.0
+# (input $/1M tokens, output $/1M tokens) per model. The advisor now routes
+# most cycles through the cheap/fast model and only escalates to Opus for
+# low-confidence calls, so pricing must be looked up per-model rather than
+# assumed to always be Opus.
+MODEL_PRICING_USD_PER_MTOK: dict[str, tuple[float, float]] = {
+    "claude-opus-4-8": (5.0, 25.0),
+    "claude-sonnet-5": (3.0, 15.0),
+}
+# Unknown/future model id -- price conservatively at the more expensive known
+# rate rather than silently under-counting spend.
+_DEFAULT_PRICING = MODEL_PRICING_USD_PER_MTOK["claude-opus-4-8"]
 
 
-def estimate_cost_usd(input_tokens: int, output_tokens: int) -> float:
-    return (input_tokens / 1_000_000) * OPUS_INPUT_USD_PER_MTOK + (
-        output_tokens / 1_000_000
-    ) * OPUS_OUTPUT_USD_PER_MTOK
+def estimate_cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
+    input_price, output_price = MODEL_PRICING_USD_PER_MTOK.get(model, _DEFAULT_PRICING)
+    return (input_tokens / 1_000_000) * input_price + (output_tokens / 1_000_000) * output_price
 
 
-def record_usage(db: Session, input_tokens: int, output_tokens: int) -> None:
+def record_usage_cost(db: Session, cost_usd: float) -> None:
     state = risk_manager.get_state(db)
     month_key = date.today().strftime("%Y-%m")
     if state.claude_budget_month_key != month_key:
         state.claude_budget_month_key = month_key
         state.claude_spend_usd_this_month = 0.0
-    state.claude_spend_usd_this_month += estimate_cost_usd(input_tokens, output_tokens)
+    state.claude_spend_usd_this_month += cost_usd
     db.commit()
 
 

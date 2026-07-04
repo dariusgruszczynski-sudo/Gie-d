@@ -13,7 +13,7 @@ export function TradesTable({ trades }: { trades: Trade[] }) {
               <th>Strona</th>
               <th>Ilość</th>
               <th>Cena</th>
-              <th>Wartość USDT</th>
+              <th>Wartość EUR</th>
               <th>Tryb</th>
               <th>Źródło</th>
             </tr>
@@ -27,8 +27,8 @@ export function TradesTable({ trades }: { trades: Trade[] }) {
                   <span className={`badge ${t.side}`}>{t.side}</span>
                 </td>
                 <td>{t.quantity}</td>
-                <td>${t.price.toFixed(2)}</td>
-                <td>${t.usdt_value.toFixed(2)}</td>
+                <td>€{t.price.toFixed(2)}</td>
+                <td>€{t.usdt_value.toFixed(2)}</td>
                 <td>{t.mode}</td>
                 <td>{t.is_manual ? "ręczna" : "automat"}</td>
               </tr>

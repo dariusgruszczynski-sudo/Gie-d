@@ -16,7 +16,7 @@ function buildHoldings(current: PortfolioSnapshot): HoldingRow[] {
   const rows: HoldingRow[] = Object.entries(balances)
     .filter(([, qty]) => qty > 0)
     .map(([asset, qty]) => {
-      const symbol = `${asset}USDT`;
+      const symbol = `${asset}EUR`;
       const price = prices[symbol] ?? null;
       const valueUsd = price !== null ? qty * price : 0;
       return {
@@ -32,7 +32,7 @@ function buildHoldings(current: PortfolioSnapshot): HoldingRow[] {
 
   if (current.usdt_balance > 0) {
     rows.push({
-      asset: "USDT",
+      asset: "EUR",
       quantity: current.usdt_balance,
       price: 1,
       valueUsd: current.usdt_balance,
@@ -48,7 +48,7 @@ export function PortfolioHoldings({ current }: { current: PortfolioSnapshot | nu
     <div className="panel">
       <h2>Twoje pozycje</h2>
       <p className="subtitle" style={{ marginTop: -6, marginBottom: 12 }}>
-        Rozbicie aktualnej wartości portfela na poszczególne monety (nie tylko sama suma w dolarach).
+        Rozbicie aktualnej wartości portfela na poszczególne monety (nie tylko sama suma w euro).
       </p>
       <div className="table-wrap">
         {current && current.total_value_usdt > 0 ? (
@@ -67,8 +67,8 @@ export function PortfolioHoldings({ current }: { current: PortfolioSnapshot | nu
                 <tr key={row.asset}>
                   <td>{row.asset}</td>
                   <td>{row.quantity.toLocaleString("pl-PL", { maximumFractionDigits: 6 })}</td>
-                  <td>{row.price !== null ? `$${row.price.toLocaleString("pl-PL", { maximumFractionDigits: 2 })}` : "—"}</td>
-                  <td>${row.valueUsd.toLocaleString("pl-PL", { maximumFractionDigits: 2 })}</td>
+                  <td>{row.price !== null ? `€${row.price.toLocaleString("pl-PL", { maximumFractionDigits: 2 })}` : "—"}</td>
+                  <td>€{row.valueUsd.toLocaleString("pl-PL", { maximumFractionDigits: 2 })}</td>
                   <td>{row.pctOfPortfolio.toFixed(1)}%</td>
                 </tr>
               ))}

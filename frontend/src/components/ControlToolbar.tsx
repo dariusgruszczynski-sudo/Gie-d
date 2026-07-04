@@ -103,7 +103,7 @@ export function ControlToolbar({ status, onChanged }: { status: StatusResponse; 
       <div className="toolbar">
         <button className={isStopped ? "btn-primary" : "btn-danger"} disabled={busy} onClick={() => run(isStopped ? api.resume : api.pause)}>
           <Icon name={isStopped ? "play" : "pause"} />
-          {isStopped ? "Wznów automat" : "Zatrzymaj automat"}
+          {isStopped ? "START — automatyczny zakup/sprzedaż" : "STOP automat"}
         </button>
         <button className="btn-primary" disabled={busy} onClick={() => run(api.runCycleNow)}>
           <Icon name="bolt" />

@@ -1,5 +1,6 @@
 export interface StatusResponse {
   mode: "testnet" | "live";
+  quote_currency: string;
   is_paused: boolean;
   is_halted: boolean;
   halted_reason: string | null;
@@ -26,8 +27,8 @@ export interface PortfolioSnapshot {
   // future UI needs the per-coin breakdown; not currently rendered.
   balances_json: string;
   prices_json: string;
-  // JSON list of whitelist symbols that failed to price this cycle (e.g. not
-  // listed on Binance Testnet) -- distinguishes "genuinely unavailable" from
+  // JSON list of whitelist symbols that failed to price this cycle (network
+  // hiccup, delisted pair, ...) -- distinguishes "genuinely unavailable" from
   // "just hasn't loaded yet" in the UI.
   failed_symbols_json: string;
 }
@@ -65,7 +66,7 @@ export interface Decision {
   triggered_by: string;
   executed: boolean;
   rejection_reason: string | null;
-  // JSON-encoded snapshots of what Opus saw for this decision -- parse with
+  // JSON-encoded snapshots of what Claude saw for this decision -- parse with
   // JSON.parse for per-symbol technical indicators / market sentiment.
   market_data_snapshot: string;
   market_context_snapshot: string;

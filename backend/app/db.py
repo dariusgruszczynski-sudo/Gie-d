@@ -37,6 +37,22 @@ def _add_column_if_missing(table: str, column: str, ddl_type: str, default_sql: 
         conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl_type} DEFAULT {default_sql}"))
 
 
+def _drop_column_if_exists(table: str, column: str) -> None:
+    """Removes a dead column left over from an old schema. Needed (not just
+    cosmetic) when the column is NOT NULL with no server-side DEFAULT in the
+    actual SQLite DDL -- the current model's INSERT no longer supplies it,
+    which makes every insert into that table fail with an IntegrityError.
+    Requires SQLite >= 3.35 (2021), bundled with Python 3.12."""
+    inspector = inspect(engine)
+    if table not in inspector.get_table_names():
+        return
+    existing = {col["name"] for col in inspector.get_columns(table)}
+    if column not in existing:
+        return
+    with engine.begin() as conn:
+        conn.execute(text(f"ALTER TABLE {table} DROP COLUMN {column}"))
+
+
 def init_db() -> None:
     from app import models  # noqa: F401
 
@@ -49,6 +65,16 @@ def init_db() -> None:
     _add_column_if_missing("decisions", "market_context_snapshot", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "session_secret", "VARCHAR(64)", "''")
     _add_column_if_missing("portfolio_snapshots", "failed_symbols_json", "TEXT", "'[]'")
+    # Dead columns from the pre-generic-whitelist schema (superseded by
+    # balances_json/prices_json/last_check_prices_json) -- NOT NULL with no
+    # DB-level default, so they broke every insert once the ORM stopped
+    # supplying them.
+    _drop_column_if_exists("portfolio_snapshots", "btc_balance")
+    _drop_column_if_exists("portfolio_snapshots", "eth_balance")
+    _drop_column_if_exists("portfolio_snapshots", "btc_price")
+    _drop_column_if_exists("portfolio_snapshots", "eth_price")
+    _drop_column_if_exists("system_state", "last_btc_check_price")
+    _drop_column_if_exists("system_state", "last_eth_check_price")
 
 
 def get_db() -> Session:

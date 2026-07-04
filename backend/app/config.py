@@ -7,18 +7,30 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file="../.env", env_file_encoding="utf-8", extra="ignore")
 
     anthropic_api_key: str = ""
+    # Every cycle is analyzed by the fast/cheap model first. Its decision is
+    # trusted directly on HOLD or high-confidence BUY/SELL; a low-confidence
+    # BUY/SELL (genuine doubt) is escalated to claude_model for a second,
+    # more expensive opinion -- see ClaudeAdvisor.decide().
     claude_model: str = "claude-opus-4-8"
+    claude_model_fast: str = "claude-sonnet-5"
+    claude_escalation_confidence_threshold: float = 0.65
 
-    binance_api_key: str = ""
-    binance_api_secret: str = ""
-    binance_testnet: bool = True
+    kraken_api_key: str = ""
+    kraken_api_secret: str = ""
+    # Kraken has no public spot testnet (unlike Binance) -- every private API
+    # call is real from the first cycle. quote_currency drives both the pairs
+    # in trading_whitelist (must all be quoted in it) and how the dashboard
+    # labels amounts.
+    quote_currency: str = "EUR"
 
     cryptopanic_api_key: str = ""
 
-    daily_loss_limit_pct: float = 50.0
+    daily_loss_limit_pct: float = 20.0
     weekly_loss_limit_pct: float = 70.0
     max_position_pct: float = 25.0
-    trading_whitelist: str = "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT"
+    # Kraken pair altnames (BTC is "XBT" on Kraken) for the four most liquid
+    # EUR-quoted markets -- chosen for top market cap + deep EUR order books.
+    trading_whitelist: str = "XBTEUR,ETHEUR,SOLEUR,XRPEUR"
 
     poll_interval_minutes: int = 15
     price_move_trigger_pct: float = 2.0

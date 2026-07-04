@@ -1,5 +1,6 @@
-"""Orchestrates one full decision cycle: gather data -> ask Opus (if
-triggered) -> risk checks -> execute -> log everything."""
+"""Orchestrates one full decision cycle: gather data -> ask Claude (Sonnet by
+default, escalating to Opus when unsure) -> risk checks -> execute -> log
+everything."""
 
 import json
 import logging
@@ -10,8 +11,8 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.models import Decision, PortfolioSnapshot, Trade, TradeAction, TradeMode, TriggerType
 from app.services import budget_tracker, risk_manager
-from app.services.binance_client import BinanceClient
 from app.services.claude_advisor import ClaudeAdvisor
+from app.services.kraken_client import KrakenClient
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.technical_indicators import compute_technical_indicators
@@ -19,18 +20,18 @@ from app.services.technical_indicators import compute_technical_indicators
 logger = logging.getLogger(__name__)
 
 
-def _base_asset(symbol: str) -> str:
-    return symbol.replace("USDT", "")
+def _base_asset(symbol: str, quote_currency: str) -> str:
+    return symbol.replace(quote_currency, "")
 
 
-def compute_portfolio(db: Session, settings: Settings, binance: BinanceClient) -> dict:
+def compute_portfolio(db: Session, settings: Settings, kraken: KrakenClient) -> dict:
     """Generic across the whole whitelist -- works for 2 coins or 10 without
-    any schema or code change per coin. A single symbol failing on Binance
-    (e.g. not listed on testnet) is skipped rather than aborting the whole
-    cycle -- otherwise one bad symbol silently kills every scheduled cycle
-    and manual "run now" indefinitely."""
-    balances = binance.get_account_balances()
-    usdt_balance = balances.get("USDT", 0.0)
+    any schema or code change per coin. A single symbol failing on Kraken
+    (network hiccup, delisted pair, etc.) is skipped rather than aborting the
+    whole cycle -- otherwise one bad symbol silently kills every scheduled
+    cycle and manual "run now" indefinitely."""
+    balances = kraken.get_account_balances()
+    usdt_balance = balances.get(settings.quote_currency, 0.0)
 
     prices: dict[str, float] = {}
     coin_balances: dict[str, float] = {}
@@ -39,12 +40,12 @@ def compute_portfolio(db: Session, settings: Settings, binance: BinanceClient) -
 
     for symbol in settings.whitelist_symbols:
         try:
-            price = binance.get_price(symbol)
+            price = kraken.get_price(symbol)
         except Exception:
             logger.warning("Failed to fetch price for %s, skipping it this cycle", symbol, exc_info=True)
             failed_symbols.append(symbol)
             continue
-        base = _base_asset(symbol)
+        base = _base_asset(symbol, settings.quote_currency)
         qty = balances.get(base, 0.0)
         prices[symbol] = price
         coin_balances[base] = qty
@@ -109,18 +110,19 @@ def _mark_analysis_done_today(db: Session) -> None:
 def run_cycle(
     db: Session,
     settings: Settings,
-    binance: BinanceClient,
+    kraken: KrakenClient,
     news: NewsClient,
     advisor: ClaudeAdvisor,
     market_ctx: MarketContextClient | None = None,
     force: bool = False,
 ) -> Decision | None:
-    """force=True bypasses the trigger gate and always asks Opus -- this is what
-    the dashboard's "Wymuś analizę" button needs. Without it the manual button
-    just ran a normal cycle, which returns None (does nothing) whenever the
-    daily analysis already ran and no price moved past the threshold -- exactly
-    the "clicked it, nothing happened" behaviour reported from the dashboard."""
-    portfolio = compute_portfolio(db, settings, binance)
+    """force=True bypasses the trigger gate and always asks Claude -- this is
+    what the dashboard's "Wymuś analizę" button needs. Without it the manual
+    button just ran a normal cycle, which returns None (does nothing) whenever
+    the daily analysis already ran and no price moved past the threshold --
+    exactly the "clicked it, nothing happened" behaviour reported from the
+    dashboard."""
+    portfolio = compute_portfolio(db, settings, kraken)
     state = risk_manager.update_portfolio_value(db, settings, portfolio["total_value_usdt"])
 
     triggered, trigger_reason = check_trigger(db, settings, portfolio["prices"])
@@ -131,19 +133,19 @@ def run_cycle(
 
     trade_check = risk_manager.can_trade_automated(db)
 
-    # On a *scheduled* cycle, skip the (paid) Opus call entirely when automated
-    # trading is halted or paused -- the decision could only ever be rejected,
-    # so calling Opus would burn Claude budget for nothing, potentially on every
-    # triggered cycle for days. A manual "Wymuś analizę" (force=True) still runs
-    # so the user can see Opus's read on demand; it just won't execute a trade
-    # while stopped (the trade_check gate below still applies).
+    # On a *scheduled* cycle, skip the (paid) Claude call entirely when
+    # automated trading is halted or paused -- the decision could only ever be
+    # rejected, so calling Claude would burn budget for nothing, potentially
+    # on every triggered cycle for days. A manual "Wymuś analizę" (force=True)
+    # still runs so the user can see Claude's read on demand; it just won't
+    # execute a trade while stopped (the trade_check gate below still applies).
     if not force and not trade_check.approved:
         decision = Decision(
             symbol=None,
             action=TradeAction.HOLD,
             size_pct=0.0,
             confidence=0.0,
-            reasoning=f"Cykl pominięty bez pytania Opusa (oszczędność budżetu): {trade_check.reason}",
+            reasoning=f"Cykl pominięty bez pytania Claude (oszczędność budżetu): {trade_check.reason}",
             market_data_snapshot="{}",
             news_snapshot="[]",
             market_context_snapshot="{}",
@@ -159,10 +161,10 @@ def run_cycle(
     market_data = {}
     for symbol in settings.whitelist_symbols:
         if symbol not in portfolio["prices"]:
-            continue  # Binance couldn't price this symbol this cycle -- see compute_portfolio
+            continue  # Kraken couldn't price this symbol this cycle -- see compute_portfolio
         try:
-            klines_24 = binance.get_klines(symbol, "1h", 24)
-            indicator_closes = [float(row[4]) for row in binance.get_klines(symbol, "1h", 200)]
+            klines_24 = kraken.get_klines(symbol, "1h", 24)
+            indicator_closes = [float(row[4]) for row in kraken.get_klines(symbol, "1h", 200)]
         except Exception:
             logger.warning("Failed to fetch klines for %s, excluding it from this cycle", symbol, exc_info=True)
             continue
@@ -171,11 +173,11 @@ def run_cycle(
             "klines_1h_24": klines_24,
             "technical": compute_technical_indicators(indicator_closes),
         }
-    # Only offer Opus symbols it actually has data for this cycle -- a symbol
-    # missing from market_data (Binance failure above) must not be a choosable
+    # Only offer Claude symbols it actually has data for this cycle -- a symbol
+    # missing from market_data (Kraken failure above) must not be a choosable
     # BUY/SELL target.
     tradable_symbols = list(market_data.keys())
-    headlines = news.get_headlines([_base_asset(s) for s in settings.whitelist_symbols])
+    headlines = news.get_headlines([_base_asset(s, settings.quote_currency) for s in settings.whitelist_symbols])
     global_context = market_ctx.get_market_context() if market_ctx is not None else {}
 
     day_loss_budget_left_pct = max(
@@ -201,7 +203,7 @@ def run_cycle(
         trigger_reason=trigger_reason.value,
     )
     _mark_analysis_done_today(db)
-    budget_tracker.record_usage(db, decision_data.input_tokens, decision_data.output_tokens)
+    budget_tracker.record_usage_cost(db, decision_data.cost_usd)
 
     decision = Decision(
         symbol=decision_data.symbol,
@@ -246,7 +248,7 @@ def run_cycle(
     db.commit()
     db.refresh(decision)
 
-    # Re-check right before placing the order: the Opus call above can take
+    # Re-check right before placing the order: the Claude call above can take
     # several seconds, and a "Zatrzymaj automat" click during that window
     # should still stop the trade rather than only affecting the *next* cycle.
     final_check = risk_manager.can_trade_automated(db)
@@ -258,7 +260,7 @@ def run_cycle(
 
     _execute_trade(
         db=db,
-        binance=binance,
+        kraken=kraken,
         settings=settings,
         symbol=decision_data.symbol,
         action=decision_data.action,
@@ -273,7 +275,7 @@ def run_cycle(
 def _execute_trade(
     *,
     db: Session,
-    binance: BinanceClient,
+    kraken: KrakenClient,
     settings: Settings,
     symbol: str,
     action: str,
@@ -282,15 +284,13 @@ def _execute_trade(
     decision: Decision | None,
     is_manual: bool,
 ) -> Trade:
-    mode = TradeMode.TESTNET if settings.binance_testnet else TradeMode.LIVE
-
     if action == "BUY":
         usdt_amount = portfolio["usdt_balance"] * (size_pct / 100)
-        result = binance.place_market_order_usdt_amount(symbol, "BUY", usdt_amount)
+        result = kraken.place_market_order_usdt_amount(symbol, "BUY", usdt_amount)
     elif action == "SELL":
-        base_balance = portfolio["balances"].get(_base_asset(symbol), 0.0)
+        base_balance = portfolio["balances"].get(_base_asset(symbol, settings.quote_currency), 0.0)
         quantity = base_balance * (size_pct / 100)
-        result = binance.place_market_order_quantity(symbol, "SELL", quantity)
+        result = kraken.place_market_order_quantity(symbol, "SELL", quantity)
     else:
         raise ValueError(f"Cannot execute action {action}")
 
@@ -301,7 +301,7 @@ def _execute_trade(
         price=result.price,
         usdt_value=result.usdt_value,
         order_id=result.order_id,
-        mode=mode,
+        mode=TradeMode.LIVE,
         is_manual=is_manual,
         decision_id=decision.id if decision else None,
     )
@@ -319,13 +319,13 @@ def _execute_trade(
 def execute_manual_trade(
     db: Session,
     settings: Settings,
-    binance: BinanceClient,
+    kraken: KrakenClient,
     symbol: str,
     side: str,
     usdt_amount: float | None = None,
     quantity: float | None = None,
 ) -> Trade:
-    """Human-initiated trade from the dashboard, bypassing Opus entirely.
+    """Human-initiated trade from the dashboard, bypassing Claude entirely.
     Intentionally NOT gated by the pause/halt state or the automated
     max_position_pct cap -- that's the whole point of a manual override. Still
     enforced: the trading whitelist, as a safety net against a typo'd or
@@ -334,12 +334,10 @@ def execute_manual_trade(
     if not whitelist_check.approved:
         raise ValueError(whitelist_check.reason)
 
-    mode = TradeMode.TESTNET if settings.binance_testnet else TradeMode.LIVE
-
     if usdt_amount is not None:
-        result = binance.place_market_order_usdt_amount(symbol, side, usdt_amount)
+        result = kraken.place_market_order_usdt_amount(symbol, side, usdt_amount)
     elif quantity is not None:
-        result = binance.place_market_order_quantity(symbol, side, quantity)
+        result = kraken.place_market_order_quantity(symbol, side, quantity)
     else:
         raise ValueError("Must provide either usdt_amount or quantity")
 
@@ -348,7 +346,7 @@ def execute_manual_trade(
         action=TradeAction(side.upper()),
         size_pct=0.0,
         confidence=1.0,
-        reasoning="Ręczna transakcja zainicjowana z dashboardu (z pominięciem Opus).",
+        reasoning="Ręczna transakcja zainicjowana z dashboardu (z pominięciem Claude).",
         triggered_by=TriggerType.MANUAL,
         executed=True,
     )
@@ -363,7 +361,7 @@ def execute_manual_trade(
         price=result.price,
         usdt_value=result.usdt_value,
         order_id=result.order_id,
-        mode=mode,
+        mode=TradeMode.LIVE,
         is_manual=True,
         decision_id=decision.id,
     )

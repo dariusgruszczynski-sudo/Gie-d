@@ -10,9 +10,9 @@ from app.config import Settings, get_settings
 from app.db import get_db
 from app.serialization import serialize
 from app.services import risk_manager
-from app.services.binance_client import BinanceClient
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.email_reporter import send_daily_report
+from app.services.kraken_client import KrakenClient
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.trading_engine import execute_manual_trade, run_cycle
@@ -51,12 +51,12 @@ def manual_trade(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):
-    binance = BinanceClient(settings)
+    kraken = KrakenClient(settings)
     try:
         trade = execute_manual_trade(
             db,
             settings,
-            binance,
+            kraken,
             symbol=req.symbol.upper(),
             side=req.side,
             usdt_amount=req.usdt_amount,
@@ -69,19 +69,19 @@ def manual_trade(
 
 @router.post("/run-cycle-now")
 def run_cycle_now(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
-    """Forces one full Opus analysis immediately (bypassing the price/schedule
+    """Forces one full Claude analysis immediately (bypassing the price/schedule
     trigger gate) instead of waiting for the scheduler's next poll -- this is
     the dashboard's "Wymuś analizę" button, so it must always produce a
     decision rather than returning 'no trigger'."""
-    binance = BinanceClient(settings)
+    kraken = KrakenClient(settings)
     news = NewsClient(settings)
     advisor = ClaudeAdvisor(settings)
     market_ctx = MarketContextClient()
     try:
-        decision = run_cycle(db, settings, binance, news, advisor, market_ctx, force=True)
+        decision = run_cycle(db, settings, kraken, news, advisor, market_ctx, force=True)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
-    return serialize(decision) if decision is not None else {"message": "Brak danych rynkowych z Binance w tym cyklu"}
+    return serialize(decision) if decision is not None else {"message": "Brak danych rynkowych z Kraken w tym cyklu"}
 
 
 @router.post("/send-report-now")

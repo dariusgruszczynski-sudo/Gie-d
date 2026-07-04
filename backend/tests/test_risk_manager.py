@@ -39,20 +39,20 @@ def test_resume_clears_halt(db_session, settings):
 
 
 def test_whitelist_rejects_unknown_symbol(settings):
-    result = risk_manager.validate_trade(settings=settings, symbol="DOGEUSDT", action="BUY", size_pct=5)
+    result = risk_manager.validate_trade(settings=settings, symbol="DOGEEUR", action="BUY", size_pct=5)
     assert result.approved is False
 
 
 def test_max_position_size_rejected(settings):
-    result = risk_manager.validate_trade(settings=settings, symbol="BTCUSDT", action="BUY", size_pct=50)
+    result = risk_manager.validate_trade(settings=settings, symbol="XBTEUR", action="BUY", size_pct=50)
     assert result.approved is False
 
 
 def test_valid_trade_within_limits(settings):
-    result = risk_manager.validate_trade(settings=settings, symbol="BTCUSDT", action="BUY", size_pct=10)
+    result = risk_manager.validate_trade(settings=settings, symbol="XBTEUR", action="BUY", size_pct=10)
     assert result.approved is True
 
 
 def test_hold_always_approved(settings):
-    result = risk_manager.validate_trade(settings=settings, symbol="BTCUSDT", action="HOLD", size_pct=0)
+    result = risk_manager.validate_trade(settings=settings, symbol="XBTEUR", action="HOLD", size_pct=0)
     assert result.approved is True

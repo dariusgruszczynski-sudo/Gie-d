@@ -1,7 +1,12 @@
-"""Wraps the Anthropic API call that produces a trading decision.
+"""Wraps the Anthropic API calls that produce a trading decision.
 
-Claude Opus is forced to respond via a single tool call with a fixed schema,
-so downstream code never has to parse free-form text.
+Every cycle is analyzed first by the fast/cheap model (Sonnet). Its decision
+is trusted directly for HOLD or a confident BUY/SELL; a BUY/SELL where the
+fast model itself reports low confidence -- genuine doubt -- is escalated to
+the slower/pricier model (Opus) for a second opinion, which is what actually
+gets recorded and executed. Claude is forced to respond via a single tool
+call with a fixed schema, so downstream code never has to parse free-form
+text.
 """
 
 import json
@@ -10,6 +15,7 @@ from dataclasses import dataclass, field
 import anthropic
 
 from app.config import Settings
+from app.services import budget_tracker
 
 TOOL_NAME = "trading_decision"
 
@@ -31,6 +37,11 @@ class TradingDecision:
     raw_input: dict = field(default_factory=dict)
     input_tokens: int = 0
     output_tokens: int = 0
+    # Real $ cost of every API call this decision required (fast pass, plus
+    # the escalation pass when one happened) -- priced per-model, since Sonnet
+    # and Opus have different rates.
+    cost_usd: float = 0.0
+    model_used: str = ""
 
 
 def _build_tool_schema(whitelist: list[str]) -> dict:
@@ -54,7 +65,7 @@ def _build_tool_schema(whitelist: list[str]) -> dict:
                     "minimum": 0,
                     "maximum": 100,
                     "description": (
-                        "Dla BUY: % dostępnego wolnego kapitału USDT do zaangażowania. "
+                        "Dla BUY: % dostępnego wolnego kapitału do zaangażowania. "
                         "Dla SELL: % aktualnie posiadanej pozycji w danym symbolu do sprzedania. "
                         "Dla HOLD: 0."
                     ),
@@ -78,6 +89,23 @@ class ClaudeAdvisor:
     def __init__(self, settings: Settings):
         self._settings = settings
         self._client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
+    def _call_model(self, model: str, tool: dict, user_content: str) -> tuple[dict, float, int, int]:
+        response = self._client.messages.create(
+            model=model,
+            max_tokens=1024,
+            system=DISCLAIMER,
+            tools=[tool],
+            tool_choice={"type": "tool", "name": TOOL_NAME},
+            messages=[{"role": "user", "content": user_content}],
+        )
+        for block in response.content:
+            if block.type == "tool_use" and block.name == TOOL_NAME:
+                cost = budget_tracker.estimate_cost_usd(
+                    model, response.usage.input_tokens, response.usage.output_tokens
+                )
+                return block.input, cost, response.usage.input_tokens, response.usage.output_tokens
+        raise RuntimeError("Claude response did not contain the expected tool_use block")
 
     def decide(
         self,
@@ -106,27 +134,40 @@ class ClaudeAdvisor:
             indent=2,
         )
 
-        response = self._client.messages.create(
-            model=self._settings.claude_model,
-            max_tokens=1024,
-            system=DISCLAIMER,
-            tools=[tool],
-            tool_choice={"type": "tool", "name": TOOL_NAME},
-            messages=[{"role": "user", "content": user_content}],
+        fast_model = self._settings.claude_model_fast
+        data, cost, in_tok, out_tok = self._call_model(fast_model, tool, user_content)
+        total_cost = cost
+        total_in, total_out = in_tok, out_tok
+        model_used = fast_model
+
+        action = data["action"]
+        confidence = float(data.get("confidence", 0))
+        is_uncertain_trade = action in ("BUY", "SELL") and confidence < self._settings.claude_escalation_confidence_threshold
+
+        if is_uncertain_trade:
+            escalation_content = (
+                user_content
+                + "\n\n---\n"
+                + f"Wstępna, niepewna analiza modelu szybkiego ({fast_model}, confidence={confidence:.2f}): "
+                + f"{data['action']} {data.get('symbol') or ''} rozmiar={data.get('size_pct', 0)}%. "
+                + f"Uzasadnienie: {data.get('reasoning', '')}\n"
+                + "Ty podejmujesz decyzję ostateczną -- możesz się zgodzić, zmienić rozmiar/kierunek, albo wybrać HOLD."
+            )
+            data, cost, in_tok, out_tok = self._call_model(self._settings.claude_model, tool, escalation_content)
+            total_cost += cost
+            total_in += in_tok
+            total_out += out_tok
+            model_used = self._settings.claude_model
+
+        return TradingDecision(
+            action=data["action"],
+            symbol=data.get("symbol"),
+            size_pct=float(data.get("size_pct", 0)),
+            confidence=float(data.get("confidence", 0)),
+            reasoning=data.get("reasoning", ""),
+            raw_input=data,
+            input_tokens=total_in,
+            output_tokens=total_out,
+            cost_usd=total_cost,
+            model_used=model_used,
         )
-
-        for block in response.content:
-            if block.type == "tool_use" and block.name == TOOL_NAME:
-                data = block.input
-                return TradingDecision(
-                    action=data["action"],
-                    symbol=data.get("symbol"),
-                    size_pct=float(data.get("size_pct", 0)),
-                    confidence=float(data.get("confidence", 0)),
-                    reasoning=data.get("reasoning", ""),
-                    raw_input=data,
-                    input_tokens=response.usage.input_tokens,
-                    output_tokens=response.usage.output_tokens,
-                )
-
-        raise RuntimeError("Claude response did not contain the expected tool_use block")
