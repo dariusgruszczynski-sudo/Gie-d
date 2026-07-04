@@ -29,6 +29,8 @@ class TradingDecision:
     confidence: float
     reasoning: str
     raw_input: dict = field(default_factory=dict)
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 def _build_tool_schema(whitelist: list[str]) -> dict:
@@ -121,6 +123,8 @@ class ClaudeAdvisor:
                     confidence=float(data.get("confidence", 0)),
                     reasoning=data.get("reasoning", ""),
                     raw_input=data,
+                    input_tokens=response.usage.input_tokens,
+                    output_tokens=response.usage.output_tokens,
                 )
 
         raise RuntimeError("Claude response did not contain the expected tool_use block")

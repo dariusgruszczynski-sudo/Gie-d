@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     poll_interval_minutes: int = 15
     price_move_trigger_pct: float = 2.0
 
+    claude_monthly_budget_usd: float = 20.0
+    claude_budget_alert_threshold_pct: float = 80.0
+
     database_url: str = "sqlite:///./data/trading.db"
 
     @property

@@ -79,6 +79,25 @@ Zatrzymanie po przekroczeniu limitu strat **nie resetuje się automatycznie**
 następnego dnia — wymaga świadomego kliknięcia "Wznów" w dashboardzie, żebyś
 zawsze wiedział, że coś się wydarzyło i mógł ocenić sytuację.
 
+## Budżet Claude (alert o koszcie API)
+
+Anthropic **nie udostępnia w API prawdziwego salda konta** — nie ma sposobu,
+żeby aplikacja odczytała ile realnie zostało Ci środków na
+console.anthropic.com. Dashboard pokazuje więc **szacunek**: sumuje rzeczywiste
+tokeny z każdej odpowiedzi Opusa i przelicza je po znanym cenniku
+($5 / 1M tokenów wejściowych, $25 / 1M wyjściowych), resetując licznik co
+miesiąc.
+
+| Zmienna | Domyślnie | Opis |
+|---|---|---|
+| `CLAUDE_MONTHLY_BUDGET_USD` | `20` | Ustaw na kwotę, którą realnie doładowałeś na konto Anthropic |
+| `CLAUDE_BUDGET_ALERT_THRESHOLD_PCT` | `80` | Przy jakim % wykorzystania budżetu dashboard pokaże ostrzeżenie |
+
+Gdy szacowane zużycie przekroczy próg, na dashboardzie pojawi się alert z
+przypomnieniem o doładowaniu konta na **console.anthropic.com**. To przybliżenie
+(nie chroni przed realnym zatrzymaniem API, gdy saldo faktycznie się wyczerpie) —
+warto dodatkowo włączyć auto-reload w ustawieniach billingu Anthropica.
+
 ## Uruchomienie lokalne (development)
 
 Backend:

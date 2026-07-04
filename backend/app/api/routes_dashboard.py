@@ -6,7 +6,7 @@ from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import Decision, PortfolioSnapshot, Trade
 from app.serialization import serialize
-from app.services import risk_manager
+from app.services import budget_tracker, risk_manager
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -40,6 +40,7 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "max_position_pct": settings.max_position_pct,
         "whitelist": settings.whitelist_symbols,
         "poll_interval_minutes": settings.poll_interval_minutes,
+        **budget_tracker.get_budget_status(db, settings),
     }
 
 

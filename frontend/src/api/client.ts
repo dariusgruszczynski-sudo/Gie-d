@@ -10,6 +10,10 @@ export interface StatusResponse {
   max_position_pct: number;
   whitelist: string[];
   poll_interval_minutes: number;
+  claude_monthly_budget_usd: number;
+  claude_spend_usd_this_month: number;
+  claude_budget_pct_used: number;
+  claude_budget_alert: boolean;
 }
 
 export interface PortfolioSnapshot {

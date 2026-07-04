@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models import Decision, PortfolioSnapshot, Trade, TradeAction, TradeMode, TriggerType
-from app.services import risk_manager
+from app.services import budget_tracker, risk_manager
 from app.services.binance_client import BinanceClient
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.news_client import NewsClient
@@ -131,6 +131,7 @@ def run_cycle(
         risk_context=risk_context,
         trigger_reason=trigger_reason.value,
     )
+    budget_tracker.record_usage(db, decision_data.input_tokens, decision_data.output_tokens)
 
     decision = Decision(
         symbol=decision_data.symbol,
