@@ -43,7 +43,7 @@ export function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
           <path d="M12 24 L16 16 L20 20 L24 11 L28 15" stroke="var(--gold-bright)" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
           <path d="M24 11 L28 11 L28 15" stroke="var(--gold-bright)" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <h1 className="login-title">GIE-D</h1>
+        <h1 className="login-title">GIELDAREK</h1>
         <p className="login-subtitle">Zaloguj się, aby uzyskać dostęp do panelu</p>
 
         <form onSubmit={handleSubmit} className="login-form">

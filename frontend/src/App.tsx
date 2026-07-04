@@ -90,7 +90,7 @@ export default function App() {
         <div className="app-header">
           <Logo />
           <div>
-            <h1>Gie-d — automatyczny bot inwestycyjny</h1>
+            <h1>GielDarek — automatyczny bot inwestycyjny</h1>
             <p className="subtitle">
               Decyzje: Claude Opus · Wykonanie: Binance · To narzędzie prywatne, nie jest to porada inwestycyjna.
             </p>

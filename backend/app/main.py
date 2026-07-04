@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
     stop_scheduler()
 
 
-app = FastAPI(title="Gie-d Trading Bot", lifespan=lifespan)
+app = FastAPI(title="GielDarek Trading Bot", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

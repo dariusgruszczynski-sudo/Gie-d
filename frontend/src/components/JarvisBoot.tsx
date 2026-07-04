@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { playBootRiff, speakBootLine } from "../jarvisSound";
 
-const LINES = ["WERYFIKACJA TOŻSAMOŚCI...", "DOSTĘP PRZYZNANY", "GIE-D ONLINE"];
+const LINES = ["WERYFIKACJA TOŻSAMOŚCI...", "DOSTĘP PRZYZNANY", "GIELDAREK ONLINE"];
 const TOTAL_DURATION_MS = 4000;
 
 export function JarvisBoot({ onComplete }: { onComplete: () => void }) {
@@ -9,7 +9,7 @@ export function JarvisBoot({ onComplete }: { onComplete: () => void }) {
 
   useEffect(() => {
     playBootRiff();
-    speakBootLine("Weryfikacja tożsamości. Dostęp przyznany. Gie-d online.");
+    speakBootLine("Weryfikacja tożsamości. Dostęp przyznany. GielDarek online.");
 
     const stepMs = TOTAL_DURATION_MS / (LINES.length + 1);
     const lineTimers = LINES.map((_, i) => setTimeout(() => setVisibleLines(i + 1), stepMs * (i + 1)));

@@ -138,7 +138,7 @@ def _build_html(
       <div style="font-size:20px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:{GOLD_BRIGHT};">
         KTO GRA GRUBO, WYGRAĆ MUSI
       </div>
-      <div style="color:{MUTED};font-size:12px;margin-top:6px;">Gie-d — dzienny raport, {date.today().strftime('%d.%m.%Y')}</div>
+      <div style="color:{MUTED};font-size:12px;margin-top:6px;">GielDarek — dzienny raport, {date.today().strftime('%d.%m.%Y')}</div>
     </div>
 
     <div style="background:{PANEL};border:1px solid {BORDER};border-radius:10px;padding:16px;margin-bottom:16px;">
@@ -255,7 +255,7 @@ def send_daily_report(db: Session, settings: Settings) -> None:
     html, chart_png = build_report(db, settings)
 
     msg = MIMEMultipart("related")
-    msg["Subject"] = f"Gie-d — raport dzienny {date.today().strftime('%d.%m.%Y')}"
+    msg["Subject"] = f"GielDarek — raport dzienny {date.today().strftime('%d.%m.%Y')}"
     msg["From"] = settings.smtp_from_email or settings.smtp_username
     msg["To"] = settings.report_recipient_email
     msg.attach(MIMEText(html, "html", "utf-8"))

@@ -1,4 +1,4 @@
-# Gie-d — automatyczny bot inwestycyjny (crypto)
+# GielDarek — automatyczny bot inwestycyjny (crypto)
 
 Aplikacja do automatycznego inwestowania w kryptowaluty (domyślnie BTC, ETH,
 SOL, BNB — lista jest w pełni konfigurowalna) na Binance,
@@ -109,7 +109,7 @@ Wysyłka idzie przez SMTP — najprościej użyć własnego konta Gmail z
 **hasłem aplikacji** (App Password, nie zwykłe hasło):
 
 1. Włącz weryfikację dwuetapową na koncie Google (jeśli jeszcze nie jest włączona): https://myaccount.google.com/security
-2. Wygeneruj hasło aplikacji: https://myaccount.google.com/apppasswords → wybierz "Mail", nazwij np. "Gie-d" → skopiuj 16-znakowe hasło
+2. Wygeneruj hasło aplikacji: https://myaccount.google.com/apppasswords → wybierz "Mail", nazwij np. "GielDarek" → skopiuj 16-znakowe hasło
 3. W `.env` uzupełnij:
    - `SMTP_USERNAME` = Twój adres Gmail (nadawca)
    - `SMTP_PASSWORD` = wygenerowane hasło aplikacji (bez spacji)
