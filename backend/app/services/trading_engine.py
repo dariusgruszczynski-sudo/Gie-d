@@ -109,15 +109,48 @@ def run_cycle(
     news: NewsClient,
     advisor: ClaudeAdvisor,
     market_ctx: MarketContextClient | None = None,
+    force: bool = False,
 ) -> Decision | None:
+    """force=True bypasses the trigger gate and always asks Opus -- this is what
+    the dashboard's "Wymuś analizę" button needs. Without it the manual button
+    just ran a normal cycle, which returns None (does nothing) whenever the
+    daily analysis already ran and no price moved past the threshold -- exactly
+    the "clicked it, nothing happened" behaviour reported from the dashboard."""
     portfolio = compute_portfolio(db, settings, binance)
     state = risk_manager.update_portfolio_value(db, settings, portfolio["total_value_usdt"])
 
     triggered, trigger_reason = check_trigger(db, settings, portfolio["prices"])
-    if not triggered:
+    if force:
+        trigger_reason = TriggerType.MANUAL
+    elif not triggered:
         return None
 
     trade_check = risk_manager.can_trade_automated(db)
+
+    # On a *scheduled* cycle, skip the (paid) Opus call entirely when automated
+    # trading is halted or paused -- the decision could only ever be rejected,
+    # so calling Opus would burn Claude budget for nothing, potentially on every
+    # triggered cycle for days. A manual "Wymuś analizę" (force=True) still runs
+    # so the user can see Opus's read on demand; it just won't execute a trade
+    # while stopped (the trade_check gate below still applies).
+    if not force and not trade_check.approved:
+        decision = Decision(
+            symbol=None,
+            action=TradeAction.HOLD,
+            size_pct=0.0,
+            confidence=0.0,
+            reasoning=f"Cykl pominięty bez pytania Opusa (oszczędność budżetu): {trade_check.reason}",
+            market_data_snapshot="{}",
+            news_snapshot="[]",
+            market_context_snapshot="{}",
+            triggered_by=trigger_reason,
+            executed=False,
+            rejection_reason=trade_check.reason,
+        )
+        db.add(decision)
+        db.commit()
+        db.refresh(decision)
+        return decision
 
     market_data = {}
     for symbol in settings.whitelist_symbols:

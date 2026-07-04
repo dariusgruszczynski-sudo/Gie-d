@@ -69,18 +69,19 @@ def manual_trade(
 
 @router.post("/run-cycle-now")
 def run_cycle_now(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
-    """Forces one analysis cycle immediately instead of waiting for the
-    scheduler's next poll -- useful for testing/debugging without needing to
-    wait POLL_INTERVAL_MINUTES."""
+    """Forces one full Opus analysis immediately (bypassing the price/schedule
+    trigger gate) instead of waiting for the scheduler's next poll -- this is
+    the dashboard's "Wymuś analizę" button, so it must always produce a
+    decision rather than returning 'no trigger'."""
     binance = BinanceClient(settings)
     news = NewsClient(settings)
     advisor = ClaudeAdvisor(settings)
     market_ctx = MarketContextClient()
     try:
-        decision = run_cycle(db, settings, binance, news, advisor, market_ctx)
+        decision = run_cycle(db, settings, binance, news, advisor, market_ctx, force=True)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
-    return serialize(decision) if decision is not None else {"message": "Brak wyzwolenia (no trigger) w tym cyklu"}
+    return serialize(decision) if decision is not None else {"message": "Brak danych rynkowych z Binance w tym cyklu"}
 
 
 @router.post("/send-report-now")

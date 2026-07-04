@@ -135,6 +135,48 @@ def test_automated_trade_blocked_while_halted(db_session, settings):
     assert len(binance.orders) == 0
 
 
+def test_halted_scheduled_cycle_does_not_call_opus(db_session, settings):
+    """Budget guard: when trading is halted, a scheduled cycle must NOT spend a
+    Claude API call on a decision that could only ever be rejected."""
+    risk_manager.update_portfolio_value(db_session, settings, 1000.0)
+    risk_manager.update_portfolio_value(db_session, settings, 850.0)  # trips halt
+    assert risk_manager.get_state(db_session).is_halted is True
+
+    binance = FakeBinance()
+    advisor = FakeAdvisor(TradingDecision("BUY", "BTCUSDT", 10, 0.9, "Nie powinno zostać wywołane."))
+
+    decision = trading_engine.run_cycle(db_session, settings, binance, FakeNews(), advisor)
+
+    assert advisor.calls == 0  # Opus never asked
+    assert decision.rejection_reason is not None
+    assert decision.action.value == "HOLD"
+    assert len(binance.orders) == 0
+
+
+def test_force_analysis_runs_opus_even_without_a_trigger(db_session, settings):
+    """The 'Wymuś analizę' button (force=True) must always ask Opus, even when
+    the daily analysis already ran and no price moved past the threshold --
+    otherwise clicking it does nothing (the reported bug)."""
+    risk_manager.get_state(db_session)
+    # Mark today's analysis as already done so the scheduled trigger would NOT fire.
+    trading_engine._mark_analysis_done_today(db_session)
+    binance = FakeBinance()
+    # Seed last-check prices so no price-move trigger either.
+    trading_engine.check_trigger(db_session, settings, {"BTCUSDT": 50000.0, "ETHUSDT": 3000.0})
+
+    advisor = FakeAdvisor(TradingDecision("HOLD", None, 0, 0.7, "Wymuszona analiza."))
+
+    # Without force: nothing happens.
+    assert trading_engine.run_cycle(db_session, settings, binance, FakeNews(), advisor) is None
+    assert advisor.calls == 0
+
+    # With force: Opus is asked and a decision is produced.
+    decision = trading_engine.run_cycle(db_session, settings, binance, FakeNews(), advisor, force=True)
+    assert decision is not None
+    assert advisor.calls == 1
+    assert decision.triggered_by.value == "manual"
+
+
 def test_manual_trade_executes_even_when_halted(db_session, settings):
     risk_manager.update_portfolio_value(db_session, settings, 1000.0)
     risk_manager.update_portfolio_value(db_session, settings, 850.0)
