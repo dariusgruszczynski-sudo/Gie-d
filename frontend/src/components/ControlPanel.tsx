@@ -27,6 +27,19 @@ export function ControlPanel({ status, onChanged }: { status: StatusResponse; on
     }
   }
 
+  async function forceRunCycle() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.runCycleNow();
+      onChanged();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submitManualTrade(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -58,6 +71,13 @@ export function ControlPanel({ status, onChanged }: { status: StatusResponse; on
           Automat zatrzymał się sam po przekroczeniu limitu strat. Wznowienie czyści ten stan.
         </p>
       )}
+
+      <button className="btn-primary" style={{ marginTop: 10 }} disabled={busy} onClick={forceRunCycle}>
+        ⚡ Wymuś analizę teraz
+      </button>
+      <p className="subtitle" style={{ marginTop: 6 }}>
+        Nie czeka na harmonogram — od razu pyta Opusa o decyzję na podstawie aktualnych danych.
+      </p>
 
       <h2 style={{ marginTop: 22 }}>Ręczna transakcja (pomija Opus)</h2>
       <form className="control-form" onSubmit={submitManualTrade}>

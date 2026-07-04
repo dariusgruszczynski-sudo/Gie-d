@@ -75,6 +75,9 @@ def check_trigger(db: Session, settings: Settings, prices: dict) -> tuple[bool, 
         if reason != TriggerType.PRICE_MOVE:
             reason = TriggerType.SCHEDULED_DAILY
 
+    if triggered:
+        state.last_full_analysis_date = today_str
+
     db.commit()
     return triggered, reason
 

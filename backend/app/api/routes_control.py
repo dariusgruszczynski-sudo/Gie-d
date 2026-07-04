@@ -9,7 +9,9 @@ from app.db import get_db
 from app.serialization import serialize
 from app.services import risk_manager
 from app.services.binance_client import BinanceClient
-from app.services.trading_engine import execute_manual_trade
+from app.services.claude_advisor import ClaudeAdvisor
+from app.services.news_client import NewsClient
+from app.services.trading_engine import execute_manual_trade, run_cycle
 
 router = APIRouter(prefix="/api/control", tags=["control"])
 
@@ -59,3 +61,18 @@ def manual_trade(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return serialize(trade)
+
+
+@router.post("/run-cycle-now")
+def run_cycle_now(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """Forces one analysis cycle immediately instead of waiting for the
+    scheduler's next poll -- useful for testing/debugging without needing to
+    wait POLL_INTERVAL_MINUTES."""
+    binance = BinanceClient(settings)
+    news = NewsClient(settings)
+    advisor = ClaudeAdvisor(settings)
+    try:
+        decision = run_cycle(db, settings, binance, news, advisor)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
+    return serialize(decision) if decision is not None else {"message": "Brak wyzwolenia (no trigger) w tym cyklu"}

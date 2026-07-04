@@ -74,6 +74,7 @@ export const api = {
   decisions: () => apiFetch<Decision[]>("/api/decisions"),
   pause: () => apiFetch<unknown>("/api/control/pause", { method: "POST" }),
   resume: () => apiFetch<unknown>("/api/control/resume", { method: "POST" }),
+  runCycleNow: () => apiFetch<unknown>("/api/control/run-cycle-now", { method: "POST" }),
   manualTrade: (body: { symbol: string; side: "BUY" | "SELL"; usdt_amount?: number; quantity?: number }) =>
     apiFetch<Trade>("/api/control/manual-trade", { method: "POST", body: JSON.stringify(body) }),
 };

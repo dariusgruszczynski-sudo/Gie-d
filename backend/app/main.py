@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -9,6 +10,8 @@ from app.api.routes_control import router as control_router
 from app.api.routes_dashboard import router as dashboard_router
 from app.db import init_db
 from app.services.scheduler import start_scheduler, stop_scheduler
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "static")
 
