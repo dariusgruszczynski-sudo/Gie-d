@@ -21,22 +21,29 @@ def _base_asset(symbol: str) -> str:
     return symbol.replace("USDT", "")
 
 
-def compute_portfolio(db: Session, binance: BinanceClient) -> dict:
+def compute_portfolio(db: Session, settings: Settings, binance: BinanceClient) -> dict:
+    """Generic across the whole whitelist -- works for 2 coins or 10 without
+    any schema or code change per coin."""
     balances = binance.get_account_balances()
-    btc_price = binance.get_price("BTCUSDT")
-    eth_price = binance.get_price("ETHUSDT")
     usdt_balance = balances.get("USDT", 0.0)
-    btc_balance = balances.get("BTC", 0.0)
-    eth_balance = balances.get("ETH", 0.0)
-    total_value = usdt_balance + btc_balance * btc_price + eth_balance * eth_price
+
+    prices: dict[str, float] = {}
+    coin_balances: dict[str, float] = {}
+    total_value = usdt_balance
+
+    for symbol in settings.whitelist_symbols:
+        price = binance.get_price(symbol)
+        base = _base_asset(symbol)
+        qty = balances.get(base, 0.0)
+        prices[symbol] = price
+        coin_balances[base] = qty
+        total_value += qty * price
 
     snapshot = PortfolioSnapshot(
         total_value_usdt=total_value,
         usdt_balance=usdt_balance,
-        btc_balance=btc_balance,
-        eth_balance=eth_balance,
-        btc_price=btc_price,
-        eth_price=eth_price,
+        balances_json=json.dumps(coin_balances),
+        prices_json=json.dumps(prices),
     )
     db.add(snapshot)
     db.commit()
@@ -44,31 +51,30 @@ def compute_portfolio(db: Session, binance: BinanceClient) -> dict:
     return {
         "total_value_usdt": total_value,
         "usdt_balance": usdt_balance,
-        "btc_balance": btc_balance,
-        "eth_balance": eth_balance,
-        "btc_price": btc_price,
-        "eth_price": eth_price,
+        "balances": coin_balances,
+        "prices": prices,
     }
 
 
-def check_trigger(db: Session, settings: Settings, prices: dict) -> tuple[bool, TriggerType]:
+def check_trigger(db: Session, settings: Settings, prices: dict[str, float]) -> tuple[bool, TriggerType]:
     state = risk_manager.get_state(db)
     today_str = date.today().isoformat()
+
+    last_prices: dict[str, float] = json.loads(state.last_check_prices_json or "{}")
 
     triggered = False
     reason = TriggerType.SCHEDULED_DAILY
 
-    for price_field, current_price in (
-        ("last_btc_check_price", prices["btc_price"]),
-        ("last_eth_check_price", prices["eth_price"]),
-    ):
-        last_price = getattr(state, price_field)
+    for symbol, current_price in prices.items():
+        last_price = last_prices.get(symbol, 0.0)
         if last_price > 0:
             move_pct = abs(current_price - last_price) / last_price * 100
             if move_pct >= settings.price_move_trigger_pct:
                 triggered = True
                 reason = TriggerType.PRICE_MOVE
-        setattr(state, price_field, current_price)
+        last_prices[symbol] = current_price
+
+    state.last_check_prices_json = json.dumps(last_prices)
 
     if state.last_full_analysis_date != today_str:
         triggered = True
@@ -94,26 +100,23 @@ def run_cycle(
     news: NewsClient,
     advisor: ClaudeAdvisor,
 ) -> Decision | None:
-    portfolio = compute_portfolio(db, binance)
+    portfolio = compute_portfolio(db, settings, binance)
     state = risk_manager.update_portfolio_value(db, settings, portfolio["total_value_usdt"])
 
-    triggered, trigger_reason = check_trigger(db, settings, portfolio)
+    triggered, trigger_reason = check_trigger(db, settings, portfolio["prices"])
     if not triggered:
         return None
 
     trade_check = risk_manager.can_trade_automated(db)
 
     market_data = {
-        "BTCUSDT": {
-            "price": portfolio["btc_price"],
-            "klines_1h_24": binance.get_klines("BTCUSDT", "1h", 24),
-        },
-        "ETHUSDT": {
-            "price": portfolio["eth_price"],
-            "klines_1h_24": binance.get_klines("ETHUSDT", "1h", 24),
-        },
+        symbol: {
+            "price": portfolio["prices"][symbol],
+            "klines_1h_24": binance.get_klines(symbol, "1h", 24),
+        }
+        for symbol in settings.whitelist_symbols
     }
-    headlines = news.get_headlines(["BTC", "ETH"])
+    headlines = news.get_headlines([_base_asset(s) for s in settings.whitelist_symbols])
 
     day_loss_budget_left_pct = max(
         0.0,
@@ -223,7 +226,7 @@ def _execute_trade(
         usdt_amount = portfolio["usdt_balance"] * (size_pct / 100)
         result = binance.place_market_order_usdt_amount(symbol, "BUY", usdt_amount)
     elif action == "SELL":
-        base_balance = portfolio.get(f"{_base_asset(symbol).lower()}_balance", 0.0)
+        base_balance = portfolio["balances"].get(_base_asset(symbol), 0.0)
         quantity = base_balance * (size_pct / 100)
         result = binance.place_market_order_quantity(symbol, "SELL", quantity)
     else:

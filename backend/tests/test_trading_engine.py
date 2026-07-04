@@ -183,6 +183,39 @@ def test_pause_mid_analysis_blocks_execution_before_order_placed(db_session, set
     assert len(binance.orders) == 0
 
 
+def test_whitelist_supports_more_than_two_coins(db_session, settings):
+    """Verifies the whitelist is fully generic -- SOL/BNB work the same way
+    as BTC/ETH with no per-coin code changes required."""
+    four_coin_settings = settings.model_copy(update={"trading_whitelist": "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT"})
+    binance = FakeBinance(
+        prices={"BTCUSDT": 50000.0, "ETHUSDT": 3000.0, "SOLUSDT": 150.0, "BNBUSDT": 400.0},
+        balances={"USDT": 1000.0, "BTC": 0.0, "ETH": 0.0, "SOL": 0.0, "BNB": 0.0},
+    )
+    advisor = FakeAdvisor(TradingDecision("BUY", "SOLUSDT", 10, 0.85, "SOL wygląda mocno."))
+
+    decision = trading_engine.run_cycle(db_session, four_coin_settings, binance, FakeNews(), advisor)
+
+    assert decision.executed is True
+    assert len(binance.orders) == 1
+    assert binance.orders[0].symbol == "SOLUSDT"
+    # 10% of 1000 USDT starting balance
+    assert abs(binance.orders[0].usdt_value - 100.0) < 1e-6
+
+
+def test_whitelist_rejects_symbol_not_in_four_coin_list(db_session, settings):
+    four_coin_settings = settings.model_copy(update={"trading_whitelist": "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT"})
+    binance = FakeBinance(
+        prices={"BTCUSDT": 50000.0, "ETHUSDT": 3000.0, "SOLUSDT": 150.0, "BNBUSDT": 400.0},
+        balances={"USDT": 1000.0, "BTC": 0.0, "ETH": 0.0, "SOL": 0.0, "BNB": 0.0},
+    )
+    advisor = FakeAdvisor(TradingDecision("BUY", "DOGEUSDT", 10, 0.85, "Poza whitelistą."))
+
+    decision = trading_engine.run_cycle(db_session, four_coin_settings, binance, FakeNews(), advisor)
+
+    assert decision.rejection_reason is not None
+    assert len(binance.orders) == 0
+
+
 def test_failed_analysis_does_not_burn_the_daily_trigger(db_session, settings):
     binance = FakeBinance()
 

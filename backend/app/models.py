@@ -72,10 +72,11 @@ class PortfolioSnapshot(Base):
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     total_value_usdt: Mapped[float] = mapped_column(Float)
     usdt_balance: Mapped[float] = mapped_column(Float)
-    btc_balance: Mapped[float] = mapped_column(Float, default=0.0)
-    eth_balance: Mapped[float] = mapped_column(Float, default=0.0)
-    btc_price: Mapped[float] = mapped_column(Float, default=0.0)
-    eth_price: Mapped[float] = mapped_column(Float, default=0.0)
+    # JSON dicts keyed by base asset ("BTC", "SOL", ...) / trading pair
+    # ("BTCUSDT", ...) so the whitelist can hold any number of coins without
+    # a schema change per coin.
+    balances_json: Mapped[str] = mapped_column(Text, default="{}")
+    prices_json: Mapped[str] = mapped_column(Text, default="{}")
 
 
 class RiskEvent(Base):
@@ -100,8 +101,9 @@ class SystemState(Base):
     day_start_value: Mapped[float] = mapped_column(Float, default=0.0)
     week_start_date: Mapped[str] = mapped_column(String(10), default="")
     week_start_value: Mapped[float] = mapped_column(Float, default=0.0)
-    last_btc_check_price: Mapped[float] = mapped_column(Float, default=0.0)
-    last_eth_check_price: Mapped[float] = mapped_column(Float, default=0.0)
+    # JSON dict keyed by trading pair ("BTCUSDT", ...) -> last observed price,
+    # so the price-move trigger works for any whitelist size.
+    last_check_prices_json: Mapped[str] = mapped_column(Text, default="{}")
     last_full_analysis_date: Mapped[str] = mapped_column(String(10), default="")
     claude_budget_month_key: Mapped[str] = mapped_column(String(7), default="")
     claude_spend_usd_this_month: Mapped[float] = mapped_column(Float, default=0.0)

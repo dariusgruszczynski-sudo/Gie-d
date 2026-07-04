@@ -21,10 +21,11 @@ export interface PortfolioSnapshot {
   timestamp: string;
   total_value_usdt: number;
   usdt_balance: number;
-  btc_balance: number;
-  eth_balance: number;
-  btc_price: number;
-  eth_price: number;
+  // JSON-encoded { [baseAsset]: qty } / { [symbol]: price } -- generic across
+  // however many coins are in TRADING_WHITELIST. Parse with JSON.parse if a
+  // future UI needs the per-coin breakdown; not currently rendered.
+  balances_json: string;
+  prices_json: string;
 }
 
 export interface PortfolioResponse {

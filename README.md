@@ -1,6 +1,7 @@
 # Gie-d — automatyczny bot inwestycyjny (crypto)
 
-Aplikacja do automatycznego inwestowania w kryptowaluty (BTC, ETH) na Binance,
+Aplikacja do automatycznego inwestowania w kryptowaluty (domyślnie BTC, ETH,
+SOL, BNB — lista jest w pełni konfigurowalna) na Binance,
 w której decyzje inwestycyjne (co / kiedy / ile) podejmuje Claude Opus na
 podstawie danych rynkowych i newsów. System ma dashboard z wynikami,
 pełny log decyzji i transakcji, oraz przełącznik pauzy/wznowienia i panel do
@@ -28,7 +29,7 @@ frontend/  React + Vite — dashboard (wyniki, log decyzji, panel kontroli)
 
 Przepływ decyzyjny:
 
-1. Scheduler co `POLL_INTERVAL_MINUTES` sprawdza ceny BTC/USDT i ETH/USDT.
+1. Scheduler co `POLL_INTERVAL_MINUTES` sprawdza ceny wszystkich par z `TRADING_WHITELIST`.
 2. Jeśli cena zmieniła się o więcej niż `PRICE_MOVE_TRIGGER_PCT` od ostatniego
    sprawdzenia (albo minął dzień od ostatniej pełnej analizy — fallback),
    system uznaje to za "zdarzenie" i woła Claude Opus.
@@ -71,7 +72,7 @@ na produkcję jednym ustawieniem w `.env`:
 |---|---|---|
 | `DAILY_LOSS_LIMIT_PCT` | `50` | Przy spadku wartości portfela o tyle % w ciągu dnia — automat zatrzymuje handel automatyczny (wymaga ręcznego wznowienia w dashboardzie) |
 | `MAX_POSITION_PCT` | `25` | Maks. % dostępnego kapitału, jaki automat może zaangażować w jedną transakcję |
-| `TRADING_WHITELIST` | `BTCUSDT,ETHUSDT` | Lista par, którymi automat może handlować |
+| `TRADING_WHITELIST` | `BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT` | Lista par, którymi automat może handlować — w pełni generyczna, dowolna liczba par obsługiwanych przez Binance (format `<COIN>USDT`, przecinek jako separator) |
 | `POLL_INTERVAL_MINUTES` | `15` | Co ile minut sprawdzać ceny/newsy |
 | `PRICE_MOVE_TRIGGER_PCT` | `2` | Próg zmiany ceny traktowany jako "zdarzenie" wywołujące analizę Opus |
 

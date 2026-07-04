@@ -43,6 +43,9 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _add_column_if_missing("system_state", "claude_budget_month_key", "VARCHAR(7)", "''")
     _add_column_if_missing("system_state", "claude_spend_usd_this_month", "FLOAT", "0.0")
+    _add_column_if_missing("system_state", "last_check_prices_json", "TEXT", "'{}'")
+    _add_column_if_missing("portfolio_snapshots", "balances_json", "TEXT", "'{}'")
+    _add_column_if_missing("portfolio_snapshots", "prices_json", "TEXT", "'{}'")
 
 
 def get_db() -> Session:

@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     daily_loss_limit_pct: float = 50.0
     weekly_loss_limit_pct: float = 70.0
     max_position_pct: float = 25.0
-    trading_whitelist: str = "BTCUSDT,ETHUSDT"
+    trading_whitelist: str = "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT"
 
     poll_interval_minutes: int = 15
     price_move_trigger_pct: float = 2.0
