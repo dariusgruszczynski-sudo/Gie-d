@@ -81,7 +81,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   status: () => apiFetch<StatusResponse>("/api/status"),
-  portfolio: () => apiFetch<PortfolioResponse>("/api/portfolio"),
+  portfolio: () => apiFetch<PortfolioResponse>("/api/portfolio?limit=2000"),
   trades: () => apiFetch<Trade[]>("/api/trades"),
   decisions: () => apiFetch<Decision[]>("/api/decisions"),
   pause: () => apiFetch<unknown>("/api/control/pause", { method: "POST" }),

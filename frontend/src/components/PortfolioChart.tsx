@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PortfolioSnapshot } from "../api/client";
 import { useCountUp } from "../hooks/useCountUp";
@@ -12,8 +13,23 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
+const RANGES = [
+  { key: "1D", hours: 24 },
+  { key: "1W", hours: 24 * 7 },
+  { key: "1M", hours: 24 * 30 },
+  { key: "ALL", hours: Infinity },
+] as const;
+
+type RangeKey = (typeof RANGES)[number]["key"];
+
 export function PortfolioChart({ history, current }: { history: PortfolioSnapshot[]; current: PortfolioSnapshot | null }) {
-  const data = history.map((h) => ({
+  const [range, setRange] = useState<RangeKey>("1D");
+
+  const cutoffHours = RANGES.find((r) => r.key === range)?.hours ?? Infinity;
+  const cutoff = Number.isFinite(cutoffHours) ? Date.now() - cutoffHours * 3600 * 1000 : 0;
+  const filtered = history.filter((h) => new Date(h.timestamp).getTime() >= cutoff);
+
+  const data = filtered.map((h) => ({
     time: new Date(h.timestamp).toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }),
     value: h.total_value_usdt,
   }));
@@ -21,18 +37,37 @@ export function PortfolioChart({ history, current }: { history: PortfolioSnapsho
   const first = data[0]?.value ?? 0;
   const last = data[data.length - 1]?.value ?? 0;
   const isUp = last >= first;
+  const periodChangePct = first > 0 ? ((last - first) / first) * 100 : null;
   const animatedValue = useCountUp(current?.total_value_usdt ?? 0);
 
   return (
     <div className="panel">
       <div className="panel-header-row">
         <h2>Wartość portfela (USDT)</h2>
-        {current && (
-          <div className="chart-current-value">
-            <strong>${animatedValue.toFixed(2)}</strong>
-          </div>
-        )}
+        <div className="chart-range-tabs">
+          {RANGES.map((r) => (
+            <button
+              key={r.key}
+              className={`chart-range-tab ${range === r.key ? "active" : ""}`}
+              onClick={() => setRange(r.key)}
+              type="button"
+            >
+              {r.key}
+            </button>
+          ))}
+        </div>
       </div>
+      {current && (
+        <div className="chart-value-row">
+          <strong className="chart-current-value">${animatedValue.toFixed(2)}</strong>
+          {periodChangePct !== null && (
+            <span className={`chart-period-change ${isUp ? "up" : "down"}`}>
+              {isUp ? "+" : ""}
+              {periodChangePct.toFixed(2)}% ({range})
+            </span>
+          )}
+        </div>
+      )}
       <div style={{ width: "100%", height: 280 }}>
         <ResponsiveContainer>
           <AreaChart data={data} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
@@ -58,7 +93,7 @@ export function PortfolioChart({ history, current }: { history: PortfolioSnapsho
           </AreaChart>
         </ResponsiveContainer>
       </div>
-      {data.length === 0 && <p className="subtitle">Brak jeszcze danych — pierwszy cykl automatu je utworzy.</p>}
+      {data.length === 0 && <p className="subtitle">Brak jeszcze danych w tym zakresie.</p>}
     </div>
   );
 }

@@ -513,9 +513,57 @@ h1 {
   margin: 0;
 }
 
-.chart-current-value strong {
-  font-size: 1.3rem;
+.chart-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: -2px 0 10px;
+}
+
+.chart-current-value {
+  font-size: 1.5rem;
   color: var(--gold-bright);
+}
+
+.chart-period-change {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.chart-period-change.up {
+  color: var(--green);
+}
+
+.chart-period-change.down {
+  color: var(--red);
+}
+
+.chart-range-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.chart-range-tab {
+  padding: 4px 11px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+
+.chart-range-tab.active {
+  background: var(--gold);
+  color: #1a1608;
+}
+
+.chart-range-tab:hover:not(.active) {
+  color: var(--text);
+  transform: none;
 }
 
 .chart-tooltip {
