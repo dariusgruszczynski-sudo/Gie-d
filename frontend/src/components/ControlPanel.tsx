@@ -8,6 +8,7 @@ export function ControlPanel({ status, onChanged }: { status: StatusResponse; on
   const [usdtAmount, setUsdtAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [reportMessage, setReportMessage] = useState<string | null>(null);
+  const [restartMessage, setRestartMessage] = useState<string | null>(null);
 
   const isStopped = status.is_paused || status.is_halted;
 
@@ -48,6 +49,20 @@ export function ControlPanel({ status, onChanged }: { status: StatusResponse; on
     try {
       const res = await api.sendReportNow();
       setReportMessage(res.message);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restart() {
+    setBusy(true);
+    setError(null);
+    setRestartMessage(null);
+    try {
+      const res = await api.restart();
+      setRestartMessage(res.message);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -101,6 +116,15 @@ export function ControlPanel({ status, onChanged }: { status: StatusResponse; on
         Codzienny raport idzie automatycznie o 6:00 — tym przyciskiem możesz sprawdzić czy SMTP działa bez czekania.
       </p>
       {reportMessage && <p className="subtitle" style={{ color: "var(--green)" }}>{reportMessage}</p>}
+
+      <button className="btn-danger" style={{ marginTop: 10 }} disabled={busy} onClick={restart}>
+        🔄 RESTART
+      </button>
+      <p className="subtitle" style={{ marginTop: 6 }}>
+        Restartuje proces backendu (np. gdy harmonogram się zawiesi). Nie pobiera nowego kodu z git ani zmian
+        w .env — do tego nadal potrzeba <code>git pull &amp;&amp; docker compose up -d --build</code> na serwerze.
+      </p>
+      {restartMessage && <p className="subtitle" style={{ color: "var(--green)" }}>{restartMessage}</p>}
 
       <h2 style={{ marginTop: 22 }}>Ręczna transakcja (pomija Opus)</h2>
       <form className="control-form" onSubmit={submitManualTrade}>

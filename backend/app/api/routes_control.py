@@ -1,6 +1,8 @@
+import os
+import time
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, model_validator
 from sqlalchemy.orm import Session
 
@@ -95,3 +97,21 @@ def send_report_now(db: Session = Depends(get_db), settings: Settings = Depends(
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
     return {"message": f"Raport wysłany na {settings.report_recipient_email}"}
+
+
+def _exit_after_response() -> None:
+    # Small delay so the HTTP response reaches the browser before the process
+    # dies. Docker's `restart: unless-stopped` policy brings the same
+    # container straight back up -- this does NOT pick up new code or .env
+    # changes, since those are fixed at container creation (needs
+    # `docker compose up -d --build` for that).
+    time.sleep(0.5)
+    os._exit(0)
+
+
+@router.post("/restart")
+def restart(background_tasks: BackgroundTasks):
+    """Restarts the backend process -- useful for clearing a stuck scheduler
+    or in-memory state without SSH-ing into the server."""
+    background_tasks.add_task(_exit_after_response)
+    return {"message": "Restart zainicjowany, aplikacja wróci za kilka sekund."}

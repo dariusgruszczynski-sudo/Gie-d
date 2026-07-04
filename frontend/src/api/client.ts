@@ -81,6 +81,7 @@ export const api = {
   resume: () => apiFetch<unknown>("/api/control/resume", { method: "POST" }),
   runCycleNow: () => apiFetch<unknown>("/api/control/run-cycle-now", { method: "POST" }),
   sendReportNow: () => apiFetch<{ message: string }>("/api/control/send-report-now", { method: "POST" }),
+  restart: () => apiFetch<{ message: string }>("/api/control/restart", { method: "POST" }),
   manualTrade: (body: { symbol: string; side: "BUY" | "SELL"; usdt_amount?: number; quantity?: number }) =>
     apiFetch<Trade>("/api/control/manual-trade", { method: "POST", body: JSON.stringify(body) }),
 };
