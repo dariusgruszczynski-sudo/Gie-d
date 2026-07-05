@@ -16,16 +16,34 @@ import { isSoundMuted, playTradeSound, setSoundMuted } from "./tradeSound";
 
 function Logo() {
   return (
-    <svg width="40" height="40" viewBox="0 0 40 40" className="logo-mark" aria-hidden="true">
-      <circle cx="20" cy="20" r="19" fill="url(#logoGradient)" stroke="var(--gold)" strokeWidth="1" />
+    <svg width="48" height="48" viewBox="0 0 48 48" className="logo-mark" aria-label="GielDarek" role="img">
       <defs>
-        <linearGradient id="logoGradient" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#1a1608" />
-          <stop offset="100%" stopColor="#0a0a0a" />
+        <linearGradient id="gdBadge" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#7c8bff" />
+          <stop offset="55%" stopColor="#6d7cff" />
+          <stop offset="100%" stopColor="#9d7bff" />
         </linearGradient>
       </defs>
-      <path d="M12 24 L16 16 L20 20 L24 11 L28 15" stroke="var(--gold-bright)" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M24 11 L28 11 L28 15" stroke="var(--gold-bright)" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      {/* Rounded gradient badge */}
+      <rect x="2" y="2" width="44" height="44" rx="13" fill="url(#gdBadge)" />
+      <rect x="2" y="2" width="44" height="44" rx="13" fill="none" stroke="#ffffff" strokeOpacity="0.16" strokeWidth="1" />
+      {/* Crisp rising line-chart with an up-right arrowhead — the mark */}
+      <polyline
+        points="12,32 21,24 28,29 37,15"
+        fill="none"
+        stroke="#0a0c14"
+        strokeWidth="3.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M37 15 h-6.5 M37 15 v6.5"
+        fill="none"
+        stroke="#0a0c14"
+        strokeWidth="3.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -108,16 +126,12 @@ export default function App() {
         </div>
       )}
       <div className="app">
-        <div className="brand-banner">
-          <p className="slogan">Kto gra grubo, wygrać musi</p>
-        </div>
-
         <div className="app-header">
           <Logo />
           <div>
-            <h1>GielDarek — automatyczny bot inwestycyjny</h1>
+            <h1>Giel<span className="brand-accent">Darek</span></h1>
             <p className="subtitle">
-              Decyzje: Claude (Sonnet + Opus) · Wykonanie: Kraken · To narzędzie prywatne, nie jest to porada inwestycyjna.
+              Decyzje: Claude (Sonnet + Opus) · Wykonanie: Kraken · Narzędzie prywatne, nie jest to porada inwestycyjna.
             </p>
           </div>
         </div>
