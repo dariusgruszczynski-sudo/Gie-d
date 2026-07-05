@@ -674,3 +674,55 @@ def test_news_event_triggers_cycle_independent_of_price_move(db_session, setting
     assert decision is not None
     assert advisor.calls == 1
     assert decision.triggered_by.value == "news_event"
+
+
+def test_performance_context_gives_claude_its_track_record(db_session, settings):
+    """Claude must see its own open positions (entry vs current, unrealized
+    P&L) and recent trades so it can learn instead of analysing from scratch
+    every cycle."""
+    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
+    trading_engine.execute_manual_trade(db_session, settings, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
+    broker.prices["SPY"] = 110.0  # position now +10%
+
+    advisor = FakeAdvisor(TradingDecision("HOLD", None, 0, 0.8, "Trzymam."))
+    trading_engine.run_cycle(db_session, settings, broker, FakeNews(), advisor, force=True)
+
+    perf = advisor.last_kwargs["performance_context"]
+    assert len(perf["open_positions"]) == 1
+    pos = perf["open_positions"][0]
+    assert pos["symbol"] == "SPY"
+    assert pos["entry_price"] == 100.0
+    assert pos["current_price"] == 110.0
+    assert pos["unrealized_pnl_pct"] == 10.0
+    assert any(t["symbol"] == "SPY" and t["side"] == "BUY" for t in perf["recent_trades"])
+
+
+def test_extended_hours_fractional_exit_does_not_crash_cycle(db_session, settings):
+    """A fractional position can't be sold pre-/after-market (whole shares
+    only), but that must NOT crash the cycle -- the exit is deferred to the
+    regular open, and the peak keeps being tracked."""
+
+    class WholeShareOnlyExtended(FakeAlpaca):
+        def place_order_for_session(self, symbol, side, *, session, usdt_amount=None, quantity=None):
+            if session != market_hours.REGULAR:
+                # Mirror the real client: extended hours rejects a fractional
+                # SELL because it floors to 0 whole shares.
+                raise ValueError("Rozszerzone godziny handlu wymagają całych akcji")
+            return super().place_order_for_session(symbol, side, session=session, usdt_amount=usdt_amount, quantity=quantity)
+
+    broker = WholeShareOnlyExtended(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
+    # Buy fractional in the (autouse-default) regular session.
+    trading_engine.execute_manual_trade(db_session, settings, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
+    broker.prices["SPY"] = 97.0  # would stop-loss
+
+    portfolio = trading_engine.compute_portfolio(db_session, settings, broker)
+    after_hours = _session_info(market_hours.AFTER_HOURS)
+
+    # Must not raise, and must not record a completed exit trade.
+    exits = trading_engine.check_take_profit_stop_loss(db_session, settings, broker, portfolio, after_hours)
+    assert exits == []
+    # Peak/state preserved so the exit can retry at the regular open.
+    state = risk_manager.get_state(db_session)
+    import json as _json
+
+    assert "SPY" in _json.loads(state.position_peaks_json)

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.models import Decision, PortfolioSnapshot, Trade, TradeAction, TradeMode, TriggerType
 from app.services import budget_tracker, email_reporter, market_hours, risk_manager
-from app.services.alpaca_client import AlpacaClient
+from app.services.alpaca_client import AlpacaAPIError, AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.market_context import MarketContextClient
 from app.services.market_hours import SessionInfo
@@ -283,18 +283,34 @@ def check_take_profit_stop_loss(
         db.commit()
         db.refresh(decision)
 
-        trade = _execute_trade(
-            db=db,
-            broker=broker,
-            settings=settings,
-            symbol=symbol,
-            action="SELL",
-            size_pct=100.0,
-            portfolio=portfolio,
-            decision=decision,
-            is_manual=False,
-            session=session,
-        )
+        try:
+            trade = _execute_trade(
+                db=db,
+                broker=broker,
+                settings=settings,
+                symbol=symbol,
+                action="SELL",
+                size_pct=100.0,
+                portfolio=portfolio,
+                decision=decision,
+                is_manual=False,
+                session=session,
+            )
+        except (ValueError, AlpacaAPIError):
+            # Most likely an extended-hours exit on a fractional position:
+            # pre-/after-market orders must be WHOLE shares, so a fractional
+            # holding can't be sold until the regular session reopens. Don't
+            # crash the cycle (that would silently skip every other position's
+            # exit too and kill the Claude leg) -- log it, mark the decision,
+            # keep tracking the peak, and let this exit fire at the regular
+            # open. The mechanical stop-loss/take-profit is therefore
+            # effectively regular-session-only for fractional positions.
+            logger.warning("Mechaniczne wyjście %s niewykonalne w tej sesji, odłożone", symbol, exc_info=True)
+            decision.rejection_reason = "Wyjście niewykonalne poza sesją regularną (ułamkowa pozycja) -- odłożone do otwarcia rynku."
+            db.commit()
+            new_peaks[symbol] = peak
+            continue
+
         executed.append(trade)
         logger.info("Mechaniczne wyjście: %s", reason)
         if is_stop_loss:
@@ -312,6 +328,55 @@ def _mark_analysis_done_today(db: Session) -> None:
     state = risk_manager.get_state(db)
     state.last_full_analysis_date = date.today().isoformat()
     db.commit()
+
+
+RECENT_TRADES_FOR_LEARNING = 15
+
+
+def build_performance_context(db: Session, settings: Settings, portfolio: dict) -> dict:
+    """Gives Claude its own track record so it can actually learn instead of
+    analysing every cycle from a blank slate: each currently-held position
+    with its entry price and live unrealized P&L, plus the most recent
+    executed trades and the reasoning behind them. This is the difference
+    between 'fresh analyst every 15 min' and 'trader who remembers what just
+    worked or lost'."""
+    open_positions = []
+    for symbol in settings.whitelist_symbols:
+        base = _base_asset(symbol, settings.quote_currency)
+        qty = portfolio["balances"].get(base, 0.0)
+        price = portfolio["prices"].get(symbol)
+        if qty <= 0 or price is None:
+            continue
+        basis = average_cost_basis(db, symbol)
+        if basis is None or basis <= 0:
+            continue
+        open_positions.append(
+            {
+                "symbol": symbol,
+                "qty": round(qty, 6),
+                "entry_price": round(basis, 2),
+                "current_price": round(price, 2),
+                "unrealized_pnl_pct": round((price - basis) / basis * 100, 2),
+                "unrealized_pnl_usd": round((price - basis) * qty, 2),
+            }
+        )
+
+    recent = db.execute(
+        select(Trade).order_by(Trade.timestamp.desc()).limit(RECENT_TRADES_FOR_LEARNING)
+    ).scalars().all()
+    recent_trades = [
+        {
+            "time": t.timestamp.isoformat(),
+            "symbol": t.symbol,
+            "side": t.side,
+            "price": round(t.price, 2),
+            "value_usd": round(t.usdt_value, 2),
+            "reason": (t.decision.reasoning[:180] if t.decision and t.decision.reasoning else ""),
+        }
+        for t in recent
+    ]
+
+    return {"open_positions": open_positions, "recent_trades": recent_trades}
 
 
 def run_cycle(
@@ -427,6 +492,7 @@ def run_cycle(
     tradable_symbols = list(market_data.keys())
     headlines = news.get_headlines([_base_asset(s, settings.quote_currency) for s in settings.whitelist_symbols])
     global_context = market_ctx.get_market_context() if market_ctx is not None else {}
+    performance_context = build_performance_context(db, settings, portfolio)
 
     day_loss_budget_left_pct = max(
         0.0,
@@ -457,6 +523,7 @@ def run_cycle(
         portfolio=portfolio,
         risk_context=risk_context,
         market_context=global_context,
+        performance_context=performance_context,
         trigger_reason=trigger_reason.value,
     )
     _mark_analysis_done_today(db)
@@ -537,18 +604,27 @@ def run_cycle(
         db.refresh(decision)
         return decision
 
-    _execute_trade(
-        db=db,
-        broker=broker,
-        settings=settings,
-        symbol=decision_data.symbol,
-        action=decision_data.action,
-        size_pct=decision_data.size_pct,
-        portfolio=portfolio,
-        decision=decision,
-        is_manual=False,
-        session=session_info.session,
-    )
+    try:
+        _execute_trade(
+            db=db,
+            broker=broker,
+            settings=settings,
+            symbol=decision_data.symbol,
+            action=decision_data.action,
+            size_pct=decision_data.size_pct,
+            portfolio=portfolio,
+            decision=decision,
+            is_manual=False,
+            session=session_info.session,
+        )
+    except (ValueError, AlpacaAPIError) as exc:
+        # e.g. an extended-hours BUY whose position budget is smaller than one
+        # whole share (pre-/after-market can't do fractional/notional orders).
+        # Record why instead of crashing the whole scheduled cycle.
+        logger.warning("Wykonanie zlecenia %s nieudane, pomijam", decision_data.symbol, exc_info=True)
+        decision.rejection_reason = f"Zlecenie niewykonane: {exc}"
+        db.commit()
+        db.refresh(decision)
     return decision
 
 

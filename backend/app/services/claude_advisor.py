@@ -31,7 +31,13 @@ DISCLAIMER = (
     "HOLD wybieraj tylko gdy naprawdę brak przewagi w którąkolwiek stronę — nie z samej "
     "ostrożności. Zlecenia nie mają prowizji, ale i tak licz się ze spreadem bid/ask, więc "
     "unikaj wchodzenia i wychodzenia bez żadnej przewagi. Rynek jest otwarty tylko w "
-    "godzinach sesji giełdowej US — poza sesją po prostu HOLD."
+    "godzinach sesji giełdowej US — poza sesją po prostu HOLD. "
+    "UCZ SIĘ z pola 'your_performance': to Twoja własna historia — otwarte pozycje z ceną "
+    "wejścia i bieżącym zyskiem/stratą oraz ostatnie transakcje wraz z uzasadnieniami. "
+    "Dokładaj do tego, co działa, nie powtarzaj setupów, które wielokrotnie kończyły się "
+    "stratą, i patrz na niezrealizowany P&L obecnych pozycji: wygrywającą pozycję można "
+    "spokojnie trzymać (trailing-stop i tak ją obroni), a pozycji już świeżo zamkniętej "
+    "stop-lossem nie odkupuj bez wyraźnie nowego, mocniejszego sygnału."
 )
 
 
@@ -124,6 +130,7 @@ class ClaudeAdvisor:
         portfolio: dict,
         risk_context: dict,
         market_context: dict | None = None,
+        performance_context: dict | None = None,
         trigger_reason: str,
     ) -> TradingDecision:
         tool = _build_tool_schema(whitelist)
@@ -135,6 +142,13 @@ class ClaudeAdvisor:
                 "market_data": market_data,
                 "recent_news": news,
                 "portfolio": portfolio,
+                # Your own track record: open positions with their entry price
+                # and current unrealized P&L, plus your most recent executed
+                # trades and why. USE IT to improve -- add to what's working,
+                # don't repeat what keeps losing, and know whether a position
+                # is a winner (let it run) or a loser (already stop-loss'd
+                # mechanically, so don't average down blindly).
+                "your_performance": performance_context or {},
                 "risk_context": risk_context,
                 "market_context": market_context or {},
             },
