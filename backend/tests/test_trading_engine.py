@@ -357,17 +357,54 @@ def test_average_cost_basis_none_when_flat(db_session, settings):
     assert trading_engine.average_cost_basis(db_session, "XBTEUR") is None
 
 
-def test_take_profit_auto_sells_when_price_rises(db_session, settings):
+def test_fixed_take_profit_sells_when_price_rises(db_session, settings):
+    fixed = settings.model_copy(update={"trailing_stop_enabled": False})
     kraken = FakeKraken(prices={"XBTEUR": 100.0, "ETHEUR": 3000.0}, balances={"EUR": 1000.0, "XBT": 0.0, "ETH": 0.0})
-    trading_engine.execute_manual_trade(db_session, settings, kraken, symbol="XBTEUR", side="BUY", usdt_amount=100.0)
+    trading_engine.execute_manual_trade(db_session, fixed, kraken, symbol="XBTEUR", side="BUY", usdt_amount=100.0)
     kraken.prices["XBTEUR"] = 104.0  # +4% > take_profit_pct (3)
 
-    portfolio = trading_engine.compute_portfolio(db_session, settings, kraken)
-    exits = trading_engine.check_take_profit_stop_loss(db_session, settings, kraken, portfolio)
+    portfolio = trading_engine.compute_portfolio(db_session, fixed, kraken)
+    exits = trading_engine.check_take_profit_stop_loss(db_session, fixed, kraken, portfolio)
 
     assert len(exits) == 1
     assert exits[0].side == "SELL"
     assert "Take-profit" in exits[0].decision.reasoning
+
+
+def test_trailing_stop_lets_winner_run_then_sells_on_pullback(db_session, settings):
+    """Default mode: at +4% the position ARMS a trailing stop but is NOT sold
+    (winner keeps running); it sells only once price falls trailing_stop_pct
+    (1.5%) below the peak."""
+    kraken = FakeKraken(prices={"XBTEUR": 100.0, "ETHEUR": 3000.0}, balances={"EUR": 1000.0, "XBT": 0.0, "ETH": 0.0})
+    trading_engine.execute_manual_trade(db_session, settings, kraken, symbol="XBTEUR", side="BUY", usdt_amount=100.0)
+
+    # Rises to +10% -> arms trailing, peak=110, but no sell (still climbing).
+    kraken.prices["XBTEUR"] = 110.0
+    portfolio = trading_engine.compute_portfolio(db_session, settings, kraken)
+    assert trading_engine.check_take_profit_stop_loss(db_session, settings, kraken, portfolio) == []
+
+    # Pulls back to 108 (>1.5% below the 110 peak) -> trailing stop sells.
+    kraken.prices["XBTEUR"] = 108.0
+    portfolio = trading_engine.compute_portfolio(db_session, settings, kraken)
+    exits = trading_engine.check_take_profit_stop_loss(db_session, settings, kraken, portfolio)
+
+    assert len(exits) == 1
+    assert "Trailing-stop" in exits[0].decision.reasoning
+
+
+def test_trailing_not_armed_below_take_profit(db_session, settings):
+    """A small pullback before the +take_profit_pct arm threshold must NOT
+    trigger the trailing stop."""
+    kraken = FakeKraken(prices={"XBTEUR": 100.0, "ETHEUR": 3000.0}, balances={"EUR": 1000.0, "XBT": 0.0, "ETH": 0.0})
+    trading_engine.execute_manual_trade(db_session, settings, kraken, symbol="XBTEUR", side="BUY", usdt_amount=100.0)
+
+    kraken.prices["XBTEUR"] = 102.0  # +2%, below +3% arm
+    portfolio = trading_engine.compute_portfolio(db_session, settings, kraken)
+    assert trading_engine.check_take_profit_stop_loss(db_session, settings, kraken, portfolio) == []
+
+    kraken.prices["XBTEUR"] = 100.5  # pulled back but never armed -> no trailing exit
+    portfolio = trading_engine.compute_portfolio(db_session, settings, kraken)
+    assert trading_engine.check_take_profit_stop_loss(db_session, settings, kraken, portfolio) == []
 
 
 def test_stop_loss_auto_sells_when_price_drops(db_session, settings):
@@ -430,15 +467,28 @@ def test_stop_loss_sets_cooldown_and_blocks_rebuy(db_session, settings):
 def test_take_profit_does_not_set_cooldown(db_session, settings):
     """Only stop-loss triggers a cooldown -- a winning exit shouldn't block
     re-entry if a fresh signal appears."""
+    fixed = settings.model_copy(update={"trailing_stop_enabled": False})
     kraken = FakeKraken(prices={"XBTEUR": 100.0, "ETHEUR": 3000.0}, balances={"EUR": 1000.0, "XBT": 0.0, "ETH": 0.0})
-    trading_engine.execute_manual_trade(db_session, settings, kraken, symbol="XBTEUR", side="BUY", usdt_amount=100.0)
+    trading_engine.execute_manual_trade(db_session, fixed, kraken, symbol="XBTEUR", side="BUY", usdt_amount=100.0)
     kraken.prices["XBTEUR"] = 104.0  # take-profit
 
-    portfolio = trading_engine.compute_portfolio(db_session, settings, kraken)
-    trading_engine.check_take_profit_stop_loss(db_session, settings, kraken, portfolio)
+    portfolio = trading_engine.compute_portfolio(db_session, fixed, kraken)
+    exits = trading_engine.check_take_profit_stop_loss(db_session, fixed, kraken, portfolio)
+    assert len(exits) == 1  # sanity: it did exit
 
     active, _ = trading_engine.stop_loss_cooldown_active(db_session, "XBTEUR")
     assert active is False
+
+
+def test_trade_alert_is_best_effort_and_skipped_without_smtp(db_session, settings):
+    """A trade must succeed and be recorded even though the alert email can't be
+    sent (SMTP not configured in tests) -- the alert is fire-and-forget."""
+    kraken = FakeKraken()
+    trade = trading_engine.execute_manual_trade(
+        db_session, settings, kraken, symbol="XBTEUR", side="BUY", usdt_amount=50.0
+    )
+    assert trade.id is not None
+    assert len(kraken.orders) == 1
 
 
 def test_cooldown_zero_minutes_never_blocks(db_session, settings):

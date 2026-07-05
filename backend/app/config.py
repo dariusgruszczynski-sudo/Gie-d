@@ -34,12 +34,26 @@ class Settings(BaseSettings):
     # This is what actually makes the bot "obraca kapitałem" (rotate capital)
     # instead of just buying and holding. Set take_profit_pct=0 to disable
     # take-profit, stop_loss_pct=0 to disable stop-loss.
-    take_profit_pct: float = 3.0
     stop_loss_pct: float = 2.0
     # After a stop-loss cuts a position, block re-buying that same coin for
     # this many minutes -- stops the bot from "piłowanie" (buy top -> stop ->
     # rebuy -> stop) that bleeds a small account dry on fees. 0 = disabled.
     stop_loss_cooldown_minutes: int = 60
+    # Exit style for winners:
+    #  - trailing_stop_enabled=True (default): let winners run. Once a position
+    #    reaches +take_profit_pct it ARMS a trailing stop and is only sold when
+    #    price falls trailing_stop_pct below its peak -- so a big trend isn't
+    #    capped at +take_profit_pct. take_profit_pct becomes the ARM threshold.
+    #  - trailing_stop_enabled=False: fixed take-profit -- sell immediately at
+    #    +take_profit_pct.
+    # stop_loss_pct is always a hard floor from the entry price, either way.
+    take_profit_pct: float = 3.0
+    trailing_stop_enabled: bool = True
+    trailing_stop_pct: float = 1.5
+    # Send an email the moment any trade executes (BUY/SELL, incl. TP/SL exits).
+    # Uses the same SMTP config as the daily report; silently skipped if SMTP
+    # isn't configured. Set False to keep only the daily report.
+    trade_alerts_enabled: bool = True
     # Kraken pair altnames (BTC is "XBT" on Kraken) for the four most liquid
     # EUR-quoted markets -- chosen for top market cap + deep EUR order books.
     trading_whitelist: str = "XBTEUR,ETHEUR,SOLEUR,XRPEUR"

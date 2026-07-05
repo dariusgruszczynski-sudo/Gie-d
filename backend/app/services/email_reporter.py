@@ -269,3 +269,46 @@ def send_daily_report(db: Session, settings: Settings) -> None:
         server.send_message(msg)
 
     logger.info("Daily report email sent to %s", settings.report_recipient_email)
+
+
+def send_trade_alert(settings: Settings, trade, reason: str = "") -> None:
+    """Best-effort instant email the moment a trade executes (BUY/SELL, incl.
+    TP/SL/trailing exits). Never raises -- a mail hiccup must not break trading.
+    Silently skipped if alerts are off or SMTP isn't configured."""
+    if not settings.trade_alerts_enabled:
+        return
+    if not settings.smtp_username or not settings.smtp_password:
+        return
+
+    try:
+        side_pl = "KUPIŁEŚ" if trade.side.upper() == "BUY" else "SPRZEDAŁEŚ"
+        color = GREEN if trade.side.upper() == "BUY" else RED
+        cur = settings.quote_currency
+        subject = f"GielDarek: {side_pl} {trade.symbol} za {trade.usdt_value:.2f} {cur}"
+        html = f"""\
+<div style="background:{BG};padding:20px 16px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:{TEXT};">
+  <div style="max-width:520px;margin:0 auto;">
+    <div style="font-size:22px;font-weight:800;color:{color};margin-bottom:12px;">{side_pl} {trade.symbol}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+      <tr><td style="color:{MUTED};padding:4px 0;">Ilość</td><td style="text-align:right;font-weight:700;">{trade.quantity:.8f}</td></tr>
+      <tr><td style="color:{MUTED};padding:4px 0;">Cena</td><td style="text-align:right;font-weight:700;">{trade.price:.2f} {cur}</td></tr>
+      <tr><td style="color:{MUTED};padding:4px 0;">Wartość</td><td style="text-align:right;font-weight:700;">{trade.usdt_value:.2f} {cur}</td></tr>
+      <tr><td style="color:{MUTED};padding:4px 0;">Tryb</td><td style="text-align:right;">{trade.mode.value if hasattr(trade.mode, 'value') else trade.mode}{' · ręczna' if trade.is_manual else ' · automat'}</td></tr>
+    </table>
+    {f'<div style="margin-top:12px;padding:10px;background:{PANEL};border:1px solid {BORDER};border-radius:8px;font-size:13px;line-height:1.5;">{reason}</div>' if reason else ''}
+    <div style="color:{MUTED};font-size:11px;margin-top:16px;">GielDarek — powiadomienie automatyczne, {datetime.now().strftime('%d.%m.%Y %H:%M')}. To narzędzie prywatne, nie porada inwestycyjna.</div>
+  </div>
+</div>"""
+
+        msg = MIMEText(html, "html", "utf-8")
+        msg["Subject"] = subject
+        msg["From"] = settings.smtp_from_email or settings.smtp_username
+        msg["To"] = settings.report_recipient_email
+
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as server:
+            server.starttls()
+            server.login(settings.smtp_username, settings.smtp_password)
+            server.send_message(msg)
+        logger.info("Trade alert email sent: %s %s", trade.side, trade.symbol)
+    except Exception:
+        logger.warning("Failed to send trade alert email (continuing)", exc_info=True)

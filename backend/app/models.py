@@ -114,6 +114,9 @@ class SystemState(Base):
     # JSON dict {trading pair -> ISO timestamp until which re-buying is blocked}
     # after a stop-loss on that pair. Prevents fee-bleeding churn.
     stop_loss_cooldowns_json: Mapped[str] = mapped_column(Text, default="{}")
+    # JSON dict {trading pair -> highest price seen since entry} -- drives the
+    # trailing stop. Cleared per pair when the position is closed.
+    position_peaks_json: Mapped[str] = mapped_column(Text, default="{}")
     claude_budget_month_key: Mapped[str] = mapped_column(String(7), default="")
     claude_spend_usd_this_month: Mapped[float] = mapped_column(Float, default=0.0)
     # HMAC key for signing login session cookies -- generated once on first

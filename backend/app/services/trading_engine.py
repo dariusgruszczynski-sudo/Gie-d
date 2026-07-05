@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models import Decision, PortfolioSnapshot, Trade, TradeAction, TradeMode, TriggerType
-from app.services import budget_tracker, risk_manager
+from app.services import budget_tracker, email_reporter, risk_manager
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.kraken_client import KrakenClient
 from app.services.market_context import MarketContextClient
@@ -156,39 +156,71 @@ def stop_loss_cooldown_active(db: Session, symbol: str) -> tuple[bool, str | Non
     return True, f"Cooldown po stop-lossie: {symbol} zablokowany do odkupu jeszcze ~{mins_left} min"
 
 
+def _decide_mechanical_exit(settings: Settings, base: str, basis: float, price: float, peak: float) -> tuple[str | None, bool]:
+    """Returns (reason, is_stop_loss) for a held position, or (None, False) to
+    hold. Hard stop-loss is always a floor from the entry price. For the upside,
+    either a trailing stop (let winners run, arm at +take_profit_pct) or a fixed
+    take-profit, depending on trailing_stop_enabled."""
+    change_pct = (price - basis) / basis * 100
+
+    if settings.stop_loss_pct > 0 and change_pct <= -settings.stop_loss_pct:
+        return (
+            f"Stop-loss: {base} {change_pct:.1f}% od wejścia (średnia {basis:.2f} → {price:.2f})",
+            True,
+        )
+
+    if settings.trailing_stop_enabled:
+        armed = settings.take_profit_pct <= 0 or peak >= basis * (1 + settings.take_profit_pct / 100)
+        if armed and settings.trailing_stop_pct > 0 and price <= peak * (1 - settings.trailing_stop_pct / 100):
+            drop = (price - peak) / peak * 100
+            return (
+                f"Trailing-stop: {base} spadł {drop:.1f}% od szczytu {peak:.2f} "
+                f"(wejście {basis:.2f}, zysk +{change_pct:.1f}%)",
+                False,
+            )
+    elif settings.take_profit_pct > 0 and change_pct >= settings.take_profit_pct:
+        return (
+            f"Take-profit: {base} +{change_pct:.1f}% od wejścia (średnia {basis:.2f} → {price:.2f})",
+            False,
+        )
+
+    return None, False
+
+
 def check_take_profit_stop_loss(
     db: Session, settings: Settings, kraken: KrakenClient, portfolio: dict
 ) -> list[Trade]:
-    """Mechanical exits run on every poll, WITHOUT asking Claude: auto-SELL a
-    whole position the moment it reaches +take_profit_pct or -stop_loss_pct
-    versus its average entry price. Respects the same stop/halt gate as any
-    automated trade -- if the user pressed STOP, these don't fire either."""
+    """Mechanical exits run on every poll, WITHOUT asking Claude: hard stop-loss
+    from entry, plus either a trailing stop (default -- lets winners run) or a
+    fixed take-profit. Respects the same stop/halt gate as any automated trade
+    -- if the user pressed STOP, these don't fire either. Tracks each position's
+    peak price for the trailing stop and clears it once the position is closed."""
     if not risk_manager.can_trade_automated(db).approved:
         return []
 
+    state = risk_manager.get_state(db)
+    peaks: dict[str, float] = json.loads(state.position_peaks_json or "{}")
+    new_peaks: dict[str, float] = {}
     executed: list[Trade] = []
+
     for symbol in settings.whitelist_symbols:
         if symbol not in portfolio["prices"]:
+            # Keep any existing peak we can't refresh this cycle.
+            if symbol in peaks:
+                new_peaks[symbol] = peaks[symbol]
             continue
         base = _base_asset(symbol, settings.quote_currency)
         qty = portfolio["balances"].get(base, 0.0)
-        if qty <= 0:
-            continue
-        basis = average_cost_basis(db, symbol)
-        if basis is None or basis <= 0:
-            continue
+        basis = average_cost_basis(db, symbol) if qty > 0 else None
+        if qty <= 0 or basis is None or basis <= 0:
+            continue  # not held -> drop any stale peak
 
         price = portfolio["prices"][symbol]
-        change_pct = (price - basis) / basis * 100
+        peak = max(peaks.get(symbol, basis), price)
 
-        reason = None
-        is_stop_loss = False
-        if settings.take_profit_pct > 0 and change_pct >= settings.take_profit_pct:
-            reason = f"Take-profit: {base} +{change_pct:.1f}% od wejścia (średnia {basis:.2f} → {price:.2f})"
-        elif settings.stop_loss_pct > 0 and change_pct <= -settings.stop_loss_pct:
-            reason = f"Stop-loss: {base} {change_pct:.1f}% od wejścia (średnia {basis:.2f} → {price:.2f})"
-            is_stop_loss = True
+        reason, is_stop_loss = _decide_mechanical_exit(settings, base, basis, price, peak)
         if reason is None:
+            new_peaks[symbol] = peak  # still holding, remember the peak
             continue
 
         decision = Decision(
@@ -216,10 +248,13 @@ def check_take_profit_stop_loss(
             is_manual=False,
         )
         executed.append(trade)
-        logger.info("TP/SL exit: %s", reason)
+        logger.info("Mechaniczne wyjście: %s", reason)
         if is_stop_loss:
             _set_stop_loss_cooldown(db, symbol, settings.stop_loss_cooldown_minutes)
+        # position closed -> its peak is intentionally not carried into new_peaks
 
+    state.position_peaks_json = json.dumps(new_peaks)
+    db.commit()
     return executed
 
 
@@ -326,12 +361,14 @@ def run_cycle(
         "day_loss_budget_remaining_pct": day_loss_budget_left_pct,
         "max_position_pct": settings.max_position_pct,
         "automated_trading_currently_allowed": trade_check.approved,
-        "auto_take_profit_pct": settings.take_profit_pct,
+        "auto_take_profit_arm_pct": settings.take_profit_pct,
         "auto_stop_loss_pct": settings.stop_loss_pct,
+        "auto_trailing_stop_pct": settings.trailing_stop_pct if settings.trailing_stop_enabled else None,
         "exit_note": (
-            "Pozycje są automatycznie zamykane przy +auto_take_profit_pct (zysk) lub "
-            "-auto_stop_loss_pct (strata) względem średniej ceny wejścia. Skup się na trafnym "
-            "WEJŚCIU; nie musisz planować wyjścia."
+            "Wyjścia z pozycji są w pełni automatyczne: twardy stop-loss -auto_stop_loss_pct od "
+            "wejścia, a po zysku +auto_take_profit_arm_pct uzbraja się trailing-stop (sprzedaż gdy "
+            "cena spadnie auto_trailing_stop_pct od szczytu) — zyski mogą rosnąć. Skup się WYŁĄCZNIE "
+            "na trafnym WEJŚCIU; nie planuj wyjścia."
         ),
     }
 
@@ -466,6 +503,7 @@ def _execute_trade(
     db.commit()
     db.refresh(trade)
     logger.info("Executed %s %s qty=%s price=%s", result.side, result.symbol, result.quantity, result.price)
+    email_reporter.send_trade_alert(settings, trade, reason=decision.reasoning if decision else "")
     return trade
 
 
@@ -521,4 +559,5 @@ def execute_manual_trade(
     db.add(trade)
     db.commit()
     db.refresh(trade)
+    email_reporter.send_trade_alert(settings, trade, reason=decision.reasoning)
     return trade

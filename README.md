@@ -85,8 +85,12 @@ od pierwszego cyklu po wdrożeniu jest realne.
 |---|---|---|
 | `DAILY_LOSS_LIMIT_PCT` | `20` | Przy spadku wartości portfela o tyle % w ciągu dnia — automat zatrzymuje handel automatyczny (wymaga ręcznego wznowienia w dashboardzie) |
 | `MAX_POSITION_PCT` | `25` | Maks. % dostępnego kapitału, jaki automat może zaangażować w jedną transakcję |
-| `TAKE_PROFIT_PCT` | `3` | Automat sprzedaje całą pozycję, gdy zyska tyle % od średniej ceny wejścia (realizacja zysku, bez pytania Claude). `0` = wyłączone |
-| `STOP_LOSS_PCT` | `2` | Automat sprzedaje całą pozycję, gdy straci tyle % od średniej ceny wejścia (ucięcie straty). `0` = wyłączone |
+| `STOP_LOSS_PCT` | `2` | Twarda podłoga: automat sprzedaje całą pozycję, gdy straci tyle % od średniej ceny wejścia. `0` = wyłączone |
+| `STOP_LOSS_COOLDOWN_MINUTES` | `60` | Po stop-lossie ta sama para jest zablokowana do odkupu na tyle minut (ochrona przed piłowaniem konta prowizjami). `0` = wyłączone |
+| `TAKE_PROFIT_PCT` | `3` | Zysk, po którym uzbraja się trailing-stop (lub — przy wyłączonym trailingu — natychmiastowa sprzedaż) |
+| `TRAILING_STOP_ENABLED` | `true` | `true` = po zysku `TAKE_PROFIT_PCT` pozwól zyskom rosnąć i sprzedaj dopiero po spadku `TRAILING_STOP_PCT` od szczytu. `false` = sztywny take-profit przy `TAKE_PROFIT_PCT` |
+| `TRAILING_STOP_PCT` | `1.5` | O ile % cena musi spaść od szczytu, żeby trailing-stop sprzedał (gdy uzbrojony) |
+| `TRADE_ALERTS_ENABLED` | `true` | Mail natychmiast po każdej transakcji (BUY/SELL, w tym wyjścia TP/SL). Wymaga SMTP; `false` = tylko raport dzienny |
 | `TRADING_WHITELIST` | `XBTEUR,ETHEUR,SOLEUR,XRPEUR` | Lista par, którymi automat może handlować — w pełni generyczna, dowolna liczba par obsługiwanych przez Kraken (format `<COIN><QUOTE_CURRENCY>`, przecinek jako separator) |
 | `POLL_INTERVAL_MINUTES` | `15` | Co ile minut sprawdzać ceny/newsy |
 | `PRICE_MOVE_TRIGGER_PCT` | `2` | Próg zmiany ceny traktowany jako "zdarzenie" wywołujące analizę Claude |
