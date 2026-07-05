@@ -784,19 +784,98 @@ button {
 
 .toolbar {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
-  padding: 12px;
+  gap: 16px;
+  padding: 14px 16px;
   border-radius: 14px;
   background: linear-gradient(165deg, rgba(22, 20, 16, 0.92), rgba(10, 9, 6, 0.96));
   border: 1px solid var(--border);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
+.toolbar-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toolbar-status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+
+.toolbar-status-dot-live {
+  background: var(--green);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent);
+  animation: toolbar-pulse 2s ease-in-out infinite;
+}
+
+@keyframes toolbar-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.toolbar-status-hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.toolbar-divider {
+  align-self: stretch;
+  width: 1px;
+  background: var(--border);
+  margin: 2px 0;
+}
+
+.toolbar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.toolbar-section-end {
+  margin-left: auto;
+}
+
+.toolbar-section-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .toolbar-feedback {
-  margin: 8px 2px 0;
+  margin: 10px 2px 0;
   font-size: 0.82rem;
   color: var(--green);
+}
+
+@media (max-width: 900px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .toolbar-divider {
+    width: 100%;
+    height: 1px;
+    align-self: auto;
+    margin: 0;
+  }
+  .toolbar-section-end {
+    margin-left: 0;
+  }
 }
 
 .btn-danger {
@@ -840,6 +919,47 @@ button {
 }
 
 .btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-hero {
+  padding: 13px 24px;
+  font-size: 0.9rem;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid transparent;
+  padding: 9px 12px;
+  font-size: 0.78rem;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--panel-2) 70%, transparent);
+}
+
+.btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-outline-danger {
+  background: transparent;
+  color: var(--red);
+  border: 1px solid color-mix(in srgb, var(--red) 45%, var(--border));
+  padding: 9px 12px;
+  font-size: 0.78rem;
+}
+
+.btn-outline-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  border-color: var(--red);
+}
+
+.btn-outline-danger:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

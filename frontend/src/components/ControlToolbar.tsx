@@ -156,38 +156,56 @@ export function ControlToolbar({
   return (
     <div className="toolbar-wrap">
       <div className="toolbar">
-        <button className={isStopped ? "btn-primary" : "btn-danger"} disabled={busy} onClick={() => run(isStopped ? api.resume : api.pause)}>
-          <Icon name={isStopped ? "play" : "pause"} />
-          {isStopped ? "START — automatyczny zakup/sprzedaż" : "STOP automat"}
-        </button>
-        <button className="btn-secondary" disabled={busy} onClick={refreshPortfolio}>
-          <Icon name="refresh" />
-          Odśwież portfel
-        </button>
-        <button className="btn-primary" disabled={busy} onClick={() => run(api.runCycleNow)}>
-          <Icon name="bolt" />
-          Wymuś analizę
-        </button>
-        <button className="btn-primary" disabled={busy} onClick={() => run(api.sendReportNow, false)}>
-          <Icon name="mail" />
-          Wyślij raport
-        </button>
-        <button className="btn-danger" disabled={busy} onClick={() => run(api.restart, false)}>
-          <Icon name="restart" />
-          Restart
-        </button>
-        <button
-          className="btn-secondary"
-          onClick={onToggleMuted}
-          title={muted ? "Włącz dźwięk transakcji" : "Wycisz dźwięk transakcji"}
-        >
-          <Icon name={muted ? "muted" : "sound"} />
-          {muted ? "Dźwięk: wył." : "Dźwięk: wł."}
-        </button>
-        <button className="btn-secondary" disabled={busy} onClick={logOff}>
-          <Icon name="logout" />
-          Wyloguj
-        </button>
+        <div className="toolbar-main">
+          <button
+            className={`btn-hero ${isStopped ? "btn-primary" : "btn-danger"}`}
+            disabled={busy}
+            onClick={() => run(isStopped ? api.resume : api.pause)}
+          >
+            <Icon name={isStopped ? "play" : "pause"} />
+            {isStopped ? "START — automatyczny handel" : "STOP automat"}
+          </button>
+          <span className={`toolbar-status-dot ${isStopped ? "" : "toolbar-status-dot-live"}`} />
+          <span className="toolbar-status-hint">{isStopped ? "Automat nie handluje" : "Automat aktywny, monitoruje rynek"}</span>
+        </div>
+
+        <div className="toolbar-divider" />
+
+        <div className="toolbar-section">
+          <span className="toolbar-section-label">Akcje</span>
+          <div className="toolbar-row">
+            <button className="btn-secondary" disabled={busy} onClick={refreshPortfolio}>
+              <Icon name="refresh" />
+              Odśwież portfel
+            </button>
+            <button className="btn-secondary" disabled={busy} onClick={() => run(api.runCycleNow)}>
+              <Icon name="bolt" />
+              Wymuś analizę
+            </button>
+            <button className="btn-secondary" disabled={busy} onClick={() => run(api.sendReportNow, false)}>
+              <Icon name="mail" />
+              Wyślij raport
+            </button>
+          </div>
+        </div>
+
+        <div className="toolbar-section toolbar-section-end">
+          <span className="toolbar-section-label">Ustawienia</span>
+          <div className="toolbar-row">
+            <button className="btn-ghost" onClick={onToggleMuted} title={muted ? "Włącz dźwięk transakcji" : "Wycisz dźwięk transakcji"}>
+              <Icon name={muted ? "muted" : "sound"} />
+              {muted ? "Dźwięk: wył." : "Dźwięk: wł."}
+            </button>
+            <button className="btn-ghost" disabled={busy} onClick={logOff}>
+              <Icon name="logout" />
+              Wyloguj
+            </button>
+            <button className="btn-outline-danger" disabled={busy} onClick={() => run(api.restart, false)} title="Restartuje proces automatu">
+              <Icon name="restart" />
+              Restart
+            </button>
+          </div>
+        </div>
       </div>
       {feedback && <p className={feedback.kind === "error" ? "error-text" : "toolbar-feedback"}>{feedback.text}</p>}
     </div>
