@@ -5,7 +5,7 @@ Aplikacja do automatycznego inwestowania w akcje i ETF-y bez prowizji
 Alpaca (rynek US), w której decyzje inwestycyjne (co / kiedy / ile) podejmuje
 Claude -- Sonnet analizuje każdy cykl, a Opus podejmuje ostateczną decyzję
 tylko gdy Sonnet sam zgłasza niepewność co do BUY/SELL -- na podstawie danych
-rynkowych i newsów z kilkunastu źródeł. System ma dashboard z wynikami, pełny
+rynkowych i newsów z blisko 30 źródeł. System ma dashboard z wynikami, pełny
 log decyzji i transakcji, oraz przełącznik start/stop i panel do ręcznej
 transakcji z pominięciem automatu.
 
@@ -40,8 +40,10 @@ Przepływ decyzyjny:
    sprawdzenia (albo minął dzień od ostatniej pełnej analizy — fallback),
    system uznaje to za "zdarzenie" i woła Claude.
 3. Claude dostaje: aktualne dane cenowe/świece, newsy i kontekst rynkowy z
-   kilkunastu źródeł (RSS największych portali finansowych, Reddit, Fear &
-   Greed Index i inne), stan portfela i pozostały dzienny budżet ryzyka.
+   blisko 30 źródeł (RSS największych portali finansowych i technologicznych,
+   Reddit, filingi SEC — 8-K i Form 4 — per-tickerowe nagłówki, VIX i zmiana
+   głównych indeksów, top gainers/losers), stan portfela i pozostały dzienny
+   budżet ryzyka.
    Najpierw odpowiada szybszy/tańszy model (Sonnet); jeśli sam zgłosi niską
    pewność co do BUY/SELL, o ostateczną decyzję pytany jest Opus. Wynik to
    zawsze jedna ustrukturyzowana decyzja (BUY/SELL/HOLD, symbol, wielkość,
