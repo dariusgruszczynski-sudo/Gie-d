@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useState } from "react";
-import { JarvisBoot } from "./JarvisBoot";
+import { BrandLoader } from "./BrandLoader";
 import { LoginScreen } from "./LoginScreen";
 
 type Phase = "checking" | "login" | "booting" | "authenticated";
@@ -22,6 +22,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (phase === "checking") return null;
   if (phase === "login") return <LoginScreen onSuccess={() => setPhase("booting")} />;
-  if (phase === "booting") return <JarvisBoot onComplete={() => setPhase("authenticated")} />;
+  if (phase === "booting") return <BrandLoader onComplete={() => setPhase("authenticated")} />;
   return <>{children}</>;
 }

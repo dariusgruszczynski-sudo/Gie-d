@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, Decision, PortfolioResponse, StatusResponse, Trade } from "./api/client";
 import { AccountSummary } from "./components/AccountSummary";
+import { BrandLogo } from "./components/BrandLogo";
 import { ControlToolbar } from "./components/ControlToolbar";
 import { DecisionSplash } from "./components/DecisionSplash";
 import { DecisionsLog } from "./components/DecisionsLog";
@@ -13,40 +14,6 @@ import { PriceTicker } from "./components/PriceTicker";
 import { StatusBanner } from "./components/StatusBanner";
 import { TradesTable } from "./components/TradesTable";
 import { isSoundMuted, playTradeSound, setSoundMuted } from "./tradeSound";
-
-function Logo() {
-  return (
-    <svg width="48" height="48" viewBox="0 0 48 48" className="logo-mark" aria-label="GielDarek" role="img">
-      <defs>
-        <linearGradient id="gdBadge" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#7c8bff" />
-          <stop offset="55%" stopColor="#6d7cff" />
-          <stop offset="100%" stopColor="#9d7bff" />
-        </linearGradient>
-      </defs>
-      {/* Rounded gradient badge */}
-      <rect x="2" y="2" width="44" height="44" rx="13" fill="url(#gdBadge)" />
-      <rect x="2" y="2" width="44" height="44" rx="13" fill="none" stroke="#ffffff" strokeOpacity="0.16" strokeWidth="1" />
-      {/* Crisp rising line-chart with an up-right arrowhead — the mark */}
-      <polyline
-        points="12,32 21,24 28,29 37,15"
-        fill="none"
-        stroke="#0a0c14"
-        strokeWidth="3.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M37 15 h-6.5 M37 15 v6.5"
-        fill="none"
-        stroke="#0a0c14"
-        strokeWidth="3.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 const REFRESH_MS = 15000;
 
@@ -127,7 +94,7 @@ export default function App() {
       )}
       <div className="app">
         <div className="app-header">
-          <Logo />
+          <BrandLogo size={48} />
           <div>
             <h1>Giel<span className="brand-accent">Darek</span></h1>
             <p className="subtitle">

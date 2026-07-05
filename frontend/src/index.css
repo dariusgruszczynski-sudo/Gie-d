@@ -943,98 +943,97 @@ button {
 
 /* --- Jarvis-style boot sequence --- */
 
-.jarvis-boot {
+/* --- Brand loading transition (after login) --- */
+
+.brand-loader {
   position: fixed;
   inset: 0;
   z-index: 300;
-  background: radial-gradient(ellipse at center, rgba(109, 124, 255, 0.1), #000 70%);
+  background: radial-gradient(ellipse 700px 520px at 50% 42%, rgba(109, 124, 255, 0.14), transparent 65%),
+    linear-gradient(180deg, #0b0e18, #070910 70%);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 28px;
+  gap: 22px;
+  opacity: 1;
+  transition: opacity 0.5s ease;
 }
 
-.jarvis-rings {
+.brand-loader-leaving {
+  opacity: 0;
+}
+
+.brand-loader-glow {
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(109, 124, 255, 0.28), transparent 62%);
+  filter: blur(14px);
+  animation: bl-glow 2.2s ease-in-out infinite;
+}
+
+.brand-loader-mark {
   position: relative;
-  width: 220px;
-  height: 220px;
+  animation: bl-pop 0.7s cubic-bezier(0.2, 0.9, 0.25, 1) both;
 }
 
-.jarvis-ring {
+.brand-loader-mark .logo-mark {
+  filter: drop-shadow(0 10px 34px rgba(109, 124, 255, 0.55));
+}
+
+.brand-loader-word {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  animation: bl-rise 0.6s ease-out 0.15s both;
+}
+
+.brand-loader-word span {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.brand-loader-bar {
+  position: relative;
+  width: 200px;
+  height: 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  animation: bl-rise 0.6s ease-out 0.25s both;
+}
+
+.brand-loader-bar span {
   position: absolute;
   inset: 0;
-  border-radius: 50%;
-  border: 2px solid var(--gold);
-  opacity: 0.6;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transform-origin: left center;
+  animation: bl-fill 1.7s cubic-bezier(0.5, 0, 0.1, 1) forwards;
 }
 
-.jarvis-ring-1 {
-  animation: jarvis-spin 3s linear infinite;
-  border-style: dashed;
-}
-
-.jarvis-ring-2 {
-  inset: 24px;
-  animation: jarvis-spin-reverse 2.2s linear infinite;
-  border-color: var(--gold-bright);
-}
-
-.jarvis-ring-3 {
-  inset: 48px;
-  animation: jarvis-pulse 1.4s ease-in-out infinite;
-  border-color: var(--green);
-}
-
-@keyframes jarvis-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes jarvis-spin-reverse {
-  from {
-    transform: rotate(360deg);
-  }
-  to {
-    transform: rotate(0deg);
-  }
-}
-
-@keyframes jarvis-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.4;
-  }
-  50% {
-    transform: scale(1.08);
-    opacity: 0.9;
-  }
-}
-
-.jarvis-lines {
-  text-align: center;
-  min-height: 90px;
-}
-
-.jarvis-line {
-  font-family: var(--font-mono);
-  color: var(--gold-bright);
-  font-size: 1rem;
-  letter-spacing: 0.12em;
-  margin: 6px 0;
-  animation: jarvis-line-in 0.4s ease-out;
-  text-shadow: 0 0 12px rgba(109, 124, 255, 0.6);
-}
-
-@keyframes jarvis-line-in {
+@keyframes bl-pop {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes bl-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -1042,11 +1041,33 @@ button {
   }
 }
 
+@keyframes bl-glow {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes bl-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .jarvis-ring-1,
-  .jarvis-ring-2,
-  .jarvis-ring-3,
-  .jarvis-line {
+  .brand-loader-glow,
+  .brand-loader-mark,
+  .brand-loader-word,
+  .brand-loader-bar,
+  .brand-loader-bar span {
     animation: none;
   }
 }
