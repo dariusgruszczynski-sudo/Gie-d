@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models import Decision, PortfolioSnapshot, Trade, TradeAction, TradeMode, TriggerType
-from app.services import budget_tracker, email_reporter, market_hours, risk_manager
+from app.services import budget_tracker, earnings_calendar, email_reporter, market_hours, risk_manager
 from app.services.alpaca_client import AlpacaAPIError, AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.market_context import MarketContextClient
@@ -26,8 +26,21 @@ def _base_asset(symbol: str, quote_currency: str) -> str:
     return symbol.replace(quote_currency, "")
 
 
-def _is_tradable_session(session_info: SessionInfo, settings: Settings) -> bool:
-    return market_hours.is_tradable_session(session_info.session, settings.extended_hours_trading_enabled)
+def extended_hours_active(settings: Settings, total_value_usd: float) -> bool:
+    """Extended-hours (pre-/after-market) trading is on if either the manual
+    switch is set OR the portfolio has grown past the auto-enable threshold --
+    so a small account trades regular-session-only until it's big enough for
+    whole-share extended-hours orders to actually be affordable, then opens up
+    on its own."""
+    if settings.extended_hours_trading_enabled:
+        return True
+    return settings.extended_hours_auto_enable_usd > 0 and total_value_usd >= settings.extended_hours_auto_enable_usd
+
+
+def _is_tradable_session(session_info: SessionInfo, settings: Settings, total_value_usd: float) -> bool:
+    return market_hours.is_tradable_session(
+        session_info.session, extended_hours_active(settings, total_value_usd)
+    )
 
 
 def _session_closed_reason(session_info: SessionInfo) -> str:
@@ -241,7 +254,8 @@ def check_take_profit_stop_loss(
     peak price for the trailing stop and clears it once the position is
     closed."""
     session = session_info.session if session_info is not None else market_hours.REGULAR
-    tradable = market_hours.is_tradable_session(session, settings.extended_hours_trading_enabled)
+    ext_active = extended_hours_active(settings, portfolio["total_value_usdt"])
+    tradable = market_hours.is_tradable_session(session, ext_active)
     if not tradable or not risk_manager.can_trade_automated(db).approved:
         return []
 
@@ -397,7 +411,7 @@ def run_cycle(
     portfolio = compute_portfolio(db, settings, broker)
     state = risk_manager.update_portfolio_value(db, settings, portfolio["total_value_usdt"])
     session_info = market_hours.get_session_info(broker)
-    tradable = _is_tradable_session(session_info, settings)
+    tradable = _is_tradable_session(session_info, settings, portfolio["total_value_usdt"])
 
     # Mechanical take-profit / stop-loss runs every scheduled poll, before we
     # even decide whether to ask Claude -- this is what makes the bot actively
@@ -493,6 +507,16 @@ def run_cycle(
     headlines = news.get_headlines([_base_asset(s, settings.quote_currency) for s in settings.whitelist_symbols])
     global_context = market_ctx.get_market_context() if market_ctx is not None else {}
     performance_context = build_performance_context(db, settings, portfolio)
+    # Upcoming earnings per ticker (days until next report). Best-effort --
+    # never blocks the cycle if the calendar lookup fails.
+    try:
+        earnings_days = earnings_calendar.get_days_until_earnings(settings.whitelist_symbols)
+    except Exception:
+        logger.warning("Earnings calendar lookup failed, continuing without it", exc_info=True)
+        earnings_days = {}
+    earnings_context = {
+        sym: {"days_until_earnings": days} for sym, days in earnings_days.items()
+    }
 
     day_loss_budget_left_pct = max(
         0.0,
@@ -513,6 +537,17 @@ def run_cycle(
             "wejścia, a po zysku +auto_take_profit_arm_pct uzbraja się trailing-stop (sprzedaż gdy "
             "cena spadnie auto_trailing_stop_pct od szczytu) — zyski mogą rosnąć. Skup się WYŁĄCZNIE "
             "na trafnym WEJŚCIU; nie planuj wyjścia."
+        ),
+        # Forward-looking event risk: mechanical stop-loss can't protect
+        # against an earnings gap, so Claude should avoid opening a fresh
+        # position right before a report (the engine also hard-blocks new BUYs
+        # inside earnings_blackout_days as a backstop).
+        "upcoming_earnings": earnings_context,
+        "earnings_note": (
+            "upcoming_earnings podaje ile dni do najbliższego raportu wyników danego tickera. "
+            "Stop-loss NIE chroni przed luką po earnings (cena przeskakuje stopa). Nie otwieraj "
+            f"nowej pozycji na tickerze raportującym w ciągu {settings.earnings_blackout_days} dni "
+            "— takie BUY i tak zostanie odrzucone przez silnik."
         ),
     }
 
@@ -585,6 +620,24 @@ def run_cycle(
         in_cooldown, cooldown_reason = stop_loss_cooldown_active(db, decision_data.symbol)
         if in_cooldown:
             decision.rejection_reason = cooldown_reason
+            db.add(decision)
+            db.commit()
+            db.refresh(decision)
+            return decision
+
+        # Earnings-gap backstop: never OPEN a fresh position into a report the
+        # mechanical stop-loss can't protect against. Only acts on a KNOWN
+        # upcoming date, so a calendar-lookup failure never blocks trading.
+        days_to_earnings = earnings_days.get(decision_data.symbol)
+        if (
+            settings.earnings_blackout_days > 0
+            and days_to_earnings is not None
+            and 0 <= days_to_earnings <= settings.earnings_blackout_days
+        ):
+            decision.rejection_reason = (
+                f"Blackout przed earnings: {decision_data.symbol} raportuje za "
+                f"{days_to_earnings} dni — ryzyko luki, nowe wejście pominięte"
+            )
             db.add(decision)
             db.commit()
             db.refresh(decision)

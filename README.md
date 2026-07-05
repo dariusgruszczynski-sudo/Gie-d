@@ -118,8 +118,17 @@ regularnej:
 - `EXTENDED_HOURS_PRICE_MOVE_TRIGGER_PCT` (domyślnie `4`, wyższy niż
   `PRICE_MOVE_TRIGGER_PCT`) obowiązuje tylko poza sesją regularną — utrzymuje
   budżet Claude pod kontrolą mimo ~2.5x dłuższego okna handlu.
-- Ustaw `EXTENDED_HOURS_TRADING_ENABLED=false`, żeby wrócić wyłącznie do
-  sesji regularnej.
+
+**Auto-włączanie przy małym koncie.** Przy koncie rzędu $200 kawałek pozycji
+(np. 25% = ~$50) jest mniejszy niż cena jednej akcji ($150–1700), więc w
+rozszerzonych godzinach i tak nic nie kupisz ani nie sprzedasz (ułamków tam
+nie ma). Dlatego domyślnie `EXTENDED_HOURS_TRADING_ENABLED=false`, a
+rozszerzone godziny **włączają się automatycznie po przekroczeniu
+`EXTENDED_HOURS_AUTO_ENABLE_USD` (domyślnie $500)** wartości portfela — kiedy
+robi się to sensowne. Ustaw ten próg na `0`, żeby wyłączyć auto, albo
+`EXTENDED_HOURS_TRADING_ENABLED=true`, żeby wymusić od razu. Dashboard w
+panelu "Zegar sesji" pokazuje, czy rozszerzone godziny są aktywne, a jeśli
+nie — od jakiej kwoty się włączą.
 
 Dashboard pokazuje aktualną fazę sesji (pre-market/regularna/after-hours/
 zamknięte) w panelu "Zegar sesji", razem z zegarem na żywo w Twoim czasie
@@ -133,6 +142,26 @@ nagłówek — np. wyniki kwartalne. Jeśli tak, Claude jest budzony natychmiast
 niezależnie od tego, czy cena już się ruszyła. To ma szczególne znaczenie
 pre-/after-market, gdzie płynność jest cienka i cena może reagować na news z
 opóźnieniem rzędu minut — sam próg zmiany ceny złapałby to zbyt późno.
+
+**Kalendarz earnings (ochrona przed luką).** Mechaniczny stop-loss NIE chroni
+przed luką po wynikach — cena potrafi w nocy przeskoczyć stopa. Dlatego
+automat pobiera (best-effort, z kalendarza Nasdaq) daty najbliższych raportów
+dla tickerów z whitelisty i **nie otwiera nowej pozycji** na spółce
+raportującej w ciągu `EARNINGS_BLACKOUT_DAYS` dni (domyślnie 2). SELL/HOLD są
+nadal dozwolone, a Claude dostaje te daty w kontekście, żeby sam to
+uwzględniał. Awaria kalendarza nigdy nie blokuje handlu (działa tylko na
+znane daty).
+
+## Uczenie się z własnej historii
+
+Claude co cykl dostaje `your_performance` — swoje **otwarte pozycje** (cena
+wejścia, bieżący niezrealizowany zysk/strata) oraz **ostatnie transakcje**
+wraz z uzasadnieniami. Prompt wprost każe uczyć się z tego track recordu:
+dokładać do tego, co działa, nie odkupywać w kółko pozycji zamykanych
+stop-lossem i trzymać wygrywające. To zamienia „analityka od zera co 15 min"
+w „tradera, który pamięta, co przed chwilą zadziałało". (Uwaga: to
+rozumowanie na bieżąco na podstawie własnej historii, nie trwały trening
+modelu.)
 
 ## Konfiguracja ryzyka (`.env`)
 
@@ -149,8 +178,10 @@ opóźnieniem rzędu minut — sam próg zmiany ceny złapałby to zbyt późno.
 | `TRADING_WHITELIST` | `SPY,QQQ,AAPL,NVDA,MSTR` | Lista tickerów, którymi automat może handlować — w pełni generyczna, dowolna liczba tickerów obsługiwanych przez Alpaca (przecinek jako separator) |
 | `POLL_INTERVAL_MINUTES` | `15` | Co ile minut sprawdzać ceny/newsy |
 | `PRICE_MOVE_TRIGGER_PCT` | `2` | Próg zmiany ceny (w sesji regularnej) traktowany jako "zdarzenie" wywołujące analizę Claude |
-| `EXTENDED_HOURS_TRADING_ENABLED` | `true` | Handel też w pre-market (4:00-9:30 ET) i after-hours (16:00-20:00 ET) na tym samym koncie Alpaca — patrz "Rozszerzone godziny handlu" wyżej |
+| `EXTENDED_HOURS_TRADING_ENABLED` | `false` | Wymuszony handel w pre-market/after-hours od razu. Domyślnie off — przy małym koncie rozszerzone godziny nic nie zdziałają, patrz "Rozszerzone godziny handlu" wyżej |
+| `EXTENDED_HOURS_AUTO_ENABLE_USD` | `500` | Automatyczne włączenie rozszerzonych godzin, gdy wartość portfela osiągnie tyle USD. `0` = wyłącz auto |
 | `EXTENDED_HOURS_PRICE_MOVE_TRIGGER_PCT` | `4` | Jak `PRICE_MOVE_TRIGGER_PCT`, ale obowiązuje tylko poza sesją regularną (wyższy próg = mniej wywołań Claude na dłuższym oknie handlu) |
+| `EARNINGS_BLACKOUT_DAYS` | `2` | Nie otwieraj nowej pozycji na tickerze raportującym wyniki w ciągu tylu dni (ochrona przed luką, której stop-loss nie łapie). `0` = wyłączone |
 
 Zatrzymanie po przekroczeniu limitu strat **nie resetuje się automatycznie**
 następnego dnia — wymaga świadomego kliknięcia "START" w dashboardzie, żebyś

@@ -52,7 +52,8 @@ def test_status_includes_market_session_and_bounds(db_session, settings, monkeyp
 
     assert body["market_session"] == "regular"
     assert body["session_bounds"]["regular_open"] == now.isoformat()
-    assert body["extended_hours_trading_enabled"] is True
+    # conftest settings has the manual switch on, so extended hours is active.
+    assert body["extended_hours_active"] is True
 
 
 def test_status_degrades_gracefully_when_session_lookup_fails(db_session, settings, monkeypatch):

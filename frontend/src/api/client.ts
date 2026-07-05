@@ -20,7 +20,8 @@ export interface StatusResponse {
   max_position_pct: number;
   whitelist: string[];
   poll_interval_minutes: number;
-  extended_hours_trading_enabled: boolean;
+  extended_hours_active: boolean;
+  extended_hours_auto_enable_usd: number;
   market_session: MarketSession;
   session_bounds: SessionBounds | null;
   claude_monthly_budget_usd: number;

@@ -23,10 +23,13 @@ def _session_info(session: str) -> market_hours.SessionInfo:
 def _default_regular_session(monkeypatch):
     """Most tests don't care about market-hours gating -- default every test
     to the regular session so run_cycle/check_take_profit_stop_loss behave as
-    if the market is simply open, unless a test overrides this explicitly."""
+    if the market is simply open, unless a test overrides this explicitly.
+    Also stub the earnings calendar to 'no upcoming earnings' so no test hits
+    the network; the earnings test overrides this explicitly."""
     monkeypatch.setattr(
         trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.REGULAR)
     )
+    monkeypatch.setattr(trading_engine.earnings_calendar, "get_days_until_earnings", lambda tickers: {})
 
 
 class FakeAlpaca:
@@ -726,3 +729,75 @@ def test_extended_hours_fractional_exit_does_not_crash_cycle(db_session, setting
     import json as _json
 
     assert "SPY" in _json.loads(state.position_peaks_json)
+
+
+def test_extended_hours_auto_enables_past_threshold():
+    auto = {"extended_hours_trading_enabled": False, "extended_hours_auto_enable_usd": 500.0}
+    from app.config import Settings
+
+    s = Settings(anthropic_api_key="k", alpaca_api_key="k", alpaca_api_secret="k", **auto)
+    assert trading_engine.extended_hours_active(s, 499.0) is False
+    assert trading_engine.extended_hours_active(s, 500.0) is True
+    assert trading_engine.extended_hours_active(s, 800.0) is True
+
+
+def test_extended_hours_manual_switch_overrides_threshold():
+    from app.config import Settings
+
+    s = Settings(
+        anthropic_api_key="k",
+        alpaca_api_key="k",
+        alpaca_api_secret="k",
+        extended_hours_trading_enabled=True,
+        extended_hours_auto_enable_usd=0.0,
+    )
+    assert trading_engine.extended_hours_active(s, 10.0) is True
+
+
+def test_scheduled_cycle_auto_opens_extended_hours_when_portfolio_large(db_session, settings, monkeypatch):
+    """Once the portfolio crosses the auto-enable threshold, a pre-market
+    scheduled cycle trades even though the manual switch is off."""
+    monkeypatch.setattr(
+        trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.PRE_MARKET)
+    )
+    auto_settings = settings.model_copy(
+        update={"extended_hours_trading_enabled": False, "extended_hours_auto_enable_usd": 500.0}
+    )
+    # Total value 1000 USD > 500 threshold -> extended hours auto-on.
+    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Sygnał przedsesyjny."))
+
+    decision = trading_engine.run_cycle(db_session, auto_settings, broker, FakeNews(), advisor, force=True)
+
+    assert decision.executed is True
+    assert broker.last_order_session == market_hours.PRE_MARKET
+
+
+def test_earnings_blackout_blocks_new_buy(db_session, settings, monkeypatch):
+    """No fresh position into a report the stop-loss can't protect against."""
+    monkeypatch.setattr(
+        trading_engine.earnings_calendar, "get_days_until_earnings", lambda tickers: {"SPY": 1}
+    )
+    guarded = settings.model_copy(update={"earnings_blackout_days": 2})
+    broker = FakeAlpaca()
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Kupuję przed wynikami."))
+
+    decision = trading_engine.run_cycle(db_session, guarded, broker, FakeNews(), advisor, force=True)
+
+    assert decision.executed is False
+    assert "earnings" in (decision.rejection_reason or "").lower()
+    assert len(broker.orders) == 0
+
+
+def test_earnings_blackout_allows_buy_outside_window(db_session, settings, monkeypatch):
+    monkeypatch.setattr(
+        trading_engine.earnings_calendar, "get_days_until_earnings", lambda tickers: {"SPY": 9}
+    )
+    guarded = settings.model_copy(update={"earnings_blackout_days": 2})
+    broker = FakeAlpaca()
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Wyniki daleko, kupuję."))
+
+    decision = trading_engine.run_cycle(db_session, guarded, broker, FakeNews(), advisor, force=True)
+
+    assert decision.executed is True
+    assert len(broker.orders) == 1

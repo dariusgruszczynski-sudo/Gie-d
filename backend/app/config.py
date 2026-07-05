@@ -65,20 +65,32 @@ class Settings(BaseSettings):
 
     poll_interval_minutes: int = 15
     price_move_trigger_pct: float = 2.0
-    # Stocks/ETFs regular session is only ~6.5h/day (9:30-16:00 ET). Setting
-    # this True lets the bot also trade pre-market (4:00-9:30 ET) and
-    # after-hours (16:00-20:00 ET) on the SAME Alpaca account -- no new
-    # broker/money needed -- for ~16h/day of coverage instead of ~6.5h.
-    # Extended-hours orders are whole-share LIMIT orders only (thinner
-    # liquidity, wider spreads than regular hours -- a real execution-risk
-    # tradeoff, especially on more volatile picks like MSTR/NVDA).
-    extended_hours_trading_enabled: bool = True
+    # Stocks/ETFs regular session is only ~6.5h/day (9:30-16:00 ET). Extended
+    # hours add pre-market (4:00-9:30 ET) and after-hours (16:00-20:00 ET) on
+    # the SAME Alpaca account -- no new broker/money needed -- for ~16h/day of
+    # coverage. Orders there are whole-share LIMIT orders only (thinner
+    # liquidity, wider spreads -- a real execution-risk tradeoff, worse on
+    # volatile picks like MSTR/NVDA). On a tiny account a position slice is
+    # smaller than one whole share, so extended hours can't actually buy/exit
+    # -- hence it's OFF manually by default and auto-enables only once the
+    # portfolio is big enough to be useful (see below).
+    extended_hours_trading_enabled: bool = False
+    # Auto-enable extended-hours trading once total portfolio value reaches
+    # this many USD, without needing to flip the manual switch. Set 0 to
+    # disable auto-enabling (then only extended_hours_trading_enabled counts).
+    extended_hours_auto_enable_usd: float = 500.0
     # Applies only during pre-market/after-hours: a higher bar than
     # price_move_trigger_pct before waking Claude, since routine drift
     # outside the regular session is less meaningful and extending the
     # trading window to ~2.5x its length would otherwise ~2.5x the Claude
     # API spend for the same signal quality.
     extended_hours_price_move_trigger_pct: float = 4.0
+    # Earnings-gap guard: the mechanical stop-loss CANNOT protect against an
+    # overnight earnings gap (price jumps straight through the stop). So block
+    # opening a NEW position in a ticker reporting within this many days.
+    # SELL/HOLD stay allowed; 0 disables the guard. Only acts on KNOWN
+    # upcoming earnings -- a calendar-lookup failure never blocks trading.
+    earnings_blackout_days: int = 2
 
     claude_monthly_budget_usd: float = 20.0
     claude_budget_alert_threshold_pct: float = 80.0

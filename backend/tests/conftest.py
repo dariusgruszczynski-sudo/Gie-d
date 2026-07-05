@@ -38,4 +38,11 @@ def settings():
         trading_whitelist="SPY,QQQ",
         poll_interval_minutes=15,
         price_move_trigger_pct=2.0,
+        # Extended-hours tests opt in explicitly via the manual switch; keep
+        # auto-enable off so a large test portfolio doesn't silently flip it.
+        extended_hours_trading_enabled=True,
+        extended_hours_auto_enable_usd=0.0,
+        # Earnings guard off by default in tests; the dedicated earnings test
+        # sets it explicitly. (The calendar lookup itself is mocked to {}.)
+        earnings_blackout_days=0,
     )

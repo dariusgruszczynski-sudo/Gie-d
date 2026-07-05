@@ -116,7 +116,8 @@ export default function App() {
             <SessionClock
               session={status.market_session}
               bounds={status.session_bounds}
-              extendedHoursEnabled={status.extended_hours_trading_enabled}
+              extendedHoursEnabled={status.extended_hours_active}
+              extendedHoursAutoUsd={status.extended_hours_auto_enable_usd}
             />
           </div>
         )}

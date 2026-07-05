@@ -29,10 +29,12 @@ export function SessionClock({
   session,
   bounds,
   extendedHoursEnabled,
+  extendedHoursAutoUsd,
 }: {
   session: MarketSession;
   bounds: SessionBounds | null;
   extendedHoursEnabled: boolean;
+  extendedHoursAutoUsd: number;
 }) {
   const [now, setNow] = useState(() => new Date());
 
@@ -68,10 +70,16 @@ export function SessionClock({
           </div>
         </div>
       )}
-      {!extendedHoursEnabled && (
+      {extendedHoursEnabled ? (
         <p className="subtitle" style={{ marginTop: 10, marginBottom: 0 }}>
-          Rozszerzone godziny handlu (pre-market/after-hours) są wyłączone — automat handluje tylko w sesji
-          regularnej.
+          Rozszerzone godziny handlu (pre-market/after-hours) są aktywne — automat monitoruje rynek ~16h/dobę.
+        </p>
+      ) : (
+        <p className="subtitle" style={{ marginTop: 10, marginBottom: 0 }}>
+          Automat handluje tylko w sesji regularnej.
+          {extendedHoursAutoUsd > 0
+            ? ` Rozszerzone godziny (pre-market/after-hours) włączą się automatycznie po przekroczeniu $${extendedHoursAutoUsd.toFixed(0)} wartości portfela.`
+            : ""}
         </p>
       )}
     </div>
