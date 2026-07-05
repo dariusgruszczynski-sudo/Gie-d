@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     # take-profit, stop_loss_pct=0 to disable stop-loss.
     take_profit_pct: float = 3.0
     stop_loss_pct: float = 2.0
+    # After a stop-loss cuts a position, block re-buying that same coin for
+    # this many minutes -- stops the bot from "piłowanie" (buy top -> stop ->
+    # rebuy -> stop) that bleeds a small account dry on fees. 0 = disabled.
+    stop_loss_cooldown_minutes: int = 60
     # Kraken pair altnames (BTC is "XBT" on Kraken) for the four most liquid
     # EUR-quoted markets -- chosen for top market cap + deep EUR order books.
     trading_whitelist: str = "XBTEUR,ETHEUR,SOLEUR,XRPEUR"

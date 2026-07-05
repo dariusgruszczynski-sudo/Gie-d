@@ -111,6 +111,9 @@ class SystemState(Base):
     # so the price-move trigger works for any whitelist size.
     last_check_prices_json: Mapped[str] = mapped_column(Text, default="{}")
     last_full_analysis_date: Mapped[str] = mapped_column(String(10), default="")
+    # JSON dict {trading pair -> ISO timestamp until which re-buying is blocked}
+    # after a stop-loss on that pair. Prevents fee-bleeding churn.
+    stop_loss_cooldowns_json: Mapped[str] = mapped_column(Text, default="{}")
     claude_budget_month_key: Mapped[str] = mapped_column(String(7), default="")
     claude_spend_usd_this_month: Mapped[float] = mapped_column(Float, default=0.0)
     # HMAC key for signing login session cookies -- generated once on first

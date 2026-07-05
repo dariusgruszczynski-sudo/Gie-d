@@ -546,6 +546,17 @@ h1 {
   color: var(--red);
 }
 
+/* Per-position P&L colouring inside tables (Twoje pozycje) */
+table .up {
+  color: var(--green);
+  font-weight: 600;
+}
+
+table .down {
+  color: var(--red);
+  font-weight: 600;
+}
+
 .chart-range-tabs {
   display: flex;
   gap: 4px;

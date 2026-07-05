@@ -4,7 +4,7 @@ everything."""
 
 import json
 import logging
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -130,6 +130,32 @@ def average_cost_basis(db: Session, symbol: str) -> float | None:
     return cost / qty
 
 
+def _set_stop_loss_cooldown(db: Session, symbol: str, minutes: int) -> None:
+    if minutes <= 0:
+        return
+    state = risk_manager.get_state(db)
+    cooldowns = json.loads(state.stop_loss_cooldowns_json or "{}")
+    cooldowns[symbol] = (datetime.now(timezone.utc) + timedelta(minutes=minutes)).isoformat()
+    state.stop_loss_cooldowns_json = json.dumps(cooldowns)
+    db.commit()
+
+
+def stop_loss_cooldown_active(db: Session, symbol: str) -> tuple[bool, str | None]:
+    """True (with a human reason) if `symbol` is still inside its post-stop-loss
+    cooldown window and must not be re-bought yet."""
+    state = risk_manager.get_state(db)
+    cooldowns = json.loads(state.stop_loss_cooldowns_json or "{}")
+    until = cooldowns.get(symbol)
+    if not until:
+        return False, None
+    until_dt = datetime.fromisoformat(until)
+    now = datetime.now(timezone.utc)
+    if now >= until_dt:
+        return False, None
+    mins_left = int((until_dt - now).total_seconds() // 60) + 1
+    return True, f"Cooldown po stop-lossie: {symbol} zablokowany do odkupu jeszcze ~{mins_left} min"
+
+
 def check_take_profit_stop_loss(
     db: Session, settings: Settings, kraken: KrakenClient, portfolio: dict
 ) -> list[Trade]:
@@ -156,10 +182,12 @@ def check_take_profit_stop_loss(
         change_pct = (price - basis) / basis * 100
 
         reason = None
+        is_stop_loss = False
         if settings.take_profit_pct > 0 and change_pct >= settings.take_profit_pct:
             reason = f"Take-profit: {base} +{change_pct:.1f}% od wejścia (średnia {basis:.2f} → {price:.2f})"
         elif settings.stop_loss_pct > 0 and change_pct <= -settings.stop_loss_pct:
             reason = f"Stop-loss: {base} {change_pct:.1f}% od wejścia (średnia {basis:.2f} → {price:.2f})"
+            is_stop_loss = True
         if reason is None:
             continue
 
@@ -189,6 +217,8 @@ def check_take_profit_stop_loss(
         )
         executed.append(trade)
         logger.info("TP/SL exit: %s", reason)
+        if is_stop_loss:
+            _set_stop_loss_cooldown(db, symbol, settings.stop_loss_cooldown_minutes)
 
     return executed
 
@@ -355,6 +385,17 @@ def run_cycle(
         db.commit()
         db.refresh(decision)
         return decision
+
+    # Post-stop-loss cooldown: refuse to re-buy a coin we just cut, even if
+    # Claude wants back in -- this is the anti-churn guard for a small account.
+    if decision_data.action == "BUY":
+        in_cooldown, cooldown_reason = stop_loss_cooldown_active(db, decision_data.symbol)
+        if in_cooldown:
+            decision.rejection_reason = cooldown_reason
+            db.add(decision)
+            db.commit()
+            db.refresh(decision)
+            return decision
 
     db.add(decision)
     db.commit()

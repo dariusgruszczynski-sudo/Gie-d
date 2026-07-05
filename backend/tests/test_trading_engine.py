@@ -402,6 +402,58 @@ def test_tpsl_does_not_fire_while_stopped(db_session, settings):
     assert trading_engine.check_take_profit_stop_loss(db_session, settings, kraken, portfolio) == []
 
 
+def test_stop_loss_sets_cooldown_and_blocks_rebuy(db_session, settings):
+    """After a stop-loss, Claude must not be able to re-buy that coin until the
+    cooldown expires -- the anti-churn guard for a small, fee-sensitive account."""
+    kraken = FakeKraken(prices={"XBTEUR": 100.0, "ETHEUR": 3000.0}, balances={"EUR": 1000.0, "XBT": 0.0, "ETH": 0.0})
+    trading_engine.execute_manual_trade(db_session, settings, kraken, symbol="XBTEUR", side="BUY", usdt_amount=100.0)
+    kraken.prices["XBTEUR"] = 97.0  # stop-loss
+
+    portfolio = trading_engine.compute_portfolio(db_session, settings, kraken)
+    trading_engine.check_take_profit_stop_loss(db_session, settings, kraken, portfolio)
+
+    active, reason = trading_engine.stop_loss_cooldown_active(db_session, "XBTEUR")
+    assert active is True
+    assert "Cooldown" in reason
+
+    # Claude tries to buy back in immediately -> must be rejected, no order.
+    kraken.prices["XBTEUR"] = 100.0
+    advisor = FakeAdvisor(TradingDecision("BUY", "XBTEUR", 10, 0.9, "Odbicie, wracam."))
+    orders_before = len(kraken.orders)
+    decision = trading_engine.run_cycle(db_session, settings, kraken, FakeNews(), advisor, force=True)
+
+    assert decision.executed is False
+    assert "Cooldown" in (decision.rejection_reason or "")
+    assert len(kraken.orders) == orders_before
+
+
+def test_take_profit_does_not_set_cooldown(db_session, settings):
+    """Only stop-loss triggers a cooldown -- a winning exit shouldn't block
+    re-entry if a fresh signal appears."""
+    kraken = FakeKraken(prices={"XBTEUR": 100.0, "ETHEUR": 3000.0}, balances={"EUR": 1000.0, "XBT": 0.0, "ETH": 0.0})
+    trading_engine.execute_manual_trade(db_session, settings, kraken, symbol="XBTEUR", side="BUY", usdt_amount=100.0)
+    kraken.prices["XBTEUR"] = 104.0  # take-profit
+
+    portfolio = trading_engine.compute_portfolio(db_session, settings, kraken)
+    trading_engine.check_take_profit_stop_loss(db_session, settings, kraken, portfolio)
+
+    active, _ = trading_engine.stop_loss_cooldown_active(db_session, "XBTEUR")
+    assert active is False
+
+
+def test_cooldown_zero_minutes_never_blocks(db_session, settings):
+    no_cooldown = settings.model_copy(update={"stop_loss_cooldown_minutes": 0})
+    kraken = FakeKraken(prices={"XBTEUR": 100.0, "ETHEUR": 3000.0}, balances={"EUR": 1000.0, "XBT": 0.0, "ETH": 0.0})
+    trading_engine.execute_manual_trade(db_session, no_cooldown, kraken, symbol="XBTEUR", side="BUY", usdt_amount=100.0)
+    kraken.prices["XBTEUR"] = 97.0
+
+    portfolio = trading_engine.compute_portfolio(db_session, no_cooldown, kraken)
+    trading_engine.check_take_profit_stop_loss(db_session, no_cooldown, kraken, portfolio)
+
+    active, _ = trading_engine.stop_loss_cooldown_active(db_session, "XBTEUR")
+    assert active is False
+
+
 def test_run_cycle_without_market_ctx_does_not_crash(db_session, settings):
     """market_ctx is optional so existing callers/tests that omit it keep
     working, and the trading engine never hard-depends on this data source."""

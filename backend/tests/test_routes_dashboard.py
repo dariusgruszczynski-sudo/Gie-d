@@ -5,7 +5,7 @@ from app.api.routes_dashboard import get_portfolio
 from app.models import PortfolioSnapshot
 
 
-def test_portfolio_inception_is_the_very_first_snapshot_even_beyond_limit(db_session):
+def test_portfolio_inception_is_the_very_first_snapshot_even_beyond_limit(db_session, settings):
     """/api/portfolio's `limit` truncates `history`, but `inception` must
     still reflect the true first-ever snapshot so "since the beginning" P&L
     doesn't quietly drift once more than `limit` snapshots have accumulated."""
@@ -22,14 +22,14 @@ def test_portfolio_inception_is_the_very_first_snapshot_even_beyond_limit(db_ses
         )
     db_session.commit()
 
-    body = get_portfolio(limit=2, db=db_session)
+    body = get_portfolio(limit=2, db=db_session, settings=settings)
 
     assert len(body["history"]) == 2
     assert body["inception"] is not None
     assert body["inception"]["total_value_usdt"] == 1000.0
 
 
-def test_portfolio_inception_is_none_when_no_snapshots_exist(db_session):
-    body = get_portfolio(limit=200, db=db_session)
+def test_portfolio_inception_is_none_when_no_snapshots_exist(db_session, settings):
+    body = get_portfolio(limit=200, db=db_session, settings=settings)
     assert body["current"] is None
     assert body["inception"] is None

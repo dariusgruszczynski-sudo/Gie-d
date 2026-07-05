@@ -7,6 +7,7 @@ from app.db import get_db
 from app.models import Decision, PortfolioSnapshot, Trade
 from app.serialization import serialize
 from app.services import budget_tracker, risk_manager
+from app.services.trading_engine import average_cost_basis
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -46,7 +47,11 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
 
 
 @router.get("/portfolio")
-def get_portfolio(limit: int = Query(200, le=2000), db: Session = Depends(get_db)):
+def get_portfolio(
+    limit: int = Query(200, le=2000),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
     rows = db.execute(
         select(PortfolioSnapshot).order_by(PortfolioSnapshot.timestamp.desc()).limit(limit)
     ).scalars().all()
@@ -60,7 +65,17 @@ def get_portfolio(limit: int = Query(200, le=2000), db: Session = Depends(get_db
     ).scalar_one_or_none()
     inception = serialize(inception_row) if inception_row else None
 
-    return {"current": current, "history": history, "inception": inception}
+    # Average entry price per currently-held base asset ("XBT" -> 61234.5), so
+    # the dashboard can show per-position unrealized P&L. Keyed by base asset to
+    # match balances_json.
+    cost_basis: dict[str, float] = {}
+    for symbol in settings.whitelist_symbols:
+        basis = average_cost_basis(db, symbol)
+        if basis is not None:
+            base = symbol[: -len(settings.quote_currency)] if symbol.endswith(settings.quote_currency) else symbol
+            cost_basis[base] = round(basis, 6)
+
+    return {"current": current, "history": history, "inception": inception, "cost_basis": cost_basis}
 
 
 @router.get("/trades")

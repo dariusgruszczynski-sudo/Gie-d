@@ -110,7 +110,7 @@ export default function App() {
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <PortfolioHoldings current={portfolio?.current ?? null} />
+          <PortfolioHoldings current={portfolio?.current ?? null} costBasis={portfolio?.cost_basis ?? {}} />
         </div>
 
         <div style={{ marginBottom: 16 }}>

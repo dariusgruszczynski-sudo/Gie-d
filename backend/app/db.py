@@ -65,6 +65,7 @@ def init_db() -> None:
     _add_column_if_missing("decisions", "market_context_snapshot", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "session_secret", "VARCHAR(64)", "''")
     _add_column_if_missing("portfolio_snapshots", "failed_symbols_json", "TEXT", "'[]'")
+    _add_column_if_missing("system_state", "stop_loss_cooldowns_json", "TEXT", "'{}'")
     # Dead columns from the pre-generic-whitelist schema (superseded by
     # balances_json/prices_json/last_check_prices_json) -- NOT NULL with no
     # DB-level default, so they broke every insert once the ORM stopped
