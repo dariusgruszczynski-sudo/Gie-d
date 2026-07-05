@@ -337,6 +337,71 @@ def test_market_context_reaches_advisor_and_gets_logged(db_session, settings):
     assert json.loads(decision.market_context_snapshot)["fear_greed_index"] == 62
 
 
+def test_average_cost_basis_tracks_buys_and_sells(db_session, settings):
+    kraken = FakeKraken(prices={"XBTEUR": 100.0, "ETHEUR": 3000.0}, balances={"EUR": 10000.0, "XBT": 0.0, "ETH": 0.0})
+    # Buy 1 XBT @100, then 1 XBT @300 -> avg 200 over qty 2.
+    kraken.prices["XBTEUR"] = 100.0
+    trading_engine.execute_manual_trade(db_session, settings, kraken, symbol="XBTEUR", side="BUY", quantity=1.0)
+    kraken.prices["XBTEUR"] = 300.0
+    trading_engine.execute_manual_trade(db_session, settings, kraken, symbol="XBTEUR", side="BUY", quantity=1.0)
+
+    assert abs(trading_engine.average_cost_basis(db_session, "XBTEUR") - 200.0) < 1e-6
+
+    # Sell 1 -> still 1 held at the same average 200.
+    kraken.prices["XBTEUR"] = 250.0
+    trading_engine.execute_manual_trade(db_session, settings, kraken, symbol="XBTEUR", side="SELL", quantity=1.0)
+    assert abs(trading_engine.average_cost_basis(db_session, "XBTEUR") - 200.0) < 1e-6
+
+
+def test_average_cost_basis_none_when_flat(db_session, settings):
+    assert trading_engine.average_cost_basis(db_session, "XBTEUR") is None
+
+
+def test_take_profit_auto_sells_when_price_rises(db_session, settings):
+    kraken = FakeKraken(prices={"XBTEUR": 100.0, "ETHEUR": 3000.0}, balances={"EUR": 1000.0, "XBT": 0.0, "ETH": 0.0})
+    trading_engine.execute_manual_trade(db_session, settings, kraken, symbol="XBTEUR", side="BUY", usdt_amount=100.0)
+    kraken.prices["XBTEUR"] = 104.0  # +4% > take_profit_pct (3)
+
+    portfolio = trading_engine.compute_portfolio(db_session, settings, kraken)
+    exits = trading_engine.check_take_profit_stop_loss(db_session, settings, kraken, portfolio)
+
+    assert len(exits) == 1
+    assert exits[0].side == "SELL"
+    assert "Take-profit" in exits[0].decision.reasoning
+
+
+def test_stop_loss_auto_sells_when_price_drops(db_session, settings):
+    kraken = FakeKraken(prices={"XBTEUR": 100.0, "ETHEUR": 3000.0}, balances={"EUR": 1000.0, "XBT": 0.0, "ETH": 0.0})
+    trading_engine.execute_manual_trade(db_session, settings, kraken, symbol="XBTEUR", side="BUY", usdt_amount=100.0)
+    kraken.prices["XBTEUR"] = 97.0  # -3% < -stop_loss_pct (2)
+
+    portfolio = trading_engine.compute_portfolio(db_session, settings, kraken)
+    exits = trading_engine.check_take_profit_stop_loss(db_session, settings, kraken, portfolio)
+
+    assert len(exits) == 1
+    assert exits[0].side == "SELL"
+    assert "Stop-loss" in exits[0].decision.reasoning
+
+
+def test_no_exit_within_thresholds(db_session, settings):
+    kraken = FakeKraken(prices={"XBTEUR": 100.0, "ETHEUR": 3000.0}, balances={"EUR": 1000.0, "XBT": 0.0, "ETH": 0.0})
+    trading_engine.execute_manual_trade(db_session, settings, kraken, symbol="XBTEUR", side="BUY", usdt_amount=100.0)
+    kraken.prices["XBTEUR"] = 101.5  # +1.5%, between -2% and +3%
+
+    portfolio = trading_engine.compute_portfolio(db_session, settings, kraken)
+    assert trading_engine.check_take_profit_stop_loss(db_session, settings, kraken, portfolio) == []
+
+
+def test_tpsl_does_not_fire_while_stopped(db_session, settings):
+    kraken = FakeKraken(prices={"XBTEUR": 100.0, "ETHEUR": 3000.0}, balances={"EUR": 1000.0, "XBT": 0.0, "ETH": 0.0})
+    trading_engine.execute_manual_trade(db_session, settings, kraken, symbol="XBTEUR", side="BUY", usdt_amount=100.0)
+    kraken.prices["XBTEUR"] = 104.0  # would take-profit
+    risk_manager.pause(db_session)  # user pressed STOP
+
+    portfolio = trading_engine.compute_portfolio(db_session, settings, kraken)
+    assert trading_engine.check_take_profit_stop_loss(db_session, settings, kraken, portfolio) == []
+
+
 def test_run_cycle_without_market_ctx_does_not_crash(db_session, settings):
     """market_ctx is optional so existing callers/tests that omit it keep
     working, and the trading engine never hard-depends on this data source."""

@@ -6,6 +6,7 @@ import json
 import logging
 from datetime import date
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -99,6 +100,99 @@ def check_trigger(db: Session, settings: Settings, prices: dict[str, float]) -> 
     return triggered, reason
 
 
+def average_cost_basis(db: Session, symbol: str) -> float | None:
+    """Weighted-average entry price of the CURRENTLY held quantity of `symbol`,
+    walked from the full trade history (buys add, sells remove proportionally).
+    Returns None if nothing is currently held. Used by the take-profit/stop-loss
+    engine to know each position's entry price without storing extra state."""
+    trades = db.execute(
+        select(Trade).where(Trade.symbol == symbol).order_by(Trade.timestamp.asc())
+    ).scalars().all()
+
+    qty = 0.0
+    cost = 0.0  # total quote-currency cost of the currently-held quantity
+    for t in trades:
+        if t.side.upper() == "BUY":
+            qty += t.quantity
+            cost += t.usdt_value
+        else:  # SELL removes at the running average cost
+            if qty > 1e-12:
+                avg = cost / qty
+                sell_qty = min(t.quantity, qty)
+                cost -= avg * sell_qty
+                qty -= sell_qty
+            if qty <= 1e-12:
+                qty = 0.0
+                cost = 0.0
+
+    if qty <= 1e-12:
+        return None
+    return cost / qty
+
+
+def check_take_profit_stop_loss(
+    db: Session, settings: Settings, kraken: KrakenClient, portfolio: dict
+) -> list[Trade]:
+    """Mechanical exits run on every poll, WITHOUT asking Claude: auto-SELL a
+    whole position the moment it reaches +take_profit_pct or -stop_loss_pct
+    versus its average entry price. Respects the same stop/halt gate as any
+    automated trade -- if the user pressed STOP, these don't fire either."""
+    if not risk_manager.can_trade_automated(db).approved:
+        return []
+
+    executed: list[Trade] = []
+    for symbol in settings.whitelist_symbols:
+        if symbol not in portfolio["prices"]:
+            continue
+        base = _base_asset(symbol, settings.quote_currency)
+        qty = portfolio["balances"].get(base, 0.0)
+        if qty <= 0:
+            continue
+        basis = average_cost_basis(db, symbol)
+        if basis is None or basis <= 0:
+            continue
+
+        price = portfolio["prices"][symbol]
+        change_pct = (price - basis) / basis * 100
+
+        reason = None
+        if settings.take_profit_pct > 0 and change_pct >= settings.take_profit_pct:
+            reason = f"Take-profit: {base} +{change_pct:.1f}% od wejścia (średnia {basis:.2f} → {price:.2f})"
+        elif settings.stop_loss_pct > 0 and change_pct <= -settings.stop_loss_pct:
+            reason = f"Stop-loss: {base} {change_pct:.1f}% od wejścia (średnia {basis:.2f} → {price:.2f})"
+        if reason is None:
+            continue
+
+        decision = Decision(
+            symbol=symbol,
+            action=TradeAction.SELL,
+            size_pct=100.0,
+            confidence=1.0,
+            reasoning=reason,
+            triggered_by=TriggerType.PRICE_MOVE,
+            executed=False,
+        )
+        db.add(decision)
+        db.commit()
+        db.refresh(decision)
+
+        trade = _execute_trade(
+            db=db,
+            kraken=kraken,
+            settings=settings,
+            symbol=symbol,
+            action="SELL",
+            size_pct=100.0,
+            portfolio=portfolio,
+            decision=decision,
+            is_manual=False,
+        )
+        executed.append(trade)
+        logger.info("TP/SL exit: %s", reason)
+
+    return executed
+
+
 def _mark_analysis_done_today(db: Session) -> None:
     """Called only after advisor.decide() actually succeeds, so a transient
     Claude/network failure doesn't burn today's scheduled-fallback trigger."""
@@ -124,6 +218,17 @@ def run_cycle(
     dashboard."""
     portfolio = compute_portfolio(db, settings, kraken)
     state = risk_manager.update_portfolio_value(db, settings, portfolio["total_value_usdt"])
+
+    # Mechanical take-profit / stop-loss runs every scheduled poll, before we
+    # even decide whether to ask Claude -- this is what makes the bot actively
+    # rotate capital (realize gains, cut losses) instead of buying and holding.
+    # A manual "Wymuś analizę" (force) stays a pure Claude read and skips this.
+    if not force:
+        exits = check_take_profit_stop_loss(db, settings, kraken, portfolio)
+        if exits:
+            # Positions changed -- refresh the snapshot so the Claude leg below
+            # sees post-exit balances/cash.
+            portfolio = compute_portfolio(db, settings, kraken)
 
     triggered, trigger_reason = check_trigger(db, settings, portfolio["prices"])
     if force:
@@ -191,6 +296,13 @@ def run_cycle(
         "day_loss_budget_remaining_pct": day_loss_budget_left_pct,
         "max_position_pct": settings.max_position_pct,
         "automated_trading_currently_allowed": trade_check.approved,
+        "auto_take_profit_pct": settings.take_profit_pct,
+        "auto_stop_loss_pct": settings.stop_loss_pct,
+        "exit_note": (
+            "Pozycje są automatycznie zamykane przy +auto_take_profit_pct (zysk) lub "
+            "-auto_stop_loss_pct (strata) względem średniej ceny wejścia. Skup się na trafnym "
+            "WEJŚCIU; nie musisz planować wyjścia."
+        ),
     }
 
     decision_data = advisor.decide(

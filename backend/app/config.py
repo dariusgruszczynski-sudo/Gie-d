@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     daily_loss_limit_pct: float = 20.0
     weekly_loss_limit_pct: float = 70.0
     max_position_pct: float = 25.0
+    # Mechanical exit rules applied to every held position on every poll,
+    # without asking Claude: auto-SELL the whole position when it gains
+    # >= take_profit_pct or loses >= stop_loss_pct vs its average entry price.
+    # This is what actually makes the bot "obraca kapitałem" (rotate capital)
+    # instead of just buying and holding. Set take_profit_pct=0 to disable
+    # take-profit, stop_loss_pct=0 to disable stop-loss.
+    take_profit_pct: float = 3.0
+    stop_loss_pct: float = 2.0
     # Kraken pair altnames (BTC is "XBT" on Kraken) for the four most liquid
     # EUR-quoted markets -- chosen for top market cap + deep EUR order books.
     trading_whitelist: str = "XBTEUR,ETHEUR,SOLEUR,XRPEUR"
