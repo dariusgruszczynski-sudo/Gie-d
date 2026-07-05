@@ -58,7 +58,10 @@ class Settings(BaseSettings):
     # liquidity, and available fractional/notional orders on Alpaca, which
     # matters a lot on a small account (share prices don't need to divide
     # evenly into the position size).
-    trading_whitelist: str = "SPY,QQQ,AAPL,NVDA"
+    # MSTR added as the deliberately volatile/high-beta pick -- a leveraged
+    # bitcoin proxy via corporate balance sheet, swings far harder than the
+    # rest of the whitelist on any given day.
+    trading_whitelist: str = "SPY,QQQ,AAPL,NVDA,MSTR"
 
     poll_interval_minutes: int = 15
     price_move_trigger_pct: float = 2.0

@@ -24,6 +24,11 @@ const TICKER_INFO: Record<string, TickerInfo> = {
     description:
       "Dominujący producent układów GPU napędzających rozwój sztucznej inteligencji. Wysoki potencjał wzrostu, ale też jedna z bardziej zmiennych dużych spółek — gwałtowne ruchy po wynikach i newsach związanych z AI. Wymaga większej tolerancji na wahania niż SPY czy QQQ.",
   },
+  MSTR: {
+    name: "MicroStrategy (Strategy Inc.)",
+    description:
+      "Spółka software'owa, która swój bilans oparła na gigantycznych zapasach bitcoina finansowanych długiem — w praktyce lewarowana zakładka na kurs BTC, nie zwykła akcja tech. Potrafi ruszyć się kilkanaście procent w jeden dzień w obie strony. Celowo najbardziej szalona i najbardziej ryzykowna pozycja na liście — mały rozmiar pozycji jest tu kluczowy.",
+  },
 };
 
 function fallbackInfo(ticker: string): TickerInfo {
