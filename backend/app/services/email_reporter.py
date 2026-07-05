@@ -23,15 +23,18 @@ from app.services import budget_tracker, risk_manager
 
 logger = logging.getLogger(__name__)
 
-GOLD = "#d4af37"
-GOLD_BRIGHT = "#f2cf5b"
-BG = "#0a0a0a"
-PANEL = "#161410"
-BORDER = "#4a3c15"
-TEXT = "#f3e6c4"
-MUTED = "#b3a06a"
-GREEN = "#4caf60"
-RED = "#e5484d"
+# Palette matched to the dashboard's "fintech terminal" theme (indigo accent).
+# Names GOLD/GOLD_BRIGHT kept and repointed at the accent so the rest of the
+# template re-themes without edits.
+GOLD = "#6d7cff"
+GOLD_BRIGHT = "#9d7bff"
+BG = "#0a0c14"
+PANEL = "#111524"
+BORDER = "#212842"
+TEXT = "#e8ebf5"
+MUTED = "#8b93ac"
+GREEN = "#26d07c"
+RED = "#ff5468"
 
 
 def _render_chart_png(history: list[PortfolioSnapshot]) -> bytes:
@@ -133,11 +136,12 @@ def _build_html(
     return f"""\
 <div style="background:{BG};padding:24px 16px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:{TEXT};">
   <div style="max-width:640px;margin:0 auto;">
-    <div style="text-align:center;padding:16px;border-bottom:2px solid {GOLD};margin-bottom:20px;">
-      <div style="font-size:20px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:{GOLD_BRIGHT};">
-        KTO GRA GRUBO, WYGRAĆ MUSI
+    <div style="display:flex;align-items:center;gap:12px;padding:4px 4px 18px;border-bottom:1px solid {BORDER};margin-bottom:22px;">
+      <div style="width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,{GOLD},{GOLD_BRIGHT});display:inline-block;text-align:center;line-height:40px;font-size:20px;">📈</div>
+      <div style="text-align:left;">
+        <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px;color:{TEXT};">Giel<span style="color:{GOLD};">Darek</span></div>
+        <div style="color:{MUTED};font-size:12px;margin-top:2px;">Dzienny raport · {date.today().strftime('%d.%m.%Y')}</div>
       </div>
-      <div style="color:{MUTED};font-size:12px;margin-top:6px;">GielDarek — dzienny raport, {date.today().strftime('%d.%m.%Y')}</div>
     </div>
 
     <div style="background:{PANEL};border:1px solid {BORDER};border-radius:10px;padding:16px;margin-bottom:16px;">
