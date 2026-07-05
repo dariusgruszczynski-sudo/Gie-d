@@ -130,6 +130,13 @@ class SystemState(Base):
     seen_ticker_headlines_json: Mapped[str] = mapped_column(Text, default="{}")
     claude_budget_month_key: Mapped[str] = mapped_column(String(7), default="")
     claude_spend_usd_this_month: Mapped[float] = mapped_column(Float, default=0.0)
+    # Buy-and-hold benchmark baseline, set on the first cycle that can price
+    # the benchmark ticker (and reset alongside the portfolio). Lets the
+    # scorecard answer "am I beating just holding SPY?": benchmark value now =
+    # benchmark_start_value * (benchmark_price_now / benchmark_start_price).
+    benchmark_start_date: Mapped[str] = mapped_column(String(10), default="")
+    benchmark_start_price: Mapped[float] = mapped_column(Float, default=0.0)
+    benchmark_start_value: Mapped[float] = mapped_column(Float, default=0.0)
     # HMAC key for signing login session cookies -- generated once on first
     # boot and persisted so restarting the app doesn't log everyone out.
     session_secret: Mapped[str] = mapped_column(String(64), default="")

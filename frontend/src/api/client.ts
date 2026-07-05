@@ -46,6 +46,20 @@ export interface PortfolioSnapshot {
   failed_symbols_json: string;
 }
 
+export interface Scorecard {
+  portfolio_value: number;
+  benchmark_symbol: string;
+  benchmark_value: number | null;
+  alpha_usd: number | null;
+  alpha_pct: number | null;
+  realized_pnl_usd: number;
+  closed_trades: number;
+  wins: number;
+  losses: number;
+  win_rate_pct: number | null;
+  since: string | null;
+}
+
 export interface PortfolioResponse {
   current: PortfolioSnapshot | null;
   history: PortfolioSnapshot[];
@@ -55,6 +69,8 @@ export interface PortfolioResponse {
   // Average entry price per currently-held ticker ("SPY" -> 512.34), for
   // per-position unrealized P&L. Empty for assets not currently held.
   cost_basis: Record<string, number>;
+  // Strategy scorecard vs buy-and-hold benchmark (null on a fresh account).
+  scorecard: Scorecard | null;
 }
 
 export interface Trade {

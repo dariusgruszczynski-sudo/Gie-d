@@ -27,7 +27,37 @@ const TICKER_INFO: Record<string, TickerInfo> = {
   MSTR: {
     name: "MicroStrategy (Strategy Inc.)",
     description:
-      "Spółka software'owa, która swój bilans oparła na gigantycznych zapasach bitcoina finansowanych długiem — w praktyce lewarowana zakładka na kurs BTC, nie zwykła akcja tech. Potrafi ruszyć się kilkanaście procent w jeden dzień w obie strony. Celowo najbardziej szalona i najbardziej ryzykowna pozycja na liście — mały rozmiar pozycji jest tu kluczowy.",
+      "Spółka software'owa, która swój bilans oparła na gigantycznych zapasach bitcoina finansowanych długiem — w praktyce lewarowana zakładka na kurs BTC, nie zwykła akcja tech. Potrafi ruszyć się kilkanaście procent w jeden dzień w obie strony. Celowo najbardziej szalona i najbardziej ryzykowna pozycja na liście — rozmiar pozycji jest tu automatycznie zmniejszany przez skalowanie wg zmienności.",
+  },
+  GLD: {
+    name: "SPDR Gold Shares",
+    description:
+      "ETF odwzorowujący cenę złota. Aktywo defensywne, często rośnie, gdy akcje spadają albo rośnie niepewność/inflacja — nieskorelowane z tech. Daje botowi gdzie się schować, gdy rynek akcji słabnie.",
+  },
+  TLT: {
+    name: "iShares 20+ Year Treasury Bond",
+    description:
+      "ETF długoterminowych obligacji skarbowych USA. Klasyczny „risk-off” — zwykle zyskuje, gdy inwestorzy uciekają z akcji do bezpieczeństwa. Mocno reaguje na stopy procentowe. Uzupełnia portfel o coś, co zwykle zachowuje się odwrotnie niż SPY/QQQ.",
+  },
+  XLE: {
+    name: "Energy Select Sector SPDR",
+    description:
+      "ETF sektora energetycznego (spółki naftowe/gazowe). Napędzany cenami ropy, często idzie własnym rytmem względem tech — dobra dywersyfikacja i ekspozycja na inflację surowcową.",
+  },
+  IWM: {
+    name: "iShares Russell 2000 (small caps)",
+    description:
+      "ETF 2000 mniejszych spółek amerykańskich. Bardziej wrażliwy na kondycję krajowej gospodarki i apetyt na ryzyko niż wielkie techy — bywa liderem odbić i wcześnie sygnalizuje zmiany nastroju.",
+  },
+  SH: {
+    name: "ProShares Short S&P 500 (inverse)",
+    description:
+      "ETF ODWROTNY — rośnie, gdy S&P 500 spada (1x, bez lewara). Pozwala botowi ZARABIAĆ na spadkach kupując go jak zwykłą pozycję, bez ryzyka klasycznego shorta (strata ograniczona jak przy każdym long). Używany, gdy rynek jest w trendzie spadkowym.",
+  },
+  PSQ: {
+    name: "ProShares Short QQQ (inverse Nasdaq)",
+    description:
+      "ETF ODWROTNY do Nasdaq-100 — rośnie, gdy tech spada (1x, bez lewara). Odpowiednik SH, ale wycelowany w sektor technologiczny. Sposób na grę pod korektę tech bez shortowania z nieograniczoną stratą.",
   },
 };
 

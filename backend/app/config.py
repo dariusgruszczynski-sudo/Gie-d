@@ -54,14 +54,32 @@ class Settings(BaseSettings):
     # Uses the same SMTP config as the daily report; silently skipped if SMTP
     # isn't configured. Set False to keep only the daily report.
     trade_alerts_enabled: bool = True
-    # Broad-market ETF + liquid, fractionable large caps -- tight spreads, deep
-    # liquidity, and available fractional/notional orders on Alpaca, which
-    # matters a lot on a small account (share prices don't need to divide
-    # evenly into the position size).
-    # MSTR added as the deliberately volatile/high-beta pick -- a leveraged
-    # bitcoin proxy via corporate balance sheet, swings far harder than the
-    # rest of the whitelist on any given day.
-    trading_whitelist: str = "SPY,QQQ,AAPL,NVDA,MSTR"
+    # A DIVERSIFIED, tradable universe -- not just correlated tech beta, so the
+    # bot can actually rotate to what's working and hedge instead of making one
+    # big leveraged "tech goes up" bet:
+    #  - Core tech/beta: SPY, QQQ, AAPL, NVDA (deep liquidity, fractional-OK)
+    #  - MSTR: the deliberately volatile high-beta pick (leveraged BTC proxy)
+    #  - Uncorrelated / defensive: GLD (gold), TLT (long bonds), XLE (energy),
+    #    IWM (small caps) -- these often zig when tech zags
+    #  - Inverse ETFs: SH (inverse S&P), PSQ (inverse Nasdaq) -- let the bot
+    #    PROFIT in a downtrend by going long an inverse ETF instead of just
+    #    sitting in cash. Deliberately the 1x (not 3x-leveraged) inverses, so
+    #    downside is bounded like any long position -- no unlimited-loss short
+    #    mechanics, which would be reckless on a small account.
+    trading_whitelist: str = "SPY,QQQ,AAPL,NVDA,MSTR,GLD,TLT,XLE,IWM,SH,PSQ"
+    # Benchmark the whole strategy against simply buying and holding this
+    # ticker -- if the bot can't beat holding SPY, it isn't earning its
+    # complexity. Drives the dashboard scorecard and is fed back to Claude.
+    benchmark_symbol: str = "SPY"
+    # Volatility-aware position sizing: Claude's requested size_pct is scaled
+    # DOWN for tickers more volatile than this reference (so a wild name like
+    # MSTR can't dominate P&L), never scaled up. Expressed as a per-bar
+    # (1h) return standard deviation in %. ~1.0 is roughly a broad-index bar.
+    # Set 0 to disable vol-scaling entirely.
+    volatility_reference_pct: float = 1.0
+    # Never let vol-scaling shrink a position below this fraction of what
+    # Claude asked for -- otherwise a very volatile name gets sized to dust.
+    volatility_min_scale: float = 0.35
 
     poll_interval_minutes: int = 15
     price_move_trigger_pct: float = 2.0

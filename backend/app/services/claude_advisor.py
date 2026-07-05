@@ -37,7 +37,17 @@ DISCLAIMER = (
     "Dokładaj do tego, co działa, nie powtarzaj setupów, które wielokrotnie kończyły się "
     "stratą, i patrz na niezrealizowany P&L obecnych pozycji: wygrywającą pozycję można "
     "spokojnie trzymać (trailing-stop i tak ją obroni), a pozycji już świeżo zamkniętej "
-    "stop-lossem nie odkupuj bez wyraźnie nowego, mocniejszego sygnału."
+    "stop-lossem nie odkupuj bez wyraźnie nowego, mocniejszego sygnału. "
+    "W 'your_performance.scorecard' masz swój wynik względem zwykłego trzymania benchmarku "
+    "(SPY): jeśli alpha jest ujemna, to znaczy, że przegrywasz z biernym trzymaniem indeksu — "
+    "bądź bardziej selektywny, wchodź tylko w realnie mocne setupy, nie handluj dla samego "
+    "handlu. Whitelist jest CELOWO zróżnicowana, nie tylko tech: masz też złoto (GLD), "
+    "obligacje (TLT), energię (XLE), small-capy (IWM) oraz ETF-y ODWROTNE (SH = inverse S&P, "
+    "PSQ = inverse Nasdaq). Rotuj kapitał do tego, co ma najlepszy setup, i NIE bój się grać na "
+    "spadki: w wyraźnym trendzie spadkowym rynku KUP (BUY) inverse ETF (SH/PSQ) zamiast siedzieć "
+    "w gotówce — to normalna długa pozycja, nie ryzykowny short. Rozmiar pozycji jest "
+    "automatycznie skalowany w dół dla bardziej zmiennych tickerów (patrz technical.volatility_pct_1h), "
+    "więc na spokojnym ETF-ie możesz brać większy %, a na dzikim MSTR i tak system zetnie rozmiar."
 )
 
 

@@ -40,4 +40,18 @@ def test_sma_trend_above_on_sustained_uptrend():
 
 def test_compute_technical_indicators_returns_all_keys():
     result = compute_technical_indicators([100.0] * 5)
-    assert set(result) == {"rsi_14", "macd_signal", "sma50_vs_sma200_1h"}
+    assert set(result) == {"rsi_14", "macd_signal", "sma50_vs_sma200_1h", "volatility_pct_1h"}
+
+
+def test_volatility_none_on_insufficient_data():
+    from app.services.technical_indicators import compute_volatility_pct
+
+    assert compute_volatility_pct([100.0, 101.0], period=24) is None
+
+
+def test_volatility_higher_for_choppier_series():
+    from app.services.technical_indicators import compute_volatility_pct
+
+    calm = [100.0 + i * 0.1 for i in range(30)]
+    wild = [100.0 * (1.05 if i % 2 else 0.95) for i in range(30)]
+    assert compute_volatility_pct(wild) > compute_volatility_pct(calm)

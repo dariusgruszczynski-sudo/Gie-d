@@ -163,6 +163,26 @@ w „tradera, który pamięta, co przed chwilą zadziałało". (Uwaga: to
 rozumowanie na bieżąco na podstawie własnej historii, nie trwały trening
 modelu.)
 
+## Scorecard, dywersyfikacja i gra na spadki
+
+- **Scorecard vs benchmark.** Dashboard (panel „Wynik vs trzymanie SPY") i
+  kontekst Claude'a pokazują, czy aktywny handel bije bierne trzymanie
+  `BENCHMARK_SYMBOL` (alpha), zrealizowany P&L i trafność (W/L). Jeśli alpha
+  jest ujemna, Claude dostaje sygnał, żeby być bardziej selektywnym — a Ty
+  masz twardą odpowiedź, czy bot w ogóle się opłaca vs zwykłe trzymanie
+  indeksu.
+- **Zróżnicowana whitelist.** Zamiast pięciu skorelowanych techów lista ma
+  też złoto (GLD), obligacje (TLT), energię (XLE), small-capy (IWM) — rzeczy,
+  które często rosną, gdy tech spada. Bot może rotować do tego, co działa,
+  zamiast robić jeden lewarowany zakład „tech w górę".
+- **Gra na spadki bez shorta.** ETF-y odwrotne SH (inverse S&P) i PSQ (inverse
+  Nasdaq) rosną, gdy rynek spada — bot kupuje je jak zwykłą długą pozycję, więc
+  zarabia w trendzie spadkowym bez nieograniczonej straty klasycznego shorta.
+- **Sizing wg zmienności.** Rozmiar wejścia jest automatycznie skalowany w dół
+  dla bardziej zmiennych tickerów (MSTR/NVDA), żeby jedna dzika nazwa nie
+  zdominowała wyniku — spokojny ETF dostaje większy %, dziki mniejszy, przy tej
+  samej pewności Claude'a.
+
 ## Konfiguracja ryzyka (`.env`)
 
 | Zmienna | Domyślnie | Opis |
@@ -175,7 +195,10 @@ modelu.)
 | `TRAILING_STOP_ENABLED` | `true` | `true` = po zysku `TAKE_PROFIT_PCT` pozwól zyskom rosnąć i sprzedaj dopiero po spadku `TRAILING_STOP_PCT` od szczytu. `false` = sztywny take-profit przy `TAKE_PROFIT_PCT` |
 | `TRAILING_STOP_PCT` | `1.5` | O ile % cena musi spaść od szczytu, żeby trailing-stop sprzedał (gdy uzbrojony) |
 | `TRADE_ALERTS_ENABLED` | `true` | Mail natychmiast po każdej transakcji (BUY/SELL, w tym wyjścia TP/SL). Wymaga SMTP; `false` = tylko raport dzienny |
-| `TRADING_WHITELIST` | `SPY,QQQ,AAPL,NVDA,MSTR` | Lista tickerów, którymi automat może handlować — w pełni generyczna, dowolna liczba tickerów obsługiwanych przez Alpaca (przecinek jako separator) |
+| `TRADING_WHITELIST` | `SPY,QQQ,AAPL,NVDA,MSTR,GLD,TLT,XLE,IWM,SH,PSQ` | Zróżnicowana lista: rdzeń tech, zmienny MSTR, aktywa defensywne (GLD/TLT/XLE/IWM) i ETF-y odwrotne (SH/PSQ) do gry na spadki. W pełni generyczna, dowolne tickery z Alpaca |
+| `BENCHMARK_SYMBOL` | `SPY` | Z czym porównywać strategię (bierne trzymanie) w scorecardzie |
+| `VOLATILITY_REFERENCE_PCT` | `1.0` | Sizing wg zmienności: BUY skalowany w dół dla tickerów bardziej zmiennych niż ten próg. `0` = wyłączone |
+| `VOLATILITY_MIN_SCALE` | `0.35` | Dolny limit skalowania rozmiaru dla najbardziej zmiennych tickerów |
 | `POLL_INTERVAL_MINUTES` | `15` | Co ile minut sprawdzać ceny/newsy |
 | `PRICE_MOVE_TRIGGER_PCT` | `2` | Próg zmiany ceny (w sesji regularnej) traktowany jako "zdarzenie" wywołujące analizę Claude |
 | `EXTENDED_HOURS_TRADING_ENABLED` | `false` | Wymuszony handel w pre-market/after-hours od razu. Domyślnie off — przy małym koncie rozszerzone godziny nic nie zdziałają, patrz "Rozszerzone godziny handlu" wyżej |

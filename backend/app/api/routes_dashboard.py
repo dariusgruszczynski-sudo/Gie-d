@@ -1,3 +1,4 @@
+import json
 import logging
 
 from fastapi import APIRouter, Depends, Query
@@ -8,7 +9,7 @@ from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import Decision, PortfolioSnapshot, Trade
 from app.serialization import serialize
-from app.services import budget_tracker, market_hours, risk_manager, trading_engine
+from app.services import budget_tracker, market_hours, risk_manager, scorecard, trading_engine
 from app.services.alpaca_client import AlpacaClient
 from app.services.trading_engine import average_cost_basis
 
@@ -109,7 +110,24 @@ def get_portfolio(
             base = symbol[: -len(settings.quote_currency)] if symbol.endswith(settings.quote_currency) else symbol
             cost_basis[base] = round(basis, 6)
 
-    return {"current": current, "history": history, "inception": inception, "cost_basis": cost_basis}
+    # Scorecard vs buy-and-hold benchmark, computed from the latest snapshot's
+    # prices (no live broker call needed on this hot, auth-gated endpoint).
+    latest = rows[0] if rows else None
+    card = None
+    if latest is not None:
+        snapshot_portfolio = {
+            "total_value_usdt": latest.total_value_usdt,
+            "prices": json.loads(latest.prices_json or "{}"),
+        }
+        card = scorecard.compute_scorecard(db, settings, snapshot_portfolio)
+
+    return {
+        "current": current,
+        "history": history,
+        "inception": inception,
+        "cost_basis": cost_basis,
+        "scorecard": card,
+    }
 
 
 @router.get("/trades")

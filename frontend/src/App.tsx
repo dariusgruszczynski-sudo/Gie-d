@@ -12,6 +12,7 @@ import { MarketLog } from "./components/MarketLog";
 import { PortfolioChart } from "./components/PortfolioChart";
 import { PortfolioHoldings } from "./components/PortfolioHoldings";
 import { PriceTicker } from "./components/PriceTicker";
+import { Scorecard } from "./components/Scorecard";
 import { SessionClock } from "./components/SessionClock";
 import { StatusBanner } from "./components/StatusBanner";
 import { TradesTable } from "./components/TradesTable";
@@ -121,6 +122,8 @@ export default function App() {
             />
           </div>
         )}
+
+        {portfolio && <Scorecard data={portfolio.scorecard} />}
 
         {status && <InvestmentThesis whitelist={status.whitelist} />}
 

@@ -61,9 +61,29 @@ def compute_sma_trend(closes: list[float], fast_period: int = 50, slow_period: i
     return "above" if sma_fast > sma_slow else "below"
 
 
+def compute_volatility_pct(closes: list[float], period: int = 24) -> float | None:
+    """Standard deviation of the last `period` bar-to-bar percentage returns,
+    in percent -- a simple realized-volatility proxy used to size volatile
+    tickers (MSTR, NVDA) down so one wild name can't dominate P&L."""
+    if len(closes) < period + 1:
+        return None
+    window = closes[-(period + 1):]
+    returns = [
+        (window[i] - window[i - 1]) / window[i - 1]
+        for i in range(1, len(window))
+        if window[i - 1] > 0
+    ]
+    if len(returns) < 2:
+        return None
+    mean = sum(returns) / len(returns)
+    variance = sum((r - mean) ** 2 for r in returns) / (len(returns) - 1)
+    return round(variance**0.5 * 100, 3)
+
+
 def compute_technical_indicators(closes: list[float]) -> dict:
     return {
         "rsi_14": compute_rsi(closes),
         "macd_signal": compute_macd_signal(closes),
         "sma50_vs_sma200_1h": compute_sma_trend(closes),
+        "volatility_pct_1h": compute_volatility_pct(closes),
     }

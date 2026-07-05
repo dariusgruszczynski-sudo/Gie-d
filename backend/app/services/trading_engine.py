@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models import Decision, PortfolioSnapshot, Trade, TradeAction, TradeMode, TriggerType
-from app.services import budget_tracker, earnings_calendar, email_reporter, market_hours, risk_manager
+from app.services import budget_tracker, earnings_calendar, email_reporter, market_hours, risk_manager, scorecard
 from app.services.alpaca_client import AlpacaAPIError, AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.market_context import MarketContextClient
@@ -24,6 +24,22 @@ logger = logging.getLogger(__name__)
 
 def _base_asset(symbol: str, quote_currency: str) -> str:
     return symbol.replace(quote_currency, "")
+
+
+def volatility_adjusted_size(settings: Settings, requested_pct: float, ticker_vol_pct: float | None) -> float:
+    """Scales a requested BUY size DOWN (never up) for tickers more volatile
+    than the reference, so a wild name like MSTR takes a smaller slice than a
+    steady one like SPY for the same conviction -- steadier risk-adjusted
+    exposure. Bounded below by volatility_min_scale so a volatile name isn't
+    sized to nothing."""
+    if (
+        settings.volatility_reference_pct <= 0
+        or not ticker_vol_pct
+        or ticker_vol_pct <= settings.volatility_reference_pct
+    ):
+        return requested_pct
+    scale = max(settings.volatility_min_scale, settings.volatility_reference_pct / ticker_vol_pct)
+    return round(requested_pct * scale, 4)
 
 
 def extended_hours_active(settings: Settings, total_value_usd: float) -> bool:
@@ -390,7 +406,11 @@ def build_performance_context(db: Session, settings: Settings, portfolio: dict) 
         for t in recent
     ]
 
-    return {"open_positions": open_positions, "recent_trades": recent_trades}
+    # Am I actually beating buy-and-hold? Feeding this back makes Claude
+    # accountable to a benchmark instead of just churning.
+    card = scorecard.compute_scorecard(db, settings, portfolio)
+
+    return {"open_positions": open_positions, "recent_trades": recent_trades, "scorecard": card}
 
 
 def run_cycle(
@@ -410,6 +430,7 @@ def run_cycle(
     dashboard."""
     portfolio = compute_portfolio(db, settings, broker)
     state = risk_manager.update_portfolio_value(db, settings, portfolio["total_value_usdt"])
+    scorecard.update_benchmark_baseline(db, settings, portfolio)
     session_info = market_hours.get_session_info(broker)
     tradable = _is_tradable_session(session_info, settings, portfolio["total_value_usdt"])
 
@@ -564,10 +585,17 @@ def run_cycle(
     _mark_analysis_done_today(db)
     budget_tracker.record_usage_cost(db, decision_data.cost_usd)
 
+    # Volatility-aware sizing: scale a BUY down for a more-volatile ticker so
+    # one wild name (MSTR) can't dominate P&L. HOLD/SELL are untouched.
+    effective_size_pct = decision_data.size_pct
+    if decision_data.action == "BUY":
+        ticker_vol = (market_data.get(decision_data.symbol) or {}).get("technical", {}).get("volatility_pct_1h")
+        effective_size_pct = volatility_adjusted_size(settings, decision_data.size_pct, ticker_vol)
+
     decision = Decision(
         symbol=decision_data.symbol,
         action=TradeAction(decision_data.action),
-        size_pct=decision_data.size_pct,
+        size_pct=effective_size_pct,
         confidence=decision_data.confidence,
         reasoning=decision_data.reasoning,
         market_data_snapshot=json.dumps(market_data, default=str),
@@ -605,7 +633,7 @@ def run_cycle(
         settings=settings,
         symbol=decision_data.symbol,
         action=decision_data.action,
-        size_pct=decision_data.size_pct,
+        size_pct=effective_size_pct,
     )
     if not validation.approved:
         decision.rejection_reason = validation.reason
@@ -664,7 +692,7 @@ def run_cycle(
             settings=settings,
             symbol=decision_data.symbol,
             action=decision_data.action,
-            size_pct=decision_data.size_pct,
+            size_pct=effective_size_pct,
             portfolio=portfolio,
             decision=decision,
             is_manual=False,

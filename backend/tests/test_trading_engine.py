@@ -801,3 +801,39 @@ def test_earnings_blackout_allows_buy_outside_window(db_session, settings, monke
 
     assert decision.executed is True
     assert len(broker.orders) == 1
+
+
+def test_volatility_adjusted_size_scales_down_volatile_and_leaves_calm(settings):
+    calm = settings.model_copy(update={"volatility_reference_pct": 1.0, "volatility_min_scale": 0.3})
+    # Below/at reference -> unchanged.
+    assert trading_engine.volatility_adjusted_size(calm, 20.0, 0.8) == 20.0
+    assert trading_engine.volatility_adjusted_size(calm, 20.0, 1.0) == 20.0
+    # 4x reference vol -> scaled to reference/vol = 0.25, floored at 0.3 -> 6%.
+    assert trading_engine.volatility_adjusted_size(calm, 20.0, 4.0) == 6.0
+    # 2x reference vol -> 0.5 scale -> 10%.
+    assert trading_engine.volatility_adjusted_size(calm, 20.0, 2.0) == 10.0
+    # Unknown vol -> unchanged.
+    assert trading_engine.volatility_adjusted_size(calm, 20.0, None) == 20.0
+
+
+def test_volatile_ticker_buy_is_sized_down_end_to_end(db_session, settings):
+    """A BUY on a volatile ticker should execute a SMALLER notional than the
+    raw size_pct would imply, because vol-scaling cut it."""
+    vol_settings = settings.model_copy(
+        update={"volatility_reference_pct": 1.0, "volatility_min_scale": 0.3, "max_position_pct": 100.0}
+    )
+
+    class VolatileBroker(FakeAlpaca):
+        def get_klines(self, symbol, interval="1h", limit=24):
+            # Choppy series -> high volatility_pct_1h for SPY.
+            return [[0, 0, 0, 0, 100.0 * (1.06 if i % 2 else 0.94), "1"] for i in range(limit)]
+
+    broker = VolatileBroker(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 50, 0.9, "Mocny sygnał ale dziki ticker."))
+
+    decision = trading_engine.run_cycle(db_session, vol_settings, broker, FakeNews(), advisor, force=True)
+
+    assert decision.executed is True
+    # Raw 50% of 1000 = $500; vol-scaling must have cut it well below that.
+    assert broker.orders[0].usdt_value < 500.0
+    assert decision.size_pct < 50.0
