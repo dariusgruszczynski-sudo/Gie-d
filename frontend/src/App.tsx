@@ -12,6 +12,7 @@ import { PortfolioHoldings } from "./components/PortfolioHoldings";
 import { PriceTicker } from "./components/PriceTicker";
 import { StatusBanner } from "./components/StatusBanner";
 import { TradesTable } from "./components/TradesTable";
+import { isSoundMuted, playTradeSound, setSoundMuted } from "./tradeSound";
 
 function Logo() {
   return (
@@ -38,7 +39,17 @@ export default function App() {
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [splashDecision, setSplashDecision] = useState<Decision | null>(null);
+  const [muted, setMuted] = useState<boolean>(isSoundMuted);
   const seenDecisionIds = useRef<Set<number> | null>(null);
+  const seenTradeIds = useRef<Set<number> | null>(null);
+
+  const toggleMuted = useCallback(() => {
+    setMuted((m) => {
+      const next = !m;
+      setSoundMuted(next);
+      return next;
+    });
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -61,6 +72,19 @@ export default function App() {
         const fresh = d.filter((x) => !seenDecisionIds.current!.has(x.id));
         fresh.forEach((x) => seenDecisionIds.current!.add(x.id));
         if (fresh.length > 0) setSplashDecision(fresh[0]);
+      }
+
+      // Sound fires ONLY on a real executed trade (an action), not on every
+      // routine HOLD -- and plays even when the tab is in the background.
+      if (seenTradeIds.current === null) {
+        seenTradeIds.current = new Set(t.map((x) => x.id));
+      } else {
+        const freshTrades = t.filter((x) => !seenTradeIds.current!.has(x.id));
+        freshTrades.forEach((x) => seenTradeIds.current!.add(x.id));
+        if (freshTrades.length > 0) {
+          const side = freshTrades[0].side.toUpperCase() === "SELL" ? "SELL" : "BUY";
+          playTradeSound(side); // no-ops itself if muted
+        }
       }
     } catch (e) {
       setError(String(e));
@@ -102,7 +126,7 @@ export default function App() {
 
         {status && <StatusBanner status={status} />}
 
-        {status && <ControlToolbar status={status} onChanged={refresh} />}
+        {status && <ControlToolbar status={status} onChanged={refresh} muted={muted} onToggleMuted={toggleMuted} />}
 
         <div className="grid">
           {portfolio && <PortfolioChart history={portfolio.history} current={portfolio.current} />}
@@ -114,14 +138,14 @@ export default function App() {
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <DecisionsLog decisions={decisions} />
+          <TradesTable trades={trades} />
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <MarketLog history={portfolio?.history ?? []} whitelist={status?.whitelist ?? []} />
+          <DecisionsLog decisions={decisions} />
         </div>
 
-        <TradesTable trades={trades} />
+        <MarketLog history={portfolio?.history ?? []} whitelist={status?.whitelist ?? []} />
       </div>
     </>
   );

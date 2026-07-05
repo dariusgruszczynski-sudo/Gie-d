@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, StatusResponse } from "../api/client";
 
-type IconName = "pause" | "play" | "bolt" | "mail" | "restart" | "logout" | "refresh";
+type IconName = "pause" | "play" | "bolt" | "mail" | "restart" | "logout" | "refresh" | "sound" | "muted";
 
 function Icon({ name }: { name: IconName }) {
   switch (name) {
@@ -67,10 +67,34 @@ function Icon({ name }: { name: IconName }) {
           />
         </svg>
       );
+    case "sound":
+      return (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 9v6h4l5 4V5L8 9H4Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+          <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8 8 0 0 1 0 12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+        </svg>
+      );
+    case "muted":
+      return (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 9v6h4l5 4V5L8 9H4Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+          <path d="M17 9.5l4 5M21 9.5l-4 5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+        </svg>
+      );
   }
 }
 
-export function ControlToolbar({ status, onChanged }: { status: StatusResponse; onChanged: () => void }) {
+export function ControlToolbar({
+  status,
+  onChanged,
+  muted,
+  onToggleMuted,
+}: {
+  status: StatusResponse;
+  onChanged: () => void;
+  muted: boolean;
+  onToggleMuted: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ text: string; kind: "ok" | "error" } | null>(null);
   const isStopped = status.is_paused || status.is_halted;
@@ -151,6 +175,14 @@ export function ControlToolbar({ status, onChanged }: { status: StatusResponse; 
         <button className="btn-danger" disabled={busy} onClick={() => run(api.restart, false)}>
           <Icon name="restart" />
           Restart
+        </button>
+        <button
+          className="btn-secondary"
+          onClick={onToggleMuted}
+          title={muted ? "Włącz dźwięk transakcji" : "Wycisz dźwięk transakcji"}
+        >
+          <Icon name={muted ? "muted" : "sound"} />
+          {muted ? "Dźwięk: wył." : "Dźwięk: wł."}
         </button>
         <button className="btn-secondary" disabled={busy} onClick={logOff}>
           <Icon name="logout" />

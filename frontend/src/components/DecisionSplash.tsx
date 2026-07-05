@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { Decision } from "../api/client";
-import { playDecisionSound } from "../decisionSound";
 
 function BuyIcon() {
   return (
@@ -48,7 +47,6 @@ export function DecisionSplash({ decision, onDismiss }: { decision: Decision; on
   const config = CONFIG[decision.action];
 
   useEffect(() => {
-    playDecisionSound(decision.action);
     const timer = setTimeout(onDismiss, AUTO_DISMISS_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
