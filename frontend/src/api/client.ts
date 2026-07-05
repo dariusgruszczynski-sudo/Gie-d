@@ -39,7 +39,7 @@ export interface PortfolioResponse {
   // The very first snapshot ever recorded (independent of the `history`
   // window/limit) -- baseline for "since the beginning" P&L.
   inception: PortfolioSnapshot | null;
-  // Average entry price per currently-held base asset ("XBT" -> 61234.5), for
+  // Average entry price per currently-held ticker ("SPY" -> 512.34), for
   // per-position unrealized P&L. Empty for assets not currently held.
   cost_basis: Record<string, number>;
 }

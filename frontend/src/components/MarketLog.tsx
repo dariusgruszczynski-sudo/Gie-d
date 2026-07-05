@@ -16,7 +16,7 @@ export function MarketLog({ history, whitelist }: { history: PortfolioSnapshot[]
               <th>Czas</th>
               <th>Wartość portfela</th>
               {whitelist.map((s) => (
-                <th key={s}>{s.replace("EUR", "")}</th>
+                <th key={s}>{s}</th>
               ))}
             </tr>
           </thead>
@@ -26,9 +26,9 @@ export function MarketLog({ history, whitelist }: { history: PortfolioSnapshot[]
               return (
                 <tr key={r.id}>
                   <td>{new Date(r.timestamp).toLocaleString("pl-PL")}</td>
-                  <td>€{r.total_value_usdt.toFixed(2)}</td>
+                  <td>${r.total_value_usdt.toFixed(2)}</td>
                   {whitelist.map((s) => (
-                    <td key={s}>{prices[s] !== undefined ? `€${prices[s].toFixed(2)}` : "—"}</td>
+                    <td key={s}>{prices[s] !== undefined ? `$${prices[s].toFixed(2)}` : "—"}</td>
                   ))}
                 </tr>
               );

@@ -10,9 +10,9 @@ from app.config import Settings, get_settings
 from app.db import get_db
 from app.serialization import serialize
 from app.services import risk_manager
+from app.services.alpaca_client import AlpacaAPIError, AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.email_reporter import send_daily_report
-from app.services.kraken_client import KrakenClient
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.trading_engine import compute_portfolio, execute_manual_trade, run_cycle
@@ -51,18 +51,18 @@ def manual_trade(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):
-    kraken = KrakenClient(settings)
+    broker = AlpacaClient(settings)
     try:
         trade = execute_manual_trade(
             db,
             settings,
-            kraken,
+            broker,
             symbol=req.symbol.upper(),
             side=req.side,
             usdt_amount=req.usdt_amount,
             quantity=req.quantity,
         )
-    except ValueError as exc:
+    except (ValueError, AlpacaAPIError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return serialize(trade)
 
@@ -73,28 +73,28 @@ def run_cycle_now(db: Session = Depends(get_db), settings: Settings = Depends(ge
     trigger gate) instead of waiting for the scheduler's next poll -- this is
     the dashboard's "Wymuś analizę" button, so it must always produce a
     decision rather than returning 'no trigger'."""
-    kraken = KrakenClient(settings)
+    broker = AlpacaClient(settings)
     news = NewsClient(settings)
     advisor = ClaudeAdvisor(settings)
     market_ctx = MarketContextClient()
     try:
-        decision = run_cycle(db, settings, kraken, news, advisor, market_ctx, force=True)
+        decision = run_cycle(db, settings, broker, news, advisor, market_ctx, force=True)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
-    return serialize(decision) if decision is not None else {"message": "Brak danych rynkowych z Kraken w tym cyklu"}
+    return serialize(decision) if decision is not None else {"message": "Brak danych rynkowych z Alpaca w tym cyklu"}
 
 
 @router.post("/refresh-portfolio")
 def refresh_portfolio(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
-    """Reads the live account balance + current prices from Kraken and records
+    """Reads the live account balance + current prices from Alpaca and records
     one portfolio snapshot -- WITHOUT calling Claude and WITHOUT placing any
-    order. This is the safe "sprawdź czy widzę Krakena" button: it proves the
+    order. This is the safe "sprawdź czy widzę konto" button: it proves the
     API key works and populates the dashboard (saldo, ceny, pozycje) on demand,
     at zero Claude cost and zero trading risk, even while the automat is
     stopped before START."""
-    kraken = KrakenClient(settings)
+    broker = AlpacaClient(settings)
     try:
-        portfolio = compute_portfolio(db, settings, kraken)
+        portfolio = compute_portfolio(db, settings, broker)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
     return {

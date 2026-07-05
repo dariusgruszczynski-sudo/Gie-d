@@ -15,15 +15,15 @@ class Settings(BaseSettings):
     claude_model_fast: str = "claude-sonnet-5"
     claude_escalation_confidence_threshold: float = 0.65
 
-    kraken_api_key: str = ""
-    kraken_api_secret: str = ""
-    # Kraken has no public spot testnet (unlike Binance) -- every private API
-    # call is real from the first cycle. quote_currency drives both the pairs
-    # in trading_whitelist (must all be quoted in it) and how the dashboard
-    # labels amounts.
-    quote_currency: str = "EUR"
-
-    cryptopanic_api_key: str = ""
+    alpaca_api_key: str = ""
+    alpaca_api_secret: str = ""
+    # Alpaca (unlike Kraken) has a real paper-trading environment with the
+    # identical API -- set to True to rehearse safely on a simulated account
+    # before flipping back to live. quote_currency drives how the dashboard
+    # labels amounts (tickers have no quote-currency suffix, unlike crypto
+    # pairs, so it does NOT need to appear in trading_whitelist).
+    alpaca_paper: bool = False
+    quote_currency: str = "USD"
 
     daily_loss_limit_pct: float = 20.0
     weekly_loss_limit_pct: float = 70.0
@@ -54,9 +54,11 @@ class Settings(BaseSettings):
     # Uses the same SMTP config as the daily report; silently skipped if SMTP
     # isn't configured. Set False to keep only the daily report.
     trade_alerts_enabled: bool = True
-    # Kraken pair altnames (BTC is "XBT" on Kraken) for the four most liquid
-    # EUR-quoted markets -- chosen for top market cap + deep EUR order books.
-    trading_whitelist: str = "XBTEUR,ETHEUR,SOLEUR,XRPEUR"
+    # Broad-market ETF + liquid, fractionable large caps -- tight spreads, deep
+    # liquidity, and available fractional/notional orders on Alpaca, which
+    # matters a lot on a small account (share prices don't need to divide
+    # evenly into the position size).
+    trading_whitelist: str = "SPY,QQQ,AAPL,NVDA"
 
     poll_interval_minutes: int = 15
     price_move_trigger_pct: float = 2.0

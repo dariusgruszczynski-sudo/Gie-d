@@ -75,10 +75,10 @@ export function StatusBanner({ status }: { status: StatusResponse }) {
         <div className="stat-tile">
           <div className="stat-tile-top">
             <TileIcon name="shield" />
-            <span className={`pill ${status.mode}`}>{status.mode === "testnet" ? "TESTNET" : "PRODUKCJA"}</span>
+            <span className={`pill ${status.mode}`}>{status.mode === "testnet" ? "PAPER" : "PRODUKCJA"}</span>
           </div>
           <span className="stat-tile-label">
-            {status.mode === "testnet" ? "wirtualne środki" : "realny kapitał"}
+            {status.mode === "testnet" ? "symulowane środki" : "realny kapitał"}
           </span>
         </div>
 

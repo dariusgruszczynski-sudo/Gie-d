@@ -12,8 +12,8 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.models import Decision, PortfolioSnapshot, Trade, TradeAction, TradeMode, TriggerType
 from app.services import budget_tracker, email_reporter, risk_manager
+from app.services.alpaca_client import AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
-from app.services.kraken_client import KrakenClient
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.technical_indicators import compute_technical_indicators
@@ -25,13 +25,13 @@ def _base_asset(symbol: str, quote_currency: str) -> str:
     return symbol.replace(quote_currency, "")
 
 
-def compute_portfolio(db: Session, settings: Settings, kraken: KrakenClient) -> dict:
-    """Generic across the whole whitelist -- works for 2 coins or 10 without
-    any schema or code change per coin. A single symbol failing on Kraken
-    (network hiccup, delisted pair, etc.) is skipped rather than aborting the
+def compute_portfolio(db: Session, settings: Settings, broker: AlpacaClient) -> dict:
+    """Generic across the whole whitelist -- works for 2 tickers or 10 without
+    any schema or code change per ticker. A single symbol failing on Alpaca
+    (network hiccup, delisted ticker, etc.) is skipped rather than aborting the
     whole cycle -- otherwise one bad symbol silently kills every scheduled
     cycle and manual "run now" indefinitely."""
-    balances = kraken.get_account_balances()
+    balances = broker.get_account_balances()
     usdt_balance = balances.get(settings.quote_currency, 0.0)
 
     prices: dict[str, float] = {}
@@ -41,7 +41,7 @@ def compute_portfolio(db: Session, settings: Settings, kraken: KrakenClient) -> 
 
     for symbol in settings.whitelist_symbols:
         try:
-            price = kraken.get_price(symbol)
+            price = broker.get_price(symbol)
         except Exception:
             logger.warning("Failed to fetch price for %s, skipping it this cycle", symbol, exc_info=True)
             failed_symbols.append(symbol)
@@ -188,14 +188,16 @@ def _decide_mechanical_exit(settings: Settings, base: str, basis: float, price: 
 
 
 def check_take_profit_stop_loss(
-    db: Session, settings: Settings, kraken: KrakenClient, portfolio: dict
+    db: Session, settings: Settings, broker: AlpacaClient, portfolio: dict, market_open: bool = True
 ) -> list[Trade]:
     """Mechanical exits run on every poll, WITHOUT asking Claude: hard stop-loss
     from entry, plus either a trailing stop (default -- lets winners run) or a
     fixed take-profit. Respects the same stop/halt gate as any automated trade
-    -- if the user pressed STOP, these don't fire either. Tracks each position's
-    peak price for the trailing stop and clears it once the position is closed."""
-    if not risk_manager.can_trade_automated(db).approved:
+    -- if the user pressed STOP, these don't fire either. Also skipped while the
+    market is closed, since a SELL order would just be rejected by Alpaca.
+    Tracks each position's peak price for the trailing stop and clears it once
+    the position is closed."""
+    if not market_open or not risk_manager.can_trade_automated(db).approved:
         return []
 
     state = risk_manager.get_state(db)
@@ -238,7 +240,7 @@ def check_take_profit_stop_loss(
 
         trade = _execute_trade(
             db=db,
-            kraken=kraken,
+            broker=broker,
             settings=settings,
             symbol=symbol,
             action="SELL",
@@ -269,7 +271,7 @@ def _mark_analysis_done_today(db: Session) -> None:
 def run_cycle(
     db: Session,
     settings: Settings,
-    kraken: KrakenClient,
+    broker: AlpacaClient,
     news: NewsClient,
     advisor: ClaudeAdvisor,
     market_ctx: MarketContextClient | None = None,
@@ -281,19 +283,27 @@ def run_cycle(
     the daily analysis already ran and no price moved past the threshold --
     exactly the "clicked it, nothing happened" behaviour reported from the
     dashboard."""
-    portfolio = compute_portfolio(db, settings, kraken)
+    portfolio = compute_portfolio(db, settings, broker)
     state = risk_manager.update_portfolio_value(db, settings, portfolio["total_value_usdt"])
+    market_open = broker.is_market_open()
 
     # Mechanical take-profit / stop-loss runs every scheduled poll, before we
     # even decide whether to ask Claude -- this is what makes the bot actively
     # rotate capital (realize gains, cut losses) instead of buying and holding.
     # A manual "Wymuś analizę" (force) stays a pure Claude read and skips this.
     if not force:
-        exits = check_take_profit_stop_loss(db, settings, kraken, portfolio)
+        exits = check_take_profit_stop_loss(db, settings, broker, portfolio, market_open)
         if exits:
             # Positions changed -- refresh the snapshot so the Claude leg below
             # sees post-exit balances/cash.
-            portfolio = compute_portfolio(db, settings, kraken)
+            portfolio = compute_portfolio(db, settings, broker)
+
+    # Stocks/ETFs don't trade 24/7 like crypto -- a scheduled poll outside
+    # market hours has nothing useful to do (any order would just be rejected)
+    # and must not burn Claude budget on it. A manual "Wymuś analizę" still
+    # runs so the user can see Claude's read on demand; it just can't execute.
+    if not force and not market_open:
+        return None
 
     triggered, trigger_reason = check_trigger(db, settings, portfolio["prices"])
     if force:
@@ -331,10 +341,10 @@ def run_cycle(
     market_data = {}
     for symbol in settings.whitelist_symbols:
         if symbol not in portfolio["prices"]:
-            continue  # Kraken couldn't price this symbol this cycle -- see compute_portfolio
+            continue  # Alpaca couldn't price this symbol this cycle -- see compute_portfolio
         try:
-            klines_24 = kraken.get_klines(symbol, "1h", 24)
-            indicator_closes = [float(row[4]) for row in kraken.get_klines(symbol, "1h", 200)]
+            klines_24 = broker.get_klines(symbol, "1h", 24)
+            indicator_closes = [float(row[4]) for row in broker.get_klines(symbol, "1h", 200)]
         except Exception:
             logger.warning("Failed to fetch klines for %s, excluding it from this cycle", symbol, exc_info=True)
             continue
@@ -344,7 +354,7 @@ def run_cycle(
             "technical": compute_technical_indicators(indicator_closes),
         }
     # Only offer Claude symbols it actually has data for this cycle -- a symbol
-    # missing from market_data (Kraken failure above) must not be a choosable
+    # missing from market_data (Alpaca failure above) must not be a choosable
     # BUY/SELL target.
     tradable_symbols = list(market_data.keys())
     headlines = news.get_headlines([_base_asset(s, settings.quote_currency) for s in settings.whitelist_symbols])
@@ -410,6 +420,16 @@ def run_cycle(
         db.refresh(decision)
         return decision
 
+    # A force=True "Wymuś analizę" still asks Claude outside market hours (so
+    # the user can see its read on demand), but a resulting BUY/SELL can't
+    # actually execute until the market reopens -- Alpaca would just reject it.
+    if not market_open:
+        decision.rejection_reason = "Rynek zamknięty -- transakcja niewykonana (spróbuj w godzinach handlu)."
+        db.add(decision)
+        db.commit()
+        db.refresh(decision)
+        return decision
+
     validation = risk_manager.validate_trade(
         settings=settings,
         symbol=decision_data.symbol,
@@ -450,7 +470,7 @@ def run_cycle(
 
     _execute_trade(
         db=db,
-        kraken=kraken,
+        broker=broker,
         settings=settings,
         symbol=decision_data.symbol,
         action=decision_data.action,
@@ -465,7 +485,7 @@ def run_cycle(
 def _execute_trade(
     *,
     db: Session,
-    kraken: KrakenClient,
+    broker: AlpacaClient,
     settings: Settings,
     symbol: str,
     action: str,
@@ -476,11 +496,11 @@ def _execute_trade(
 ) -> Trade:
     if action == "BUY":
         usdt_amount = portfolio["usdt_balance"] * (size_pct / 100)
-        result = kraken.place_market_order_usdt_amount(symbol, "BUY", usdt_amount)
+        result = broker.place_market_order_usdt_amount(symbol, "BUY", usdt_amount)
     elif action == "SELL":
         base_balance = portfolio["balances"].get(_base_asset(symbol, settings.quote_currency), 0.0)
         quantity = base_balance * (size_pct / 100)
-        result = kraken.place_market_order_quantity(symbol, "SELL", quantity)
+        result = broker.place_market_order_quantity(symbol, "SELL", quantity)
     else:
         raise ValueError(f"Cannot execute action {action}")
 
@@ -510,7 +530,7 @@ def _execute_trade(
 def execute_manual_trade(
     db: Session,
     settings: Settings,
-    kraken: KrakenClient,
+    broker: AlpacaClient,
     symbol: str,
     side: str,
     usdt_amount: float | None = None,
@@ -526,9 +546,9 @@ def execute_manual_trade(
         raise ValueError(whitelist_check.reason)
 
     if usdt_amount is not None:
-        result = kraken.place_market_order_usdt_amount(symbol, side, usdt_amount)
+        result = broker.place_market_order_usdt_amount(symbol, side, usdt_amount)
     elif quantity is not None:
-        result = kraken.place_market_order_quantity(symbol, side, quantity)
+        result = broker.place_market_order_quantity(symbol, side, quantity)
     else:
         raise ValueError("Must provide either usdt_amount or quantity")
 

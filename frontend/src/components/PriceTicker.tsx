@@ -18,7 +18,7 @@ function buildEntries(history: PortfolioSnapshot[], whitelist: string[]): Ticker
   return whitelist.map((symbol) => {
     // Scan from newest to oldest so a symbol added to the whitelist after
     // older snapshots were recorded (which don't have its price yet) still
-    // resolves to its most recent real value instead of showing €0.00.
+    // resolves to its most recent real value instead of showing $0.00.
     let price: number | null = null;
     for (let i = history.length - 1; i >= 0; i--) {
       price = priceFor(history[i], symbol);
@@ -85,11 +85,11 @@ export function PriceTicker({ history, whitelist }: { history: PortfolioSnapshot
       <div className="ticker-track">
         {track.map((e, i) => (
           <div className="ticker-item" key={`${e.symbol}-${i}`}>
-            <span className="ticker-symbol">{e.symbol.replace("EUR", "")}/EUR</span>
+            <span className="ticker-symbol">{e.symbol}</span>
             {e.price !== null ? (
               <>
                 <span className={`ticker-price ${e.changePct !== null ? (e.changePct >= 0 ? "up" : "down") : ""}`}>
-                  €{fmtPrice(e.price)}
+                  ${fmtPrice(e.price)}
                 </span>
                 {e.sparkline.length >= 2 && <Sparkline values={e.sparkline} up={(e.changePct ?? 0) >= 0} />}
                 {e.changePct !== null && (
@@ -106,8 +106,8 @@ export function PriceTicker({ history, whitelist }: { history: PortfolioSnapshot
                 )}
               </>
             ) : e.unavailable ? (
-              <span className="ticker-price ticker-price-unavailable" title="Kraken nie zwrócił ceny dla tej pary w tym cyklu -- para tymczasowo pominięta.">
-                niedostępne na Kraken
+              <span className="ticker-price ticker-price-unavailable" title="Alpaca nie zwróciła ceny dla tego tickera w tym cyklu -- tymczasowo pominięty.">
+                niedostępne na Alpaca
               </span>
             ) : (
               <span className="ticker-price ticker-price-pending">oczekiwanie na dane…</span>

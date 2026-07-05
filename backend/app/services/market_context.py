@@ -1,7 +1,8 @@
-"""Free, keyless macro/sentiment context aggregated from several public data
-APIs (Fear & Greed, CoinGecko global/trending/top-movers, DeFiLlama TVL).
-Each source degrades independently to None/empty on failure, mirroring
-news_client.py, so the trading engine never hard-depends on any one of them."""
+"""Free, keyless macro/sentiment context for US equities, aggregated from
+several public data endpoints (major index moves, VIX as a fear proxy, top
+gainers/losers). Each source degrades independently to None/empty on
+failure, mirroring news_client.py, so the trading engine never hard-depends
+on any one of them."""
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
@@ -11,113 +12,92 @@ import httpx
 logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = 8.0
-FEAR_GREED_URL = "https://api.alternative.me/fng/"
-COINGECKO_GLOBAL_URL = "https://api.coingecko.com/api/v3/global"
-COINGECKO_TRENDING_URL = "https://api.coingecko.com/api/v3/search/trending"
-COINGECKO_MARKETS_URL = "https://api.coingecko.com/api/v3/coins/markets"
-DEFILLAMA_TVL_URL = "https://api.llama.fi/v2/historicalChainTvl"
+YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+YAHOO_SCREENER_URL = "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved"
+# Yahoo blocks the default httpx User-Agent on some endpoints.
+YAHOO_HEADERS = {"User-Agent": "Mozilla/5.0 (GielDarek-trading-bot/1.0)"}
+
+# Major US indices -- used to describe the broad market's direction, since a
+# single stock's move often just tracks (or diverges meaningfully from) these.
+INDEX_SYMBOLS = {"^GSPC": "sp500", "^IXIC": "nasdaq", "^DJI": "dow"}
+# CBOE Volatility Index -- standard proxy for market-wide fear/complacency,
+# the equity-market equivalent of the crypto Fear & Greed index.
+VIX_SYMBOL = "^VIX"
 
 
-def _get_fear_greed_index() -> int | None:
-    try:
-        resp = httpx.get(FEAR_GREED_URL, params={"limit": 1}, timeout=REQUEST_TIMEOUT)
-        resp.raise_for_status()
-        return int(resp.json()["data"][0]["value"])
-    except Exception:
-        logger.warning("Failed to fetch Fear & Greed index, continuing without it", exc_info=True)
-        return None
-
-
-def _get_global_market_context() -> dict:
-    try:
-        resp = httpx.get(COINGECKO_GLOBAL_URL, timeout=REQUEST_TIMEOUT)
-        resp.raise_for_status()
-        data = resp.json()["data"]
-        return {
-            "btc_dominance_pct": round(data["market_cap_percentage"].get("btc", 0.0), 1),
-            "global_market_cap_change_24h_pct": round(
-                data.get("market_cap_change_percentage_24h_usd", 0.0), 1
-            ),
-        }
-    except Exception:
-        logger.warning("Failed to fetch CoinGecko global market data, continuing without it", exc_info=True)
-        return {}
-
-
-def _get_trending_coins() -> list[str]:
-    try:
-        resp = httpx.get(COINGECKO_TRENDING_URL, timeout=REQUEST_TIMEOUT)
-        resp.raise_for_status()
-        coins = resp.json().get("coins", [])[:7]
-        return [c["item"]["symbol"].upper() for c in coins if c.get("item", {}).get("symbol")]
-    except Exception:
-        logger.warning("Failed to fetch CoinGecko trending coins, continuing without it", exc_info=True)
-        return []
-
-def _get_top_movers() -> dict:
+def _get_index_change_pct(symbol: str) -> float | None:
     try:
         resp = httpx.get(
-            COINGECKO_MARKETS_URL,
-            params={
-                "vs_currency": "usd",
-                "order": "market_cap_desc",
-                "per_page": 50,
-                "page": 1,
-                "price_change_percentage": "24h",
-            },
+            YAHOO_CHART_URL.format(symbol=symbol),
+            params={"range": "5d", "interval": "1d"},
+            headers=YAHOO_HEADERS,
             timeout=REQUEST_TIMEOUT,
         )
         resp.raise_for_status()
-        coins = resp.json()
-        ranked = sorted(
-            (c for c in coins if c.get("price_change_percentage_24h") is not None),
-            key=lambda c: c["price_change_percentage_24h"],
-        )
-        top_gainers = [
-            {"symbol": c["symbol"].upper(), "change_24h_pct": round(c["price_change_percentage_24h"], 1)}
-            for c in ranked[-5:][::-1]
-        ]
-        top_losers = [
-            {"symbol": c["symbol"].upper(), "change_24h_pct": round(c["price_change_percentage_24h"], 1)}
-            for c in ranked[:5]
-        ]
-        return {"top_gainers_24h_top50cap": top_gainers, "top_losers_24h_top50cap": top_losers}
-    except Exception:
-        logger.warning("Failed to fetch CoinGecko top movers, continuing without it", exc_info=True)
-        return {}
-
-
-def _get_defi_tvl_change() -> float | None:
-    try:
-        resp = httpx.get(DEFILLAMA_TVL_URL, timeout=REQUEST_TIMEOUT)
-        resp.raise_for_status()
-        points = resp.json()
-        if len(points) < 8:
+        meta = resp.json()["chart"]["result"][0]["meta"]
+        prev_close = meta["chartPreviousClose"]
+        current = meta["regularMarketPrice"]
+        if not prev_close:
             return None
-        latest = points[-1]["tvl"]
-        week_ago = points[-8]["tvl"]
-        if week_ago <= 0:
-            return None
-        return round((latest - week_ago) / week_ago * 100, 1)
+        return round((current - prev_close) / prev_close * 100, 2)
     except Exception:
-        logger.warning("Failed to fetch DeFiLlama TVL, continuing without it", exc_info=True)
+        logger.warning("Failed to fetch Yahoo Finance chart data for %s, continuing without it", symbol, exc_info=True)
         return None
+
+
+def _get_indices_context() -> dict:
+    with ThreadPoolExecutor(max_workers=len(INDEX_SYMBOLS)) as pool:
+        results = {name: pool.submit(_get_index_change_pct, symbol) for symbol, name in INDEX_SYMBOLS.items()}
+        return {f"{name}_change_pct": future.result() for name, future in results.items()}
+
+
+def _get_vix_level() -> float | None:
+    try:
+        resp = httpx.get(
+            YAHOO_CHART_URL.format(symbol=VIX_SYMBOL),
+            params={"range": "1d", "interval": "1d"},
+            headers=YAHOO_HEADERS,
+            timeout=REQUEST_TIMEOUT,
+        )
+        resp.raise_for_status()
+        meta = resp.json()["chart"]["result"][0]["meta"]
+        return round(float(meta["regularMarketPrice"]), 2)
+    except Exception:
+        logger.warning("Failed to fetch VIX level, continuing without it", exc_info=True)
+        return None
+
+
+def _get_screener(scr_id: str) -> list[dict]:
+    try:
+        resp = httpx.get(
+            YAHOO_SCREENER_URL,
+            params={"scrIds": scr_id, "count": 5},
+            headers=YAHOO_HEADERS,
+            timeout=REQUEST_TIMEOUT,
+        )
+        resp.raise_for_status()
+        quotes = resp.json()["finance"]["result"][0]["quotes"]
+        return [
+            {"symbol": q["symbol"], "change_pct": round(q.get("regularMarketChangePercent", 0.0), 1)}
+            for q in quotes
+        ]
+    except Exception:
+        logger.warning("Failed to fetch Yahoo Finance screener %s, continuing without it", scr_id, exc_info=True)
+        return []
 
 
 class MarketContextClient:
     def get_market_context(self) -> dict:
-        with ThreadPoolExecutor(max_workers=5) as pool:
-            fear_greed = pool.submit(_get_fear_greed_index)
-            global_ctx = pool.submit(_get_global_market_context)
-            trending = pool.submit(_get_trending_coins)
-            movers = pool.submit(_get_top_movers)
-            tvl_change = pool.submit(_get_defi_tvl_change)
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            indices = pool.submit(_get_indices_context)
+            vix = pool.submit(_get_vix_level)
+            gainers = pool.submit(_get_screener, "day_gainers")
+            losers = pool.submit(_get_screener, "day_losers")
 
             context: dict = {
-                "fear_greed_index": fear_greed.result(),
-                **global_ctx.result(),
-                "trending_coins": trending.result(),
-                **movers.result(),
-                "defi_tvl_change_7d_pct": tvl_change.result(),
+                **indices.result(),
+                "vix_level": vix.result(),
+                "top_gainers_today": gainers.result(),
+                "top_losers_today": losers.result(),
             }
         return context

@@ -28,13 +28,14 @@ def db_session():
 def settings():
     return Settings(
         anthropic_api_key="test-key",
-        kraken_api_key="test-key",
-        kraken_api_secret="dGVzdC1zZWNyZXQ=",  # base64, matches what KrakenClient expects to decode
-        quote_currency="EUR",
+        alpaca_api_key="test-key",
+        alpaca_api_secret="test-secret",
+        alpaca_paper=True,
+        quote_currency="USD",
         daily_loss_limit_pct=10.0,
         weekly_loss_limit_pct=20.0,
         max_position_pct=25.0,
-        trading_whitelist="XBTEUR,ETHEUR",
+        trading_whitelist="SPY,QQQ",
         poll_interval_minutes=15,
         price_move_trigger_pct=2.0,
     )

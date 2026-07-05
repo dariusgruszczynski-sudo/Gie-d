@@ -30,7 +30,7 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
             )
 
     return {
-        "mode": "live",
+        "mode": "testnet" if settings.alpaca_paper else "live",
         "quote_currency": settings.quote_currency,
         "is_paused": state.is_paused,
         "is_halted": state.is_halted,

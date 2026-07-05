@@ -1,13 +1,13 @@
-# GielDarek — automatyczny bot inwestycyjny (crypto)
+# GielDarek — automatyczny bot inwestycyjny (akcje/ETF)
 
-Aplikacja do automatycznego inwestowania w kryptowaluty (domyślnie BTC, ETH,
-SOL, XRP — lista jest w pełni konfigurowalna) na Kraken (rynek spot, EUR),
-w której decyzje inwestycyjne (co / kiedy / ile) podejmuje Claude -- Sonnet
-analizuje każdy cykl, a Opus podejmuje ostateczną decyzję tylko gdy Sonnet
-sam zgłasza niepewność co do BUY/SELL -- na podstawie danych rynkowych i
-newsów z kilkunastu źródeł. System ma dashboard z wynikami, pełny log decyzji
-i transakcji, oraz przełącznik start/stop i panel do ręcznej transakcji z
-pominięciem automatu.
+Aplikacja do automatycznego inwestowania w akcje i ETF-y bez prowizji
+(domyślnie SPY, QQQ, AAPL, NVDA — lista jest w pełni konfigurowalna) na
+Alpaca (rynek US), w której decyzje inwestycyjne (co / kiedy / ile) podejmuje
+Claude -- Sonnet analizuje każdy cykl, a Opus podejmuje ostateczną decyzję
+tylko gdy Sonnet sam zgłasza niepewność co do BUY/SELL -- na podstawie danych
+rynkowych i newsów z kilkunastu źródeł. System ma dashboard z wynikami, pełny
+log decyzji i transakcji, oraz przełącznik start/stop i panel do ręcznej
+transakcji z pominięciem automatu.
 
 ## ⚠️ Ważne zastrzeżenia
 
@@ -15,10 +15,10 @@ pominięciem automatu.
   to licencjonowana usługa zarządzania aktywami ani porada inwestycyjna.
 - Decyzje generowane przez modele językowe (Claude) **mogą być błędne**.
   Handel automatyczny wiąże się z ryzykiem szybkiej i istotnej utraty kapitału.
-- **Kraken nie ma publicznego testnetu dla rynku spot** (w odróżnieniu od
-  Binance) — każde zlecenie idzie od razu na Twoje prawdziwe środki. Zanim
-  podepniesz klucz API, przeczytaj sekcję "Konfiguracja Kraken" niżej i
-  koniecznie ogranicz uprawnienia klucza (bez withdraw).
+- Alpaca ma prawdziwe środowisko **paper-trading** (`ALPACA_PAPER=true`) z
+  identycznym API co konto live -- warto przetestować bota tam, zanim
+  przełączysz się na `ALPACA_PAPER=false` i prawdziwe pieniądze. Zanim
+  podepniesz klucz API, przeczytaj sekcję "Konfiguracja Alpaca" niżej.
 - Nigdy nie commituj prawdziwych kluczy API do repozytorium — używaj `.env`
   (jest w `.gitignore`).
 - Autor/asystent AI, który zbudował ten kod, nie ponosi odpowiedzialności za
@@ -33,20 +33,22 @@ frontend/  React + Vite — dashboard (wyniki, log decyzji, panel kontroli)
 
 Przepływ decyzyjny:
 
-1. Scheduler co `POLL_INTERVAL_MINUTES` sprawdza ceny wszystkich par z `TRADING_WHITELIST` na Kraken.
+1. Scheduler co `POLL_INTERVAL_MINUTES` sprawdza ceny wszystkich tickerów z
+   `TRADING_WHITELIST` na Alpaca -- tylko gdy rynek US jest otwarty; poza
+   sesją giełdową cykl automatyczny nic nie robi (zlecenie i tak by odpadło).
 2. Jeśli cena zmieniła się o więcej niż `PRICE_MOVE_TRIGGER_PCT` od ostatniego
    sprawdzenia (albo minął dzień od ostatniej pełnej analizy — fallback),
    system uznaje to za "zdarzenie" i woła Claude.
 3. Claude dostaje: aktualne dane cenowe/świece, newsy i kontekst rynkowy z
-   kilkunastu źródeł (CryptoPanic, RSS największych portali crypto, Reddit,
-   CoinGecko, Fear & Greed Index, DeFiLlama), stan portfela i pozostały
-   dzienny budżet ryzyka. Najpierw odpowiada szybszy/tańszy model (Sonnet);
-   jeśli sam zgłosi niską pewność co do BUY/SELL, o ostateczną decyzję pytany
-   jest Opus. Wynik to zawsze jedna ustrukturyzowana decyzja (BUY/SELL/HOLD,
-   symbol, wielkość, uzasadnienie).
-4. Risk manager sprawdza whitelistę coinów, limit wielkości pojedynczej pozycji
-   i dzienny/tygodniowy limit strat. Jeśli wszystko OK i automat nie jest
-   zapauzowany/zatrzymany — zlecenie idzie na Kraken.
+   kilkunastu źródeł (RSS największych portali finansowych, Reddit, Fear &
+   Greed Index i inne), stan portfela i pozostały dzienny budżet ryzyka.
+   Najpierw odpowiada szybszy/tańszy model (Sonnet); jeśli sam zgłosi niską
+   pewność co do BUY/SELL, o ostateczną decyzję pytany jest Opus. Wynik to
+   zawsze jedna ustrukturyzowana decyzja (BUY/SELL/HOLD, symbol, wielkość,
+   uzasadnienie).
+4. Risk manager sprawdza whitelistę tickerów, limit wielkości pojedynczej
+   pozycji i dzienny/tygodniowy limit strat. Jeśli wszystko OK i automat nie
+   jest zapauzowany/zatrzymany — zlecenie idzie na Alpaca.
 5. Wszystko (decyzje, transakcje, zmiany wartości portfela, zdarzenia ryzyka)
    jest logowane do bazy i widoczne w dashboardzie.
 
@@ -57,25 +59,30 @@ Skopiuj `.env.example` do `.env` i uzupełnij:
 | Zmienna | Wymagane | Opis |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | tak | Klucz do Claude API (Sonnet analizuje, Opus decyduje w niepewnych przypadkach) |
-| `KRAKEN_API_KEY` / `KRAKEN_API_SECRET` | tak | Klucz do Kraken — patrz sekcja "Konfiguracja Kraken" niżej |
-| `CRYPTOPANIC_API_KEY` | nie | Opcjonalny — reszta źródeł newsów/kontekstu działa bez klucza |
+| `ALPACA_API_KEY` / `ALPACA_API_SECRET` | tak | Klucz do Alpaca — patrz sekcja "Konfiguracja Alpaca" niżej |
 
-## Konfiguracja Kraken
+## Konfiguracja Alpaca
 
-Kraken **nie ma publicznego testnetu dla rynku spot** — nie da się tu
-"przetestować na sucho" tak jak wcześniej na Binance Testnet. Każde zlecenie
-od pierwszego cyklu po wdrożeniu jest realne.
+Alpaca ma prawdziwe środowisko **paper-trading** z identycznym API co konto
+live — w odróżnieniu od Kraken/krypto da się tu bezpiecznie "przetestować na
+sucho" przed przełączeniem na prawdziwe pieniądze.
 
-1. Załóż/zaloguj się na konto Kraken, przejdź do
-   https://www.kraken.com/u/security/api i wygeneruj nowy klucz API.
-2. Nadaj **tylko** uprawnienia `Query Funds` i `Create & Modify Orders`.
-   **Nigdy** nie włączaj `Withdraw Funds` — bot nie potrzebuje tego
-   uprawnienia do niczego, a jego włączenie to jedyny sposób, żeby błąd w
-   kluczu skończył się utratą środków poza samym handlem.
-3. W `.env` wklej `KRAKEN_API_KEY` / `KRAKEN_API_SECRET`.
-4. Whitelist (`TRADING_WHITELIST`) używa nazw par Kraken — Bitcoin to tam
-   `XBT`, nie `BTC` (np. `XBTEUR`, nie `BTCEUR`).
-5. Zanim uruchomisz automat na produkcji, rozważ start z niskim
+1. Załóż/zaloguj się na konto Alpaca (https://alpaca.markets).
+2. Do testów: wygeneruj klucz API na
+   https://app.alpaca.markets/paper/dashboard/overview (środowisko paper,
+   symulowane $100k). Na produkcję (prawdziwe pieniądze): wygeneruj osobny
+   klucz na https://app.alpaca.markets/live/dashboard/overview.
+3. W `.env` wklej `ALPACA_API_KEY` / `ALPACA_API_SECRET` i ustaw
+   `ALPACA_PAPER=true` (paper) albo `false` (live) zgodnie z tym, który klucz
+   wkleiłeś — **klucze paper i live nie są wymienne**, każdy działa tylko w
+   swoim środowisku.
+4. Whitelist (`TRADING_WHITELIST`) używa zwykłych tickerów giełdowych, bez
+   sufiksu waluty (np. `SPY`, nie `SPYUSD`).
+5. Pamiętaj, że akcje/ETF-y handlują się tylko w godzinach sesji giełdy US
+   (ok. 9:30–16:00 czasu New York, dni robocze) — poza sesją automat
+   pomija cykl (Claude nadal odpowiada na "Wymuś analizę" ręcznie, ale
+   wynikowe zlecenie nie może się wykonać, dopóki rynek się nie otworzy).
+6. Zanim przełączysz się na `ALPACA_PAPER=false`, rozważ start z niskim
    `MAX_POSITION_PCT` i niskim `DAILY_LOSS_LIMIT_PCT`, i obserwuj pierwsze
    cykle ręcznie z poziomu dashboardu.
 
@@ -91,7 +98,7 @@ od pierwszego cyklu po wdrożeniu jest realne.
 | `TRAILING_STOP_ENABLED` | `true` | `true` = po zysku `TAKE_PROFIT_PCT` pozwól zyskom rosnąć i sprzedaj dopiero po spadku `TRAILING_STOP_PCT` od szczytu. `false` = sztywny take-profit przy `TAKE_PROFIT_PCT` |
 | `TRAILING_STOP_PCT` | `1.5` | O ile % cena musi spaść od szczytu, żeby trailing-stop sprzedał (gdy uzbrojony) |
 | `TRADE_ALERTS_ENABLED` | `true` | Mail natychmiast po każdej transakcji (BUY/SELL, w tym wyjścia TP/SL). Wymaga SMTP; `false` = tylko raport dzienny |
-| `TRADING_WHITELIST` | `XBTEUR,ETHEUR,SOLEUR,XRPEUR` | Lista par, którymi automat może handlować — w pełni generyczna, dowolna liczba par obsługiwanych przez Kraken (format `<COIN><QUOTE_CURRENCY>`, przecinek jako separator) |
+| `TRADING_WHITELIST` | `SPY,QQQ,AAPL,NVDA` | Lista tickerów, którymi automat może handlować — w pełni generyczna, dowolna liczba tickerów obsługiwanych przez Alpaca (przecinek jako separator) |
 | `POLL_INTERVAL_MINUTES` | `15` | Co ile minut sprawdzać ceny/newsy |
 | `PRICE_MOVE_TRIGGER_PCT` | `2` | Próg zmiany ceny traktowany jako "zdarzenie" wywołujące analizę Claude |
 

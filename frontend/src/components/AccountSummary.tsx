@@ -24,7 +24,7 @@ export function AccountSummary({
     <div className="account-summary">
       <div className="account-summary-item">
         <span className="account-summary-label">Ile masz</span>
-        <strong className="account-summary-value">€{current.total_value_usdt.toFixed(2)}</strong>
+        <strong className="account-summary-value">${current.total_value_usdt.toFixed(2)}</strong>
       </div>
       <div className="account-summary-divider" />
       <div className="account-summary-item">
@@ -32,7 +32,7 @@ export function AccountSummary({
         {pnlUsd !== null ? (
           <strong className={`account-summary-value ${up ? "up" : "down"}`}>
             {up ? "+" : ""}
-            {pnlUsd.toFixed(2)}€ ({up ? "+" : ""}
+            ${pnlUsd.toFixed(2)} ({up ? "+" : ""}
             {pnlPct!.toFixed(2)}%)
           </strong>
         ) : (

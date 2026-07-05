@@ -15,7 +15,7 @@ def test_build_report_includes_latest_decision_reasoning(db_session, settings):
     db_session.add(
         Decision(
             action=TradeAction.BUY,
-            symbol="BTCUSDT",
+            symbol="SPY",
             size_pct=10,
             confidence=0.8,
             reasoning="Silny trend wzrostowy, kupujemy.",
@@ -27,7 +27,7 @@ def test_build_report_includes_latest_decision_reasoning(db_session, settings):
 
     html, _ = email_reporter.build_report(db_session, settings)
     assert "Silny trend wzrostowy" in html
-    assert "BTCUSDT" in html
+    assert "SPY" in html
 
 
 def test_send_daily_report_skips_without_smtp_credentials(db_session, settings):

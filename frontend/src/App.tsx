@@ -98,7 +98,7 @@ export default function App() {
           <div>
             <h1>Giel<span className="brand-accent">Darek</span></h1>
             <p className="subtitle">
-              Decyzje: Claude (Sonnet + Opus) · Wykonanie: Kraken · Narzędzie prywatne, nie jest to porada inwestycyjna.
+              Decyzje: Claude (Sonnet + Opus) · Wykonanie: Alpaca · Narzędzie prywatne, nie jest to porada inwestycyjna.
             </p>
           </div>
         </div>

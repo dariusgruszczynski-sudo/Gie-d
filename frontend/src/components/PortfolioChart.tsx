@@ -8,7 +8,7 @@ function ChartTooltip({ active, payload, label }: any) {
   return (
     <div className="chart-tooltip">
       <div className="chart-tooltip-time">{label}</div>
-      <div className="chart-tooltip-value">€{Number(payload[0].value).toFixed(2)}</div>
+      <div className="chart-tooltip-value">${Number(payload[0].value).toFixed(2)}</div>
     </div>
   );
 }
@@ -43,7 +43,7 @@ export function PortfolioChart({ history, current }: { history: PortfolioSnapsho
   return (
     <div className="panel">
       <div className="panel-header-row">
-        <h2>Wartość portfela (EUR)</h2>
+        <h2>Wartość portfela (USD)</h2>
         <div className="chart-range-tabs">
           {RANGES.map((r) => (
             <button
@@ -59,7 +59,7 @@ export function PortfolioChart({ history, current }: { history: PortfolioSnapsho
       </div>
       {current && (
         <div className="chart-value-row">
-          <strong className="chart-current-value">€{animatedValue.toFixed(2)}</strong>
+          <strong className="chart-current-value">${animatedValue.toFixed(2)}</strong>
           {periodChangePct !== null && (
             <span className={`chart-period-change ${isUp ? "up" : "down"}`}>
               {isUp ? "+" : ""}

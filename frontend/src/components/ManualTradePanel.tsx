@@ -3,7 +3,7 @@ import { api, StatusResponse } from "../api/client";
 
 export function ManualTradePanel({ status, onChanged }: { status: StatusResponse; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
-  const [symbol, setSymbol] = useState(status.whitelist[0] ?? "XBTEUR");
+  const [symbol, setSymbol] = useState(status.whitelist[0] ?? "SPY");
   const [side, setSide] = useState<"BUY" | "SELL">("BUY");
   const [usdtAmount, setUsdtAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -13,7 +13,7 @@ export function ManualTradePanel({ status, onChanged }: { status: StatusResponse
     setError(null);
     const amount = parseFloat(usdtAmount);
     if (!amount || amount <= 0) {
-      setError("Podaj poprawną kwotę EUR");
+      setError("Podaj poprawną kwotę USD");
       return;
     }
     setBusy(true);
@@ -48,7 +48,7 @@ export function ManualTradePanel({ status, onChanged }: { status: StatusResponse
         <input
           type="number"
           step="any"
-          placeholder="Kwota w EUR"
+          placeholder="Kwota w USD"
           value={usdtAmount}
           onChange={(e) => setUsdtAmount(e.target.value)}
         />

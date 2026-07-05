@@ -17,7 +17,7 @@ def test_portfolio_inception_is_the_very_first_snapshot_even_beyond_limit(db_ses
                 total_value_usdt=1000.0 + i * 10,
                 usdt_balance=1000.0,
                 balances_json="{}",
-                prices_json=json.dumps({"BTCUSDT": 50000.0 + i * 100}),
+                prices_json=json.dumps({"SPY": 50000.0 + i * 100}),
             )
         )
     db_session.commit()

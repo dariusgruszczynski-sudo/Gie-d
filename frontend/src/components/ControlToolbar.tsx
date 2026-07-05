@@ -125,15 +125,15 @@ export function ControlToolbar({
     setFeedback(null);
     try {
       const p = await api.refreshPortfolio();
-      const cur = p.quote_currency === "EUR" ? "€" : p.quote_currency + " ";
+      const cur = p.quote_currency === "USD" ? "$" : p.quote_currency + " ";
       const failed = p.failed_symbols.length > 0 ? ` · brak ceny dla: ${p.failed_symbols.join(", ")}` : "";
       setFeedback({
-        text: `Kraken OK — saldo ${cur}${p.total_value.toFixed(2)} (wolne ${cur}${p.quote_balance.toFixed(2)})${failed}`,
+        text: `Alpaca OK — saldo ${cur}${p.total_value.toFixed(2)} (wolne ${cur}${p.quote_balance.toFixed(2)})${failed}`,
         kind: "ok",
       });
       onChanged();
     } catch (e) {
-      setFeedback({ text: `Kraken niedostępny: ${String(e)}`, kind: "error" });
+      setFeedback({ text: `Alpaca niedostępna: ${String(e)}`, kind: "error" });
     } finally {
       setBusy(false);
     }

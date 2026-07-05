@@ -19,8 +19,7 @@ function buildHoldings(current: PortfolioSnapshot, costBasis: Record<string, num
   const rows: HoldingRow[] = Object.entries(balances)
     .filter(([, qty]) => qty > 0)
     .map(([asset, qty]) => {
-      const symbol = `${asset}EUR`;
-      const price = prices[symbol] ?? null;
+      const price = prices[asset] ?? null;
       const valueUsd = price !== null ? qty * price : 0;
       const entryPrice = costBasis[asset] ?? null;
       const pnlPct = price !== null && entryPrice !== null && entryPrice > 0 ? ((price - entryPrice) / entryPrice) * 100 : null;
@@ -41,7 +40,7 @@ function buildHoldings(current: PortfolioSnapshot, costBasis: Record<string, num
 
   if (current.usdt_balance > 0) {
     rows.push({
-      asset: "EUR",
+      asset: "USD",
       quantity: current.usdt_balance,
       price: 1,
       valueUsd: current.usdt_balance,
@@ -55,7 +54,7 @@ function buildHoldings(current: PortfolioSnapshot, costBasis: Record<string, num
   return rows;
 }
 
-function fmtEur(value: number): string {
+function fmtUsd(value: number): string {
   return value.toLocaleString("pl-PL", { maximumFractionDigits: 2 });
 }
 
@@ -91,20 +90,20 @@ export function PortfolioHoldings({
                 <tr key={row.asset}>
                   <td>{row.asset}</td>
                   <td>{row.quantity.toLocaleString("pl-PL", { maximumFractionDigits: 6 })}</td>
-                  <td>{row.price !== null ? `€${fmtEur(row.price)}` : "—"}</td>
-                  <td>{row.entryPrice !== null ? `€${fmtEur(row.entryPrice)}` : "—"}</td>
+                  <td>{row.price !== null ? `$${fmtUsd(row.price)}` : "—"}</td>
+                  <td>{row.entryPrice !== null ? `$${fmtUsd(row.entryPrice)}` : "—"}</td>
                   <td>
                     {row.pnlPct !== null ? (
                       <span className={row.pnlPct >= 0 ? "up" : "down"}>
                         {row.pnlPct >= 0 ? "+" : ""}
                         {row.pnlPct.toFixed(2)}%
-                        {row.pnlUsd !== null ? ` (${row.pnlUsd >= 0 ? "+" : ""}€${fmtEur(row.pnlUsd)})` : ""}
+                        {row.pnlUsd !== null ? ` (${row.pnlUsd >= 0 ? "+" : ""}$${fmtUsd(row.pnlUsd)})` : ""}
                       </span>
                     ) : (
                       "—"
                     )}
                   </td>
-                  <td>€{fmtEur(row.valueUsd)}</td>
+                  <td>${fmtUsd(row.valueUsd)}</td>
                   <td>{row.pctOfPortfolio.toFixed(1)}%</td>
                 </tr>
               ))}

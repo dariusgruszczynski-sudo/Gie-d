@@ -73,9 +73,8 @@ class PortfolioSnapshot(Base):
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     total_value_usdt: Mapped[float] = mapped_column(Float)
     usdt_balance: Mapped[float] = mapped_column(Float)
-    # JSON dicts keyed by base asset ("XBT", "SOL", ...) / trading pair
-    # ("XBTEUR", ...) so the whitelist can hold any number of coins without
-    # a schema change per coin.
+    # JSON dicts keyed by ticker ("SPY", "AAPL", ...) so the whitelist can
+    # hold any number of tickers without a schema change per one.
     balances_json: Mapped[str] = mapped_column(Text, default="{}")
     prices_json: Mapped[str] = mapped_column(Text, default="{}")
     # JSON list of whitelist symbols that failed to price this cycle (network
@@ -107,15 +106,16 @@ class SystemState(Base):
     day_start_value: Mapped[float] = mapped_column(Float, default=0.0)
     week_start_date: Mapped[str] = mapped_column(String(10), default="")
     week_start_value: Mapped[float] = mapped_column(Float, default=0.0)
-    # JSON dict keyed by trading pair ("BTCUSDT", ...) -> last observed price,
-    # so the price-move trigger works for any whitelist size.
+    # JSON dict keyed by ticker ("SPY", ...) -> last observed price, so the
+    # price-move trigger works for any whitelist size.
     last_check_prices_json: Mapped[str] = mapped_column(Text, default="{}")
     last_full_analysis_date: Mapped[str] = mapped_column(String(10), default="")
-    # JSON dict {trading pair -> ISO timestamp until which re-buying is blocked}
-    # after a stop-loss on that pair. Prevents fee-bleeding churn.
+    # JSON dict {ticker -> ISO timestamp until which re-buying is blocked}
+    # after a stop-loss on that ticker. Prevents a small account bleeding out
+    # on repeated buy-top/stop-out churn.
     stop_loss_cooldowns_json: Mapped[str] = mapped_column(Text, default="{}")
-    # JSON dict {trading pair -> highest price seen since entry} -- drives the
-    # trailing stop. Cleared per pair when the position is closed.
+    # JSON dict {ticker -> highest price seen since entry} -- drives the
+    # trailing stop. Cleared per ticker when the position is closed.
     position_peaks_json: Mapped[str] = mapped_column(Text, default="{}")
     claude_budget_month_key: Mapped[str] = mapped_column(String(7), default="")
     claude_spend_usd_this_month: Mapped[float] = mapped_column(Float, default=0.0)

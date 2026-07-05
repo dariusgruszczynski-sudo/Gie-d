@@ -7,8 +7,8 @@ def _advisor(settings) -> ClaudeAdvisor:
 
 def _decide_kwargs():
     return dict(
-        whitelist=["XBTEUR"],
-        market_data={"XBTEUR": {"price": 50000.0}},
+        whitelist=["SPY"],
+        market_data={"SPY": {"price": 500.0}},
         news=[],
         portfolio={"total_value_usdt": 1000.0},
         risk_context={},
@@ -41,7 +41,7 @@ def test_confident_buy_from_fast_model_is_trusted_without_escalation(settings, m
 
     def fake_call_model(model, tool, user_content):
         calls.append(model)
-        return {"action": "BUY", "symbol": "XBTEUR", "size_pct": 10, "confidence": 0.9, "reasoning": "silny sygnał"}, 0.02, 200, 80
+        return {"action": "BUY", "symbol": "SPY", "size_pct": 10, "confidence": 0.9, "reasoning": "silny sygnał"}, 0.02, 200, 80
 
     monkeypatch.setattr(advisor, "_call_model", fake_call_model)
 
@@ -64,7 +64,7 @@ def test_uncertain_buy_from_fast_model_escalates_to_opus(settings, monkeypatch):
     def fake_call_model(model, tool, user_content):
         calls.append(model)
         if model == settings.claude_model_fast:
-            return {"action": "BUY", "symbol": "XBTEUR", "size_pct": 10, "confidence": 0.4, "reasoning": "niepewne"}, 0.02, 200, 80
+            return {"action": "BUY", "symbol": "SPY", "size_pct": 10, "confidence": 0.4, "reasoning": "niepewne"}, 0.02, 200, 80
         return {"action": "HOLD", "symbol": None, "size_pct": 0, "confidence": 0.85, "reasoning": "Opus mówi czekać"}, 0.05, 300, 100
 
     monkeypatch.setattr(advisor, "_call_model", fake_call_model)
