@@ -6,6 +6,7 @@ import { ControlToolbar } from "./components/ControlToolbar";
 import { DecisionSplash } from "./components/DecisionSplash";
 import { DecisionsLog } from "./components/DecisionsLog";
 import { EmberBackground } from "./components/EmberBackground";
+import { InvestmentThesis } from "./components/InvestmentThesis";
 import { ManualTradePanel } from "./components/ManualTradePanel";
 import { MarketLog } from "./components/MarketLog";
 import { PortfolioChart } from "./components/PortfolioChart";
@@ -108,6 +109,8 @@ export default function App() {
         {status && <StatusBanner status={status} />}
 
         {status && <ControlToolbar status={status} onChanged={refresh} muted={muted} onToggleMuted={toggleMuted} />}
+
+        {status && <InvestmentThesis whitelist={status.whitelist} />}
 
         <div className="grid">
           {portfolio && <PortfolioChart history={portfolio.history} current={portfolio.current} />}

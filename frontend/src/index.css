@@ -513,6 +513,48 @@ h1 {
   color: var(--red);
 }
 
+/* --- Investment thesis cards --- */
+
+.thesis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.thesis-card {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.thesis-card-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.thesis-ticker {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--accent);
+}
+
+.thesis-name {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.thesis-description {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text);
+  margin: 0;
+}
+
 /* Per-position P&L colouring inside tables (Twoje pozycje) */
 table .up {
   color: var(--green);
