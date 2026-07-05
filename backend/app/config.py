@@ -65,6 +65,20 @@ class Settings(BaseSettings):
 
     poll_interval_minutes: int = 15
     price_move_trigger_pct: float = 2.0
+    # Stocks/ETFs regular session is only ~6.5h/day (9:30-16:00 ET). Setting
+    # this True lets the bot also trade pre-market (4:00-9:30 ET) and
+    # after-hours (16:00-20:00 ET) on the SAME Alpaca account -- no new
+    # broker/money needed -- for ~16h/day of coverage instead of ~6.5h.
+    # Extended-hours orders are whole-share LIMIT orders only (thinner
+    # liquidity, wider spreads than regular hours -- a real execution-risk
+    # tradeoff, especially on more volatile picks like MSTR/NVDA).
+    extended_hours_trading_enabled: bool = True
+    # Applies only during pre-market/after-hours: a higher bar than
+    # price_move_trigger_pct before waking Claude, since routine drift
+    # outside the regular session is less meaningful and extending the
+    # trading window to ~2.5x its length would otherwise ~2.5x the Claude
+    # API spend for the same signal quality.
+    extended_hours_price_move_trigger_pct: float = 4.0
 
     claude_monthly_budget_usd: float = 20.0
     claude_budget_alert_threshold_pct: float = 80.0

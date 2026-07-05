@@ -12,6 +12,7 @@ import { MarketLog } from "./components/MarketLog";
 import { PortfolioChart } from "./components/PortfolioChart";
 import { PortfolioHoldings } from "./components/PortfolioHoldings";
 import { PriceTicker } from "./components/PriceTicker";
+import { SessionClock } from "./components/SessionClock";
 import { StatusBanner } from "./components/StatusBanner";
 import { TradesTable } from "./components/TradesTable";
 import { isSoundMuted, playTradeSound, setSoundMuted } from "./tradeSound";
@@ -109,6 +110,16 @@ export default function App() {
         {status && <StatusBanner status={status} />}
 
         {status && <ControlToolbar status={status} onChanged={refresh} muted={muted} onToggleMuted={toggleMuted} />}
+
+        {status && (
+          <div style={{ marginBottom: 16 }}>
+            <SessionClock
+              session={status.market_session}
+              bounds={status.session_bounds}
+              extendedHoursEnabled={status.extended_hours_trading_enabled}
+            />
+          </div>
+        )}
 
         {status && <InvestmentThesis whitelist={status.whitelist} />}
 

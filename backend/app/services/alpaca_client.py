@@ -9,6 +9,7 @@ Authentication is a pair of plain headers (no HMAC signing needed, unlike
 Kraken), which makes this considerably simpler and less error-prone."""
 
 import logging
+import math
 import time
 from dataclasses import dataclass
 
@@ -29,6 +30,12 @@ DATA_FEED = "iex"
 FILL_POLL_ATTEMPTS = 10
 FILL_POLL_DELAY_SECONDS = 0.5
 _TIMEFRAMES = {"1m": "1Min", "5m": "5Min", "15m": "15Min", "1h": "1Hour", "1d": "1Day"}
+# Extended-hours (pre-market/after-hours) orders must be whole-share LIMIT
+# orders -- fractional and notional/market orders are regular-session only,
+# an industry-wide rule (not Alpaca-specific) tied to thinner liquidity
+# outside the regular session. The limit price is offset from the last trade
+# to raise fill odds without materially chasing price in a thin book.
+EXTENDED_HOURS_LIMIT_BUFFER_PCT = 0.3
 
 
 @dataclass
@@ -66,9 +73,11 @@ class AlpacaClient:
             raise AlpacaAPIError(f"Alpaca {method} {path}: {resp.status_code} {resp.text}")
         return resp.json()
 
-    def is_market_open(self) -> bool:
-        clock = self._request(self._trading, "GET", "/v2/clock")
-        return bool(clock.get("is_open"))
+    def get_calendar(self, start: str, end: str) -> list[dict]:
+        """Trading days with their actual regular-session open/close for
+        that date (accounts for holidays and early closes), used by
+        market_hours.py to derive pre-market/after-hours windows on top."""
+        return self._request(self._trading, "GET", "/v2/calendar", params={"start": start, "end": end})
 
     # ---- market data ----
 
@@ -108,12 +117,26 @@ class AlpacaClient:
 
     # ---- orders ----
 
-    def _submit_order(self, symbol: str, side: str, *, notional: float | None = None, qty: float | None = None) -> dict:
-        body: dict = {"symbol": symbol, "side": side.lower(), "type": "market", "time_in_force": "day"}
+    def _submit_order(
+        self,
+        symbol: str,
+        side: str,
+        *,
+        notional: float | None = None,
+        qty: float | None = None,
+        order_type: str = "market",
+        limit_price: float | None = None,
+        extended_hours: bool = False,
+    ) -> dict:
+        body: dict = {"symbol": symbol, "side": side.lower(), "type": order_type, "time_in_force": "day"}
         if notional is not None:
             body["notional"] = f"{notional:.2f}"
         else:
             body["qty"] = f"{qty:.6f}"
+        if order_type == "limit":
+            body["limit_price"] = f"{limit_price:.2f}"
+        if extended_hours:
+            body["extended_hours"] = True
         return self._request(self._trading, "POST", "/v2/orders", json=body)
 
     def _resolve_fill(self, order: dict, fallback_price: float) -> OrderResult:
@@ -166,3 +189,42 @@ class AlpacaClient:
         order = self._submit_order(symbol, side, qty=quantity)
         fallback_price = self.get_price(symbol)
         return self._resolve_fill(order, fallback_price)
+
+    def place_order_for_session(
+        self,
+        symbol: str,
+        side: str,
+        *,
+        session: str,
+        usdt_amount: float | None = None,
+        quantity: float | None = None,
+    ) -> OrderResult:
+        """Routes to a plain market/notional order during the regular
+        session (fast, fractional-friendly), or a whole-share LIMIT order
+        with `extended_hours=True` during pre-market/after-hours, since
+        those sessions reject fractional and market/notional orders.
+        `session` is one of market_hours.{PRE_MARKET,REGULAR,AFTER_HOURS} --
+        passed in rather than queried here so callers make exactly one
+        market_hours lookup per cycle."""
+        if session == "regular":
+            if usdt_amount is not None:
+                return self.place_market_order_usdt_amount(symbol, side, usdt_amount)
+            return self.place_market_order_quantity(symbol, side, quantity)
+
+        price = self.get_price(symbol)
+        buffer = 1 + EXTENDED_HOURS_LIMIT_BUFFER_PCT / 100 if side.upper() == "BUY" else 1 - EXTENDED_HOURS_LIMIT_BUFFER_PCT / 100
+        limit_price = round(price * buffer, 2)
+
+        raw_qty = usdt_amount / price if usdt_amount is not None else quantity
+        whole_qty = math.floor(raw_qty)
+        if whole_qty <= 0:
+            raise ValueError(
+                f"Rozszerzone godziny handlu wymagają całych akcji -- "
+                f"{usdt_amount if usdt_amount is not None else quantity} przy cenie {price} "
+                f"daje 0 całych akcji {symbol}"
+            )
+
+        order = self._submit_order(
+            symbol, side, qty=whole_qty, order_type="limit", limit_price=limit_price, extended_hours=True
+        )
+        return self._resolve_fill(order, fallback_price=price)

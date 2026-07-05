@@ -81,3 +81,51 @@ def test_get_headlines_degrades_gracefully_when_a_source_raises(monkeypatch):
 
     # One source blew up; the rest still contributed headlines.
     assert len(result) == len(news_client.RSS_FEEDS) - 1
+
+
+def test_get_new_ticker_headlines_detects_a_fresh_headline(monkeypatch):
+    def fake_ticker_headlines(ticker, limit):
+        return [
+            {"title": "Old headline", "published_at": "", "source": f"Yahoo Finance ({ticker})"},
+            {"title": "BREAKING: earnings beat", "published_at": "", "source": f"Yahoo Finance ({ticker})"},
+        ]
+
+    monkeypatch.setattr(news_client, "_get_ticker_headlines", fake_ticker_headlines)
+
+    client = news_client.NewsClient(settings=None)
+    seen = {"SPY": ["Old headline"]}
+
+    new_headlines, updated_seen = client.get_new_ticker_headlines(["SPY"], seen)
+
+    assert len(new_headlines) == 1
+    assert new_headlines[0]["title"] == "BREAKING: earnings beat"
+    assert updated_seen["SPY"] == ["Old headline", "BREAKING: earnings beat"]
+
+
+def test_get_new_ticker_headlines_nothing_new_when_unchanged(monkeypatch):
+    def fake_ticker_headlines(ticker, limit):
+        return [{"title": "Same headline", "published_at": "", "source": f"Yahoo Finance ({ticker})"}]
+
+    monkeypatch.setattr(news_client, "_get_ticker_headlines", fake_ticker_headlines)
+
+    client = news_client.NewsClient(settings=None)
+    seen = {"SPY": ["Same headline"]}
+
+    new_headlines, _ = client.get_new_ticker_headlines(["SPY"], seen)
+
+    assert new_headlines == []
+
+
+def test_get_new_ticker_headlines_keeps_prior_seen_state_when_fetch_fails(monkeypatch):
+    def failing_ticker_headlines(ticker, limit):
+        raise RuntimeError("network hiccup")
+
+    monkeypatch.setattr(news_client, "_get_ticker_headlines", failing_ticker_headlines)
+
+    client = news_client.NewsClient(settings=None)
+    seen = {"SPY": ["Existing headline"]}
+
+    new_headlines, updated_seen = client.get_new_ticker_headlines(["SPY"], seen)
+
+    assert new_headlines == []
+    assert updated_seen["SPY"] == ["Existing headline"]

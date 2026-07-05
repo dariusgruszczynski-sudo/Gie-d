@@ -22,15 +22,6 @@ def test_auth_headers_sent_on_both_clients(settings):
         assert http_client.headers["apca-api-secret-key"] == settings.alpaca_api_secret
 
 
-def test_is_market_open_reads_clock(settings, monkeypatch):
-    client = AlpacaClient(settings)
-    monkeypatch.setattr(client, "_request", lambda c, m, p, **kw: {"is_open": True})
-    assert client.is_market_open() is True
-
-    monkeypatch.setattr(client, "_request", lambda c, m, p, **kw: {"is_open": False})
-    assert client.is_market_open() is False
-
-
 def test_get_price_reads_latest_trade(settings, monkeypatch):
     client = AlpacaClient(settings)
 
@@ -158,3 +149,87 @@ def test_resolve_fill_falls_back_to_estimate_when_never_filled(settings, monkeyp
 
     assert result.price == 500.0
     assert result.quantity == 200.0 / 500.0
+
+
+def test_get_calendar_hits_calendar_endpoint_with_date_range(settings, monkeypatch):
+    client = AlpacaClient(settings)
+
+    def fake_request(http_client, method, path, **kwargs):
+        assert path == "/v2/calendar"
+        assert kwargs["params"] == {"start": "2026-07-06", "end": "2026-07-13"}
+        return [{"date": "2026-07-06", "open": "09:30", "close": "16:00"}]
+
+    monkeypatch.setattr(client, "_request", fake_request)
+    result = client.get_calendar("2026-07-06", "2026-07-13")
+
+    assert result == [{"date": "2026-07-06", "open": "09:30", "close": "16:00"}]
+
+
+def test_place_order_for_session_regular_uses_plain_notional_order(settings, monkeypatch):
+    client = AlpacaClient(settings)
+    called = {}
+
+    def fake_notional(symbol, side, usdt_amount):
+        called["args"] = (symbol, side, usdt_amount)
+        return "regular-result"
+
+    monkeypatch.setattr(client, "place_market_order_usdt_amount", fake_notional)
+    result = client.place_order_for_session("SPY", "BUY", session="regular", usdt_amount=200.0)
+
+    assert result == "regular-result"
+    assert called["args"] == ("SPY", "BUY", 200.0)
+
+
+def test_place_order_for_session_extended_submits_whole_share_limit_buy(settings, monkeypatch):
+    client = AlpacaClient(settings)
+    captured = {}
+
+    monkeypatch.setattr(client, "get_price", lambda symbol: 100.0)
+
+    def fake_request(http_client, method, path, **kwargs):
+        if path == "/v2/orders":
+            captured["body"] = kwargs["json"]
+            return {"id": "o1", "symbol": "SPY", "side": "buy", "status": "filled", "filled_qty": "2", "filled_avg_price": "100.3"}
+        raise AssertionError(f"unexpected path {path}")
+
+    monkeypatch.setattr(client, "_request", fake_request)
+
+    # $250 at $100/share -> floor(2.5) = 2 whole shares, BUY limit slightly above price.
+    result = client.place_order_for_session("SPY", "BUY", session="pre_market", usdt_amount=250.0)
+
+    assert captured["body"]["type"] == "limit"
+    assert captured["body"]["qty"] == "2.000000"
+    assert captured["body"]["extended_hours"] is True
+    assert captured["body"]["limit_price"] == "100.30"  # 100 * 1.003
+    assert result.quantity == 2.0
+
+
+def test_place_order_for_session_extended_sell_limit_below_price(settings, monkeypatch):
+    client = AlpacaClient(settings)
+    captured = {}
+
+    monkeypatch.setattr(client, "get_price", lambda symbol: 100.0)
+
+    def fake_request(http_client, method, path, **kwargs):
+        if path == "/v2/orders":
+            captured["body"] = kwargs["json"]
+            return {"id": "o2", "symbol": "SPY", "side": "sell", "status": "filled", "filled_qty": "3", "filled_avg_price": "99.7"}
+        raise AssertionError(f"unexpected path {path}")
+
+    monkeypatch.setattr(client, "_request", fake_request)
+
+    result = client.place_order_for_session("SPY", "SELL", session="after_hours", quantity=3.0)
+
+    assert captured["body"]["limit_price"] == "99.70"  # 100 * 0.997
+    assert result.quantity == 3.0
+
+
+def test_place_order_for_session_extended_rejects_when_rounds_to_zero_shares(settings, monkeypatch):
+    client = AlpacaClient(settings)
+    monkeypatch.setattr(client, "get_price", lambda symbol: 900.0)  # e.g. a pricey ticker
+
+    try:
+        client.place_order_for_session("MSTR", "BUY", session="pre_market", usdt_amount=50.0)
+        assert False, "expected ValueError"
+    except ValueError:
+        pass

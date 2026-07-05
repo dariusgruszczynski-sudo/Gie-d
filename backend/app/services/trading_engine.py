@@ -11,10 +11,11 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models import Decision, PortfolioSnapshot, Trade, TradeAction, TradeMode, TriggerType
-from app.services import budget_tracker, email_reporter, risk_manager
+from app.services import budget_tracker, email_reporter, market_hours, risk_manager
 from app.services.alpaca_client import AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.market_context import MarketContextClient
+from app.services.market_hours import SessionInfo
 from app.services.news_client import NewsClient
 from app.services.technical_indicators import compute_technical_indicators
 
@@ -23,6 +24,19 @@ logger = logging.getLogger(__name__)
 
 def _base_asset(symbol: str, quote_currency: str) -> str:
     return symbol.replace(quote_currency, "")
+
+
+def _is_tradable_session(session_info: SessionInfo, settings: Settings) -> bool:
+    return market_hours.is_tradable_session(session_info.session, settings.extended_hours_trading_enabled)
+
+
+def _session_closed_reason(session_info: SessionInfo) -> str:
+    if session_info.session == market_hours.CLOSED:
+        return "Rynek zamknięty -- transakcja niewykonana (spróbuj w godzinach handlu)."
+    return (
+        f"Rozszerzone godziny handlu ({session_info.session}) są wyłączone "
+        f"(EXTENDED_HOURS_TRADING_ENABLED=false) -- transakcja niewykonana."
+    )
 
 
 def compute_portfolio(db: Session, settings: Settings, broker: AlpacaClient) -> dict:
@@ -71,9 +85,15 @@ def compute_portfolio(db: Session, settings: Settings, broker: AlpacaClient) -> 
     }
 
 
-def check_trigger(db: Session, settings: Settings, prices: dict[str, float]) -> tuple[bool, TriggerType]:
+def check_trigger(
+    db: Session, settings: Settings, prices: dict[str, float], price_move_trigger_pct: float | None = None
+) -> tuple[bool, TriggerType]:
+    """`price_move_trigger_pct` overrides settings.price_move_trigger_pct when
+    given -- used to apply a higher bar during extended hours (see run_cycle),
+    leaving the default unchanged for callers/tests that don't care."""
     state = risk_manager.get_state(db)
     today_str = date.today().isoformat()
+    threshold = settings.price_move_trigger_pct if price_move_trigger_pct is None else price_move_trigger_pct
 
     last_prices: dict[str, float] = json.loads(state.last_check_prices_json or "{}")
 
@@ -84,7 +104,7 @@ def check_trigger(db: Session, settings: Settings, prices: dict[str, float]) -> 
         last_price = last_prices.get(symbol, 0.0)
         if last_price > 0:
             move_pct = abs(current_price - last_price) / last_price * 100
-            if move_pct >= settings.price_move_trigger_pct:
+            if move_pct >= threshold:
                 triggered = True
                 reason = TriggerType.PRICE_MOVE
         last_prices[symbol] = current_price
@@ -98,6 +118,22 @@ def check_trigger(db: Session, settings: Settings, prices: dict[str, float]) -> 
 
     db.commit()
     return triggered, reason
+
+
+def check_news_trigger(db: Session, settings: Settings, news: NewsClient) -> tuple[bool, list[dict]]:
+    """Reacts to a brand-new, ticker-specific headline (earnings release,
+    material single-stock news) the instant it's published, independent of
+    any price move -- crucial pre-/after-market, where thin trading means the
+    price often lags the news print by minutes and a pure price-move trigger
+    would catch it too late. Only the cheap per-ticker feed is checked here
+    (no Claude cost); the full ~30-source fetch still only happens once the
+    cycle actually triggers."""
+    state = risk_manager.get_state(db)
+    seen: dict[str, list[str]] = json.loads(state.seen_ticker_headlines_json or "{}")
+    new_headlines, updated_seen = news.get_new_ticker_headlines(settings.whitelist_symbols, seen)
+    state.seen_ticker_headlines_json = json.dumps(updated_seen)
+    db.commit()
+    return bool(new_headlines), new_headlines
 
 
 def average_cost_basis(db: Session, symbol: str) -> float | None:
@@ -188,16 +224,25 @@ def _decide_mechanical_exit(settings: Settings, base: str, basis: float, price: 
 
 
 def check_take_profit_stop_loss(
-    db: Session, settings: Settings, broker: AlpacaClient, portfolio: dict, market_open: bool = True
+    db: Session,
+    settings: Settings,
+    broker: AlpacaClient,
+    portfolio: dict,
+    session_info: SessionInfo | None = None,
 ) -> list[Trade]:
     """Mechanical exits run on every poll, WITHOUT asking Claude: hard stop-loss
     from entry, plus either a trailing stop (default -- lets winners run) or a
     fixed take-profit. Respects the same stop/halt gate as any automated trade
     -- if the user pressed STOP, these don't fire either. Also skipped while the
-    market is closed, since a SELL order would just be rejected by Alpaca.
-    Tracks each position's peak price for the trailing stop and clears it once
-    the position is closed."""
-    if not market_open or not risk_manager.can_trade_automated(db).approved:
+    session isn't tradable (fully closed, or extended hours disabled), since a
+    SELL order would just be rejected by Alpaca. Defaults to the regular
+    session when no session_info is given, for callers (and the many existing
+    tests) that don't care about market-hours gating. Tracks each position's
+    peak price for the trailing stop and clears it once the position is
+    closed."""
+    session = session_info.session if session_info is not None else market_hours.REGULAR
+    tradable = market_hours.is_tradable_session(session, settings.extended_hours_trading_enabled)
+    if not tradable or not risk_manager.can_trade_automated(db).approved:
         return []
 
     state = risk_manager.get_state(db)
@@ -248,6 +293,7 @@ def check_take_profit_stop_loss(
             portfolio=portfolio,
             decision=decision,
             is_manual=False,
+            session=session,
         )
         executed.append(trade)
         logger.info("Mechaniczne wyjście: %s", reason)
@@ -285,27 +331,49 @@ def run_cycle(
     dashboard."""
     portfolio = compute_portfolio(db, settings, broker)
     state = risk_manager.update_portfolio_value(db, settings, portfolio["total_value_usdt"])
-    market_open = broker.is_market_open()
+    session_info = market_hours.get_session_info(broker)
+    tradable = _is_tradable_session(session_info, settings)
 
     # Mechanical take-profit / stop-loss runs every scheduled poll, before we
     # even decide whether to ask Claude -- this is what makes the bot actively
     # rotate capital (realize gains, cut losses) instead of buying and holding.
     # A manual "Wymuś analizę" (force) stays a pure Claude read and skips this.
     if not force:
-        exits = check_take_profit_stop_loss(db, settings, broker, portfolio, market_open)
+        exits = check_take_profit_stop_loss(db, settings, broker, portfolio, session_info)
         if exits:
             # Positions changed -- refresh the snapshot so the Claude leg below
             # sees post-exit balances/cash.
             portfolio = compute_portfolio(db, settings, broker)
 
-    # Stocks/ETFs don't trade 24/7 like crypto -- a scheduled poll outside
-    # market hours has nothing useful to do (any order would just be rejected)
-    # and must not burn Claude budget on it. A manual "Wymuś analizę" still
-    # runs so the user can see Claude's read on demand; it just can't execute.
-    if not force and not market_open:
+    # Stocks/ETFs don't trade 24/7 like crypto -- a scheduled poll outside a
+    # tradable session (fully closed, or extended hours disabled) has nothing
+    # useful to do (any order would just be rejected) and must not burn
+    # Claude budget on it. A manual "Wymuś analizę" still runs so the user can
+    # see Claude's read on demand; it just can't execute.
+    if not force and not tradable:
         return None
 
-    triggered, trigger_reason = check_trigger(db, settings, portfolio["prices"])
+    # Pre-market/after-hours: require a bigger price move before waking
+    # Claude, since routine drift outside the regular session is less
+    # meaningful and this keeps the ~2.5x longer trading window from ~2.5x'ing
+    # Claude spend for the same signal quality.
+    effective_trigger_pct = (
+        settings.price_move_trigger_pct
+        if session_info.session == market_hours.REGULAR
+        else settings.extended_hours_price_move_trigger_pct
+    )
+    triggered, trigger_reason = check_trigger(db, settings, portfolio["prices"], effective_trigger_pct)
+
+    # A brand-new per-ticker headline (earnings, material single-stock news)
+    # wakes Claude on its own, independent of any price move -- especially
+    # important pre-/after-market where thin trading means the price can lag
+    # the news print by minutes. Always checked (even on a force/price-move
+    # cycle) so the "seen headlines" state stays current either way.
+    news_triggered, fresh_headlines = check_news_trigger(db, settings, news)
+    if news_triggered and not triggered:
+        triggered = True
+        trigger_reason = TriggerType.NEWS_EVENT
+
     if force:
         trigger_reason = TriggerType.MANUAL
     elif not triggered:
@@ -420,11 +488,12 @@ def run_cycle(
         db.refresh(decision)
         return decision
 
-    # A force=True "Wymuś analizę" still asks Claude outside market hours (so
-    # the user can see its read on demand), but a resulting BUY/SELL can't
-    # actually execute until the market reopens -- Alpaca would just reject it.
-    if not market_open:
-        decision.rejection_reason = "Rynek zamknięty -- transakcja niewykonana (spróbuj w godzinach handlu)."
+    # A force=True "Wymuś analizę" still asks Claude outside a tradable session
+    # (so the user can see its read on demand), but a resulting BUY/SELL can't
+    # actually execute until a tradable session resumes -- Alpaca would just
+    # reject it.
+    if not tradable:
+        decision.rejection_reason = _session_closed_reason(session_info)
         db.add(decision)
         db.commit()
         db.refresh(decision)
@@ -478,6 +547,7 @@ def run_cycle(
         portfolio=portfolio,
         decision=decision,
         is_manual=False,
+        session=session_info.session,
     )
     return decision
 
@@ -493,14 +563,15 @@ def _execute_trade(
     portfolio: dict,
     decision: Decision | None,
     is_manual: bool,
+    session: str = market_hours.REGULAR,
 ) -> Trade:
     if action == "BUY":
         usdt_amount = portfolio["usdt_balance"] * (size_pct / 100)
-        result = broker.place_market_order_usdt_amount(symbol, "BUY", usdt_amount)
+        result = broker.place_order_for_session(symbol, "BUY", usdt_amount=usdt_amount, session=session)
     elif action == "SELL":
         base_balance = portfolio["balances"].get(_base_asset(symbol, settings.quote_currency), 0.0)
         quantity = base_balance * (size_pct / 100)
-        result = broker.place_market_order_quantity(symbol, "SELL", quantity)
+        result = broker.place_order_for_session(symbol, "SELL", quantity=quantity, session=session)
     else:
         raise ValueError(f"Cannot execute action {action}")
 
@@ -545,10 +616,18 @@ def execute_manual_trade(
     if not whitelist_check.approved:
         raise ValueError(whitelist_check.reason)
 
+    # Session-aware so a manual trade during pre-market/after-hours goes out
+    # as the whole-share LIMIT order Alpaca requires instead of a market/
+    # notional order that would just be rejected. Deliberately not gated on
+    # extended_hours_trading_enabled or blocked outright when fully closed --
+    # same as the existing pause/halt bypass, a manual click is the override;
+    # Alpaca itself is the final backstop if the session genuinely can't trade.
+    session_info = market_hours.get_session_info(broker)
+
     if usdt_amount is not None:
-        result = broker.place_market_order_usdt_amount(symbol, side, usdt_amount)
+        result = broker.place_order_for_session(symbol, side, usdt_amount=usdt_amount, session=session_info.session)
     elif quantity is not None:
-        result = broker.place_market_order_quantity(symbol, side, quantity)
+        result = broker.place_order_for_session(symbol, side, quantity=quantity, session=session_info.session)
     else:
         raise ValueError("Must provide either usdt_amount or quantity")
 

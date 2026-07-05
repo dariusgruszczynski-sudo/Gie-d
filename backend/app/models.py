@@ -21,6 +21,11 @@ class TriggerType(str, enum.Enum):
     PRICE_MOVE = "price_move"
     SCHEDULED_DAILY = "scheduled_daily"
     MANUAL = "manual"
+    # A brand-new, ticker-specific headline (earnings release, material
+    # filing-driven news, ...) fired this cycle independent of any price
+    # move -- crucial pre-/after-market, where thin trading means price can
+    # lag the news print by minutes.
+    NEWS_EVENT = "news_event"
 
 
 class TradeMode(str, enum.Enum):
@@ -117,6 +122,12 @@ class SystemState(Base):
     # JSON dict {ticker -> highest price seen since entry} -- drives the
     # trailing stop. Cleared per ticker when the position is closed.
     position_peaks_json: Mapped[str] = mapped_column(Text, default="{}")
+    # JSON dict {ticker -> [recent per-ticker headline titles]} -- lets the
+    # bot detect a brand-new headline (earnings, material single-stock news)
+    # the moment it's published and wake Claude immediately, independent of
+    # any price move. Bounded to PER_TICKER_LIMIT titles per ticker each
+    # cycle so this never grows unbounded.
+    seen_ticker_headlines_json: Mapped[str] = mapped_column(Text, default="{}")
     claude_budget_month_key: Mapped[str] = mapped_column(String(7), default="")
     claude_spend_usd_this_month: Mapped[float] = mapped_column(Float, default=0.0)
     # HMAC key for signing login session cookies -- generated once on first

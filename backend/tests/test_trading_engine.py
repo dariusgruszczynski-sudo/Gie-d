@@ -1,21 +1,39 @@
 import json
 from dataclasses import dataclass
+from datetime import datetime
 
 import pytest
 
-from app.services import risk_manager, trading_engine
+from app.services import market_hours, risk_manager, trading_engine
 from app.services.claude_advisor import TradingDecision
 
 
+def _session_info(session: str) -> market_hours.SessionInfo:
+    now = datetime.now(market_hours.ET)
+    return market_hours.SessionInfo(
+        session=session,
+        pre_market_start=now,
+        regular_open=now,
+        regular_close=now,
+        after_hours_end=now,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _default_regular_session(monkeypatch):
+    """Most tests don't care about market-hours gating -- default every test
+    to the regular session so run_cycle/check_take_profit_stop_loss behave as
+    if the market is simply open, unless a test overrides this explicitly."""
+    monkeypatch.setattr(
+        trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.REGULAR)
+    )
+
+
 class FakeAlpaca:
-    def __init__(self, prices=None, balances=None, market_open=True):
+    def __init__(self, prices=None, balances=None):
         self.prices = prices or {"SPY": 500.0, "QQQ": 400.0}
         self.balances = balances or {"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0}
-        self.market_open = market_open
         self.orders = []
-
-    def is_market_open(self):
-        return self.market_open
 
     def get_price(self, symbol):
         return self.prices[symbol]
@@ -52,6 +70,15 @@ class FakeAlpaca:
         self.orders.append(order)
         return order
 
+    def place_order_for_session(self, symbol, side, *, session, usdt_amount=None, quantity=None):
+        # The real extended-hours whole-share/limit-price mechanics are unit
+        # tested directly against AlpacaClient in test_alpaca_client.py --
+        # here we just record which session a trade was routed through.
+        self.last_order_session = session
+        if usdt_amount is not None:
+            return self.place_market_order_usdt_amount(symbol, side, usdt_amount)
+        return self.place_market_order_quantity(symbol, side, quantity)
+
 
 @dataclass
 class _FakeOrder:
@@ -66,6 +93,9 @@ class _FakeOrder:
 class FakeNews:
     def get_headlines(self, currencies, limit=10):
         return []
+
+    def get_new_ticker_headlines(self, tickers, seen):
+        return [], {ticker: seen.get(ticker, []) for ticker in tickers}
 
 
 class FakeAdvisor:
@@ -447,7 +477,33 @@ def test_tpsl_does_not_fire_while_market_closed(db_session, settings):
     broker.prices["SPY"] = 104.0  # would take-profit if market were open
 
     portfolio = trading_engine.compute_portfolio(db_session, settings, broker)
-    assert trading_engine.check_take_profit_stop_loss(db_session, settings, broker, portfolio, market_open=False) == []
+    closed = _session_info(market_hours.CLOSED)
+    assert trading_engine.check_take_profit_stop_loss(db_session, settings, broker, portfolio, closed) == []
+
+
+def test_tpsl_does_not_fire_during_extended_hours_when_disabled(db_session, settings):
+    disabled = settings.model_copy(update={"extended_hours_trading_enabled": False})
+    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
+    trading_engine.execute_manual_trade(db_session, disabled, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
+    broker.prices["SPY"] = 104.0  # would take-profit if tradable
+
+    portfolio = trading_engine.compute_portfolio(db_session, disabled, broker)
+    pre_market = _session_info(market_hours.PRE_MARKET)
+    assert trading_engine.check_take_profit_stop_loss(db_session, disabled, broker, portfolio, pre_market) == []
+
+
+def test_tpsl_fires_during_extended_hours_when_enabled(db_session, settings):
+    fixed = settings.model_copy(update={"trailing_stop_enabled": False})
+    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
+    trading_engine.execute_manual_trade(db_session, fixed, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
+    broker.prices["SPY"] = 104.0  # +4% > take_profit_pct (3) -> immediate sell, fixed take-profit
+
+    portfolio = trading_engine.compute_portfolio(db_session, fixed, broker)
+    after_hours = _session_info(market_hours.AFTER_HOURS)
+    exits = trading_engine.check_take_profit_stop_loss(db_session, fixed, broker, portfolio, after_hours)
+
+    assert len(exits) == 1
+    assert broker.last_order_session == market_hours.AFTER_HOURS
 
 
 def test_stop_loss_sets_cooldown_and_blocks_rebuy(db_session, settings):
@@ -527,11 +583,14 @@ def test_run_cycle_without_market_ctx_does_not_crash(db_session, settings):
     assert advisor.last_kwargs["market_context"] == {}
 
 
-def test_scheduled_cycle_skipped_when_market_closed(db_session, settings):
+def test_scheduled_cycle_skipped_when_market_closed(db_session, settings, monkeypatch):
     """Stocks/ETFs aren't 24/7 like crypto -- a scheduled poll outside market
     hours must do nothing (and never burn Claude budget), same as any other
     routine no-op cycle."""
-    broker = FakeAlpaca(market_open=False)
+    monkeypatch.setattr(
+        trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.CLOSED)
+    )
+    broker = FakeAlpaca()
     advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Nie powinno zostać wywołane."))
 
     decision = trading_engine.run_cycle(db_session, settings, broker, FakeNews(), advisor)
@@ -541,11 +600,14 @@ def test_scheduled_cycle_skipped_when_market_closed(db_session, settings):
     assert len(broker.orders) == 0
 
 
-def test_forced_analysis_runs_when_market_closed_but_cannot_execute(db_session, settings):
+def test_forced_analysis_runs_when_market_closed_but_cannot_execute(db_session, settings, monkeypatch):
     """A manual 'Wymuś analizę' still asks Claude even outside market hours (so
     the user can see its read on demand), but a resulting BUY/SELL must not
     execute -- Alpaca would reject the order anyway."""
-    broker = FakeAlpaca(market_open=False)
+    monkeypatch.setattr(
+        trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.CLOSED)
+    )
+    broker = FakeAlpaca()
     advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Wygląda dobrze."))
 
     decision = trading_engine.run_cycle(db_session, settings, broker, FakeNews(), advisor, force=True)
@@ -554,3 +616,61 @@ def test_forced_analysis_runs_when_market_closed_but_cannot_execute(db_session, 
     assert decision.executed is False
     assert "zamknięty" in (decision.rejection_reason or "").lower()
     assert len(broker.orders) == 0
+
+
+def test_scheduled_cycle_runs_during_pre_market_when_extended_hours_enabled(db_session, settings, monkeypatch):
+    """The whole point of extended-hours support: a scheduled cycle during
+    pre-market must actually execute (via a session-routed order), not just
+    passively let Claude look without acting."""
+    monkeypatch.setattr(
+        trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.PRE_MARKET)
+    )
+    broker = FakeAlpaca()
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Silny sygnał przedsesyjny."))
+
+    decision = trading_engine.run_cycle(db_session, settings, broker, FakeNews(), advisor, force=True)
+
+    assert decision.executed is True
+    assert len(broker.orders) == 1
+    assert broker.last_order_session == market_hours.PRE_MARKET
+
+
+def test_scheduled_cycle_skipped_during_after_hours_when_extended_disabled(db_session, settings, monkeypatch):
+    disabled = settings.model_copy(update={"extended_hours_trading_enabled": False})
+    monkeypatch.setattr(
+        trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.AFTER_HOURS)
+    )
+    broker = FakeAlpaca()
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Nie powinno zostać wywołane."))
+
+    decision = trading_engine.run_cycle(db_session, disabled, broker, FakeNews(), advisor)
+
+    assert decision is None
+    assert advisor.calls == 0
+    assert len(broker.orders) == 0
+
+
+def test_news_event_triggers_cycle_independent_of_price_move(db_session, settings):
+    """A brand-new per-ticker headline (earnings, material news) must wake
+    Claude even when nothing else would have triggered this cycle -- crucial
+    pre-/after-market where price can lag the news print."""
+    trading_engine._mark_analysis_done_today(db_session)  # rule out the daily fallback
+    broker = FakeAlpaca()
+    trading_engine.check_trigger(db_session, settings, broker.prices)  # seed last-check prices, rule out price-move
+
+    class NewsWithFreshHeadline:
+        def get_headlines(self, currencies, limit=10):
+            return []
+
+        def get_new_ticker_headlines(self, tickers, seen):
+            return [{"title": "SPY Corp reports blowout earnings", "published_at": "", "source": "Yahoo Finance (SPY)"}], {
+                t: seen.get(t, []) for t in tickers
+            }
+
+    advisor = FakeAdvisor(TradingDecision("HOLD", None, 0, 0.7, "Reakcja na earnings."))
+
+    decision = trading_engine.run_cycle(db_session, settings, broker, NewsWithFreshHeadline(), advisor)
+
+    assert decision is not None
+    assert advisor.calls == 1
+    assert decision.triggered_by.value == "news_event"

@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -6,10 +8,35 @@ from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import Decision, PortfolioSnapshot, Trade
 from app.serialization import serialize
-from app.services import budget_tracker, risk_manager
+from app.services import budget_tracker, market_hours, risk_manager
+from app.services.alpaca_client import AlpacaClient
 from app.services.trading_engine import average_cost_basis
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api", tags=["dashboard"])
+
+
+def _serialize_session_info(settings: Settings) -> dict:
+    """Best-effort -- /api/status is polled every ~15s by every open dashboard
+    tab and must keep working even if Alpaca's calendar endpoint is briefly
+    unavailable, so a failure here degrades to omitting the session fields
+    rather than 500ing the whole endpoint."""
+    try:
+        info = market_hours.get_session_info(AlpacaClient(settings))
+    except Exception:
+        logger.warning("Failed to compute market session info for /api/status", exc_info=True)
+        return {"market_session": None, "session_bounds": None}
+
+    return {
+        "market_session": info.session,
+        "session_bounds": {
+            "pre_market_start": info.pre_market_start.isoformat() if info.pre_market_start else None,
+            "regular_open": info.regular_open.isoformat() if info.regular_open else None,
+            "regular_close": info.regular_close.isoformat() if info.regular_close else None,
+            "after_hours_end": info.after_hours_end.isoformat() if info.after_hours_end else None,
+        },
+    }
 
 
 @router.get("/status")
@@ -42,6 +69,8 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "max_position_pct": settings.max_position_pct,
         "whitelist": settings.whitelist_symbols,
         "poll_interval_minutes": settings.poll_interval_minutes,
+        "extended_hours_trading_enabled": settings.extended_hours_trading_enabled,
+        **_serialize_session_info(settings),
         **budget_tracker.get_budget_status(db, settings),
     }
 

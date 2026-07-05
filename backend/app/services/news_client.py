@@ -151,6 +151,34 @@ class NewsClient:
     def __init__(self, settings: Settings):
         self._settings = settings
 
+    def get_new_ticker_headlines(
+        self, tickers: list[str], seen: dict[str, list[str]]
+    ) -> tuple[list[dict], dict[str, list[str]]]:
+        """Cheap, per-ticker-only fetch (no Claude cost) used to detect a
+        brand-new headline -- earnings release, material single-stock news --
+        the moment it's published, independent of any price move. `seen` is
+        the previous cycle's {ticker: [recent titles]}; returns (genuinely
+        new headlines across all tickers, updated seen-state to persist)."""
+        new_headlines: list[dict] = []
+        updated_seen: dict[str, list[str]] = {}
+
+        with ThreadPoolExecutor(max_workers=max(len(tickers), 1)) as pool:
+            futures = {ticker: pool.submit(_get_ticker_headlines, ticker, PER_TICKER_LIMIT) for ticker in tickers}
+            for ticker, future in futures.items():
+                try:
+                    headlines = future.result()
+                except Exception:
+                    logger.warning("Failed to fetch ticker headlines for %s, skipping it", ticker, exc_info=True)
+                    headlines = []
+
+                previously_seen = set(seen.get(ticker, []))
+                new_headlines.extend(h for h in headlines if h["title"] not in previously_seen)
+                # Snapshot this cycle's titles as the new baseline; if the
+                # fetch failed, keep whatever we had rather than forgetting it.
+                updated_seen[ticker] = [h["title"] for h in headlines] if headlines else list(previously_seen)
+
+        return new_headlines, updated_seen
+
     def get_headlines(self, tickers: list[str], limit: int = 40) -> list[dict]:
         worker_count = len(RSS_FEEDS) + len(tickers) + len(REDDIT_SUBREDDITS)
         with ThreadPoolExecutor(max_workers=worker_count) as pool:

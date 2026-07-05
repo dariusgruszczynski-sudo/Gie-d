@@ -34,11 +34,17 @@ frontend/  React + Vite — dashboard (wyniki, log decyzji, panel kontroli)
 Przepływ decyzyjny:
 
 1. Scheduler co `POLL_INTERVAL_MINUTES` sprawdza ceny wszystkich tickerów z
-   `TRADING_WHITELIST` na Alpaca -- tylko gdy rynek US jest otwarty; poza
-   sesją giełdową cykl automatyczny nic nie robi (zlecenie i tak by odpadło).
+   `TRADING_WHITELIST` na Alpaca -- w sesji regularnej ORAZ (przy
+   `EXTENDED_HOURS_TRADING_ENABLED=true`, domyślnie) w pre-market i
+   after-hours, dając ~16h/dzień pokrycia zamiast ~6.5h samej sesji
+   regularnej; poza wszystkimi trzema oknami cykl automatyczny nic nie robi
+   (zlecenie i tak by odpadło). Zob. sekcję "Rozszerzone godziny handlu"
+   niżej.
 2. Jeśli cena zmieniła się o więcej niż `PRICE_MOVE_TRIGGER_PCT` od ostatniego
    sprawdzenia (albo minął dzień od ostatniej pełnej analizy — fallback),
-   system uznaje to za "zdarzenie" i woła Claude.
+   system uznaje to za "zdarzenie" i woła Claude. Niezależnie od ceny, świeży
+   nagłówek dotyczący konkretnego tickera (np. wyniki kwartalne) też budzi
+   Claude natychmiast — patrz "Reakcja na newsy/earnings" niżej.
 3. Claude dostaje: aktualne dane cenowe/świece, newsy i kontekst rynkowy z
    blisko 30 źródeł (RSS największych portali finansowych i technologicznych,
    Reddit, filingi SEC — 8-K i Form 4 — per-tickerowe nagłówki, VIX i zmiana
@@ -81,12 +87,52 @@ sucho" przed przełączeniem na prawdziwe pieniądze.
 4. Whitelist (`TRADING_WHITELIST`) używa zwykłych tickerów giełdowych, bez
    sufiksu waluty (np. `SPY`, nie `SPYUSD`).
 5. Pamiętaj, że akcje/ETF-y handlują się tylko w godzinach sesji giełdy US
-   (ok. 9:30–16:00 czasu New York, dni robocze) — poza sesją automat
-   pomija cykl (Claude nadal odpowiada na "Wymuś analizę" ręcznie, ale
-   wynikowe zlecenie nie może się wykonać, dopóki rynek się nie otworzy).
+   (regularna sesja + pre-market/after-hours przy `EXTENDED_HOURS_TRADING_ENABLED=true`,
+   dni robocze) — poza wszystkimi trzema oknami automat pomija cykl (Claude
+   nadal odpowiada na "Wymuś analizę" ręcznie, ale wynikowe zlecenie nie może
+   się wykonać, dopóki rynek się nie otworzy).
 6. Zanim przełączysz się na `ALPACA_PAPER=false`, rozważ start z niskim
    `MAX_POSITION_PCT` i niskim `DAILY_LOSS_LIMIT_PCT`, i obserwuj pierwsze
    cykle ręcznie z poziomu dashboardu.
+
+## Rozszerzone godziny handlu (pre-market / after-hours)
+
+Sesja regularna giełdy US to tylko ~6.5h/dzień (9:30–16:00 czasu New York).
+Przy `EXTENDED_HOURS_TRADING_ENABLED=true` (domyślnie) automat handluje też:
+
+- **Pre-market**: 4:00–9:30 czasu New York
+- **After-hours**: 16:00–20:00 czasu New York (płynność w praktyce zamiera po ~18:00)
+
+Razem daje to ~16h/dzień pokrycia zamiast ~6.5h — na **tym samym** koncie
+Alpaca, bez nowego brokera ani pieniędzy. Ważne różnice względem sesji
+regularnej:
+
+- Zlecenia w rozszerzonych godzinach to zawsze **całe akcje** (nie ułamkowe)
+  jako **zlecenie LIMIT** (nie rynkowe) — to wymóg branżowy, nie ograniczenie
+  Alpaca, związany z dużo cieńszą płynnością poza sesją regularną. Automat
+  liczy cenę limitu z małym marginesem od ostatniej ceny (żeby zwiększyć
+  szansę wykonania bez pogoni za ceną) i automatycznie pomija wejście, gdyby
+  kwota pozycji wyszła na 0 całych akcji przy danej cenie.
+  Płynność i spready są gorsze niż w sesji regularnej — realne ryzyko
+  wykonania, zwłaszcza na bardziej zmiennych pozycjach jak MSTR/NVDA.
+- `EXTENDED_HOURS_PRICE_MOVE_TRIGGER_PCT` (domyślnie `4`, wyższy niż
+  `PRICE_MOVE_TRIGGER_PCT`) obowiązuje tylko poza sesją regularną — utrzymuje
+  budżet Claude pod kontrolą mimo ~2.5x dłuższego okna handlu.
+- Ustaw `EXTENDED_HOURS_TRADING_ENABLED=false`, żeby wrócić wyłącznie do
+  sesji regularnej.
+
+Dashboard pokazuje aktualną fazę sesji (pre-market/regularna/after-hours/
+zamknięte) w panelu "Zegar sesji", razem z zegarem na żywo w Twoim czasie
+(Warszawa) obok Nowego Jorku i Los Angeles.
+
+## Reakcja na newsy/earnings
+
+Niezależnie od progu zmiany ceny, automat co cykl sprawdza (tanio, bez
+pytania Claude) czy dla któregoś tickera z whitelisty pojawił się **nowy**
+nagłówek — np. wyniki kwartalne. Jeśli tak, Claude jest budzony natychmiast,
+niezależnie od tego, czy cena już się ruszyła. To ma szczególne znaczenie
+pre-/after-market, gdzie płynność jest cienka i cena może reagować na news z
+opóźnieniem rzędu minut — sam próg zmiany ceny złapałby to zbyt późno.
 
 ## Konfiguracja ryzyka (`.env`)
 
@@ -100,9 +146,11 @@ sucho" przed przełączeniem na prawdziwe pieniądze.
 | `TRAILING_STOP_ENABLED` | `true` | `true` = po zysku `TAKE_PROFIT_PCT` pozwól zyskom rosnąć i sprzedaj dopiero po spadku `TRAILING_STOP_PCT` od szczytu. `false` = sztywny take-profit przy `TAKE_PROFIT_PCT` |
 | `TRAILING_STOP_PCT` | `1.5` | O ile % cena musi spaść od szczytu, żeby trailing-stop sprzedał (gdy uzbrojony) |
 | `TRADE_ALERTS_ENABLED` | `true` | Mail natychmiast po każdej transakcji (BUY/SELL, w tym wyjścia TP/SL). Wymaga SMTP; `false` = tylko raport dzienny |
-| `TRADING_WHITELIST` | `SPY,QQQ,AAPL,NVDA` | Lista tickerów, którymi automat może handlować — w pełni generyczna, dowolna liczba tickerów obsługiwanych przez Alpaca (przecinek jako separator) |
+| `TRADING_WHITELIST` | `SPY,QQQ,AAPL,NVDA,MSTR` | Lista tickerów, którymi automat może handlować — w pełni generyczna, dowolna liczba tickerów obsługiwanych przez Alpaca (przecinek jako separator) |
 | `POLL_INTERVAL_MINUTES` | `15` | Co ile minut sprawdzać ceny/newsy |
-| `PRICE_MOVE_TRIGGER_PCT` | `2` | Próg zmiany ceny traktowany jako "zdarzenie" wywołujące analizę Claude |
+| `PRICE_MOVE_TRIGGER_PCT` | `2` | Próg zmiany ceny (w sesji regularnej) traktowany jako "zdarzenie" wywołujące analizę Claude |
+| `EXTENDED_HOURS_TRADING_ENABLED` | `true` | Handel też w pre-market (4:00-9:30 ET) i after-hours (16:00-20:00 ET) na tym samym koncie Alpaca — patrz "Rozszerzone godziny handlu" wyżej |
+| `EXTENDED_HOURS_PRICE_MOVE_TRIGGER_PCT` | `4` | Jak `PRICE_MOVE_TRIGGER_PCT`, ale obowiązuje tylko poza sesją regularną (wyższy próg = mniej wywołań Claude na dłuższym oknie handlu) |
 
 Zatrzymanie po przekroczeniu limitu strat **nie resetuje się automatycznie**
 następnego dnia — wymaga świadomego kliknięcia "START" w dashboardzie, żebyś
