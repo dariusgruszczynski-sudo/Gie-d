@@ -81,8 +81,18 @@ export default function App() {
 
   useEffect(() => {
     refresh();
+    // 15s polling stays as the fallback; SSE below makes updates instant.
     const id = setInterval(refresh, REFRESH_MS);
     return () => clearInterval(id);
+  }, [refresh]);
+
+  useEffect(() => {
+    // Live push: backend emits a tick whenever a new decision/trade/snapshot
+    // lands or the pause/halt state flips -- refresh immediately instead of
+    // waiting out the polling interval. Browser auto-reconnects on errors.
+    const es = new EventSource("/api/events");
+    es.onmessage = () => refresh();
+    return () => es.close();
   }, [refresh]);
 
   return (
@@ -130,7 +140,7 @@ export default function App() {
         {status && <InvestmentThesis whitelist={status.whitelist} />}
 
         <div className="grid">
-          {portfolio && <PortfolioChart history={portfolio.history} current={portfolio.current} />}
+          {portfolio && <PortfolioChart history={portfolio.history} current={portfolio.current} scorecard={portfolio.scorecard} />}
           {status && <ManualTradePanel status={status} onChanged={refresh} />}
         </div>
 

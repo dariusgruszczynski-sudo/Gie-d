@@ -1,13 +1,16 @@
+import asyncio
 import json
 import logging
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from fastapi.responses import StreamingResponse
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.config import Settings, get_settings
-from app.db import get_db
-from app.models import Decision, PortfolioSnapshot, Trade
+from app.db import SessionLocal, get_db
+from app.models import Decision, PortfolioSnapshot, SystemState, Trade
 from app.serialization import serialize
 from app.services import budget_tracker, market_hours, risk_manager, scorecard, trading_engine
 from app.services.alpaca_client import AlpacaClient
@@ -128,6 +131,51 @@ def get_portfolio(
         "cost_basis": cost_basis,
         "scorecard": card,
     }
+
+
+EVENTS_POLL_SECONDS = 2.0
+EVENTS_KEEPALIVE_EVERY = 12  # polls between keepalive comments (~24s)
+
+
+def _data_fingerprint() -> tuple:
+    """Cheap local-sqlite read summarizing 'did anything the dashboard shows
+    change?' -- new decision/trade/snapshot or a pause/halt flip."""
+    db = SessionLocal()
+    try:
+        d = db.execute(select(func.max(Decision.id))).scalar() or 0
+        t = db.execute(select(func.max(Trade.id))).scalar() or 0
+        s = db.execute(select(func.max(PortfolioSnapshot.id))).scalar() or 0
+        state = db.get(SystemState, 1)
+        return (d, t, s, bool(state.is_paused) if state else True, bool(state.is_halted) if state else False)
+    finally:
+        db.close()
+
+
+@router.get("/events")
+async def events():
+    """Server-Sent Events: pushes a tick the moment a new decision, trade,
+    snapshot, or pause/halt change lands, so the dashboard refreshes instantly
+    instead of waiting out its 15s polling interval (which stays as a
+    fallback for clients where SSE doesn't connect)."""
+
+    async def stream():
+        last = await run_in_threadpool(_data_fingerprint)
+        polls = 0
+        while True:
+            await asyncio.sleep(EVENTS_POLL_SECONDS)
+            polls += 1
+            current = await run_in_threadpool(_data_fingerprint)
+            if current != last:
+                last = current
+                yield "data: changed\n\n"
+            elif polls % EVENTS_KEEPALIVE_EVERY == 0:
+                yield ": keepalive\n\n"
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/trades")

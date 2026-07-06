@@ -137,6 +137,11 @@ class SystemState(Base):
     benchmark_start_date: Mapped[str] = mapped_column(String(10), default="")
     benchmark_start_price: Mapped[float] = mapped_column(Float, default=0.0)
     benchmark_start_value: Mapped[float] = mapped_column(Float, default=0.0)
+    # Weekly self-review: a rolling JSON list of {date, lesson} entries Claude
+    # distilled from its own recent trades. Fed back into every decision's
+    # context -- durable memory that outlives the 15-trade recent window.
+    lessons_json: Mapped[str] = mapped_column(Text, default="[]")
+    last_self_review_date: Mapped[str] = mapped_column(String(10), default="")
     # HMAC key for signing login session cookies -- generated once on first
     # boot and persisted so restarting the app doesn't log everyone out.
     session_secret: Mapped[str] = mapped_column(String(64), default="")

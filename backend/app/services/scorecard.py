@@ -92,6 +92,11 @@ def compute_scorecard(db: Session, settings: Settings, portfolio: dict) -> dict:
     return {
         "portfolio_value": round(portfolio_value, 2),
         "benchmark_symbol": settings.benchmark_symbol,
+        # Baseline exposed so the frontend can draw a full buy-and-hold series
+        # over the portfolio chart (per-snapshot benchmark prices come from
+        # each snapshot's own prices_json).
+        "benchmark_start_price": state.benchmark_start_price if state.benchmark_start_price > 0 else None,
+        "benchmark_start_value": state.benchmark_start_value if state.benchmark_start_value > 0 else None,
         "benchmark_value": round(benchmark_value, 2) if benchmark_value is not None else None,
         "alpha_usd": round(alpha_usd, 2) if alpha_usd is not None else None,
         "alpha_pct": round(alpha_pct, 2) if alpha_pct is not None else None,

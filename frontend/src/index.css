@@ -513,6 +513,27 @@ h1 {
   color: var(--red);
 }
 
+.chart-benchmark-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.chart-benchmark-swatch {
+  width: 16px;
+  height: 0;
+  border-top: 2px dashed var(--muted);
+}
+
+.chart-tooltip-benchmark {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
 /* --- Session clock --- */
 
 .session-badge {

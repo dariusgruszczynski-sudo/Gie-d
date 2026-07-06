@@ -410,7 +410,19 @@ def build_performance_context(db: Session, settings: Settings, portfolio: dict) 
     # accountable to a benchmark instead of just churning.
     card = scorecard.compute_scorecard(db, settings, portfolio)
 
-    return {"open_positions": open_positions, "recent_trades": recent_trades, "scorecard": card}
+    # Durable weekly-review lessons -- memory that outlives the recent-trade
+    # window. Imported here (not at module top) to avoid a circular import
+    # via self_review -> scorecard -> ... -> trading_engine test doubles.
+    from app.services import self_review
+
+    lessons = [l.get("lesson", "") for l in self_review.get_lessons(db)]
+
+    return {
+        "open_positions": open_positions,
+        "recent_trades": recent_trades,
+        "scorecard": card,
+        "lessons_learned": lessons,
+    }
 
 
 def run_cycle(

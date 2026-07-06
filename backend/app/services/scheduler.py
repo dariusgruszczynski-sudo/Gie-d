@@ -45,6 +45,19 @@ def _report_job() -> None:
         db.close()
 
 
+def _self_review_job() -> None:
+    from app.services.self_review import run_self_review
+
+    settings = get_settings()
+    db = SessionLocal()
+    try:
+        run_self_review(db, settings)
+    except Exception:
+        logger.exception("Weekly self-review failed")
+    finally:
+        db.close()
+
+
 def start_scheduler() -> BackgroundScheduler:
     global _scheduler
     if _scheduler is not None:
@@ -66,6 +79,13 @@ def start_scheduler() -> BackgroundScheduler:
             timezone=settings.report_timezone,
         ),
         id="daily_report",
+    )
+    # Weekly self-review: Saturday evening, after the week's last US session,
+    # so Monday's first cycle already trades with fresh lessons in context.
+    scheduler.add_job(
+        _self_review_job,
+        CronTrigger(day_of_week="sat", hour=10, minute=0, timezone=settings.report_timezone),
+        id="weekly_self_review",
     )
     scheduler.start()
     _scheduler = scheduler

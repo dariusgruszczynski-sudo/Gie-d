@@ -49,6 +49,8 @@ export interface PortfolioSnapshot {
 export interface Scorecard {
   portfolio_value: number;
   benchmark_symbol: string;
+  benchmark_start_price: number | null;
+  benchmark_start_value: number | null;
   benchmark_value: number | null;
   alpha_usd: number | null;
   alpha_pct: number | null;

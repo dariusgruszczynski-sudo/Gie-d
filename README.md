@@ -163,6 +163,18 @@ w „tradera, który pamięta, co przed chwilą zadziałało". (Uwaga: to
 rozumowanie na bieżąco na podstawie własnej historii, nie trwały trening
 modelu.)
 
+## Cotygodniowy self-review (trwałe lekcje)
+
+W każdą sobotę Claude robi przegląd własnych transakcji z tygodnia
+(tani, jednorazowy call szybkiego modelu) i zapisuje 3–5 konkretnych lekcji
+("MSTR breakouty kończyły się stop-lossem", "wejścia na GLD działały przy
+rosnącym VIX"). Lekcje trzymane są w bazie (rolling 10) i wracają do
+kontekstu KAŻDEJ kolejnej decyzji jako `lessons_learned` — pamięć, która
+przeżywa okno ostatnich 15 transakcji. Scorecard vs SPY trafia też do
+dziennego raportu mailowego, a wykres portfela na dashboardzie ma nałożoną
+przerywaną linię "co by było, gdybyś po prostu trzymał SPY". Dashboard
+odświeża się natychmiast po każdej transakcji/decyzji (SSE), nie co 15 s.
+
 ## Scorecard, dywersyfikacja i gra na spadki
 
 - **Scorecard vs benchmark.** Dashboard (panel „Wynik vs trzymanie SPY") i

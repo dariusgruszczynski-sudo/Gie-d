@@ -53,7 +53,7 @@ def _render_chart_png(history: list[PortfolioSnapshot]) -> bytes:
     for spine in ax.spines.values():
         spine.set_color(BORDER)
     ax.tick_params(colors=MUTED, labelsize=8)
-    ax.set_title("Wartość portfela (EUR)", color=TEXT, fontsize=11, pad=10)
+    ax.set_title("Wartość portfela (USD)", color=TEXT, fontsize=11, pad=10)
     if history:
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%d.%m %H:%M"))
         ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=3, maxticks=6))
@@ -79,6 +79,42 @@ def _pct_color(value: float | None) -> str:
     return GREEN if value >= 0 else RED
 
 
+def _scorecard_html(card: dict | None) -> str:
+    if not card:
+        return ""
+    alpha_pct = card.get("alpha_pct")
+    alpha_usd = card.get("alpha_usd")
+    win_rate = card.get("win_rate_pct")
+    verdict = (
+        f'<span style="color:{GREEN};font-weight:700;">bijesz rynek</span>'
+        if (alpha_pct or 0) >= 0
+        else f'<span style="color:{RED};font-weight:700;">poniżej rynku</span>'
+    ) if alpha_pct is not None else '<span style="color:' + MUTED + ';">baseline w trakcie kalibracji</span>'
+    alpha_txt = (
+        f"{'+' if alpha_usd >= 0 else '−'}${abs(alpha_usd):.2f} ({'+' if alpha_pct >= 0 else ''}{alpha_pct:.2f}%)"
+        if alpha_pct is not None and alpha_usd is not None
+        else "—"
+    )
+    return f"""
+    <div style="background:{PANEL};border:1px solid {BORDER};border-radius:10px;padding:16px;margin-bottom:16px;">
+      <div style="color:{GOLD};font-size:13px;font-weight:700;margin-bottom:8px;">Wynik vs trzymanie {card.get('benchmark_symbol', 'SPY')} — {verdict}</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="color:{MUTED};font-size:11px;">TWÓJ PORTFEL</td>
+          <td style="color:{MUTED};font-size:11px;">GDYBYŚ TRZYMAŁ {card.get('benchmark_symbol', 'SPY')}</td>
+          <td style="color:{MUTED};font-size:11px;">PRZEWAGA (ALPHA)</td>
+          <td style="color:{MUTED};font-size:11px;">TRAFNOŚĆ</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;padding-top:2px;">${card.get('portfolio_value', 0):.2f}</td>
+          <td style="font-weight:700;padding-top:2px;">{('$' + format(card['benchmark_value'], '.2f')) if card.get('benchmark_value') is not None else '—'}</td>
+          <td style="font-weight:700;padding-top:2px;color:{_pct_color(alpha_pct)};">{alpha_txt}</td>
+          <td style="font-weight:700;padding-top:2px;">{(format(win_rate, '.0f') + '% (' + str(card.get('wins', 0)) + 'W/' + str(card.get('losses', 0)) + 'L)') if win_rate is not None else '—'}</td>
+        </tr>
+      </table>
+    </div>"""
+
+
 def _build_html(
     *,
     current: PortfolioSnapshot | None,
@@ -89,6 +125,7 @@ def _build_html(
     latest_decision: Decision | None,
     recent_decisions: list[Decision],
     recent_trades: list[Trade],
+    scorecard_card: dict | None = None,
 ) -> str:
     mode_label = "PRODUKCJA (realny kapitał)"
     status_line = "zatrzymany (limit strat)" if state.is_halted else "zapauzowany" if state.is_paused else "aktywny"
@@ -115,7 +152,7 @@ def _build_html(
           <td style="padding:6px 10px;border-bottom:1px solid {BORDER};font-size:12px;">
             <span style="color:{GREEN if t.side=='BUY' else RED};font-weight:600;">{t.side}</span> {t.symbol}
           </td>
-          <td style="padding:6px 10px;border-bottom:1px solid {BORDER};font-size:12px;">€{t.usdt_value:.2f}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid {BORDER};font-size:12px;">${t.usdt_value:.2f}</td>
         </tr>"""
         for t in recent_trades
     ) or f'<tr><td style="padding:6px 10px;color:{MUTED};font-size:12px;">Brak transakcji w tym okresie.</td></tr>'
@@ -131,7 +168,7 @@ def _build_html(
         else ""
     )
 
-    current_value = f"€{current.total_value_usdt:,.2f}" if current else "—"
+    current_value = f"${current.total_value_usdt:,.2f}" if current else "—"
 
     return f"""\
 <div style="background:{BG};padding:24px 16px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:{TEXT};">
@@ -179,6 +216,7 @@ def _build_html(
     <div style="background:{PANEL};border:1px solid {BORDER};border-radius:10px;padding:12px;margin-bottom:16px;text-align:center;">
       <img src="cid:portfolio_chart" alt="Wykres wartości portfela" style="max-width:100%;border-radius:6px;" />
     </div>
+{_scorecard_html(scorecard_card)}
 
     <div style="background:{PANEL};border:1px solid {BORDER};border-radius:10px;padding:16px;margin-bottom:16px;">
       <div style="color:{GOLD};font-size:13px;font-weight:700;margin-bottom:8px;">Perspektywa rynkowa Claude {outlook_meta}</div>
@@ -235,6 +273,20 @@ def build_report(db: Session, settings: Settings) -> tuple[str, bytes]:
     latest_decision = recent_decisions[0] if recent_decisions else None
     recent_trades = list(db.execute(select(Trade).order_by(Trade.timestamp.desc()).limit(10)).scalars())
 
+    # Scorecard vs buy-and-hold, computed from the latest snapshot's stored
+    # prices -- no live broker call inside the mail path.
+    card = None
+    if current is not None:
+        import json as _json
+
+        from app.services import scorecard as scorecard_svc
+
+        card = scorecard_svc.compute_scorecard(
+            db,
+            settings,
+            {"total_value_usdt": current.total_value_usdt, "prices": _json.loads(current.prices_json or "{}")},
+        )
+
     chart_png = _render_chart_png(history)
     html = _build_html(
         current=current,
@@ -245,6 +297,7 @@ def build_report(db: Session, settings: Settings) -> tuple[str, bytes]:
         latest_decision=latest_decision,
         recent_decisions=recent_decisions,
         recent_trades=recent_trades,
+        scorecard_card=card,
     )
     return html, chart_png
 
