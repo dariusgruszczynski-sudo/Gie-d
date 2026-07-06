@@ -516,9 +516,21 @@ def run_cycle(
         except Exception:
             logger.warning("Failed to fetch klines for %s, excluding it from this cycle", symbol, exc_info=True)
             continue
+        # Token diet: with 11 whitelisted tickers, shipping 24 raw hourly bars
+        # each (~260 JSON rows) dominated the prompt and the API bill. The
+        # indicators are computed locally from the full 200-bar history anyway
+        # -- Claude only needs the recent tape plus a 24h summary, not the
+        # whole raw series.
+        closes_24 = [float(row[4]) for row in klines_24 if row]
+        change_24h_pct = (
+            round((closes_24[-1] - closes_24[0]) / closes_24[0] * 100, 2)
+            if len(closes_24) >= 2 and closes_24[0] > 0
+            else None
+        )
         market_data[symbol] = {
             "price": portfolio["prices"][symbol],
-            "klines_1h_24": klines_24,
+            "change_24h_pct": change_24h_pct,
+            "recent_bars_1h": klines_24[-8:],
             "technical": compute_technical_indicators(indicator_closes),
         }
     # Only offer Claude symbols it actually has data for this cycle -- a symbol
@@ -526,6 +538,14 @@ def run_cycle(
     # BUY/SELL target.
     tradable_symbols = list(market_data.keys())
     headlines = news.get_headlines([_base_asset(s, settings.quote_currency) for s in settings.whitelist_symbols])
+    # The headlines that actually TRIGGERED this cycle (fresh earnings print,
+    # breaking single-stock news) must stand out from routine background news,
+    # or Claude can't tell what it's reacting to. Flag and front-load them.
+    if fresh_headlines:
+        for h in fresh_headlines:
+            h["just_published"] = True
+        seen_titles = {h["title"] for h in fresh_headlines}
+        headlines = fresh_headlines + [h for h in headlines if h["title"] not in seen_titles]
     global_context = market_ctx.get_market_context() if market_ctx is not None else {}
     performance_context = build_performance_context(db, settings, portfolio)
     # Upcoming earnings per ticker (days until next report). Best-effort --

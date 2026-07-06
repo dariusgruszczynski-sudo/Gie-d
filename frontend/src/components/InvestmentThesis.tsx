@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 interface TickerInfo {
   name: string;
   description: string;
@@ -69,28 +71,55 @@ function fallbackInfo(ticker: string): TickerInfo {
 }
 
 export function InvestmentThesis({ whitelist }: { whitelist: string[] }) {
+  // Collapsed by default: with 11 tickers the full card grid is a wall of
+  // static text pushing the live panels (chart, positions) below the fold.
+  const [expanded, setExpanded] = useState(false);
+
   if (whitelist.length === 0) return null;
 
   return (
     <div className="panel" style={{ marginBottom: 16 }}>
-      <h2>Inwestuję w</h2>
-      <p className="subtitle" style={{ marginTop: -6, marginBottom: 12 }}>
-        Lista tickerów, którymi automat może handlować, wraz z krótkim opisem każdego.
-      </p>
-      <div className="thesis-grid">
-        {whitelist.map((ticker) => {
-          const info = TICKER_INFO[ticker.toUpperCase()] ?? fallbackInfo(ticker);
-          return (
-            <div className="thesis-card" key={ticker}>
-              <div className="thesis-card-header">
-                <span className="thesis-ticker">{ticker}</span>
-                <span className="thesis-name">{info.name}</span>
-              </div>
-              <p className="thesis-description">{info.description}</p>
-            </div>
-          );
-        })}
-      </div>
+      <button
+        type="button"
+        className="thesis-toggle"
+        onClick={() => setExpanded((e) => !e)}
+        aria-expanded={expanded}
+      >
+        <h2 style={{ margin: 0 }}>Inwestuję w</h2>
+        <span className="thesis-toggle-summary">
+          {whitelist.join(" · ")}
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            aria-hidden="true"
+            style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.2s ease" }}
+          >
+            <path d="M2 4 L6 8 L10 4" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+          </svg>
+        </span>
+      </button>
+      {expanded && (
+        <>
+          <p className="subtitle" style={{ marginTop: 8, marginBottom: 12 }}>
+            Lista tickerów, którymi automat może handlować, wraz z krótkim opisem każdego.
+          </p>
+          <div className="thesis-grid">
+            {whitelist.map((ticker) => {
+              const info = TICKER_INFO[ticker.toUpperCase()] ?? fallbackInfo(ticker);
+              return (
+                <div className="thesis-card" key={ticker}>
+                  <div className="thesis-card-header">
+                    <span className="thesis-ticker">{ticker}</span>
+                    <span className="thesis-name">{info.name}</span>
+                  </div>
+                  <p className="thesis-description">{info.description}</p>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }

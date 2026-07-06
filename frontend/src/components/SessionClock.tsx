@@ -25,16 +25,29 @@ function fmtBoundary(iso: string | null): string {
   return new Date(iso).toLocaleTimeString("pl-PL", { timeZone: WARSAW_TZ, hour: "2-digit", minute: "2-digit" });
 }
 
+function fmtAgo(iso: string, now: Date): string {
+  const mins = Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 60000));
+  if (mins < 1) return "przed chwilą";
+  if (mins === 1) return "1 min temu";
+  if (mins < 60) return `${mins} min temu`;
+  const hours = Math.floor(mins / 60);
+  return `${hours} h ${mins % 60} min temu`;
+}
+
 export function SessionClock({
   session,
   bounds,
   extendedHoursEnabled,
   extendedHoursAutoUsd,
+  lastCycleAt,
+  pollIntervalMinutes,
 }: {
   session: MarketSession;
   bounds: SessionBounds | null;
   extendedHoursEnabled: boolean;
   extendedHoursAutoUsd: number;
+  lastCycleAt: string | null;
+  pollIntervalMinutes: number;
 }) {
   const [now, setNow] = useState(() => new Date());
 
@@ -59,6 +72,12 @@ export function SessionClock({
           </div>
         ))}
       </div>
+      {lastCycleAt && (
+        <p className="subtitle" style={{ marginTop: 0, marginBottom: 10 }}>
+          Ostatni cykl automatu: <strong>{fmtAgo(lastCycleAt, now)}</strong> · sprawdza rynek co{" "}
+          {pollIntervalMinutes} min
+        </p>
+      )}
       {bounds && (
         <div className="session-clock-schedule">
           <span className="subtitle">Harmonogram sesji US (czas Warszawa):</span>

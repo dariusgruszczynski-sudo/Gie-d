@@ -119,6 +119,8 @@ export default function App() {
               bounds={status.session_bounds}
               extendedHoursEnabled={status.extended_hours_active}
               extendedHoursAutoUsd={status.extended_hours_auto_enable_usd}
+              lastCycleAt={portfolio?.current?.timestamp ?? null}
+              pollIntervalMinutes={status.poll_interval_minutes}
             />
           </div>
         )}
@@ -137,11 +139,11 @@ export default function App() {
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <TradesTable trades={trades} />
+          <DecisionsLog decisions={decisions} />
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <DecisionsLog decisions={decisions} />
+          <TradesTable trades={trades} />
         </div>
 
         <MarketLog history={portfolio?.history ?? []} whitelist={status?.whitelist ?? []} />

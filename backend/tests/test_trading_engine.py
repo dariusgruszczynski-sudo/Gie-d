@@ -677,6 +677,25 @@ def test_news_event_triggers_cycle_independent_of_price_move(db_session, setting
     assert decision is not None
     assert advisor.calls == 1
     assert decision.triggered_by.value == "news_event"
+    # The triggering headline must reach Claude flagged and front-loaded, so
+    # it knows exactly what it's reacting to.
+    news_arg = advisor.last_kwargs["news"]
+    assert news_arg[0]["title"] == "SPY Corp reports blowout earnings"
+    assert news_arg[0]["just_published"] is True
+
+
+def test_market_data_sent_to_claude_is_slimmed(db_session, settings):
+    """Prompt cost control: Claude gets a 24h summary + the last few bars, not
+    the full raw 24-bar series per ticker."""
+    broker = FakeAlpaca()
+    advisor = FakeAdvisor(TradingDecision("HOLD", None, 0, 0.8, "Spokojnie."))
+
+    trading_engine.run_cycle(db_session, settings, broker, FakeNews(), advisor, force=True)
+
+    for payload in advisor.last_kwargs["market_data"].values():
+        assert "klines_1h_24" not in payload
+        assert len(payload["recent_bars_1h"]) <= 8
+        assert "change_24h_pct" in payload
 
 
 def test_performance_context_gives_claude_its_track_record(db_session, settings):
