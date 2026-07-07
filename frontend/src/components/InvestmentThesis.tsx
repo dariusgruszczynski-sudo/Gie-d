@@ -31,6 +31,11 @@ const TICKER_INFO: Record<string, TickerInfo> = {
     description:
       "Spółka software'owa, która swój bilans oparła na gigantycznych zapasach bitcoina finansowanych długiem — w praktyce lewarowana zakładka na kurs BTC, nie zwykła akcja tech. Potrafi ruszyć się kilkanaście procent w jeden dzień w obie strony. Celowo najbardziej szalona i najbardziej ryzykowna pozycja na liście — rozmiar pozycji jest tu automatycznie zmniejszany przez skalowanie wg zmienności.",
   },
+  TSLA: {
+    name: "Tesla Inc.",
+    description:
+      "Wysokobetowa spółka z ogromnym przepływem newsów (Elon, dostawy, robotaxi, AI) — świetnie współgra z triggerem newsowym bota. Zmienna, ale płynna i ułamkowa; rozmiar pozycji jest automatycznie przycinany przez skalowanie wg zmienności.",
+  },
   GLD: {
     name: "SPDR Gold Shares",
     description:

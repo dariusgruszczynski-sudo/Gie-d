@@ -207,7 +207,7 @@ odświeża się natychmiast po każdej transakcji/decyzji (SSE), nie co 15 s.
 | `TRAILING_STOP_ENABLED` | `true` | `true` = po zysku `TAKE_PROFIT_PCT` pozwól zyskom rosnąć i sprzedaj dopiero po spadku `TRAILING_STOP_PCT` od szczytu. `false` = sztywny take-profit przy `TAKE_PROFIT_PCT` |
 | `TRAILING_STOP_PCT` | `1.5` | O ile % cena musi spaść od szczytu, żeby trailing-stop sprzedał (gdy uzbrojony) |
 | `TRADE_ALERTS_ENABLED` | `true` | Mail natychmiast po każdej transakcji (BUY/SELL, w tym wyjścia TP/SL). Wymaga SMTP; `false` = tylko raport dzienny |
-| `TRADING_WHITELIST` | `SPY,QQQ,AAPL,NVDA,MSTR,GLD,TLT,XLE,IWM,SH,PSQ` | Zróżnicowana lista: rdzeń tech, zmienny MSTR, aktywa defensywne (GLD/TLT/XLE/IWM) i ETF-y odwrotne (SH/PSQ) do gry na spadki. W pełni generyczna, dowolne tickery z Alpaca |
+| `TRADING_WHITELIST` | `SPY,QQQ,AAPL,NVDA,MSTR,TSLA,GLD,TLT,XLE,IWM,SH,PSQ` | Zróżnicowana lista: rdzeń tech, zmienny MSTR, aktywa defensywne (GLD/TLT/XLE/IWM) i ETF-y odwrotne (SH/PSQ) do gry na spadki. W pełni generyczna, dowolne tickery z Alpaca |
 | `BENCHMARK_SYMBOL` | `SPY` | Z czym porównywać strategię (bierne trzymanie) w scorecardzie |
 | `VOLATILITY_REFERENCE_PCT` | `1.0` | Sizing wg zmienności: BUY skalowany w dół dla tickerów bardziej zmiennych niż ten próg. `0` = wyłączone |
 | `VOLATILITY_MIN_SCALE` | `0.35` | Dolny limit skalowania rozmiaru dla najbardziej zmiennych tickerów |

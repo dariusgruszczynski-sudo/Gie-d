@@ -66,7 +66,11 @@ class Settings(BaseSettings):
     #    sitting in cash. Deliberately the 1x (not 3x-leveraged) inverses, so
     #    downside is bounded like any long position -- no unlimited-loss short
     #    mechanics, which would be reckless on a small account.
-    trading_whitelist: str = "SPY,QQQ,AAPL,NVDA,MSTR,GLD,TLT,XLE,IWM,SH,PSQ"
+    #  - TSLA: second high-beta single name -- huge news flow (pairs well with
+    #    the news trigger), deep liquidity, fractional-OK. Deliberately NOT a
+    #    3x-leveraged ETF: those move ~2% within an hour, which with the
+    #    global 2% stop-loss would just churn the account through stop-outs.
+    trading_whitelist: str = "SPY,QQQ,AAPL,NVDA,MSTR,TSLA,GLD,TLT,XLE,IWM,SH,PSQ"
     # Benchmark the whole strategy against simply buying and holding this
     # ticker -- if the bot can't beat holding SPY, it isn't earning its
     # complexity. Drives the dashboard scorecard and is fed back to Claude.
