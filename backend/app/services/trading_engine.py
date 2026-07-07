@@ -117,34 +117,70 @@ def compute_portfolio(db: Session, settings: Settings, broker: AlpacaClient) -> 
 def check_trigger(
     db: Session, settings: Settings, prices: dict[str, float], price_move_trigger_pct: float | None = None
 ) -> tuple[bool, TriggerType]:
-    """`price_move_trigger_pct` overrides settings.price_move_trigger_pct when
-    given -- used to apply a higher bar during extended hours (see run_cycle),
-    leaving the default unchanged for callers/tests that don't care."""
+    """Decides whether this poll warrants a (paid) Claude analysis.
+
+    Price moves are measured CUMULATIVELY against anchor prices captured at
+    the last triggered analysis -- NOT against the previous poll. The old
+    per-poll comparison quietly starved the bot: with a 3-minute poll, a
+    ticker had to move the full threshold within 3 minutes to ever trigger,
+    so a slow steady trend (0.2% per poll, 2% over an hour) never woke Claude
+    and the automat sat idle all session.
+
+    A heartbeat additionally forces a full analysis every
+    full_analysis_every_minutes of tradable session, so Claude periodically
+    looks at the market even when nothing moved sharply -- setups aren't only
+    born from spikes.
+
+    `price_move_trigger_pct` overrides settings.price_move_trigger_pct when
+    given (higher bar during extended hours -- see run_cycle)."""
     state = risk_manager.get_state(db)
     today_str = date.today().isoformat()
     threshold = settings.price_move_trigger_pct if price_move_trigger_pct is None else price_move_trigger_pct
 
-    last_prices: dict[str, float] = json.loads(state.last_check_prices_json or "{}")
+    anchors: dict[str, float] = json.loads(state.last_check_prices_json or "{}")
 
     triggered = False
     reason = TriggerType.SCHEDULED_DAILY
 
     for symbol, current_price in prices.items():
-        last_price = last_prices.get(symbol, 0.0)
-        if last_price > 0:
-            move_pct = abs(current_price - last_price) / last_price * 100
+        anchor = anchors.get(symbol, 0.0)
+        if anchor > 0:
+            move_pct = abs(current_price - anchor) / anchor * 100
             if move_pct >= threshold:
                 triggered = True
                 reason = TriggerType.PRICE_MOVE
-        last_prices[symbol] = current_price
-
-    state.last_check_prices_json = json.dumps(last_prices)
+                logger.info("Trigger: %s przesunął się %.2f%% od kotwicy (próg %.2f%%)", symbol, move_pct, threshold)
+        else:
+            # First sighting -- set the anchor without triggering.
+            anchors[symbol] = current_price
 
     if state.last_full_analysis_date != today_str:
         triggered = True
         if reason != TriggerType.PRICE_MOVE:
             reason = TriggerType.SCHEDULED_DAILY
 
+    # Heartbeat: force a periodic full look at the market during tradable
+    # hours even without a sharp move.
+    if not triggered and settings.full_analysis_every_minutes > 0 and state.last_analysis_at:
+        try:
+            last_at = datetime.fromisoformat(state.last_analysis_at)
+            overdue = datetime.now(timezone.utc) - last_at >= timedelta(minutes=settings.full_analysis_every_minutes)
+        except ValueError:
+            overdue = True
+        if overdue:
+            triggered = True
+            reason = TriggerType.SCHEDULED_DAILY
+            logger.info(
+                "Trigger: heartbeat -- ostatnia pełna analiza starsza niż %d min",
+                settings.full_analysis_every_minutes,
+            )
+
+    if triggered:
+        # Re-anchor everything: the analysis that follows becomes the new
+        # reference point for cumulative moves.
+        anchors = dict(prices)
+
+    state.last_check_prices_json = json.dumps(anchors)
     db.commit()
     return triggered, reason
 
@@ -162,6 +198,8 @@ def check_news_trigger(db: Session, settings: Settings, news: NewsClient) -> tup
     new_headlines, updated_seen = news.get_new_ticker_headlines(settings.whitelist_symbols, seen)
     state.seen_ticker_headlines_json = json.dumps(updated_seen)
     db.commit()
+    if new_headlines:
+        logger.info("Trigger: %d świeżych nagłówków per-ticker (np. %s)", len(new_headlines), new_headlines[0]["title"][:80])
     return bool(new_headlines), new_headlines
 
 
@@ -354,9 +392,11 @@ def check_take_profit_stop_loss(
 
 def _mark_analysis_done_today(db: Session) -> None:
     """Called only after advisor.decide() actually succeeds, so a transient
-    Claude/network failure doesn't burn today's scheduled-fallback trigger."""
+    Claude/network failure doesn't burn today's scheduled-fallback trigger
+    (and leaves the heartbeat overdue, retrying next poll)."""
     state = risk_manager.get_state(db)
     state.last_full_analysis_date = date.today().isoformat()
+    state.last_analysis_at = datetime.now(timezone.utc).isoformat()
     db.commit()
 
 

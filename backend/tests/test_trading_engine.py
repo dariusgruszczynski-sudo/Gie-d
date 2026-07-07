@@ -822,6 +822,63 @@ def test_earnings_blackout_allows_buy_outside_window(db_session, settings, monke
     assert len(broker.orders) == 1
 
 
+def test_slow_cumulative_drift_triggers_price_move(db_session, settings):
+    """THE bug from the first live session: moves were measured poll-to-poll,
+    so a slow steady trend (0.6% per poll) never reached the 2% threshold and
+    the automat sat idle all day. Cumulative drift from the last analysis
+    anchor must trigger."""
+    trading_engine._mark_analysis_done_today(db_session)  # rule out daily fallback
+
+    # Anchor at 100.
+    triggered, _ = trading_engine.check_trigger(db_session, settings, {"SPY": 100.0, "QQQ": 400.0})
+    assert triggered is False
+
+    # Three slow polls: +0.7%, +1.4%, +2.1% cumulative -- each step is under
+    # the 2% threshold vs the PREVIOUS poll, but the third crosses it vs the
+    # anchor. The old per-poll logic never fired here.
+    assert trading_engine.check_trigger(db_session, settings, {"SPY": 100.7, "QQQ": 400.0})[0] is False
+    assert trading_engine.check_trigger(db_session, settings, {"SPY": 101.4, "QQQ": 400.0})[0] is False
+    triggered, reason = trading_engine.check_trigger(db_session, settings, {"SPY": 102.1, "QQQ": 400.0})
+    assert triggered is True
+    assert reason.value == "price_move"
+
+    # Anchors reset after a trigger -- the same price no longer re-triggers.
+    trading_engine._mark_analysis_done_today(db_session)
+    assert trading_engine.check_trigger(db_session, settings, {"SPY": 102.1, "QQQ": 400.0})[0] is False
+
+
+def test_heartbeat_triggers_analysis_after_interval(db_session, settings):
+    """Even with zero price movement, Claude must take a full look at the
+    market every full_analysis_every_minutes -- setups aren't only spikes."""
+    from datetime import datetime, timedelta, timezone
+
+    heartbeat = settings.model_copy(update={"full_analysis_every_minutes": 120})
+    trading_engine._mark_analysis_done_today(db_session)
+    state = risk_manager.get_state(db_session)
+
+    # Fresh analysis -> no heartbeat yet.
+    assert trading_engine.check_trigger(db_session, heartbeat, {"SPY": 100.0, "QQQ": 400.0})[0] is False
+
+    # Backdate the last analysis past the interval -> heartbeat fires.
+    state.last_analysis_at = (datetime.now(timezone.utc) - timedelta(minutes=121)).isoformat()
+    db_session.commit()
+    triggered, reason = trading_engine.check_trigger(db_session, heartbeat, {"SPY": 100.0, "QQQ": 400.0})
+    assert triggered is True
+    assert reason.value == "scheduled_daily"
+
+
+def test_heartbeat_disabled_when_zero(db_session, settings):
+    from datetime import datetime, timedelta, timezone
+
+    no_heartbeat = settings.model_copy(update={"full_analysis_every_minutes": 0})
+    trading_engine._mark_analysis_done_today(db_session)
+    state = risk_manager.get_state(db_session)
+    state.last_analysis_at = (datetime.now(timezone.utc) - timedelta(hours=10)).isoformat()
+    db_session.commit()
+
+    assert trading_engine.check_trigger(db_session, no_heartbeat, {"SPY": 100.0, "QQQ": 400.0})[0] is False
+
+
 def test_volatility_adjusted_size_scales_down_volatile_and_leaves_calm(settings):
     calm = settings.model_copy(update={"volatility_reference_pct": 1.0, "volatility_min_scale": 0.3})
     # Below/at reference -> unchanged.

@@ -83,6 +83,12 @@ class Settings(BaseSettings):
 
     poll_interval_minutes: int = 15
     price_move_trigger_pct: float = 2.0
+    # Heartbeat: force a full Claude analysis at least this often during
+    # tradable hours, even when no price crossed the trigger threshold --
+    # otherwise the bot only ever looks at the market on spikes and can sit
+    # idle through an entire quiet session. ~3-4 cheap fast-model calls per
+    # regular session at the default. 0 disables the heartbeat.
+    full_analysis_every_minutes: int = 120
     # Stocks/ETFs regular session is only ~6.5h/day (9:30-16:00 ET). Extended
     # hours add pre-market (4:00-9:30 ET) and after-hours (16:00-20:00 ET) on
     # the SAME Alpaca account -- no new broker/money needed -- for ~16h/day of

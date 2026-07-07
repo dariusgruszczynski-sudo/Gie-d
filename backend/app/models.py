@@ -115,6 +115,10 @@ class SystemState(Base):
     # price-move trigger works for any whitelist size.
     last_check_prices_json: Mapped[str] = mapped_column(Text, default="{}")
     last_full_analysis_date: Mapped[str] = mapped_column(String(10), default="")
+    # ISO timestamp of the last completed Claude analysis -- drives the
+    # heartbeat trigger (a full look at the market every N minutes even
+    # without a sharp price move).
+    last_analysis_at: Mapped[str] = mapped_column(String(32), default="")
     # JSON dict {ticker -> ISO timestamp until which re-buying is blocked}
     # after a stop-loss on that ticker. Prevents a small account bleeding out
     # on repeated buy-top/stop-out churn.

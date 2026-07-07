@@ -212,7 +212,8 @@ odświeża się natychmiast po każdej transakcji/decyzji (SSE), nie co 15 s.
 | `VOLATILITY_REFERENCE_PCT` | `1.0` | Sizing wg zmienności: BUY skalowany w dół dla tickerów bardziej zmiennych niż ten próg. `0` = wyłączone |
 | `VOLATILITY_MIN_SCALE` | `0.35` | Dolny limit skalowania rozmiaru dla najbardziej zmiennych tickerów |
 | `POLL_INTERVAL_MINUTES` | `15` | Co ile minut sprawdzać ceny/newsy |
-| `PRICE_MOVE_TRIGGER_PCT` | `2` | Próg zmiany ceny (w sesji regularnej) traktowany jako "zdarzenie" wywołujące analizę Claude |
+| `PRICE_MOVE_TRIGGER_PCT` | `2` | Próg zmiany ceny (w sesji regularnej) wywołujący analizę Claude — liczony narastająco od ostatniej analizy, więc powolny trend też w końcu triggeruje |
+| `FULL_ANALYSIS_EVERY_MINUTES` | `120` | Heartbeat: pełna analiza co najmniej co tyle minut w godzinach handlu, nawet bez ruchu ceny. `0` = wyłączone |
 | `EXTENDED_HOURS_TRADING_ENABLED` | `false` | Wymuszony handel w pre-market/after-hours od razu. Domyślnie off — przy małym koncie rozszerzone godziny nic nie zdziałają, patrz "Rozszerzone godziny handlu" wyżej |
 | `EXTENDED_HOURS_AUTO_ENABLE_USD` | `500` | Automatyczne włączenie rozszerzonych godzin, gdy wartość portfela osiągnie tyle USD. `0` = wyłącz auto |
 | `EXTENDED_HOURS_PRICE_MOVE_TRIGGER_PCT` | `4` | Jak `PRICE_MOVE_TRIGGER_PCT`, ale obowiązuje tylko poza sesją regularną (wyższy próg = mniej wywołań Claude na dłuższym oknie handlu) |
