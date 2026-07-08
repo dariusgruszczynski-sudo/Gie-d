@@ -721,6 +721,36 @@ def test_failed_mechanical_exit_surfaces_real_reason(db_session, settings):
     assert "insufficient qty" in decision.rejection_reason
 
 
+def test_etoro_venue_cycle_is_isolated_and_stamped(db_session, settings, monkeypatch):
+    """The eToro venue trades 24/7 (always_open) even while the US market is
+    closed, stamps its records venue='etoro', and uses its OWN state columns so
+    the Alpaca venue's anchors stay untouched."""
+    from app.models import Trade
+
+    etoro_settings = settings.model_copy(update={"etoro_enabled": True})
+    # Alpaca would be CLOSED right now -- eToro must trade anyway.
+    monkeypatch.setattr(
+        trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.CLOSED)
+    )
+    broker = FakeAlpaca(prices={"BTC": 50000.0, "ETH": 3000.0}, balances={"USD": 1000.0, "BTC": 0.0, "ETH": 0.0})
+    advisor = FakeAdvisor(TradingDecision("BUY", "BTC", 10, 0.9, "Krypto mocne."))
+
+    decision = trading_engine.run_cycle(
+        db_session, etoro_settings, broker, FakeNews(), advisor, force=True,
+        venue="etoro", whitelist=["BTC", "ETH"], always_open=True,
+    )
+
+    assert decision.venue == "etoro"
+    assert decision.executed is True
+    trade = db_session.query(Trade).order_by(Trade.id.desc()).first()
+    assert trade.venue == "etoro"
+    assert trade.symbol == "BTC"
+
+    state = risk_manager.get_state(db_session)
+    assert json.loads(state.etoro_check_prices_json)  # eToro anchors were set
+    assert json.loads(state.last_check_prices_json or "{}") == {}  # Alpaca column untouched
+
+
 def test_dust_position_below_min_notional_is_skipped(db_session, settings):
     """A ~1e-7 share remainder (dust worth fractions of a cent) can't be sold
     -- it's below Alpaca's min order -- so the mechanical exit must ignore it

@@ -74,6 +74,16 @@ def init_db() -> None:
     _add_column_if_missing("system_state", "lessons_json", "TEXT", "'[]'")
     _add_column_if_missing("system_state", "last_self_review_date", "VARCHAR(10)", "''")
     _add_column_if_missing("system_state", "last_analysis_at", "VARCHAR(32)", "''")
+    # Dual-broker: tag each record with its venue (existing rows -> "alpaca")
+    # and give the eToro venue its own isolated per-cycle state columns.
+    _add_column_if_missing("decisions", "venue", "VARCHAR(16)", "'alpaca'")
+    _add_column_if_missing("trades", "venue", "VARCHAR(16)", "'alpaca'")
+    _add_column_if_missing("portfolio_snapshots", "venue", "VARCHAR(16)", "'alpaca'")
+    _add_column_if_missing("system_state", "etoro_check_prices_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "etoro_position_peaks_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "etoro_stop_loss_cooldowns_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "etoro_seen_ticker_headlines_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "etoro_analysis_state_json", "TEXT", "'{}'")
     # Dead columns from the pre-generic-whitelist schema (superseded by
     # balances_json/prices_json/last_check_prices_json) -- NOT NULL with no
     # DB-level default, so they broke every insert once the ORM stopped

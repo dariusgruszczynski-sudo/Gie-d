@@ -138,12 +138,14 @@ def validate_trade(
     symbol: str,
     action: str,
     size_pct: float,
+    whitelist: list[str] | None = None,
 ) -> ValidationResult:
+    allowed = whitelist if whitelist is not None else settings.whitelist_symbols
     if action == "HOLD":
         return ValidationResult(True)
 
-    if symbol not in settings.whitelist_symbols:
-        return ValidationResult(False, f"{symbol} nie jest na whiteliście ({settings.whitelist_symbols})")
+    if symbol not in allowed:
+        return ValidationResult(False, f"{symbol} nie jest na whiteliście ({allowed})")
 
     if size_pct <= 0:
         return ValidationResult(False, "size_pct <= 0, nic do zrobienia")

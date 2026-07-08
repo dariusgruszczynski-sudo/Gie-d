@@ -49,6 +49,9 @@ class Decision(Base):
     triggered_by: Mapped[TriggerType] = mapped_column(Enum(TriggerType), default=TriggerType.SCHEDULED_DAILY)
     executed: Mapped[bool] = mapped_column(Boolean, default=False)
     rejection_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Which broker/portfolio this belongs to: "alpaca" (day, US stocks/ETFs) or
+    # "etoro" (24-7 crypto/forex). Existing rows backfill to "alpaca".
+    venue: Mapped[str] = mapped_column(String(16), default="alpaca", index=True)
 
     trades: Mapped[list["Trade"]] = relationship(back_populates="decision")
 
@@ -66,6 +69,7 @@ class Trade(Base):
     order_id: Mapped[str] = mapped_column(String(64), default="")
     mode: Mapped[TradeMode] = mapped_column(Enum(TradeMode))
     is_manual: Mapped[bool] = mapped_column(Boolean, default=False)
+    venue: Mapped[str] = mapped_column(String(16), default="alpaca", index=True)
 
     decision_id: Mapped[int | None] = mapped_column(ForeignKey("decisions.id"), nullable=True)
     decision: Mapped[Decision | None] = relationship(back_populates="trades")
@@ -87,6 +91,7 @@ class PortfolioSnapshot(Base):
     # unavailable" apart from "just hasn't loaded yet" instead of showing
     # "oczekiwanie na dane" forever.
     failed_symbols_json: Mapped[str] = mapped_column(Text, default="[]")
+    venue: Mapped[str] = mapped_column(String(16), default="alpaca", index=True)
 
 
 class RiskEvent(Base):
@@ -132,6 +137,15 @@ class SystemState(Base):
     # any price move. Bounded to PER_TICKER_LIMIT titles per ticker each
     # cycle so this never grows unbounded.
     seen_ticker_headlines_json: Mapped[str] = mapped_column(Text, default="{}")
+    # Dedicated per-cycle state for the eToro (24-7 crypto/forex) venue, kept in
+    # separate columns so the Alpaca venue's state above stays byte-for-byte
+    # untouched (zero risk to the live stock path). Same JSON shapes as their
+    # Alpaca counterparts. analysis_state_json holds {last_full_date, last_at}.
+    etoro_check_prices_json: Mapped[str] = mapped_column(Text, default="{}")
+    etoro_position_peaks_json: Mapped[str] = mapped_column(Text, default="{}")
+    etoro_stop_loss_cooldowns_json: Mapped[str] = mapped_column(Text, default="{}")
+    etoro_seen_ticker_headlines_json: Mapped[str] = mapped_column(Text, default="{}")
+    etoro_analysis_state_json: Mapped[str] = mapped_column(Text, default="{}")
     claude_budget_month_key: Mapped[str] = mapped_column(String(7), default="")
     claude_spend_usd_this_month: Mapped[float] = mapped_column(Float, default=0.0)
     # Buy-and-hold benchmark baseline, set on the first cycle that can price
