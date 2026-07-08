@@ -12,6 +12,7 @@ import logging
 import math
 import time
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -30,6 +31,11 @@ DATA_FEED = "iex"
 FILL_POLL_ATTEMPTS = 10
 FILL_POLL_DELAY_SECONDS = 0.5
 _TIMEFRAMES = {"1m": "1Min", "5m": "5Min", "15m": "15Min", "1h": "1Hour", "1d": "1Day"}
+_TIMEFRAME_MINUTES = {"1m": 1, "5m": 5, "15m": 15, "1h": 60, "1d": 1440}
+# Calendar time needed per TRADING bar: the market trades ~6.5h out of 24 on
+# ~5 of 7 days, so reaching back `limit` bars needs roughly 5x the naive bar
+# span in wall-clock time.
+_CALENDAR_SPAN_FACTOR = 5
 # Extended-hours (pre-market/after-hours) orders must be whole-share LIMIT
 # orders -- fractional and notional/market orders are regular-session only,
 # an industry-wide rule (not Alpaca-specific) tied to thinner liquidity
@@ -88,15 +94,31 @@ class AlpacaClient:
     def get_klines(self, symbol: str, interval: str = "1h", limit: int = 24) -> list[list]:
         """Returns rows shaped like [open_time, open, high, low, close, volume]
         to match the shape the rest of the app already expects (close read
-        from index 4 by technical_indicators.py)."""
+        from index 4 by technical_indicators.py).
+
+        `start` is passed explicitly: without it Alpaca only returns bars from
+        the CURRENT trading day, so a 200-bar indicator request silently came
+        back with 6-7 bars and RSI/MACD sat at insufficient_data forever --
+        Claude was deciding blind all session (and citing the missing
+        technicals as its reason to HOLD)."""
         timeframe = _TIMEFRAMES.get(interval, "1Hour")
+        minutes = _TIMEFRAME_MINUTES.get(interval, 60)
+        start = datetime.now(timezone.utc) - timedelta(minutes=minutes * limit * _CALENDAR_SPAN_FACTOR)
         data = self._request(
             self._data,
             "GET",
             f"/v2/stocks/{symbol}/bars",
-            params={"timeframe": timeframe, "limit": limit, "feed": DATA_FEED},
+            params={
+                "timeframe": timeframe,
+                "limit": limit,
+                "feed": DATA_FEED,
+                "start": start.isoformat(),
+                # Newest-first, otherwise start+limit returns the OLDEST bars
+                # in the window (Alpaca paginates ascending from `start`).
+                "sort": "desc",
+            },
         )
-        bars = data.get("bars") or []
+        bars = list(reversed(data.get("bars") or []))  # back to oldest-first for the indicators
         return [[b["t"], b["o"], b["h"], b["l"], b["c"], b["v"]] for b in bars[-limit:]]
 
     # ---- account / positions ----

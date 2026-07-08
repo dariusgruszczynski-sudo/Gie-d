@@ -57,8 +57,11 @@ RSS_FEEDS: list[tuple[str, str]] = [
 ]
 PER_SOURCE_LIMIT = 3
 # Per-ticker headlines (keyless) so news specific to symbols on the whitelist
-# reaches Claude even when general market feeds don't mention them.
-YAHOO_TICKER_RSS_URL = "https://feeds.finance.yahoo.com/rss/2.0/headline"
+# reaches Claude even when general market feeds don't mention them. Google
+# News RSS -- the old Yahoo per-ticker feed (feeds.finance.yahoo.com) started
+# returning 404 for every symbol (verified in production logs, 07/2026),
+# which silently killed the news trigger.
+GOOGLE_NEWS_RSS_URL = "https://news.google.com/rss/search"
 PER_TICKER_LIMIT = 3
 # Broad retail-sentiment cross-section: measured (r/stocks, r/investing) and
 # the deliberately noisier, momentum/meme-driven r/wallstreetbets -- useful
@@ -108,10 +111,10 @@ def _get_rss(source: str, url: str, limit: int, params: dict | None = None) -> l
 
 def _get_ticker_headlines(ticker: str, limit: int) -> list[dict]:
     return _get_rss(
-        f"Yahoo Finance ({ticker})",
-        YAHOO_TICKER_RSS_URL,
+        f"Google News ({ticker})",
+        GOOGLE_NEWS_RSS_URL,
         limit,
-        params={"s": ticker, "region": "US", "lang": "en-US"},
+        params={"q": f"{ticker} stock", "hl": "en-US", "gl": "US", "ceid": "US:en"},
     )
 
 

@@ -36,19 +36,26 @@ def test_get_price_reads_latest_trade(settings, monkeypatch):
 
 def test_get_klines_reshapes_bars_and_respects_limit(settings, monkeypatch):
     client = AlpacaClient(settings)
-    bars = [{"t": i, "o": 100 + i, "h": 110 + i, "l": 90 + i, "c": 105 + i, "v": 42 + i} for i in range(10)]
+    # API returns newest-first (sort=desc).
+    bars = [{"t": i, "o": 100 + i, "h": 110 + i, "l": 90 + i, "c": 105 + i, "v": 42 + i} for i in range(9, -1, -1)]
 
     def fake_request(http_client, method, path, **kwargs):
         assert path == "/v2/stocks/QQQ/bars"
         assert kwargs["params"]["timeframe"] == "1Hour"
+        # Regression: without an explicit start Alpaca only returns the
+        # current day's bars (indicators never had enough history), and
+        # without sort=desc start+limit returns the OLDEST bars in the window.
+        assert "start" in kwargs["params"]
+        assert kwargs["params"]["sort"] == "desc"
         return {"bars": bars}
 
     monkeypatch.setattr(client, "_request", fake_request)
     result = client.get_klines("QQQ", "1h", limit=3)
 
     assert len(result) == 3
-    # [open_time, open, high, low, close, volume]
+    # Oldest-first for the indicators: [open_time, open, high, low, close, volume]
     assert result[0] == [7, 107, 117, 97, 112, 49]
+    assert result[-1] == [9, 109, 119, 99, 114, 51]
 
 
 def test_get_account_balances_includes_cash_and_drops_zero_positions(settings, monkeypatch):
