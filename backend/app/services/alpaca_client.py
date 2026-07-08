@@ -205,7 +205,13 @@ class AlpacaClient:
         return self._resolve_fill(order, fallback_price)
 
     def place_market_order_quantity(self, symbol: str, side: str, raw_quantity: float) -> OrderResult:
-        quantity = round(raw_quantity, 6)
+        # round() rounds to nearest and can round UP past the actual held
+        # balance on a full-position SELL (e.g. available 0.20818759 ->
+        # round(.., 6) = 0.208188, which Alpaca rejects with 403 insufficient
+        # qty). Floor instead so the submitted qty never exceeds what's held;
+        # the tiny epsilon guards against float representation error (e.g.
+        # 0.4 stored as 0.40000000000000002) flooring a whole number down.
+        quantity = math.floor(raw_quantity * 1_000_000 + 1e-7) / 1_000_000
         if quantity <= 0:
             raise ValueError(f"Computed quantity for {symbol} rounds to 0, amount too small")
         order = self._submit_order(symbol, side, qty=quantity)

@@ -115,6 +115,29 @@ def test_place_market_order_quantity_submits_qty_order(settings, monkeypatch):
     assert result.price == 505.0
 
 
+def test_place_market_order_quantity_never_rounds_above_available_balance(settings, monkeypatch):
+    # Regression: Alpaca 403 "insufficient qty available" (requested
+    # 0.208188, available 0.20818759) -- round(0.20818759, 6) rounds UP to
+    # 0.208188, which exceeds the actual held balance on a full-position
+    # SELL. Must floor instead of round.
+    client = AlpacaClient(settings)
+    captured = {}
+
+    def fake_request(http_client, method, path, **kwargs):
+        if path == "/v2/orders":
+            captured["body"] = kwargs["json"]
+            return {"id": "order-5", "symbol": "IWM", "side": "sell", "status": "filled", "filled_qty": "0.208187", "filled_avg_price": "220.0"}
+        raise AssertionError(f"unexpected path {path}")
+
+    monkeypatch.setattr(client, "_request", fake_request)
+    monkeypatch.setattr(client, "get_price", lambda symbol: 220.0)
+
+    client.place_market_order_quantity("IWM", "SELL", 0.20818759)
+
+    assert captured["body"]["qty"] == "0.208187"
+    assert float(captured["body"]["qty"]) <= 0.20818759
+
+
 def test_place_market_order_quantity_rejects_zero_quantity(settings, monkeypatch):
     client = AlpacaClient(settings)
     monkeypatch.setattr(client, "get_price", lambda symbol: 500.0)
