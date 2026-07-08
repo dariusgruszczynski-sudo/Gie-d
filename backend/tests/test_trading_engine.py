@@ -749,6 +749,15 @@ def test_extended_hours_fractional_exit_does_not_crash_cycle(db_session, setting
 
     assert "SPY" in _json.loads(state.position_peaks_json)
 
+    # Regression: the recorded reason must surface the REAL exception text,
+    # not a one-size-fits-all guess -- otherwise any other failure cause
+    # gets mislabeled as "outside regular session" and is undiagnosable
+    # without SSHing in to read logs.
+    from app.models import Decision
+
+    decision = db_session.query(Decision).filter(Decision.symbol == "SPY").order_by(Decision.id.desc()).first()
+    assert "Rozszerzone godziny handlu wymagają całych akcji" in decision.rejection_reason
+
 
 def test_extended_hours_auto_enables_past_threshold():
     auto = {"extended_hours_trading_enabled": False, "extended_hours_auto_enable_usd": 500.0}

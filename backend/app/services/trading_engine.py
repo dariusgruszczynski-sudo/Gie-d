@@ -364,17 +364,17 @@ def check_take_profit_stop_loss(
                 is_manual=False,
                 session=session,
             )
-        except (ValueError, AlpacaAPIError):
-            # Most likely an extended-hours exit on a fractional position:
-            # pre-/after-market orders must be WHOLE shares, so a fractional
-            # holding can't be sold until the regular session reopens. Don't
-            # crash the cycle (that would silently skip every other position's
-            # exit too and kill the Claude leg) -- log it, mark the decision,
-            # keep tracking the peak, and let this exit fire at the regular
-            # open. The mechanical stop-loss/take-profit is therefore
-            # effectively regular-session-only for fractional positions.
-            logger.warning("Mechaniczne wyjście %s niewykonalne w tej sesji, odłożone", symbol, exc_info=True)
-            decision.rejection_reason = "Wyjście niewykonalne poza sesją regularną (ułamkowa pozycja) -- odłożone do otwarcia rynku."
+        except (ValueError, AlpacaAPIError) as exc:
+            # Common cause: an extended-hours exit on a fractional position
+            # (pre-/after-market orders must be WHOLE shares, so a fractional
+            # holding can't be sold until the regular session reopens) -- but
+            # NOT the only possible cause, so the real exception text is
+            # surfaced instead of a one-size-fits-all guess. Don't crash the
+            # cycle (that would silently skip every other position's exit too
+            # and kill the Claude leg) -- log it, mark the decision, keep
+            # tracking the peak, and let this exit retry next cycle.
+            logger.warning("Mechaniczne wyjście %s nie powiodło się, odłożone", symbol, exc_info=True)
+            decision.rejection_reason = f"Wyjście niewykonalne: {exc}"
             db.commit()
             new_peaks[symbol] = peak
             continue
