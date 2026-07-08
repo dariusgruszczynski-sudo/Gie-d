@@ -54,6 +54,25 @@ RSS_FEEDS: list[tuple[str, str]] = [
     # generic news coverage often lags or misses entirely
     ("SEC EDGAR 8-K filings", "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&company=&dateb=&owner=include&count=40&output=atom"),
     ("SEC EDGAR Form 4 (insider trades)", "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&company=&dateb=&owner=include&count=40&output=atom"),
+    # Crypto -- the 24/7 overnight venue trades BTC/ETH/SOL, driven far more by
+    # crypto-native flow (ETF news, on-chain, exchange/regulatory events) than
+    # by the general stock feeds above.
+    ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/"),
+    ("Cointelegraph", "https://cointelegraph.com/rss"),
+    ("Decrypt", "https://decrypt.co/feed"),
+    ("The Block", "https://www.theblock.co/rss.xml"),
+    ("CryptoSlate", "https://cryptoslate.com/feed/"),
+    ("Bitcoin Magazine", "https://bitcoinmagazine.com/.rss/full/"),
+    ("NewsBTC", "https://www.newsbtc.com/feed/"),
+    ("Bitcoinist", "https://bitcoinist.com/feed/"),
+    ("CoinJournal", "https://coinjournal.net/news/feed/"),
+    # Forex / macro -- the FX pairs (EUR/USD etc.) move on central-bank and
+    # macro headlines that the equity feeds cover only glancingly.
+    ("ForexLive", "https://www.forexlive.com/feed/"),
+    ("FXStreet", "https://www.fxstreet.com/rss/news"),
+    ("DailyFX", "https://www.dailyfx.com/feeds/market-news"),
+    ("Investing.com Forex", "https://www.investing.com/rss/news_1.rss"),
+    ("Investing.com Crypto", "https://www.investing.com/rss/news_301.rss"),
 ]
 PER_SOURCE_LIMIT = 3
 # Per-ticker headlines (keyless) so news specific to symbols on the whitelist
@@ -68,7 +87,17 @@ PER_TICKER_LIMIT = 3
 # as a crowd-positioning signal precisely because it's unfiltered, not
 # despite it. Bounded to a few headlines each like every other source, so it
 # can't dominate the prompt.
-REDDIT_SUBREDDITS = ["stocks", "investing", "wallstreetbets"]
+REDDIT_SUBREDDITS = [
+    "stocks",
+    "investing",
+    "wallstreetbets",
+    # Crypto/forex crowd-positioning for the overnight venue.
+    "CryptoCurrency",
+    "Bitcoin",
+    "ethereum",
+    "solana",
+    "Forex",
+]
 PER_SUBREDDIT_LIMIT = 5
 # Reddit blocks the default httpx User-Agent -- needs a descriptive one.
 REDDIT_HEADERS = {"User-Agent": "GielDarek-trading-bot/1.0"}
