@@ -11,9 +11,7 @@ const WARSAW_TZ = "Europe/Warsaw";
 
 const SESSION_LABELS: Record<string, { label: string; className: string }> = {
   closed: { label: "GIEŁDA ZAMKNIĘTA", className: "session-badge-closed" },
-  pre_market: { label: "PRE-MARKET", className: "session-badge-pre" },
   regular: { label: "SESJA OTWARTA", className: "session-badge-regular" },
-  after_hours: { label: "AFTER-HOURS", className: "session-badge-after" },
 };
 
 function fmtTime(date: Date, tz: string): string {
@@ -37,15 +35,11 @@ function fmtAgo(iso: string, now: Date): string {
 export function SessionClock({
   session,
   bounds,
-  extendedHoursEnabled,
-  extendedHoursAutoUsd,
   lastCycleAt,
   pollIntervalMinutes,
 }: {
   session: MarketSession;
   bounds: SessionBounds | null;
-  extendedHoursEnabled: boolean;
-  extendedHoursAutoUsd: number;
   lastCycleAt: string | null;
   pollIntervalMinutes: number;
 }) {
@@ -82,25 +76,15 @@ export function SessionClock({
         <div className="session-clock-schedule">
           <span className="subtitle">Harmonogram sesji US (czas Warszawa):</span>
           <div className="session-clock-schedule-row">
-            <span>Pre-market {fmtBoundary(bounds.pre_market_start)}</span>
             <span>Otwarcie {fmtBoundary(bounds.regular_open)}</span>
             <span>Zamknięcie {fmtBoundary(bounds.regular_close)}</span>
-            <span>Po sesji do {fmtBoundary(bounds.after_hours_end)}</span>
           </div>
         </div>
       )}
-      {extendedHoursEnabled ? (
-        <p className="subtitle" style={{ marginTop: 10, marginBottom: 0 }}>
-          Rozszerzone godziny handlu (pre-market/after-hours) są aktywne — automat monitoruje rynek ~16h/dobę.
-        </p>
-      ) : (
-        <p className="subtitle" style={{ marginTop: 10, marginBottom: 0 }}>
-          Automat handluje tylko w sesji regularnej.
-          {extendedHoursAutoUsd > 0
-            ? ` Rozszerzone godziny (pre-market/after-hours) włączą się automatycznie po przekroczeniu $${extendedHoursAutoUsd.toFixed(0)} wartości portfela.`
-            : ""}
-        </p>
-      )}
+      <p className="subtitle" style={{ marginTop: 10, marginBottom: 0 }}>
+        Automat na akcjach US handluje tylko w sesji regularnej (~6.5h/dobę). Handel nocny/24-7 obsługuje osobny
+        portfel krypto.
+      </p>
     </div>
   );
 }

@@ -41,10 +41,8 @@ def test_status_includes_market_session_and_bounds(db_session, settings, monkeyp
     now = datetime.now(market_hours.ET)
     info = market_hours.SessionInfo(
         session=market_hours.REGULAR,
-        pre_market_start=now,
         regular_open=now,
         regular_close=now,
-        after_hours_end=now,
     )
     monkeypatch.setattr(routes_dashboard.market_hours, "get_session_info", lambda broker: info)
 
@@ -52,8 +50,6 @@ def test_status_includes_market_session_and_bounds(db_session, settings, monkeyp
 
     assert body["market_session"] == "regular"
     assert body["session_bounds"]["regular_open"] == now.isoformat()
-    # conftest settings has the manual switch on, so extended hours is active.
-    assert body["extended_hours_active"] is True
 
 
 def test_status_degrades_gracefully_when_session_lookup_fails(db_session, settings, monkeypatch):

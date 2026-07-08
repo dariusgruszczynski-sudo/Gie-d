@@ -36,12 +36,6 @@ _TIMEFRAME_MINUTES = {"1m": 1, "5m": 5, "15m": 15, "1h": 60, "1d": 1440}
 # ~5 of 7 days, so reaching back `limit` bars needs roughly 5x the naive bar
 # span in wall-clock time.
 _CALENDAR_SPAN_FACTOR = 5
-# Extended-hours (pre-market/after-hours) orders must be whole-share LIMIT
-# orders -- fractional and notional/market orders are regular-session only,
-# an industry-wide rule (not Alpaca-specific) tied to thinner liquidity
-# outside the regular session. The limit price is offset from the last trade
-# to raise fill odds without materially chasing price in a thin book.
-EXTENDED_HOURS_LIMIT_BUFFER_PCT = 0.3
 
 
 @dataclass
@@ -223,36 +217,14 @@ class AlpacaClient:
         symbol: str,
         side: str,
         *,
-        session: str,
+        session: str = "regular",
         usdt_amount: float | None = None,
         quantity: float | None = None,
     ) -> OrderResult:
-        """Routes to a plain market/notional order during the regular
-        session (fast, fractional-friendly), or a whole-share LIMIT order
-        with `extended_hours=True` during pre-market/after-hours, since
-        those sessions reject fractional and market/notional orders.
-        `session` is one of market_hours.{PRE_MARKET,REGULAR,AFTER_HOURS} --
-        passed in rather than queried here so callers make exactly one
-        market_hours lookup per cycle."""
-        if session == "regular":
-            if usdt_amount is not None:
-                return self.place_market_order_usdt_amount(symbol, side, usdt_amount)
-            return self.place_market_order_quantity(symbol, side, quantity)
-
-        price = self.get_price(symbol)
-        buffer = 1 + EXTENDED_HOURS_LIMIT_BUFFER_PCT / 100 if side.upper() == "BUY" else 1 - EXTENDED_HOURS_LIMIT_BUFFER_PCT / 100
-        limit_price = round(price * buffer, 2)
-
-        raw_qty = usdt_amount / price if usdt_amount is not None else quantity
-        whole_qty = math.floor(raw_qty)
-        if whole_qty <= 0:
-            raise ValueError(
-                f"Rozszerzone godziny handlu wymagają całych akcji -- "
-                f"{usdt_amount if usdt_amount is not None else quantity} przy cenie {price} "
-                f"daje 0 całych akcji {symbol}"
-            )
-
-        order = self._submit_order(
-            symbol, side, qty=whole_qty, order_type="limit", limit_price=limit_price, extended_hours=True
-        )
-        return self._resolve_fill(order, fallback_price=price)
+        """Places a plain market/notional order (fractional-friendly). US
+        trades regular-session-only now that pre-/after-market are removed, so
+        `session` is accepted for call-site compatibility but otherwise unused
+        -- there's no longer a whole-share LIMIT path to route to."""
+        if usdt_amount is not None:
+            return self.place_market_order_usdt_amount(symbol, side, usdt_amount)
+        return self.place_market_order_quantity(symbol, side, quantity)

@@ -12,10 +12,8 @@ def _session_info(session: str) -> market_hours.SessionInfo:
     now = datetime.now(market_hours.ET)
     return market_hours.SessionInfo(
         session=session,
-        pre_market_start=now,
         regular_open=now,
         regular_close=now,
-        after_hours_end=now,
     )
 
 
@@ -73,10 +71,7 @@ class FakeAlpaca:
         self.orders.append(order)
         return order
 
-    def place_order_for_session(self, symbol, side, *, session, usdt_amount=None, quantity=None):
-        # The real extended-hours whole-share/limit-price mechanics are unit
-        # tested directly against AlpacaClient in test_alpaca_client.py --
-        # here we just record which session a trade was routed through.
+    def place_order_for_session(self, symbol, side, *, session="regular", usdt_amount=None, quantity=None):
         self.last_order_session = session
         if usdt_amount is not None:
             return self.place_market_order_usdt_amount(symbol, side, usdt_amount)
@@ -484,29 +479,18 @@ def test_tpsl_does_not_fire_while_market_closed(db_session, settings):
     assert trading_engine.check_take_profit_stop_loss(db_session, settings, broker, portfolio, closed) == []
 
 
-def test_tpsl_does_not_fire_during_extended_hours_when_disabled(db_session, settings):
-    disabled = settings.model_copy(update={"extended_hours_trading_enabled": False})
-    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
-    trading_engine.execute_manual_trade(db_session, disabled, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
-    broker.prices["SPY"] = 104.0  # would take-profit if tradable
-
-    portfolio = trading_engine.compute_portfolio(db_session, disabled, broker)
-    pre_market = _session_info(market_hours.PRE_MARKET)
-    assert trading_engine.check_take_profit_stop_loss(db_session, disabled, broker, portfolio, pre_market) == []
-
-
-def test_tpsl_fires_during_extended_hours_when_enabled(db_session, settings):
+def test_tpsl_fires_during_regular_session(db_session, settings):
     fixed = settings.model_copy(update={"trailing_stop_enabled": False})
     broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
     trading_engine.execute_manual_trade(db_session, fixed, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
     broker.prices["SPY"] = 104.0  # +4% > take_profit_pct (3) -> immediate sell, fixed take-profit
 
     portfolio = trading_engine.compute_portfolio(db_session, fixed, broker)
-    after_hours = _session_info(market_hours.AFTER_HOURS)
-    exits = trading_engine.check_take_profit_stop_loss(db_session, fixed, broker, portfolio, after_hours)
+    regular = _session_info(market_hours.REGULAR)
+    exits = trading_engine.check_take_profit_stop_loss(db_session, fixed, broker, portfolio, regular)
 
     assert len(exits) == 1
-    assert broker.last_order_session == market_hours.AFTER_HOURS
+    assert broker.last_order_session == market_hours.REGULAR
 
 
 def test_stop_loss_sets_cooldown_and_blocks_rebuy(db_session, settings):
@@ -621,36 +605,20 @@ def test_forced_analysis_runs_when_market_closed_but_cannot_execute(db_session, 
     assert len(broker.orders) == 0
 
 
-def test_scheduled_cycle_runs_during_pre_market_when_extended_hours_enabled(db_session, settings, monkeypatch):
-    """The whole point of extended-hours support: a scheduled cycle during
-    pre-market must actually execute (via a session-routed order), not just
-    passively let Claude look without acting."""
+def test_scheduled_cycle_executes_during_regular_session(db_session, settings, monkeypatch):
+    """A scheduled cycle during the regular session must actually execute (via
+    a session-routed order), not just passively let Claude look without acting."""
     monkeypatch.setattr(
-        trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.PRE_MARKET)
+        trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.REGULAR)
     )
     broker = FakeAlpaca()
-    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Silny sygnał przedsesyjny."))
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Silny sygnał."))
 
     decision = trading_engine.run_cycle(db_session, settings, broker, FakeNews(), advisor, force=True)
 
     assert decision.executed is True
     assert len(broker.orders) == 1
-    assert broker.last_order_session == market_hours.PRE_MARKET
-
-
-def test_scheduled_cycle_skipped_during_after_hours_when_extended_disabled(db_session, settings, monkeypatch):
-    disabled = settings.model_copy(update={"extended_hours_trading_enabled": False})
-    monkeypatch.setattr(
-        trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.AFTER_HOURS)
-    )
-    broker = FakeAlpaca()
-    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Nie powinno zostać wywołane."))
-
-    decision = trading_engine.run_cycle(db_session, disabled, broker, FakeNews(), advisor)
-
-    assert decision is None
-    assert advisor.calls == 0
-    assert len(broker.orders) == 0
+    assert broker.last_order_session == market_hours.REGULAR
 
 
 def test_news_event_triggers_cycle_independent_of_price_move(db_session, settings):
@@ -719,86 +687,38 @@ def test_performance_context_gives_claude_its_track_record(db_session, settings)
     assert any(t["symbol"] == "SPY" and t["side"] == "BUY" for t in perf["recent_trades"])
 
 
-def test_extended_hours_fractional_exit_does_not_crash_cycle(db_session, settings):
-    """A fractional position can't be sold pre-/after-market (whole shares
-    only), but that must NOT crash the cycle -- the exit is deferred to the
-    regular open, and the peak keeps being tracked."""
+def test_failed_mechanical_exit_surfaces_real_reason(db_session, settings):
+    """A SELL that fails at the broker (Alpaca hiccup, qty rejection, ...) must
+    NOT crash the cycle -- the peak keeps being tracked so the exit retries
+    next cycle, and the recorded reason surfaces the REAL exception text
+    instead of a one-size-fits-all guess."""
 
-    class WholeShareOnlyExtended(FakeAlpaca):
-        def place_order_for_session(self, symbol, side, *, session, usdt_amount=None, quantity=None):
-            if session != market_hours.REGULAR:
-                # Mirror the real client: extended hours rejects a fractional
-                # SELL because it floors to 0 whole shares.
-                raise ValueError("Rozszerzone godziny handlu wymagają całych akcji")
+    class FailingSellBroker(FakeAlpaca):
+        def place_order_for_session(self, symbol, side, *, session="regular", usdt_amount=None, quantity=None):
+            if side.upper() == "SELL":
+                raise ValueError("Alpaca 403 insufficient qty available")
             return super().place_order_for_session(symbol, side, session=session, usdt_amount=usdt_amount, quantity=quantity)
 
-    broker = WholeShareOnlyExtended(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
-    # Buy fractional in the (autouse-default) regular session.
+    broker = FailingSellBroker(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
     trading_engine.execute_manual_trade(db_session, settings, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
     broker.prices["SPY"] = 97.0  # would stop-loss
 
     portfolio = trading_engine.compute_portfolio(db_session, settings, broker)
-    after_hours = _session_info(market_hours.AFTER_HOURS)
+    regular = _session_info(market_hours.REGULAR)
 
     # Must not raise, and must not record a completed exit trade.
-    exits = trading_engine.check_take_profit_stop_loss(db_session, settings, broker, portfolio, after_hours)
+    exits = trading_engine.check_take_profit_stop_loss(db_session, settings, broker, portfolio, regular)
     assert exits == []
-    # Peak/state preserved so the exit can retry at the regular open.
+    # Peak/state preserved so the exit can retry next cycle.
     state = risk_manager.get_state(db_session)
     import json as _json
 
     assert "SPY" in _json.loads(state.position_peaks_json)
 
-    # Regression: the recorded reason must surface the REAL exception text,
-    # not a one-size-fits-all guess -- otherwise any other failure cause
-    # gets mislabeled as "outside regular session" and is undiagnosable
-    # without SSHing in to read logs.
     from app.models import Decision
 
     decision = db_session.query(Decision).filter(Decision.symbol == "SPY").order_by(Decision.id.desc()).first()
-    assert "Rozszerzone godziny handlu wymagają całych akcji" in decision.rejection_reason
-
-
-def test_extended_hours_auto_enables_past_threshold():
-    auto = {"extended_hours_trading_enabled": False, "extended_hours_auto_enable_usd": 500.0}
-    from app.config import Settings
-
-    s = Settings(anthropic_api_key="k", alpaca_api_key="k", alpaca_api_secret="k", **auto)
-    assert trading_engine.extended_hours_active(s, 499.0) is False
-    assert trading_engine.extended_hours_active(s, 500.0) is True
-    assert trading_engine.extended_hours_active(s, 800.0) is True
-
-
-def test_extended_hours_manual_switch_overrides_threshold():
-    from app.config import Settings
-
-    s = Settings(
-        anthropic_api_key="k",
-        alpaca_api_key="k",
-        alpaca_api_secret="k",
-        extended_hours_trading_enabled=True,
-        extended_hours_auto_enable_usd=0.0,
-    )
-    assert trading_engine.extended_hours_active(s, 10.0) is True
-
-
-def test_scheduled_cycle_auto_opens_extended_hours_when_portfolio_large(db_session, settings, monkeypatch):
-    """Once the portfolio crosses the auto-enable threshold, a pre-market
-    scheduled cycle trades even though the manual switch is off."""
-    monkeypatch.setattr(
-        trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.PRE_MARKET)
-    )
-    auto_settings = settings.model_copy(
-        update={"extended_hours_trading_enabled": False, "extended_hours_auto_enable_usd": 500.0}
-    )
-    # Total value 1000 USD > 500 threshold -> extended hours auto-on.
-    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
-    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Sygnał przedsesyjny."))
-
-    decision = trading_engine.run_cycle(db_session, auto_settings, broker, FakeNews(), advisor, force=True)
-
-    assert decision.executed is True
-    assert broker.last_order_session == market_hours.PRE_MARKET
+    assert "insufficient qty" in decision.rejection_reason
 
 
 def test_earnings_blackout_blocks_new_buy(db_session, settings, monkeypatch):

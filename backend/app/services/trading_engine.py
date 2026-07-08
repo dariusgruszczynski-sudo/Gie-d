@@ -42,30 +42,12 @@ def volatility_adjusted_size(settings: Settings, requested_pct: float, ticker_vo
     return round(requested_pct * scale, 4)
 
 
-def extended_hours_active(settings: Settings, total_value_usd: float) -> bool:
-    """Extended-hours (pre-/after-market) trading is on if either the manual
-    switch is set OR the portfolio has grown past the auto-enable threshold --
-    so a small account trades regular-session-only until it's big enough for
-    whole-share extended-hours orders to actually be affordable, then opens up
-    on its own."""
-    if settings.extended_hours_trading_enabled:
-        return True
-    return settings.extended_hours_auto_enable_usd > 0 and total_value_usd >= settings.extended_hours_auto_enable_usd
-
-
-def _is_tradable_session(session_info: SessionInfo, settings: Settings, total_value_usd: float) -> bool:
-    return market_hours.is_tradable_session(
-        session_info.session, extended_hours_active(settings, total_value_usd)
-    )
+def _is_tradable_session(session_info: SessionInfo) -> bool:
+    return market_hours.is_tradable_session(session_info.session)
 
 
 def _session_closed_reason(session_info: SessionInfo) -> str:
-    if session_info.session == market_hours.CLOSED:
-        return "Rynek zamknięty -- transakcja niewykonana (spróbuj w godzinach handlu)."
-    return (
-        f"Rozszerzone godziny handlu ({session_info.session}) są wyłączone "
-        f"(EXTENDED_HOURS_TRADING_ENABLED=false) -- transakcja niewykonana."
-    )
+    return "Rynek zamknięty -- transakcja niewykonana (spróbuj w godzinach handlu)."
 
 
 def compute_portfolio(db: Session, settings: Settings, broker: AlpacaClient) -> dict:
@@ -301,15 +283,13 @@ def check_take_profit_stop_loss(
     from entry, plus either a trailing stop (default -- lets winners run) or a
     fixed take-profit. Respects the same stop/halt gate as any automated trade
     -- if the user pressed STOP, these don't fire either. Also skipped while the
-    session isn't tradable (fully closed, or extended hours disabled), since a
-    SELL order would just be rejected by Alpaca. Defaults to the regular
-    session when no session_info is given, for callers (and the many existing
-    tests) that don't care about market-hours gating. Tracks each position's
-    peak price for the trailing stop and clears it once the position is
-    closed."""
+    market is closed, since a SELL order would just be rejected by Alpaca.
+    Defaults to the regular session when no session_info is given, for callers
+    (and the many existing tests) that don't care about market-hours gating.
+    Tracks each position's peak price for the trailing stop and clears it once
+    the position is closed."""
     session = session_info.session if session_info is not None else market_hours.REGULAR
-    ext_active = extended_hours_active(settings, portfolio["total_value_usdt"])
-    tradable = market_hours.is_tradable_session(session, ext_active)
+    tradable = market_hours.is_tradable_session(session)
     if not tradable or not risk_manager.can_trade_automated(db).approved:
         return []
 
@@ -365,10 +345,8 @@ def check_take_profit_stop_loss(
                 session=session,
             )
         except (ValueError, AlpacaAPIError) as exc:
-            # Common cause: an extended-hours exit on a fractional position
-            # (pre-/after-market orders must be WHOLE shares, so a fractional
-            # holding can't be sold until the regular session reopens) -- but
-            # NOT the only possible cause, so the real exception text is
+            # A SELL can still fail for other reasons (Alpaca hiccup, a
+            # rounding/qty rejection, ...), so the real exception text is
             # surfaced instead of a one-size-fits-all guess. Don't crash the
             # cycle (that would silently skip every other position's exit too
             # and kill the Claude leg) -- log it, mark the decision, keep
@@ -484,7 +462,7 @@ def run_cycle(
     state = risk_manager.update_portfolio_value(db, settings, portfolio["total_value_usdt"])
     scorecard.update_benchmark_baseline(db, settings, portfolio)
     session_info = market_hours.get_session_info(broker)
-    tradable = _is_tradable_session(session_info, settings, portfolio["total_value_usdt"])
+    tradable = _is_tradable_session(session_info)
 
     # Mechanical take-profit / stop-loss runs every scheduled poll, before we
     # even decide whether to ask Claude -- this is what makes the bot actively
@@ -497,24 +475,15 @@ def run_cycle(
             # sees post-exit balances/cash.
             portfolio = compute_portfolio(db, settings, broker)
 
-    # Stocks/ETFs don't trade 24/7 like crypto -- a scheduled poll outside a
-    # tradable session (fully closed, or extended hours disabled) has nothing
-    # useful to do (any order would just be rejected) and must not burn
-    # Claude budget on it. A manual "Wymuś analizę" still runs so the user can
-    # see Claude's read on demand; it just can't execute.
+    # Stocks/ETFs don't trade 24/7 like crypto -- a scheduled poll while the
+    # market is closed has nothing useful to do (any order would just be
+    # rejected) and must not burn Claude budget on it. A manual "Wymuś analizę"
+    # still runs so the user can see Claude's read on demand; it just can't
+    # execute.
     if not force and not tradable:
         return None
 
-    # Pre-market/after-hours: require a bigger price move before waking
-    # Claude, since routine drift outside the regular session is less
-    # meaningful and this keeps the ~2.5x longer trading window from ~2.5x'ing
-    # Claude spend for the same signal quality.
-    effective_trigger_pct = (
-        settings.price_move_trigger_pct
-        if session_info.session == market_hours.REGULAR
-        else settings.extended_hours_price_move_trigger_pct
-    )
-    triggered, trigger_reason = check_trigger(db, settings, portfolio["prices"], effective_trigger_pct)
+    triggered, trigger_reason = check_trigger(db, settings, portfolio["prices"])
 
     # A brand-new per-ticker headline (earnings, material single-stock news)
     # wakes Claude on its own, independent of any price move -- especially
@@ -690,9 +659,9 @@ def run_cycle(
         db.refresh(decision)
         return decision
 
-    # A force=True "Wymuś analizę" still asks Claude outside a tradable session
+    # A force=True "Wymuś analizę" still asks Claude while the market is closed
     # (so the user can see its read on demand), but a resulting BUY/SELL can't
-    # actually execute until a tradable session resumes -- Alpaca would just
+    # actually execute until the regular session resumes -- Alpaca would just
     # reject it.
     if not tradable:
         decision.rejection_reason = _session_closed_reason(session_info)
@@ -771,9 +740,8 @@ def run_cycle(
             session=session_info.session,
         )
     except (ValueError, AlpacaAPIError) as exc:
-        # e.g. an extended-hours BUY whose position budget is smaller than one
-        # whole share (pre-/after-market can't do fractional/notional orders).
-        # Record why instead of crashing the whole scheduled cycle.
+        # e.g. a computed order size that rounds to zero, or an Alpaca
+        # rejection. Record why instead of crashing the whole scheduled cycle.
         logger.warning("Wykonanie zlecenia %s nieudane, pomijam", decision_data.symbol, exc_info=True)
         decision.rejection_reason = f"Zlecenie niewykonane: {exc}"
         db.commit()
@@ -845,18 +813,13 @@ def execute_manual_trade(
     if not whitelist_check.approved:
         raise ValueError(whitelist_check.reason)
 
-    # Session-aware so a manual trade during pre-market/after-hours goes out
-    # as the whole-share LIMIT order Alpaca requires instead of a market/
-    # notional order that would just be rejected. Deliberately not gated on
-    # extended_hours_trading_enabled or blocked outright when fully closed --
-    # same as the existing pause/halt bypass, a manual click is the override;
-    # Alpaca itself is the final backstop if the session genuinely can't trade.
-    session_info = market_hours.get_session_info(broker)
-
+    # Deliberately not blocked when the market is closed -- same as the
+    # existing pause/halt bypass, a manual click is the override; Alpaca itself
+    # is the final backstop if the session genuinely can't trade.
     if usdt_amount is not None:
-        result = broker.place_order_for_session(symbol, side, usdt_amount=usdt_amount, session=session_info.session)
+        result = broker.place_order_for_session(symbol, side, usdt_amount=usdt_amount)
     elif quantity is not None:
-        result = broker.place_order_for_session(symbol, side, quantity=quantity, session=session_info.session)
+        result = broker.place_order_for_session(symbol, side, quantity=quantity)
     else:
         raise ValueError("Must provide either usdt_amount or quantity")
 

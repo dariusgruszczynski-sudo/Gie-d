@@ -1,9 +1,9 @@
-"""Computes which part of the US equities trading day it currently is --
-closed / pre-market / regular / after-hours. Alpaca's own /v2/clock only
-reports the regular session; this adds the extended-hours windows (fixed
-4:00-9:30 and 16:00-20:00 ET, industry-standard across US brokers) layered
-on top of Alpaca's /v2/calendar, which supplies the *actual* regular-session
-open/close for each date (accounting for holidays and early closes)."""
+"""Computes whether the US equities regular session is currently open or
+closed. Alpaca's /v2/calendar supplies the *actual* regular-session open/close
+for each date (accounting for holidays and early closes); this reduces it to a
+simple REGULAR/CLOSED state. Pre-market and after-hours are intentionally not
+modeled -- US trading here is regular-session-only, and overnight coverage is
+handled by the separate 24/7 crypto venue."""
 
 import logging
 from dataclasses import dataclass
@@ -15,13 +15,9 @@ from app.services.alpaca_client import AlpacaClient
 logger = logging.getLogger(__name__)
 
 ET = ZoneInfo("America/New_York")
-PRE_MARKET_START = time(4, 0)
-AFTER_HOURS_END = time(20, 0)
 
 CLOSED = "closed"
-PRE_MARKET = "pre_market"
 REGULAR = "regular"
-AFTER_HOURS = "after_hours"
 
 # The calendar rarely changes and this is polled by the dashboard every ~15s
 # -- cache it so a hot status endpoint doesn't hammer Alpaca for something
@@ -36,15 +32,13 @@ _cache_computed_at: datetime | None = None
 
 @dataclass
 class SessionInfo:
-    session: str  # CLOSED | PRE_MARKET | REGULAR | AFTER_HOURS
+    session: str  # CLOSED | REGULAR
     # UTC-aware boundaries for the next relevant trading day: today's, if the
     # market is open or about to open today; otherwise the next trading day
     # after a weekend/holiday. None only if Alpaca returned no upcoming
     # trading day at all within the lookahead window.
-    pre_market_start: datetime | None
     regular_open: datetime | None
     regular_close: datetime | None
-    after_hours_end: datetime | None
 
 
 def _parse_hhmm(value: str) -> time:
@@ -65,35 +59,22 @@ def compute_session_info(now_et: datetime, calendar: list[dict]) -> SessionInfo:
     today_entry = next((c for c in calendar if c["date"] == today_str), None)
 
     if today_entry is not None:
-        pre_start = _combine_et(now_et.date(), PRE_MARKET_START)
         reg_open = _combine_et(now_et.date(), _parse_hhmm(today_entry["open"]))
         reg_close = _combine_et(now_et.date(), _parse_hhmm(today_entry["close"]))
-        after_end = _combine_et(now_et.date(), AFTER_HOURS_END)
-
-        if now_et < pre_start or now_et >= after_end:
-            session = CLOSED
-        elif now_et < reg_open:
-            session = PRE_MARKET
-        elif now_et < reg_close:
-            session = REGULAR
-        else:
-            session = AFTER_HOURS
-
-        return SessionInfo(session, pre_start, reg_open, reg_close, after_end)
+        session = REGULAR if reg_open <= now_et < reg_close else CLOSED
+        return SessionInfo(session, reg_open, reg_close)
 
     # Not a trading day at all (weekend/holiday) -- surface the *next* one so
     # the dashboard clock can show "next session starts at ...".
     next_entry = next((c for c in calendar if c["date"] > today_str), None)
     if next_entry is None:
-        return SessionInfo(CLOSED, None, None, None, None)
+        return SessionInfo(CLOSED, None, None)
 
     next_date = date.fromisoformat(next_entry["date"])
     return SessionInfo(
         CLOSED,
-        _combine_et(next_date, PRE_MARKET_START),
         _combine_et(next_date, _parse_hhmm(next_entry["open"])),
         _combine_et(next_date, _parse_hhmm(next_entry["close"])),
-        _combine_et(next_date, AFTER_HOURS_END),
     )
 
 
@@ -127,9 +108,5 @@ def get_session_info(broker: AlpacaClient, *, force_refresh: bool = False) -> Se
     return info
 
 
-def is_tradable_session(session: str, extended_hours_trading_enabled: bool) -> bool:
-    if session == REGULAR:
-        return True
-    if session in (PRE_MARKET, AFTER_HOURS):
-        return extended_hours_trading_enabled
-    return False
+def is_tradable_session(session: str) -> bool:
+    return session == REGULAR

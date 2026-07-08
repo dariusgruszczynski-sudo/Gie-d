@@ -1,10 +1,8 @@
-export type MarketSession = "closed" | "pre_market" | "regular" | "after_hours" | null;
+export type MarketSession = "closed" | "regular" | null;
 
 export interface SessionBounds {
-  pre_market_start: string | null;
   regular_open: string | null;
   regular_close: string | null;
-  after_hours_end: string | null;
 }
 
 export interface StatusResponse {
@@ -20,8 +18,6 @@ export interface StatusResponse {
   max_position_pct: number;
   whitelist: string[];
   poll_interval_minutes: number;
-  extended_hours_active: boolean;
-  extended_hours_auto_enable_usd: number;
   market_session: MarketSession;
   session_bounds: SessionBounds | null;
   claude_monthly_budget_usd: number;

@@ -12,7 +12,7 @@ from app.config import Settings, get_settings
 from app.db import SessionLocal, get_db
 from app.models import Decision, PortfolioSnapshot, SystemState, Trade
 from app.serialization import serialize
-from app.services import budget_tracker, market_hours, risk_manager, scorecard, trading_engine
+from app.services import budget_tracker, market_hours, risk_manager, scorecard
 from app.services.alpaca_client import AlpacaClient
 from app.services.trading_engine import average_cost_basis
 
@@ -35,10 +35,8 @@ def _serialize_session_info(settings: Settings) -> dict:
     return {
         "market_session": info.session,
         "session_bounds": {
-            "pre_market_start": info.pre_market_start.isoformat() if info.pre_market_start else None,
             "regular_open": info.regular_open.isoformat() if info.regular_open else None,
             "regular_close": info.regular_close.isoformat() if info.regular_close else None,
-            "after_hours_end": info.after_hours_end.isoformat() if info.after_hours_end else None,
         },
     }
 
@@ -73,12 +71,6 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "max_position_pct": settings.max_position_pct,
         "whitelist": settings.whitelist_symbols,
         "poll_interval_minutes": settings.poll_interval_minutes,
-        # Effective extended-hours state: manual switch OR auto-enabled once
-        # the portfolio has grown past the threshold.
-        "extended_hours_active": trading_engine.extended_hours_active(
-            settings, latest_snapshot.total_value_usdt if latest_snapshot else 0.0
-        ),
-        "extended_hours_auto_enable_usd": settings.extended_hours_auto_enable_usd,
         **_serialize_session_info(settings),
         **budget_tracker.get_budget_status(db, settings),
     }
