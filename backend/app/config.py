@@ -25,6 +25,19 @@ class Settings(BaseSettings):
     alpaca_paper: bool = False
     quote_currency: str = "USD"
 
+    # --- eToro: drugi broker dla handlu nocnego/24-7 (krypto spot) ---
+    # eToro autoryzuje parą nagłówków: x-api-key (klucz publiczny) +
+    # x-user-key (klucz prywatny/portfela Agent Portfolio). Demo (sandbox) ma
+    # identyczne API pod ścieżką /demo/ -- domyślnie ON, żeby zweryfikować
+    # integrację na wirtualnych pieniądzach przed przełączeniem na żywe.
+    etoro_enabled: bool = False
+    etoro_api_key: str = ""
+    etoro_user_key: str = ""
+    etoro_paper: bool = True
+    # Krypto handluje 24/7 (także w weekend) -- to pokrywa noce, gdy rynek US
+    # jest zamknięty. Spot, bez dźwigni, ta sama mechanika co portfel Alpaca.
+    etoro_whitelist: str = "BTC,ETH,SOL"
+
     daily_loss_limit_pct: float = 20.0
     weekly_loss_limit_pct: float = 70.0
     max_position_pct: float = 25.0
@@ -127,6 +140,10 @@ class Settings(BaseSettings):
     @property
     def whitelist_symbols(self) -> list[str]:
         return [s.strip().upper() for s in self.trading_whitelist.split(",") if s.strip()]
+
+    @property
+    def etoro_whitelist_symbols(self) -> list[str]:
+        return [s.strip().upper() for s in self.etoro_whitelist.split(",") if s.strip()]
 
     @property
     def dashboard_credentials(self) -> dict[str, str]:
