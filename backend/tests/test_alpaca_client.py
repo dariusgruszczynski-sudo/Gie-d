@@ -110,7 +110,7 @@ def test_place_market_order_quantity_submits_qty_order(settings, monkeypatch):
 
     result = client.place_market_order_quantity("SPY", "SELL", 0.4)
 
-    assert captured["body"]["qty"] == "0.400000"
+    assert captured["body"]["qty"] == "0.400000000"
     assert result.side == "SELL"
     assert result.price == 505.0
 
@@ -126,7 +126,7 @@ def test_place_market_order_quantity_never_rounds_above_available_balance(settin
     def fake_request(http_client, method, path, **kwargs):
         if path == "/v2/orders":
             captured["body"] = kwargs["json"]
-            return {"id": "order-5", "symbol": "IWM", "side": "sell", "status": "filled", "filled_qty": "0.208187", "filled_avg_price": "220.0"}
+            return {"id": "order-5", "symbol": "IWM", "side": "sell", "status": "filled", "filled_qty": "0.20818759", "filled_avg_price": "220.0"}
         raise AssertionError(f"unexpected path {path}")
 
     monkeypatch.setattr(client, "_request", fake_request)
@@ -134,7 +134,9 @@ def test_place_market_order_quantity_never_rounds_above_available_balance(settin
 
     client.place_market_order_quantity("IWM", "SELL", 0.20818759)
 
-    assert captured["body"]["qty"] == "0.208187"
+    # 9 dp represents the 8-decimal balance exactly: request == available (no
+    # round-up -> no 403), and the whole position sells (no dust left behind).
+    assert captured["body"]["qty"] == "0.208187590"
     assert float(captured["body"]["qty"]) <= 0.20818759
 
 
@@ -143,7 +145,7 @@ def test_place_market_order_quantity_rejects_zero_quantity(settings, monkeypatch
     monkeypatch.setattr(client, "get_price", lambda symbol: 500.0)
 
     try:
-        client.place_market_order_quantity("SPY", "SELL", 0.0000001)
+        client.place_market_order_quantity("SPY", "SELL", 0.0000000001)  # < 1e-9 -> rounds to 0
         assert False, "expected ValueError"
     except ValueError:
         pass

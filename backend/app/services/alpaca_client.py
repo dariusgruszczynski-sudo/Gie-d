@@ -9,7 +9,6 @@ Authentication is a pair of plain headers (no HMAC signing needed, unlike
 Kraken), which makes this considerably simpler and less error-prone."""
 
 import logging
-import math
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -148,7 +147,9 @@ class AlpacaClient:
         if notional is not None:
             body["notional"] = f"{notional:.2f}"
         else:
-            body["qty"] = f"{qty:.6f}"
+            # 9 dp = Alpaca's max fractional precision; 6 dp used to round a
+            # full-position SELL up past the held balance (403 insufficient qty).
+            body["qty"] = f"{qty:.9f}"
         if order_type == "limit":
             body["limit_price"] = f"{limit_price:.2f}"
         if extended_hours:
@@ -199,13 +200,14 @@ class AlpacaClient:
         return self._resolve_fill(order, fallback_price)
 
     def place_market_order_quantity(self, symbol: str, side: str, raw_quantity: float) -> OrderResult:
-        # round() rounds to nearest and can round UP past the actual held
-        # balance on a full-position SELL (e.g. available 0.20818759 ->
-        # round(.., 6) = 0.208188, which Alpaca rejects with 403 insufficient
-        # qty). Floor instead so the submitted qty never exceeds what's held;
-        # the tiny epsilon guards against float representation error (e.g.
-        # 0.4 stored as 0.40000000000000002) flooring a whole number down.
-        quantity = math.floor(raw_quantity * 1_000_000 + 1e-7) / 1_000_000
+        # Alpaca accepts fractional quantities to 9 decimal places. Rounding to
+        # only 6 dp rounded a full-position SELL UP past the actual held
+        # balance (available 0.20818759 -> 0.208188) -> 403 insufficient qty,
+        # while flooring to 6 dp instead left an unsellable ~1e-7 dust
+        # remainder that then jammed the exit loop. At 9 dp an <=9-decimal
+        # balance is represented exactly: the request never exceeds what's held
+        # and a full exit leaves no dust behind.
+        quantity = round(raw_quantity, 9)
         if quantity <= 0:
             raise ValueError(f"Computed quantity for {symbol} rounds to 0, amount too small")
         order = self._submit_order(symbol, side, qty=quantity)

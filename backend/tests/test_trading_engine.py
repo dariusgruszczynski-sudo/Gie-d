@@ -721,6 +721,24 @@ def test_failed_mechanical_exit_surfaces_real_reason(db_session, settings):
     assert "insufficient qty" in decision.rejection_reason
 
 
+def test_dust_position_below_min_notional_is_skipped(db_session, settings):
+    """A ~1e-7 share remainder (dust worth fractions of a cent) can't be sold
+    -- it's below Alpaca's min order -- so the mechanical exit must ignore it
+    instead of retrying a doomed SELL (and logging an error) every poll."""
+    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
+    trading_engine.execute_manual_trade(db_session, settings, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
+    # Simulate an almost-full exit leaving dust: hold ~5.9e-7 SPY at $97.
+    broker.balances["SPY"] = 0.00000059
+    broker.prices["SPY"] = 97.0  # underwater -> would stop-loss if it were sellable
+
+    portfolio = trading_engine.compute_portfolio(db_session, settings, broker)
+    regular = _session_info(market_hours.REGULAR)
+
+    exits = trading_engine.check_take_profit_stop_loss(db_session, settings, broker, portfolio, regular)
+    assert exits == []
+    assert len(broker.orders) == 1  # only the initial BUY -- no doomed dust SELL
+
+
 def test_earnings_blackout_blocks_new_buy(db_session, settings, monkeypatch):
     """No fresh position into a report the stop-loss can't protect against."""
     monkeypatch.setattr(

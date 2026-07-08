@@ -21,6 +21,12 @@ from app.services.technical_indicators import compute_technical_indicators
 
 logger = logging.getLogger(__name__)
 
+# Alpaca rejects orders below ~$1 notional, so a position worth less than this
+# is unsellable "dust" (e.g. a ~1e-7 share remainder left by an earlier
+# rounding bug). Treat it as not-a-position instead of retrying a doomed SELL
+# on every poll -- it's economically irrelevant (fractions of a cent).
+MIN_SELL_NOTIONAL_USD = 1.0
+
 
 def _base_asset(symbol: str, quote_currency: str) -> str:
     return symbol.replace(quote_currency, "")
@@ -311,6 +317,10 @@ def check_take_profit_stop_loss(
             continue  # not held -> drop any stale peak
 
         price = portfolio["prices"][symbol]
+        if qty * price < MIN_SELL_NOTIONAL_USD:
+            # Unsellable dust (below Alpaca's min order) -- not a real position.
+            # Drop its peak and stop trying to exit it every poll.
+            continue
         peak = max(peaks.get(symbol, basis), price)
 
         reason, is_stop_loss = _decide_mechanical_exit(settings, base, basis, price, peak)
