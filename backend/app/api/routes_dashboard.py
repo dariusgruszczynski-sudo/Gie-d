@@ -71,6 +71,11 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "max_position_pct": settings.max_position_pct,
         "whitelist": settings.whitelist_symbols,
         "poll_interval_minutes": settings.poll_interval_minutes,
+        # eToro (24-7 crypto/forex) venue -- lets the dashboard show/hide the
+        # second portfolio panel and its whitelist.
+        "etoro_enabled": settings.etoro_enabled,
+        "etoro_whitelist": settings.etoro_whitelist_symbols,
+        "etoro_mode": ("paper" if settings.etoro_paper else "live") if settings.etoro_enabled else None,
         **_serialize_session_info(settings),
         **budget_tracker.get_budget_status(db, settings),
     }
@@ -79,11 +84,15 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
 @router.get("/portfolio")
 def get_portfolio(
     limit: int = Query(200, le=2000),
+    venue: str = "alpaca",
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):
     rows = db.execute(
-        select(PortfolioSnapshot).order_by(PortfolioSnapshot.timestamp.desc()).limit(limit)
+        select(PortfolioSnapshot)
+        .where(PortfolioSnapshot.venue == venue)
+        .order_by(PortfolioSnapshot.timestamp.desc())
+        .limit(limit)
     ).scalars().all()
     history = [serialize(r) for r in reversed(rows)]
     current = history[-1] if history else None
@@ -91,25 +100,31 @@ def get_portfolio(
     # Queried separately (not just history[0]) so "since the very beginning"
     # P&L stays correct even once more than `limit` snapshots have accumulated.
     inception_row = db.execute(
-        select(PortfolioSnapshot).order_by(PortfolioSnapshot.timestamp.asc()).limit(1)
+        select(PortfolioSnapshot)
+        .where(PortfolioSnapshot.venue == venue)
+        .order_by(PortfolioSnapshot.timestamp.asc())
+        .limit(1)
     ).scalar_one_or_none()
     inception = serialize(inception_row) if inception_row else None
 
-    # Average entry price per currently-held base asset ("XBT" -> 61234.5), so
+    whitelist = settings.etoro_whitelist_symbols if venue == "etoro" else settings.whitelist_symbols
+
+    # Average entry price per currently-held base asset ("BTC" -> 61234.5), so
     # the dashboard can show per-position unrealized P&L. Keyed by base asset to
     # match balances_json.
     cost_basis: dict[str, float] = {}
-    for symbol in settings.whitelist_symbols:
-        basis = average_cost_basis(db, symbol)
+    for symbol in whitelist:
+        basis = average_cost_basis(db, symbol, venue=venue)
         if basis is not None:
             base = symbol[: -len(settings.quote_currency)] if symbol.endswith(settings.quote_currency) else symbol
             cost_basis[base] = round(basis, 6)
 
     # Scorecard vs buy-and-hold benchmark, computed from the latest snapshot's
     # prices (no live broker call needed on this hot, auth-gated endpoint).
+    # Account-wide benchmark is Alpaca-driven; the crypto venue has no scorecard.
     latest = rows[0] if rows else None
     card = None
-    if latest is not None:
+    if latest is not None and venue == "alpaca":
         snapshot_portfolio = {
             "total_value_usdt": latest.total_value_usdt,
             "prices": json.loads(latest.prices_json or "{}"),
@@ -122,6 +137,7 @@ def get_portfolio(
         "inception": inception,
         "cost_basis": cost_basis,
         "scorecard": card,
+        "venue": venue,
     }
 
 
@@ -171,12 +187,18 @@ async def events():
 
 
 @router.get("/trades")
-def get_trades(limit: int = Query(100, le=1000), db: Session = Depends(get_db)):
-    rows = db.execute(select(Trade).order_by(Trade.timestamp.desc()).limit(limit)).scalars().all()
+def get_trades(limit: int = Query(100, le=1000), venue: str | None = None, db: Session = Depends(get_db)):
+    stmt = select(Trade).order_by(Trade.timestamp.desc()).limit(limit)
+    if venue is not None:
+        stmt = select(Trade).where(Trade.venue == venue).order_by(Trade.timestamp.desc()).limit(limit)
+    rows = db.execute(stmt).scalars().all()
     return [serialize(r) for r in rows]
 
 
 @router.get("/decisions")
-def get_decisions(limit: int = Query(100, le=1000), db: Session = Depends(get_db)):
-    rows = db.execute(select(Decision).order_by(Decision.timestamp.desc()).limit(limit)).scalars().all()
+def get_decisions(limit: int = Query(100, le=1000), venue: str | None = None, db: Session = Depends(get_db)):
+    stmt = select(Decision).order_by(Decision.timestamp.desc()).limit(limit)
+    if venue is not None:
+        stmt = select(Decision).where(Decision.venue == venue).order_by(Decision.timestamp.desc()).limit(limit)
+    rows = db.execute(stmt).scalars().all()
     return [serialize(r) for r in rows]

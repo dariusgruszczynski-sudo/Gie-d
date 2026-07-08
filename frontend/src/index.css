@@ -1388,3 +1388,105 @@ button {
     animation: none;
   }
 }
+
+/* ---- Dual-portfolio (Alpaca day / eToro night) ---- */
+.portfolios-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.portfolio-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.portfolio-card-alpaca {
+  border-left-color: var(--accent);
+}
+.portfolio-card-etoro {
+  border-left-color: var(--amber);
+}
+.portfolio-card-total {
+  border-left-color: var(--green);
+}
+.portfolio-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.portfolio-card-label {
+  font-weight: 600;
+  color: var(--text);
+}
+.portfolio-card-sub {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.portfolio-card-value {
+  font-family: var(--font-mono);
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: var(--gold-bright);
+}
+.portfolio-card-value.muted {
+  font-size: 1rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+.portfolio-card-pnl {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  margin-top: 2px;
+}
+.portfolio-card-pnl.up {
+  color: var(--green);
+}
+.portfolio-card-pnl.down {
+  color: var(--red);
+}
+.venue-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+.venue-dot-alpaca {
+  background: var(--accent);
+}
+.venue-dot-etoro {
+  background: var(--amber);
+}
+.venue-mode-tag {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(245, 181, 68, 0.15);
+  color: var(--amber);
+  border: 1px solid rgba(245, 181, 68, 0.3);
+}
+.venue-section-etoro {
+  border: 1px solid rgba(245, 181, 68, 0.25);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: rgba(245, 181, 68, 0.03);
+}
+.venue-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.venue-section-header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}

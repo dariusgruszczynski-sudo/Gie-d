@@ -11,6 +11,7 @@ import { ManualTradePanel } from "./components/ManualTradePanel";
 import { MarketLog } from "./components/MarketLog";
 import { PortfolioChart } from "./components/PortfolioChart";
 import { PortfolioHoldings } from "./components/PortfolioHoldings";
+import { PortfoliosBar } from "./components/PortfoliosBar";
 import { PriceTicker } from "./components/PriceTicker";
 import { Scorecard } from "./components/Scorecard";
 import { SessionClock } from "./components/SessionClock";
@@ -23,6 +24,8 @@ const REFRESH_MS = 15000;
 export default function App() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
+  const [etoroPortfolio, setEtoroPortfolio] = useState<PortfolioResponse | null>(null);
+  const [etoroTrades, setEtoroTrades] = useState<Trade[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -43,15 +46,26 @@ export default function App() {
     try {
       const [s, p, t, d] = await Promise.all([
         api.status(),
-        api.portfolio(),
-        api.trades(),
-        api.decisions(),
+        api.portfolio("alpaca"),
+        api.trades("alpaca"),
+        api.decisions("alpaca"),
       ]);
       setStatus(s);
       setPortfolio(p);
       setTrades(t);
       setDecisions(d);
       setError(null);
+
+      // The 24-7 crypto/forex portfolio is fetched only when the venue is
+      // enabled, so a single-broker setup pays no extra requests.
+      if (s.etoro_enabled) {
+        const [ep, et] = await Promise.all([api.portfolio("etoro"), api.trades("etoro")]);
+        setEtoroPortfolio(ep);
+        setEtoroTrades(et);
+      } else {
+        setEtoroPortfolio(null);
+        setEtoroTrades([]);
+      }
 
       if (seenDecisionIds.current === null) {
         // First load -- just remember what already exists, don't splash for history.
@@ -120,6 +134,15 @@ export default function App() {
 
         {status && <StatusBanner status={status} />}
 
+        {status && (
+          <PortfoliosBar
+            alpaca={portfolio}
+            etoro={etoroPortfolio}
+            etoroEnabled={status.etoro_enabled}
+            etoroMode={status.etoro_mode}
+          />
+        )}
+
         {status && <ControlToolbar status={status} onChanged={refresh} muted={muted} onToggleMuted={toggleMuted} />}
 
         {status && (
@@ -153,6 +176,32 @@ export default function App() {
         <div style={{ marginBottom: 16 }}>
           <TradesTable trades={trades} />
         </div>
+
+        {status?.etoro_enabled && (
+          <div className="venue-section venue-section-etoro">
+            <div className="venue-section-header">
+              <span className="venue-dot venue-dot-etoro" />
+              <h2>Portfel nocny — eToro (krypto / forex, 24-7)</h2>
+              {status.etoro_mode && (
+                <span className="venue-mode-tag">{status.etoro_mode === "paper" ? "DEMO" : "LIVE"}</span>
+              )}
+            </div>
+            <div className="ticker" style={{ marginBottom: 12 }}>
+              <AccountSummary
+                current={etoroPortfolio?.current ?? null}
+                inception={etoroPortfolio?.inception ?? null}
+              />
+              <PriceTicker history={etoroPortfolio?.history ?? []} whitelist={status.etoro_whitelist} />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <PortfolioHoldings
+                current={etoroPortfolio?.current ?? null}
+                costBasis={etoroPortfolio?.cost_basis ?? {}}
+              />
+            </div>
+            <TradesTable trades={etoroTrades} />
+          </div>
+        )}
 
         <MarketLog history={portfolio?.history ?? []} whitelist={status?.whitelist ?? []} />
       </div>

@@ -18,6 +18,9 @@ export interface StatusResponse {
   max_position_pct: number;
   whitelist: string[];
   poll_interval_minutes: number;
+  etoro_enabled: boolean;
+  etoro_whitelist: string[];
+  etoro_mode: "paper" | "live" | null;
   market_session: MarketSession;
   session_bounds: SessionBounds | null;
   claude_monthly_budget_usd: number;
@@ -69,6 +72,7 @@ export interface PortfolioResponse {
   cost_basis: Record<string, number>;
   // Strategy scorecard vs buy-and-hold benchmark (null on a fresh account).
   scorecard: Scorecard | null;
+  venue?: string;
 }
 
 export interface Trade {
@@ -116,9 +120,9 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   status: () => apiFetch<StatusResponse>("/api/status"),
-  portfolio: () => apiFetch<PortfolioResponse>("/api/portfolio?limit=2000"),
-  trades: () => apiFetch<Trade[]>("/api/trades"),
-  decisions: () => apiFetch<Decision[]>("/api/decisions"),
+  portfolio: (venue: string = "alpaca") => apiFetch<PortfolioResponse>(`/api/portfolio?limit=2000&venue=${venue}`),
+  trades: (venue?: string) => apiFetch<Trade[]>(venue ? `/api/trades?venue=${venue}` : "/api/trades"),
+  decisions: (venue?: string) => apiFetch<Decision[]>(venue ? `/api/decisions?venue=${venue}` : "/api/decisions"),
   logout: () => apiFetch<{ message: string }>("/api/auth/logout", { method: "POST" }),
   pause: () => apiFetch<unknown>("/api/control/pause", { method: "POST" }),
   resume: () => apiFetch<unknown>("/api/control/resume", { method: "POST" }),
