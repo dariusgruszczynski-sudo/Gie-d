@@ -16,6 +16,7 @@ import { Scorecard } from "./components/Scorecard";
 import { SessionClock } from "./components/SessionClock";
 import { StatusBanner } from "./components/StatusBanner";
 import { TradesTable } from "./components/TradesTable";
+import { VenueControls } from "./components/VenueControls";
 import { isSoundMuted, playTradeSound, setSoundMuted } from "./tradeSound";
 
 const REFRESH_MS = 15000;
@@ -153,7 +154,27 @@ export default function App() {
 
         {status && <StatusBanner status={status} />}
 
-        {/* ===== Panele kontrolne ===== */}
+        {/* ===== Panele kontrolne (per portfel) ===== */}
+        {status && (
+          <div className="grid">
+            <VenueControls
+              venue="alpaca"
+              label="Sterowanie — Alpaca (akcje)"
+              paused={status.is_paused}
+              halted={status.is_halted}
+              enabled
+              onChanged={refresh}
+            />
+            <VenueControls
+              venue="etoro"
+              label="Sterowanie — eToro (krypto/forex)"
+              paused={status.etoro_paused}
+              enabled={status.etoro_enabled}
+              onChanged={refresh}
+            />
+          </div>
+        )}
+
         {status && <ControlToolbar status={status} onChanged={refresh} muted={muted} onToggleMuted={toggleMuted} />}
 
         {status && (

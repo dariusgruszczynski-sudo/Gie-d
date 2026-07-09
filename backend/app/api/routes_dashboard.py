@@ -62,6 +62,7 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "mode": "testnet" if settings.alpaca_paper else "live",
         "quote_currency": settings.quote_currency,
         "is_paused": state.is_paused,
+        "etoro_paused": state.etoro_paused,
         "is_halted": state.is_halted,
         "halted_reason": state.halted_reason,
         "day_pnl_pct": day_pnl_pct,

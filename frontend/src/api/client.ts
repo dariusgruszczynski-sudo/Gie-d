@@ -9,6 +9,7 @@ export interface StatusResponse {
   mode: "testnet" | "live";
   quote_currency: string;
   is_paused: boolean;
+  etoro_paused: boolean;
   is_halted: boolean;
   halted_reason: string | null;
   day_pnl_pct: number | null;
@@ -124,10 +125,11 @@ export const api = {
   trades: (venue?: string) => apiFetch<Trade[]>(venue ? `/api/trades?venue=${venue}` : "/api/trades"),
   decisions: (venue?: string) => apiFetch<Decision[]>(venue ? `/api/decisions?venue=${venue}` : "/api/decisions"),
   logout: () => apiFetch<{ message: string }>("/api/auth/logout", { method: "POST" }),
-  pause: () => apiFetch<unknown>("/api/control/pause", { method: "POST" }),
-  resume: () => apiFetch<unknown>("/api/control/resume", { method: "POST" }),
-  runCycleNow: () => apiFetch<unknown>("/api/control/run-cycle-now", { method: "POST" }),
-  refreshPortfolio: () =>
+  pause: (venue: string = "alpaca") => apiFetch<unknown>(`/api/control/pause?venue=${venue}`, { method: "POST" }),
+  resume: (venue: string = "alpaca") => apiFetch<unknown>(`/api/control/resume?venue=${venue}`, { method: "POST" }),
+  runCycleNow: (venue: string = "alpaca") =>
+    apiFetch<unknown>(`/api/control/run-cycle-now?venue=${venue}`, { method: "POST" }),
+  refreshPortfolio: (venue: string = "alpaca") =>
     apiFetch<{
       total_value: number;
       quote_balance: number;
@@ -135,7 +137,7 @@ export const api = {
       prices: Record<string, number>;
       failed_symbols: string[];
       quote_currency: string;
-    }>("/api/control/refresh-portfolio", { method: "POST" }),
+    }>(`/api/control/refresh-portfolio?venue=${venue}`, { method: "POST" }),
   sendReportNow: () => apiFetch<{ message: string }>("/api/control/send-report-now", { method: "POST" }),
   restart: () => apiFetch<{ message: string }>("/api/control/restart", { method: "POST" }),
   manualTrade: (body: {

@@ -115,9 +115,21 @@ def _scorecard_html(card: dict | None) -> str:
     </div>"""
 
 
+def _venue_tag(venue: str) -> str:
+    is_etoro = venue == "etoro"
+    color = "#f5b544" if is_etoro else GOLD
+    label = "eToro" if is_etoro else "Alpaca"
+    return (
+        f'<span style="font-size:10px;font-weight:700;color:{color};border:1px solid {color};'
+        f'border-radius:4px;padding:1px 5px;">{label}</span>'
+    )
+
+
 def _build_html(
     *,
-    current: PortfolioSnapshot | None,
+    alpaca_current: PortfolioSnapshot | None,
+    etoro_current: PortfolioSnapshot | None,
+    etoro_enabled: bool,
     day_pnl_pct: float | None,
     week_pnl_pct: float | None,
     state,
@@ -128,12 +140,17 @@ def _build_html(
     scorecard_card: dict | None = None,
 ) -> str:
     mode_label = "PRODUKCJA (realny kapitał)"
-    status_line = "zatrzymany (limit strat)" if state.is_halted else "zapauzowany" if state.is_paused else "aktywny"
+    alpaca_status = "zatrzymany (limit strat)" if state.is_halted else "zapauzowany" if state.is_paused else "aktywny"
+    etoro_status = "wyłączony" if not etoro_enabled else ("zatrzymany" if state.etoro_paused else "aktywny")
+
+    alpaca_val = alpaca_current.total_value_usdt if alpaca_current else 0.0
+    etoro_val = etoro_current.total_value_usdt if (etoro_enabled and etoro_current) else 0.0
+    total_val = alpaca_val + etoro_val
 
     decisions_rows = "".join(
         f"""
         <tr>
-          <td style="padding:6px 10px;border-bottom:1px solid {BORDER};color:{MUTED};font-size:12px;white-space:nowrap;">{d.timestamp.strftime('%d.%m %H:%M')}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid {BORDER};color:{MUTED};font-size:12px;white-space:nowrap;">{d.timestamp.strftime('%d.%m %H:%M')} {_venue_tag(d.venue)}</td>
           <td style="padding:6px 10px;border-bottom:1px solid {BORDER};font-size:12px;">
             <span style="color:{GREEN if d.action.value=='BUY' else RED if d.action.value=='SELL' else MUTED};font-weight:600;">{d.action.value}</span>
             {(' ' + d.symbol) if d.symbol else ''}
@@ -148,7 +165,7 @@ def _build_html(
     trades_rows = "".join(
         f"""
         <tr>
-          <td style="padding:6px 10px;border-bottom:1px solid {BORDER};color:{MUTED};font-size:12px;white-space:nowrap;">{t.timestamp.strftime('%d.%m %H:%M')}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid {BORDER};color:{MUTED};font-size:12px;white-space:nowrap;">{t.timestamp.strftime('%d.%m %H:%M')} {_venue_tag(t.venue)}</td>
           <td style="padding:6px 10px;border-bottom:1px solid {BORDER};font-size:12px;">
             <span style="color:{GREEN if t.side=='BUY' else RED};font-weight:600;">{t.side}</span> {t.symbol}
           </td>
@@ -163,12 +180,16 @@ def _build_html(
         else "Brak jeszcze analizy Claude — automat czeka na pierwszy cykl."
     )
     outlook_meta = (
-        f"({latest_decision.timestamp.strftime('%d.%m %H:%M')}, pewność {latest_decision.confidence * 100:.0f}%)"
+        f"({latest_decision.timestamp.strftime('%d.%m %H:%M')}, {_venue_tag(latest_decision.venue)}, pewność {latest_decision.confidence * 100:.0f}%)"
         if latest_decision
         else ""
     )
 
-    current_value = f"${current.total_value_usdt:,.2f}" if current else "—"
+    etoro_cell = (
+        f'${etoro_val:,.2f} <span style="color:{MUTED};font-size:11px;">({etoro_status})</span>'
+        if etoro_enabled
+        else f'<span style="color:{MUTED};">wyłączony</span>'
+    )
 
     return f"""\
 <div style="background:{BG};padding:24px 16px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:{TEXT};">
@@ -177,21 +198,22 @@ def _build_html(
       <div style="width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,{GOLD},{GOLD_BRIGHT});display:inline-block;text-align:center;line-height:40px;font-size:20px;">📈</div>
       <div style="text-align:left;">
         <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px;color:{TEXT};">Giel<span style="color:{GOLD};">Darek</span></div>
-        <div style="color:{MUTED};font-size:12px;margin-top:2px;">Dzienny raport · {date.today().strftime('%d.%m.%Y')}</div>
+        <div style="color:{MUTED};font-size:12px;margin-top:2px;">Dzienny raport · {date.today().strftime('%d.%m.%Y')} · {mode_label}</div>
       </div>
     </div>
 
     <div style="background:{PANEL};border:1px solid {BORDER};border-radius:10px;padding:16px;margin-bottom:16px;">
+      <div style="color:{GOLD};font-size:13px;font-weight:700;margin-bottom:10px;">Portfele — widok zbiorczy</div>
       <table style="width:100%;border-collapse:collapse;">
         <tr>
-          <td style="color:{MUTED};font-size:11px;">TRYB</td>
-          <td style="color:{MUTED};font-size:11px;">STATUS AUTOMATU</td>
-          <td style="color:{MUTED};font-size:11px;">WARTOŚĆ PORTFELA</td>
+          <td style="color:{MUTED};font-size:11px;">PORTFEL DZIENNY (ALPACA)</td>
+          <td style="color:{MUTED};font-size:11px;">PORTFEL NOCNY (ETORO)</td>
+          <td style="color:{MUTED};font-size:11px;">RAZEM</td>
         </tr>
         <tr>
-          <td style="font-weight:700;padding-top:2px;">{mode_label}</td>
-          <td style="font-weight:700;padding-top:2px;">{status_line}</td>
-          <td style="font-weight:700;padding-top:2px;">{current_value}</td>
+          <td style="font-weight:700;padding-top:2px;">${alpaca_val:,.2f} <span style="color:{MUTED};font-size:11px;">({alpaca_status})</span></td>
+          <td style="font-weight:700;padding-top:2px;">{etoro_cell}</td>
+          <td style="font-weight:800;padding-top:2px;color:{GOLD_BRIGHT};">${total_val:,.2f}</td>
         </tr>
       </table>
     </div>
@@ -241,42 +263,53 @@ def _build_html(
 """
 
 
-def build_report(db: Session, settings: Settings) -> tuple[str, bytes]:
-    current = db.execute(
-        select(PortfolioSnapshot).order_by(PortfolioSnapshot.timestamp.desc()).limit(1)
+def _latest_snapshot(db: Session, venue: str) -> PortfolioSnapshot | None:
+    return db.execute(
+        select(PortfolioSnapshot)
+        .where(PortfolioSnapshot.venue == venue)
+        .order_by(PortfolioSnapshot.timestamp.desc())
+        .limit(1)
     ).scalar_one_or_none()
+
+
+def build_report(db: Session, settings: Settings) -> tuple[str, bytes]:
+    alpaca_current = _latest_snapshot(db, "alpaca")
+    etoro_current = _latest_snapshot(db, "etoro")
     since = datetime.utcnow() - timedelta(days=7)
+    # Chart tracks the Alpaca (day) portfolio -- the account-wide day/week
+    # loss baselines are Alpaca-driven.
     history = list(
         db.execute(
             select(PortfolioSnapshot)
-            .where(PortfolioSnapshot.timestamp >= since)
+            .where(PortfolioSnapshot.timestamp >= since, PortfolioSnapshot.venue == "alpaca")
             .order_by(PortfolioSnapshot.timestamp.asc())
         ).scalars()
     )
 
     state = risk_manager.get_state(db)
     day_pnl_pct = (
-        (current.total_value_usdt - state.day_start_value) / state.day_start_value * 100
-        if current and state.day_start_value > 0
+        (alpaca_current.total_value_usdt - state.day_start_value) / state.day_start_value * 100
+        if alpaca_current and state.day_start_value > 0
         else None
     )
     week_pnl_pct = (
-        (current.total_value_usdt - state.week_start_value) / state.week_start_value * 100
-        if current and state.week_start_value > 0
+        (alpaca_current.total_value_usdt - state.week_start_value) / state.week_start_value * 100
+        if alpaca_current and state.week_start_value > 0
         else None
     )
     budget = budget_tracker.get_budget_status(db, settings)
 
+    # Recent activity across BOTH portfolios so the report is a single
+    # collective view (each row is tagged with its venue).
     recent_decisions = list(
-        db.execute(select(Decision).order_by(Decision.timestamp.desc()).limit(10)).scalars()
+        db.execute(select(Decision).order_by(Decision.timestamp.desc()).limit(12)).scalars()
     )
     latest_decision = recent_decisions[0] if recent_decisions else None
-    recent_trades = list(db.execute(select(Trade).order_by(Trade.timestamp.desc()).limit(10)).scalars())
+    recent_trades = list(db.execute(select(Trade).order_by(Trade.timestamp.desc()).limit(12)).scalars())
 
-    # Scorecard vs buy-and-hold, computed from the latest snapshot's stored
-    # prices -- no live broker call inside the mail path.
+    # Scorecard vs buy-and-hold (Alpaca only -- SPY benchmark).
     card = None
-    if current is not None:
+    if alpaca_current is not None:
         import json as _json
 
         from app.services import scorecard as scorecard_svc
@@ -284,12 +317,14 @@ def build_report(db: Session, settings: Settings) -> tuple[str, bytes]:
         card = scorecard_svc.compute_scorecard(
             db,
             settings,
-            {"total_value_usdt": current.total_value_usdt, "prices": _json.loads(current.prices_json or "{}")},
+            {"total_value_usdt": alpaca_current.total_value_usdt, "prices": _json.loads(alpaca_current.prices_json or "{}")},
         )
 
     chart_png = _render_chart_png(history)
     html = _build_html(
-        current=current,
+        alpaca_current=alpaca_current,
+        etoro_current=etoro_current,
+        etoro_enabled=settings.etoro_enabled,
         day_pnl_pct=day_pnl_pct,
         week_pnl_pct=week_pnl_pct,
         state=state,

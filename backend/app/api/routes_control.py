@@ -22,15 +22,21 @@ router = APIRouter(prefix="/api/control", tags=["control"])
 
 
 @router.post("/pause")
-def pause(db: Session = Depends(get_db)):
-    state = risk_manager.pause(db)
+def pause(venue: str = "alpaca", db: Session = Depends(get_db)):
+    state = risk_manager.pause(db, venue)
     return serialize(state)
 
 
 @router.post("/resume")
-def resume(db: Session = Depends(get_db)):
-    state = risk_manager.resume(db)
+def resume(venue: str = "alpaca", db: Session = Depends(get_db)):
+    state = risk_manager.resume(db, venue)
     return serialize(state)
+
+
+def _broker_for(venue: str, settings: Settings):
+    if venue == "etoro":
+        return EToroClient(settings), settings.etoro_whitelist_symbols, True
+    return AlpacaClient(settings), settings.whitelist_symbols, False
 
 
 class ManualTradeRequest(BaseModel):
@@ -79,33 +85,40 @@ def manual_trade(
 
 
 @router.post("/run-cycle-now")
-def run_cycle_now(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+def run_cycle_now(venue: str = "alpaca", db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     """Forces one full Claude analysis immediately (bypassing the price/schedule
     trigger gate) instead of waiting for the scheduler's next poll -- this is
     the dashboard's "Wymuś analizę" button, so it must always produce a
-    decision rather than returning 'no trigger'."""
-    broker = AlpacaClient(settings)
+    decision rather than returning 'no trigger'. Per venue (Alpaca/eToro)."""
+    if venue == "etoro" and not settings.etoro_enabled:
+        raise HTTPException(status_code=400, detail="Portfel eToro jest wyłączony (ETORO_ENABLED=false)")
+    broker, whitelist, always_open = _broker_for(venue, settings)
     news = NewsClient(settings)
     advisor = ClaudeAdvisor(settings)
     market_ctx = MarketContextClient()
     try:
-        decision = run_cycle(db, settings, broker, news, advisor, market_ctx, force=True)
+        decision = run_cycle(
+            db, settings, broker, news, advisor, market_ctx, force=True,
+            venue=venue, whitelist=whitelist, always_open=always_open,
+        )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
-    return serialize(decision) if decision is not None else {"message": "Brak danych rynkowych z Alpaca w tym cyklu"}
+    return serialize(decision) if decision is not None else {"message": "Brak danych rynkowych w tym cyklu"}
 
 
 @router.post("/refresh-portfolio")
-def refresh_portfolio(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
-    """Reads the live account balance + current prices from Alpaca and records
-    one portfolio snapshot -- WITHOUT calling Claude and WITHOUT placing any
-    order. This is the safe "sprawdź czy widzę konto" button: it proves the
-    API key works and populates the dashboard (saldo, ceny, pozycje) on demand,
-    at zero Claude cost and zero trading risk, even while the automat is
-    stopped before START."""
-    broker = AlpacaClient(settings)
+def refresh_portfolio(venue: str = "alpaca", db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """Reads the live account balance + current prices from the venue's broker
+    and records one portfolio snapshot -- WITHOUT calling Claude and WITHOUT
+    placing any order. This is the safe "sprawdź czy widzę konto" button: it
+    proves the API key works and populates the dashboard (saldo, ceny, pozycje)
+    on demand, at zero Claude cost and zero trading risk, even while the automat
+    is stopped before START."""
+    if venue == "etoro" and not settings.etoro_enabled:
+        raise HTTPException(status_code=400, detail="Portfel eToro jest wyłączony (ETORO_ENABLED=false)")
+    broker, whitelist, _ = _broker_for(venue, settings)
     try:
-        portfolio = compute_portfolio(db, settings, broker)
+        portfolio = compute_portfolio(db, settings, broker, venue=venue, whitelist=whitelist)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
     return {

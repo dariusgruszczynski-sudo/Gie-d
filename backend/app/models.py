@@ -109,7 +109,11 @@ class SystemState(Base):
     __tablename__ = "system_state"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
-    is_paused: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_paused: Mapped[bool] = mapped_column(Boolean, default=False)  # Alpaca (day) venue manual pause
+    # eToro (night) venue manual pause -- independent START/STOP from the
+    # Alpaca one. Defaults paused so a freshly-enabled venue never trades until
+    # the human presses START. is_halted (loss-limit auto-stop) stays global.
+    etoro_paused: Mapped[bool] = mapped_column(Boolean, default=True)
     is_halted: Mapped[bool] = mapped_column(Boolean, default=False)
     halted_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     day_start_date: Mapped[str] = mapped_column(String(10), default="")

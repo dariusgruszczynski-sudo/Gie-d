@@ -439,9 +439,15 @@ h1 {
 
 .grid {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 1fr 1fr; /* equal halves so side-by-side panels match */
   gap: 16px;
   margin-bottom: 16px;
+  align-items: start;
+}
+/* Keep a wide table (its own overflow-x) from stretching its grid column past
+   its 50% share, so both sides stay equal width. */
+.grid > * {
+  min-width: 0;
 }
 
 @media (max-width: 800px) {
@@ -1535,4 +1541,28 @@ button {
 .venue-section-alpaca {
   border-left: 3px solid var(--accent);
   padding-left: 12px;
+}
+
+/* ---- Per-venue control panels ---- */
+.venue-controls-alpaca {
+  border-left: 3px solid var(--accent);
+}
+.venue-controls-etoro {
+  border-left: 3px solid var(--amber);
+}
+.venue-controls-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.venue-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.venue-controls-row .btn-hero {
+  min-width: 96px;
 }

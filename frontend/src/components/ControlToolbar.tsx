@@ -97,7 +97,6 @@ export function ControlToolbar({
 }) {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ text: string; kind: "ok" | "error" } | null>(null);
-  const isStopped = status.is_paused || status.is_halted;
 
   useEffect(() => {
     if (!feedback) return;
@@ -120,25 +119,6 @@ export function ControlToolbar({
     }
   }
 
-  async function refreshPortfolio() {
-    setBusy(true);
-    setFeedback(null);
-    try {
-      const p = await api.refreshPortfolio();
-      const cur = p.quote_currency === "USD" ? "$" : p.quote_currency + " ";
-      const failed = p.failed_symbols.length > 0 ? ` · brak ceny dla: ${p.failed_symbols.join(", ")}` : "";
-      setFeedback({
-        text: `Alpaca OK — saldo ${cur}${p.total_value.toFixed(2)} (wolne ${cur}${p.quote_balance.toFixed(2)})${failed}`,
-        kind: "ok",
-      });
-      onChanged();
-    } catch (e) {
-      setFeedback({ text: `Alpaca niedostępna: ${String(e)}`, kind: "error" });
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function logOff() {
     setBusy(true);
     try {
@@ -156,38 +136,17 @@ export function ControlToolbar({
   return (
     <div className="toolbar-wrap">
       <div className="toolbar">
-        <div className="toolbar-main">
-          <button
-            className={`btn-hero ${isStopped ? "btn-primary" : "btn-danger"}`}
-            disabled={busy}
-            onClick={() => run(isStopped ? api.resume : api.pause)}
-          >
-            <Icon name={isStopped ? "play" : "pause"} />
-            {isStopped ? "START — automatyczny handel" : "STOP automat"}
-          </button>
-          <span className={`toolbar-status-dot ${isStopped ? "" : "toolbar-status-dot-live"}`} />
-          <span className="toolbar-status-hint">{isStopped ? "Automat nie handluje" : "Automat aktywny, monitoruje rynek"}</span>
-        </div>
-
-        <div className="toolbar-divider" />
-
         <div className="toolbar-section">
-          <span className="toolbar-section-label">Akcje</span>
+          <span className="toolbar-section-label">Globalne</span>
           <div className="toolbar-row">
-            <button className="btn-secondary" disabled={busy} onClick={refreshPortfolio}>
-              <Icon name="refresh" />
-              Odśwież portfel
-            </button>
-            <button className="btn-secondary" disabled={busy} onClick={() => run(api.runCycleNow)}>
-              <Icon name="bolt" />
-              Wymuś analizę
-            </button>
             <button className="btn-secondary" disabled={busy} onClick={() => run(api.sendReportNow, false)}>
               <Icon name="mail" />
               Wyślij raport
             </button>
           </div>
         </div>
+
+        <div className="toolbar-divider" />
 
         <div className="toolbar-section toolbar-section-end">
           <span className="toolbar-section-label">Ustawienia</span>

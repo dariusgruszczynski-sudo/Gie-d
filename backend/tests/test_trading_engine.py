@@ -752,6 +752,7 @@ def test_etoro_venue_cycle_is_isolated_and_stamped(db_session, settings, monkeyp
     from app.models import Trade
 
     etoro_settings = settings.model_copy(update={"etoro_enabled": True})
+    risk_manager.resume(db_session, "etoro")  # eToro starts paused -> press START
     # Alpaca would be CLOSED right now -- eToro must trade anyway.
     monkeypatch.setattr(
         trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.CLOSED)

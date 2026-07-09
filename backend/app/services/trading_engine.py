@@ -350,7 +350,7 @@ def check_take_profit_stop_loss(
     trailing stop and clears it once the position is closed."""
     session = session_info.session if session_info is not None else market_hours.REGULAR
     tradable = True if always_open else market_hours.is_tradable_session(session)
-    if not tradable or not risk_manager.can_trade_automated(db).approved:
+    if not tradable or not risk_manager.can_trade_automated(db, venue).approved:
         return []
 
     symbols = whitelist if whitelist is not None else settings.whitelist_symbols
@@ -592,7 +592,7 @@ def run_cycle(
     elif not triggered:
         return None
 
-    trade_check = risk_manager.can_trade_automated(db)
+    trade_check = risk_manager.can_trade_automated(db, venue)
 
     # On a *scheduled* cycle, skip the (paid) Claude call entirely when
     # automated trading is halted or paused -- the decision could only ever be
@@ -818,7 +818,7 @@ def run_cycle(
     # Re-check right before placing the order: the Claude call above can take
     # several seconds, and a "Zatrzymaj automat" click during that window
     # should still stop the trade rather than only affecting the *next* cycle.
-    final_check = risk_manager.can_trade_automated(db)
+    final_check = risk_manager.can_trade_automated(db, venue)
     if not final_check.approved:
         decision.rejection_reason = f"Zatrzymano tuż przed wykonaniem: {final_check.reason}"
         db.commit()

@@ -112,12 +112,16 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
     return state
 
 
-def can_trade_automated(db: Session) -> ValidationResult:
+def _venue_paused(state: SystemState, venue: str) -> bool:
+    return state.etoro_paused if venue == "etoro" else state.is_paused
+
+
+def can_trade_automated(db: Session, venue: str = "alpaca") -> ValidationResult:
     state = get_state(db)
-    if state.is_halted:
+    if state.is_halted:  # loss-limit auto-stop is account-wide -> blocks both venues
         return ValidationResult(False, state.halted_reason or "Automat zatrzymany przez limit strat")
-    if state.is_paused:
-        return ValidationResult(False, "Automat zapauzowany ręcznie")
+    if _venue_paused(state, venue):
+        return ValidationResult(False, f"Automat ({venue}) zapauzowany ręcznie")
     return ValidationResult(True)
 
 
@@ -160,27 +164,34 @@ def validate_trade(
     return ValidationResult(True)
 
 
-def pause(db: Session) -> SystemState:
+def pause(db: Session, venue: str = "alpaca") -> SystemState:
     state = get_state(db)
-    state.is_paused = True
+    if venue == "etoro":
+        state.etoro_paused = True
+    else:
+        state.is_paused = True
     db.commit()
-    _log_event(db, "manual_pause", "Automat zatrzymany ręcznie z dashboardu")
+    _log_event(db, "manual_pause", f"Automat ({venue}) zatrzymany ręcznie z dashboardu")
     db.refresh(state)
     return state
 
 
-def resume(db: Session) -> SystemState:
+def resume(db: Session, venue: str = "alpaca") -> SystemState:
     state = get_state(db)
-    state.is_paused = False
-    state.is_halted = False
-    state.halted_reason = None
-    # Force the day/week loss baselines to re-initialize to the current
-    # portfolio value on the next update_portfolio_value() call -- otherwise a
-    # halt tripped earlier today re-trips itself on the very next cycle,
-    # since the old (pre-loss) baseline is still in place.
-    state.day_start_date = ""
-    state.week_start_date = ""
+    if venue == "etoro":
+        state.etoro_paused = False
+    else:
+        state.is_paused = False
+        # The loss-limit halt is account-wide; clear it on the main (Alpaca)
+        # resume and force the day/week loss baselines to re-initialize to the
+        # current portfolio value on the next update_portfolio_value() call --
+        # otherwise a halt tripped earlier today re-trips itself on the very
+        # next cycle, since the old (pre-loss) baseline is still in place.
+        state.is_halted = False
+        state.halted_reason = None
+        state.day_start_date = ""
+        state.week_start_date = ""
     db.commit()
-    _log_event(db, "manual_resume", "Automat wznowiony ręcznie z dashboardu")
+    _log_event(db, "manual_resume", f"Automat ({venue}) wznowiony ręcznie z dashboardu")
     db.refresh(state)
     return state
