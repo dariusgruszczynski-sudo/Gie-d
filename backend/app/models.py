@@ -135,6 +135,16 @@ class SystemState(Base):
     # JSON dict {ticker -> highest price seen since entry} -- drives the
     # trailing stop. Cleared per ticker when the position is closed.
     position_peaks_json: Mapped[str] = mapped_column(Text, default="{}")
+    # JSON dict {ticker -> true} marking positions whose partial take-profit has
+    # already been booked, so the partial only fires once per position (not on
+    # every subsequent poll). Cleared per ticker when the position is closed.
+    partial_tp_taken_json: Mapped[str] = mapped_column(Text, default="{}")
+    etoro_partial_tp_taken_json: Mapped[str] = mapped_column(Text, default="{}")
+    # JSON dict {ticker -> [ISO timestamps of recent stop-losses]} -- drives the
+    # auto-blacklist: a ticker that stop-losses too many times in a short window
+    # gets quarantined (a long re-buy cooldown) instead of being retried.
+    stop_loss_streak_json: Mapped[str] = mapped_column(Text, default="{}")
+    etoro_stop_loss_streak_json: Mapped[str] = mapped_column(Text, default="{}")
     # JSON dict {ticker -> [recent per-ticker headline titles]} -- lets the
     # bot detect a brand-new headline (earnings, material single-stock news)
     # the moment it's published and wake Claude immediately, independent of

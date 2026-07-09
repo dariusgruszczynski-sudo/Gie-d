@@ -114,12 +114,14 @@ def start_scheduler() -> BackgroundScheduler:
         ),
         id="daily_report",
     )
-    # Weekly self-review: Saturday evening, after the week's last US session,
-    # so Monday's first cycle already trades with fresh lessons in context.
+    # Daily self-review: every morning before the US open, so each session
+    # starts with fresh lessons distilled from the last 7 days of trades. Moved
+    # from weekly to daily -- a bot trading every day needs faster feedback than
+    # one review a week (the review itself is a single cheap fast-model call).
     scheduler.add_job(
         _self_review_job,
-        CronTrigger(day_of_week="sat", hour=10, minute=0, timezone=settings.report_timezone),
-        id="weekly_self_review",
+        CronTrigger(hour=12, minute=0, timezone=settings.report_timezone),
+        id="daily_self_review",
     )
     scheduler.start()
     _scheduler = scheduler

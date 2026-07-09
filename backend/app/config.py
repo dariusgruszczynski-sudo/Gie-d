@@ -73,6 +73,58 @@ class Settings(BaseSettings):
     take_profit_pct: float = 3.0
     trailing_stop_enabled: bool = True
     trailing_stop_pct: float = 1.5
+    # --- Geometria zysk/ryzyko (Pakiet 1) -----------------------------------
+    # After the ATR stop change the reward side stayed fixed (+3% arm, 1.5%
+    # trail) while stops widened to 2.5-12% -- an INVERTED risk/reward that cut
+    # winners early and let losers run to the stop (the diagnostic showed 0 wins
+    # / all exits stop-losses). Couple the reward to the (vol-scaled) stop
+    # distance so they stay in proportion: the take-profit ARM sits at
+    # stop_dist * reward_risk_ratio and the trailing at stop_dist *
+    # trailing_stop_frac. Set reward_risk_ratio=0 to fall back to the fixed
+    # take_profit_pct / trailing_stop_pct above.
+    reward_risk_ratio: float = 1.5
+    trailing_stop_frac: float = 0.5
+    # Partial profit-taking: once a position reaches +partial_take_profit_r *
+    # stop_dist, sell partial_take_profit_frac of it and let the rest run under
+    # the trailing stop. This books a realized WIN (take-profit alone almost
+    # never fired) while keeping upside open. Set enabled=False to disable.
+    partial_take_profit_enabled: bool = True
+    partial_take_profit_frac: float = 0.5
+    partial_take_profit_r: float = 1.0
+    # --- Anty-churn (Pakiet 2) ----------------------------------------------
+    # Hard conviction floor: an automated BUY below this confidence is rejected
+    # outright -- cash is a valid position, don't trade a weak edge. 0 disables.
+    min_buy_confidence: float = 0.60
+    # Cap on NEW automated BUY entries per venue per calendar day -- stops a
+    # small account churning on many low-edge entries. 0 disables.
+    max_new_positions_per_day: int = 3
+    # Minimum holding time (minutes) before a NON-stop mechanical exit (trailing
+    # / take-profit / partial) may fire. The hard stop-loss is ALWAYS allowed.
+    # Kills in-and-out round trips that only pay the spread. 0 disables.
+    min_hold_minutes: int = 30
+    # --- Sizing oparty na ryzyku + reżim rynku (Pakiet 3) -------------------
+    # Risk-based position cap: size a BUY so that hitting its stop costs at most
+    # risk_per_trade_pct of the WHOLE account (position_value * stop_dist =
+    # risk). Composed as a CAP with Claude's request and max_position_pct (only
+    # ever shrinks), so a wide-stop name automatically gets a smaller slice.
+    # 0 disables (falls back to the volatility-scaled sizing only).
+    risk_per_trade_pct: float = 1.0
+    # Market-regime gate: in a risk-off regime (benchmark below its long trend +
+    # elevated VIX / falling tape) only defensive/inverse names may be bought;
+    # everything else is forced to HOLD. The regime is ALWAYS passed to Claude
+    # as context regardless. Set regime_gate_enabled=False to keep the context
+    # signal but drop the hard block.
+    regime_gate_enabled: bool = True
+    regime_vix_risk_off: float = 25.0
+    defensive_symbols: str = "GLD,TLT,SH,PSQ"
+    # --- Auto-blacklist po serii stop-lossów (Pakiet 4) ---------------------
+    # If a ticker stop-losses auto_blacklist_stop_count times within
+    # auto_blacklist_window_hours, quarantine it: block re-buying for
+    # auto_blacklist_hours (a long cooldown) -- a setup that keeps failing is
+    # parked instead of retried. Set auto_blacklist_stop_count=0 to disable.
+    auto_blacklist_stop_count: int = 3
+    auto_blacklist_window_hours: int = 24
+    auto_blacklist_hours: int = 48
     # Send an email the moment any trade executes (BUY/SELL, incl. TP/SL exits).
     # Uses the same SMTP config as the daily report; silently skipped if SMTP
     # isn't configured. Set False to keep only the daily report.
@@ -154,6 +206,13 @@ class Settings(BaseSettings):
     @property
     def etoro_whitelist_symbols(self) -> list[str]:
         return [s.strip().upper() for s in self.etoro_whitelist.split(",") if s.strip()]
+
+    @property
+    def defensive_symbol_list(self) -> list[str]:
+        """Names allowed to be BOUGHT even in a risk-off regime -- gold, bonds
+        and inverse ETFs that tend to hold up (or profit) when the broad market
+        falls. Everything else is HOLD-only while risk-off."""
+        return [s.strip().upper() for s in self.defensive_symbols.split(",") if s.strip()]
 
     @property
     def dashboard_credentials(self) -> dict[str, str]:

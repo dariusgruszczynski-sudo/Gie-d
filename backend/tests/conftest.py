@@ -41,4 +41,14 @@ def settings():
         # Earnings guard off by default in tests; the dedicated earnings test
         # sets it explicitly. (The calendar lookup itself is mocked to {}.)
         earnings_blackout_days=0,
+        # New profit/risk guards (Pakiet 1-4) default OFF here so the many
+        # existing exit/cycle tests keep their original behaviour; each
+        # dedicated test enables exactly the one it exercises via model_copy.
+        min_buy_confidence=0.0,
+        max_new_positions_per_day=0,
+        min_hold_minutes=0,
+        partial_take_profit_enabled=False,
+        risk_per_trade_pct=0.0,
+        regime_gate_enabled=False,
+        auto_blacklist_stop_count=0,
     )

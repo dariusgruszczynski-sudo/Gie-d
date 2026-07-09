@@ -936,3 +936,178 @@ def test_dynamic_stop_loss_scales_with_volatility(settings):
     # Disabled -> fixed stop regardless of volatility.
     off = s.model_copy(update={"stop_loss_vol_mult": 0.0})
     assert trading_engine.dynamic_stop_loss_pct(off, 3.0) == 2.0
+
+
+# ============================================================================
+# Pakiet 1 -- geometria zysk/ryzyko (coupled reward + partial take-profit)
+# ============================================================================
+def test_reward_levels_couple_to_stop_distance(settings):
+    """Take-profit arm, trailing and partial levels must scale WITH the stop
+    distance so the risk/reward ratio stays proportional (fixing the inverted
+    R:R). Falls back to fixed take_profit/trailing when coupling is disabled."""
+    s = settings.model_copy(update={
+        "reward_risk_ratio": 1.5, "trailing_stop_frac": 0.5,
+        "partial_take_profit_r": 1.0, "take_profit_pct": 3.0, "trailing_stop_pct": 1.5,
+    })
+    tp_arm, trailing, partial_r = trading_engine._reward_levels(s, 8.0)  # wide (volatile) stop
+    assert tp_arm == 12.0      # 8 * 1.5
+    assert trailing == 4.0     # 8 * 0.5
+    assert partial_r == 8.0    # 8 * 1.0
+    # Coupling disabled -> fixed thresholds regardless of stop distance.
+    off = s.model_copy(update={"reward_risk_ratio": 0.0})
+    tp_arm, trailing, _ = trading_engine._reward_levels(off, 8.0)
+    assert (tp_arm, trailing) == (3.0, 1.5)
+
+
+def test_partial_take_profit_sells_a_slice_once_then_holds(db_session, settings):
+    """At +partial_r the engine sells partial_take_profit_frac of the position
+    (locking a realized win) and lets the rest run -- and it must fire only
+    once, not on every subsequent poll."""
+    s = settings.model_copy(update={
+        "partial_take_profit_enabled": True, "partial_take_profit_frac": 0.5,
+        "partial_take_profit_r": 1.0,  # stop=2% (vol unknown) -> partial at +2%
+    })
+    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
+    trading_engine.execute_manual_trade(db_session, s, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
+    broker.prices["SPY"] = 102.5  # +2.5% >= partial_r (2%), below the +3% trailing arm
+
+    portfolio = trading_engine.compute_portfolio(db_session, s, broker)
+    exits = trading_engine.check_take_profit_stop_loss(db_session, s, broker, portfolio)
+    assert len(exits) == 1
+    assert "Częściowa realizacja" in exits[0].decision.reasoning
+    assert exits[0].quantity == pytest.approx(0.5)  # half of the 1 share
+    assert broker.balances["SPY"] == pytest.approx(0.5)  # remainder still held
+
+    # Same price next poll -> partial already booked, no second partial sell.
+    portfolio = trading_engine.compute_portfolio(db_session, s, broker)
+    assert trading_engine.check_take_profit_stop_loss(db_session, s, broker, portfolio) == []
+
+
+# ============================================================================
+# Pakiet 2 -- anty-churn (conviction floor, per-day cap, min hold)
+# ============================================================================
+def test_low_confidence_buy_is_rejected(db_session, settings):
+    s = settings.model_copy(update={"min_buy_confidence": 0.6})
+    broker = FakeAlpaca()
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.5, "Słaba przewaga."))
+    decision = trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor, force=True)
+    assert decision.executed is False
+    assert "Zbyt niska pewność" in (decision.rejection_reason or "")
+    assert len(broker.orders) == 0
+
+
+def test_max_new_positions_per_day_caps_entries(db_session, settings):
+    s = settings.model_copy(update={"max_new_positions_per_day": 1})
+    broker = FakeAlpaca()
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Mocny sygnał."))
+
+    first = trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor, force=True)
+    assert first.executed is True
+
+    second = trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor, force=True)
+    assert second.executed is False
+    assert "Limit nowych wejść" in (second.rejection_reason or "")
+    assert len(broker.orders) == 1
+
+
+def test_min_hold_blocks_non_stop_exit_but_never_the_stop(db_session, settings):
+    # Fixed take-profit so the non-stop exit has a clean 'take_profit' kind.
+    s = settings.model_copy(update={"min_hold_minutes": 30, "trailing_stop_enabled": False})
+    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
+    trading_engine.execute_manual_trade(db_session, s, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
+
+    # +4% would take-profit, but the position was just opened -> suppressed.
+    broker.prices["SPY"] = 104.0
+    portfolio = trading_engine.compute_portfolio(db_session, s, broker)
+    assert trading_engine.check_take_profit_stop_loss(db_session, s, broker, portfolio) == []
+
+    # The hard stop-loss must still fire regardless of the min-hold window.
+    broker.prices["SPY"] = 90.0
+    portfolio = trading_engine.compute_portfolio(db_session, s, broker)
+    exits = trading_engine.check_take_profit_stop_loss(db_session, s, broker, portfolio)
+    assert len(exits) == 1
+    assert "Stop-loss" in exits[0].decision.reasoning
+
+
+# ============================================================================
+# Pakiet 3 -- risk-based sizing + market-regime gate
+# ============================================================================
+def test_risk_based_size_cap_math(settings):
+    s = settings.model_copy(update={"risk_per_trade_pct": 1.0})
+    pf = {"total_value_usdt": 1000.0, "usdt_balance": 1000.0}
+    # Wide 10% stop -> risk $10 -> max position $100 -> 10% of free cash.
+    assert trading_engine.risk_based_size_cap(s, pf, 10.0) == 10.0
+    # Tight 2% stop -> risk $10 -> max position $500 -> 50% of free cash.
+    assert trading_engine.risk_based_size_cap(s, pf, 2.0) == 50.0
+    # Disabled -> no cap.
+    off = s.model_copy(update={"risk_per_trade_pct": 0.0})
+    assert trading_engine.risk_based_size_cap(off, pf, 10.0) == 100.0
+
+
+def test_compute_market_regime_classifies_risk_off_on_and_neutral(settings):
+    below = {"SPY": {"technical": {"sma50_vs_sma200_1h": "below"}}}
+    above = {"SPY": {"technical": {"sma50_vs_sma200_1h": "above"}}}
+    risk_off = trading_engine.compute_market_regime(below, {"vix_level": 30.0, "sp500_change_pct": -1.5}, settings)
+    assert risk_off["regime"] == "risk_off"
+    risk_on = trading_engine.compute_market_regime(above, {"vix_level": 14.0, "sp500_change_pct": 1.4}, settings)
+    assert risk_on["regime"] == "risk_on"
+    neutral = trading_engine.compute_market_regime({}, {}, settings)
+    assert neutral["regime"] == "neutral"
+
+
+def test_regime_gate_blocks_non_defensive_buy_but_allows_defensive(db_session, settings, monkeypatch):
+    s = settings.model_copy(update={"regime_gate_enabled": True, "trading_whitelist": "SPY,QQQ,GLD"})
+    monkeypatch.setattr(
+        trading_engine, "compute_market_regime",
+        lambda *a, **k: {"regime": "risk_off", "score": -2, "reasons": ["test risk-off"]},
+    )
+    prices = {"SPY": 100.0, "QQQ": 400.0, "GLD": 200.0}
+    balances = {"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0, "GLD": 0.0}
+
+    # Non-defensive name -> rejected while risk-off.
+    broker = FakeAlpaca(prices=dict(prices), balances=dict(balances))
+    blocked = trading_engine.run_cycle(
+        db_session, s, broker, FakeNews(), FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "risk-off SPY")), force=True
+    )
+    assert blocked.executed is False
+    assert "risk-off" in (blocked.rejection_reason or "")
+
+    # Defensive/inverse name (GLD) -> allowed through the gate.
+    broker2 = FakeAlpaca(prices=dict(prices), balances=dict(balances))
+    allowed = trading_engine.run_cycle(
+        db_session, s, broker2, FakeNews(), FakeAdvisor(TradingDecision("BUY", "GLD", 10, 0.9, "złoto broni")), force=True
+    )
+    assert allowed.executed is True
+
+
+# ============================================================================
+# Pakiet 4 -- auto-blacklist after a stop-loss streak
+# ============================================================================
+def test_auto_blacklist_after_stop_streak_extends_cooldown(db_session, settings):
+    import json as _json
+    from datetime import datetime as _dt, timezone as _tz
+
+    s = settings.model_copy(update={
+        "auto_blacklist_stop_count": 2, "auto_blacklist_window_hours": 24,
+        "auto_blacklist_hours": 48, "stop_loss_cooldown_minutes": 60,
+    })
+
+    def _stop_once(broker):
+        trading_engine.execute_manual_trade(db_session, s, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
+        broker.prices["SPY"] = 90.0  # -10% -> stop-loss
+        portfolio = trading_engine.compute_portfolio(db_session, s, broker)
+        trading_engine.check_take_profit_stop_loss(db_session, s, broker, portfolio)
+        broker.prices["SPY"] = 100.0  # reset for the next manual buy
+
+    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 5000.0, "SPY": 0.0, "QQQ": 0.0})
+
+    def _cooldown_minutes_left():
+        state = risk_manager.get_state(db_session)
+        until = _dt.fromisoformat(_json.loads(state.stop_loss_cooldowns_json)["SPY"])
+        return (until - _dt.now(_tz.utc)).total_seconds() / 60
+
+    _stop_once(broker)  # 1st stop -> normal 60-min cooldown
+    assert _cooldown_minutes_left() < 120
+
+    _stop_once(broker)  # 2nd stop within window -> quarantine (~48h)
+    assert _cooldown_minutes_left() > 60 * 40

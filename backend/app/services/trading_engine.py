@@ -37,6 +37,8 @@ _STATE_COLUMNS = {
     "peaks": {"alpaca": "position_peaks_json", "etoro": "etoro_position_peaks_json"},
     "cooldowns": {"alpaca": "stop_loss_cooldowns_json", "etoro": "etoro_stop_loss_cooldowns_json"},
     "seen": {"alpaca": "seen_ticker_headlines_json", "etoro": "etoro_seen_ticker_headlines_json"},
+    "partial": {"alpaca": "partial_tp_taken_json", "etoro": "etoro_partial_tp_taken_json"},
+    "streak": {"alpaca": "stop_loss_streak_json", "etoro": "etoro_stop_loss_streak_json"},
 }
 
 
@@ -297,6 +299,134 @@ def stop_loss_cooldown_active(db: Session, symbol: str, *, venue: str = "alpaca"
     return True, f"Cooldown po stop-lossie: {symbol} zablokowany do odkupu jeszcze ~{mins_left} min"
 
 
+def _record_stop_loss_streak_and_cooldown(db: Session, symbol: str, settings: Settings, *, venue: str = "alpaca") -> None:
+    """Book a stop-loss on `symbol` and set the re-buy cooldown. If the ticker
+    has stop-lossed auto_blacklist_stop_count times within
+    auto_blacklist_window_hours it is QUARANTINED for auto_blacklist_hours (a
+    long cooldown) instead of the normal short one -- a setup that keeps failing
+    is parked rather than retried into the same loss."""
+    now = datetime.now(timezone.utc)
+    minutes = settings.stop_loss_cooldown_minutes
+    if settings.auto_blacklist_stop_count > 0:
+        state = risk_manager.get_state(db)
+        col = _state_col("streak", venue)
+        streaks: dict[str, list[str]] = json.loads(getattr(state, col) or "{}")
+        window_start = now - timedelta(hours=settings.auto_blacklist_window_hours)
+        recent = [ts for ts in streaks.get(symbol, []) if _parse_iso(ts) and _parse_iso(ts) >= window_start]
+        recent.append(now.isoformat())
+        streaks[symbol] = recent[-settings.auto_blacklist_stop_count:]
+        setattr(state, col, json.dumps(streaks))
+        db.commit()
+        if len(recent) >= settings.auto_blacklist_stop_count:
+            minutes = max(minutes, settings.auto_blacklist_hours * 60)
+            logger.info(
+                "Auto-blacklist: %s zaliczył %d stop-lossów w %dh — kwarantanna na %dh",
+                symbol, len(recent), settings.auto_blacklist_window_hours, settings.auto_blacklist_hours,
+            )
+    _set_stop_loss_cooldown(db, symbol, minutes, venue=venue)
+
+
+def _parse_iso(value: str):
+    try:
+        return datetime.fromisoformat(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def last_entry_time(db: Session, symbol: str, *, venue: str = "alpaca") -> datetime | None:
+    """Timestamp of the most recent BUY of `symbol` on `venue`, used to enforce
+    a minimum holding period before a non-stop exit may fire."""
+    row = db.execute(
+        select(Trade)
+        .where(Trade.symbol == symbol, Trade.venue == venue, Trade.side.ilike("BUY"))
+        .order_by(Trade.timestamp.desc())
+        .limit(1)
+    ).scalars().first()
+    return row.timestamp if row else None
+
+
+def _within_min_hold(db: Session, symbol: str, settings: Settings, *, venue: str = "alpaca") -> bool:
+    """True if `symbol` was bought too recently for a non-stop exit to fire."""
+    if settings.min_hold_minutes <= 0:
+        return False
+    entered = last_entry_time(db, symbol, venue=venue)
+    if entered is None:
+        return False
+    if entered.tzinfo is None:
+        entered = entered.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - entered < timedelta(minutes=settings.min_hold_minutes)
+
+
+def count_new_entries_today(db: Session, *, venue: str = "alpaca") -> int:
+    """How many automated BUY trades this venue has executed today (UTC) --
+    drives the per-day new-entry cap that curbs churn on a small account."""
+    start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    rows = db.execute(
+        select(Trade).where(
+            Trade.venue == venue,
+            Trade.side.ilike("BUY"),
+            Trade.is_manual.is_(False),
+            Trade.timestamp >= start,
+        )
+    ).scalars().all()
+    return len(rows)
+
+
+def compute_market_regime(market_data: dict, market_context: dict, settings: Settings) -> dict:
+    """Cheap risk-on / neutral / risk-off read of the broad market from signals
+    we already fetch: the benchmark's own 50/200 trend, the VIX fear level, and
+    today's S&P move. Fed to Claude as context every cycle; also gates BUYs to
+    defensive/inverse names while risk-off (see regime_gate_enabled)."""
+    reasons: list[str] = []
+    score = 0
+
+    bench = market_data.get(settings.benchmark_symbol, {})
+    trend = (bench.get("technical") or {}).get("sma50_vs_sma200_1h")
+    if trend == "below":
+        score -= 1
+        reasons.append(f"{settings.benchmark_symbol}: SMA50 < SMA200 (trend spadkowy)")
+    elif trend == "above":
+        score += 1
+        reasons.append(f"{settings.benchmark_symbol}: SMA50 > SMA200 (trend wzrostowy)")
+
+    vix = market_context.get("vix_level")
+    if vix is not None and vix >= settings.regime_vix_risk_off:
+        score -= 1
+        reasons.append(f"VIX {vix} ≥ {settings.regime_vix_risk_off} (podwyższony strach)")
+
+    sp = market_context.get("sp500_change_pct")
+    if sp is not None:
+        if sp <= -1.0:
+            score -= 1
+            reasons.append(f"S&P dziś {sp}%")
+        elif sp >= 1.0:
+            score += 1
+
+    if score <= -2:
+        regime = "risk_off"
+    elif score >= 1:
+        regime = "risk_on"
+    else:
+        regime = "neutral"
+    return {"regime": regime, "score": score, "reasons": reasons}
+
+
+def risk_based_size_cap(settings: Settings, portfolio: dict, stop_dist_pct: float) -> float:
+    """Cap on a BUY's size (% of free cash) so that hitting its stop costs at
+    most risk_per_trade_pct of the WHOLE account. Returns 100.0 (no cap) when
+    disabled or when inputs are missing. Composed with the other size limits via
+    min(), so it can only ever SHRINK a position, never grow it."""
+    if settings.risk_per_trade_pct <= 0 or stop_dist_pct <= 0:
+        return 100.0
+    total = portfolio.get("total_value_usdt", 0.0)
+    free = portfolio.get("usdt_balance", 0.0)
+    if total <= 0 or free <= 0:
+        return 100.0
+    risk_usd = total * settings.risk_per_trade_pct / 100
+    max_position_value = risk_usd / (stop_dist_pct / 100)
+    return round(max_position_value / free * 100, 4)
+
+
 def dynamic_stop_loss_pct(settings: Settings, vol_pct: float | None) -> float:
     """Volatility-scaled (ATR-style) hard-stop distance in %. Scales with the
     ticker's own 1h-return volatility so the stop sits OUTSIDE normal noise --
@@ -309,39 +439,87 @@ def dynamic_stop_loss_pct(settings: Settings, vol_pct: float | None) -> float:
     return max(settings.stop_loss_min_pct, min(settings.stop_loss_max_pct, scaled))
 
 
+def _reward_levels(settings: Settings, stop_pct: float) -> tuple[float, float, float]:
+    """Reward thresholds COUPLED to the (vol-scaled) stop distance so the
+    risk/reward ratio stays proportional instead of inverted: take-profit ARM =
+    stop * reward_risk_ratio, trailing distance = stop * trailing_stop_frac,
+    partial-take level = stop * partial_take_profit_r. Falls back to the fixed
+    take_profit_pct / trailing_stop_pct when coupling is off (reward_risk_ratio
+    <= 0) or the stop distance is unknown (stop_pct <= 0)."""
+    if settings.reward_risk_ratio > 0 and stop_pct > 0:
+        tp_arm = stop_pct * settings.reward_risk_ratio
+        trailing = stop_pct * settings.trailing_stop_frac
+    else:
+        tp_arm = settings.take_profit_pct
+        trailing = settings.trailing_stop_pct
+    partial_r = stop_pct * settings.partial_take_profit_r if stop_pct > 0 else settings.take_profit_pct
+    return tp_arm, trailing, partial_r
+
+
 def _decide_mechanical_exit(
-    settings: Settings, base: str, basis: float, price: float, peak: float, stop_pct: float | None = None
-) -> tuple[str | None, bool]:
-    """Returns (reason, is_stop_loss) for a held position, or (None, False) to
-    hold. Hard stop-loss is a floor from the entry price (`stop_pct`, defaulting
-    to the fixed stop_loss_pct). For the upside, either a trailing stop (let
-    winners run, arm at +take_profit_pct) or a fixed take-profit, depending on
-    trailing_stop_enabled."""
+    settings: Settings,
+    base: str,
+    basis: float,
+    price: float,
+    peak: float,
+    stop_pct: float | None = None,
+    *,
+    partial_taken: bool = False,
+) -> tuple[str | None, float, str | None]:
+    """Returns (reason, sell_pct, kind) for a held position, or (None, 0.0,
+    None) to hold. `kind` is one of "stop" / "trailing" / "take_profit" /
+    "partial". The hard stop-loss is a floor from the entry price (`stop_pct`,
+    defaulting to the fixed stop_loss_pct) and always exits 100%. The upside is
+    either a trailing stop (let winners run, arm at the coupled take-profit
+    level) or a fixed take-profit; plus an optional one-shot PARTIAL sell once
+    the position first clears +partial_r, which locks in a realized win while
+    the remainder keeps running under the trailing stop."""
     change_pct = (price - basis) / basis * 100
     stop = settings.stop_loss_pct if stop_pct is None else stop_pct
+    tp_arm, trailing, partial_r = _reward_levels(settings, stop)
 
     if stop > 0 and change_pct <= -stop:
         return (
             f"Stop-loss: {base} {change_pct:.1f}% od wejścia (stop {stop:.1f}%, średnia {basis:.2f} → {price:.2f})",
-            True,
+            100.0,
+            "stop",
         )
 
     if settings.trailing_stop_enabled:
-        armed = settings.take_profit_pct <= 0 or peak >= basis * (1 + settings.take_profit_pct / 100)
-        if armed and settings.trailing_stop_pct > 0 and price <= peak * (1 - settings.trailing_stop_pct / 100):
+        armed = tp_arm <= 0 or peak >= basis * (1 + tp_arm / 100)
+        if armed and trailing > 0 and price <= peak * (1 - trailing / 100):
             drop = (price - peak) / peak * 100
             return (
                 f"Trailing-stop: {base} spadł {drop:.1f}% od szczytu {peak:.2f} "
                 f"(wejście {basis:.2f}, zysk +{change_pct:.1f}%)",
-                False,
+                100.0,
+                "trailing",
             )
-    elif settings.take_profit_pct > 0 and change_pct >= settings.take_profit_pct:
+    elif tp_arm > 0 and change_pct >= tp_arm:
         return (
             f"Take-profit: {base} +{change_pct:.1f}% od wejścia (średnia {basis:.2f} → {price:.2f})",
-            False,
+            100.0,
+            "take_profit",
         )
 
-    return None, False
+    # One-shot partial profit-taking: sell part of the position the first time
+    # it clears +partial_r, then let the rest run under the trailing stop above.
+    if (
+        settings.partial_take_profit_enabled
+        and not partial_taken
+        and settings.partial_take_profit_frac > 0
+        and partial_r > 0
+        and change_pct >= partial_r
+    ):
+        pct = settings.partial_take_profit_frac * 100
+        return (
+            f"Częściowa realizacja: {base} +{change_pct:.1f}% — sprzedaż {pct:.0f}% przy +{partial_r:.1f}%, "
+            f"reszta biegnie z trailingiem (wejście {basis:.2f} → {price:.2f})",
+            pct,
+            "partial",
+        )
+
+    return None, 0.0, None
 
 
 def check_take_profit_stop_loss(
@@ -372,21 +550,26 @@ def check_take_profit_stop_loss(
     symbols = whitelist if whitelist is not None else settings.whitelist_symbols
     state = risk_manager.get_state(db)
     peaks_col = _state_col("peaks", venue)
+    partial_col = _state_col("partial", venue)
     peaks: dict[str, float] = json.loads(getattr(state, peaks_col) or "{}")
+    partials: dict[str, bool] = json.loads(getattr(state, partial_col) or "{}")
     new_peaks: dict[str, float] = {}
+    new_partials: dict[str, bool] = {}
     executed: list[Trade] = []
 
     for symbol in symbols:
         if symbol not in portfolio["prices"]:
-            # Keep any existing peak we can't refresh this cycle.
+            # Keep any existing peak / partial mark we can't refresh this cycle.
             if symbol in peaks:
                 new_peaks[symbol] = peaks[symbol]
+            if symbol in partials:
+                new_partials[symbol] = partials[symbol]
             continue
         base = _base_asset(symbol, settings.quote_currency)
         qty = portfolio["balances"].get(base, 0.0)
         basis = average_cost_basis(db, symbol, venue=venue) if qty > 0 else None
         if qty <= 0 or basis is None or basis <= 0:
-            continue  # not held -> drop any stale peak
+            continue  # not held -> drop any stale peak / partial mark
 
         price = portfolio["prices"][symbol]
         if qty * price < MIN_SELL_NOTIONAL_USD:
@@ -394,6 +577,7 @@ def check_take_profit_stop_loss(
             # Drop its peak and stop trying to exit it every poll.
             continue
         peak = max(peaks.get(symbol, basis), price)
+        already_partial = bool(partials.get(symbol))
 
         # Volatility-scaled stop distance: fetch a short 1h history for this
         # held symbol and derive a stop that sits outside its normal noise.
@@ -405,15 +589,34 @@ def check_take_profit_stop_loss(
             logger.warning("Volatility fetch failed for %s, using fixed stop", symbol, exc_info=True)
         stop_pct = dynamic_stop_loss_pct(settings, vol_pct)
 
-        reason, is_stop_loss = _decide_mechanical_exit(settings, base, basis, price, peak, stop_pct=stop_pct)
-        if reason is None:
+        reason, sell_pct, kind = _decide_mechanical_exit(
+            settings, base, basis, price, peak, stop_pct=stop_pct, partial_taken=already_partial
+        )
+        if kind is None:
             new_peaks[symbol] = peak  # still holding, remember the peak
+            if already_partial:
+                new_partials[symbol] = True
+            continue
+
+        # Minimum holding period: a just-opened position may only be exited by
+        # the HARD stop-loss -- trailing / take-profit / partial are suppressed
+        # so the bot doesn't round-trip on the spread minutes after entering.
+        if kind != "stop" and _within_min_hold(db, symbol, settings, venue=venue):
+            new_peaks[symbol] = peak
+            if already_partial:
+                new_partials[symbol] = True
+            continue
+
+        # A partial slice below the broker minimum is pointless -- skip it this
+        # poll and let it fire once the position (or price) is larger.
+        if kind == "partial" and qty * (sell_pct / 100) * price < MIN_SELL_NOTIONAL_USD:
+            new_peaks[symbol] = peak
             continue
 
         decision = Decision(
             symbol=symbol,
             action=TradeAction.SELL,
-            size_pct=100.0,
+            size_pct=sell_pct,
             confidence=1.0,
             reasoning=reason,
             triggered_by=TriggerType.PRICE_MOVE,
@@ -431,7 +634,7 @@ def check_take_profit_stop_loss(
                 settings=settings,
                 symbol=symbol,
                 action="SELL",
-                size_pct=100.0,
+                size_pct=sell_pct,
                 portfolio=portfolio,
                 decision=decision,
                 is_manual=False,
@@ -449,15 +652,24 @@ def check_take_profit_stop_loss(
             decision.rejection_reason = f"Wyjście niewykonalne: {exc}"
             db.commit()
             new_peaks[symbol] = peak
+            if already_partial:
+                new_partials[symbol] = True
             continue
 
         executed.append(trade)
         logger.info("Mechaniczne wyjście: %s", reason)
-        if is_stop_loss:
-            _set_stop_loss_cooldown(db, symbol, settings.stop_loss_cooldown_minutes, venue=venue)
-        # position closed -> its peak is intentionally not carried into new_peaks
+        if kind == "stop":
+            _record_stop_loss_streak_and_cooldown(db, symbol, settings, venue=venue)
+            # full exit -> peak & partial mark intentionally dropped
+        elif kind == "partial":
+            # position stays open on the remainder: keep the peak and remember
+            # the partial is already booked so it fires only once.
+            new_peaks[symbol] = peak
+            new_partials[symbol] = True
+        # trailing / take-profit fully close the position -> drop peak & mark
 
     setattr(state, peaks_col, json.dumps(new_peaks))
+    setattr(state, partial_col, json.dumps(new_partials))
     db.commit()
     return executed
 
@@ -687,6 +899,10 @@ def run_cycle(
         seen_titles = {h["title"] for h in fresh_headlines}
         headlines = fresh_headlines + [h for h in headlines if h["title"] not in seen_titles]
     global_context = market_ctx.get_market_context() if market_ctx is not None else {}
+    # Broad-market regime (risk-on / neutral / risk-off) from the benchmark
+    # trend + VIX + today's tape. Always given to Claude; equities-only (the
+    # crypto venue has no SPY/VIX regime), so the eToro path skips the gate.
+    regime = compute_market_regime(market_data, global_context, settings) if venue == "alpaca" else {"regime": "neutral", "score": 0, "reasons": []}
     performance_context = build_performance_context(db, settings, portfolio, venue=venue, whitelist=symbols)
     # Upcoming earnings per ticker (days until next report). Best-effort --
     # never blocks the cycle if the calendar lookup fails. Only meaningful for
@@ -734,6 +950,20 @@ def run_cycle(
             f"nowej pozycji na tickerze raportującym w ciągu {settings.earnings_blackout_days} dni "
             "— takie BUY i tak zostanie odrzucone przez silnik."
         ),
+        # Broad-market regime read. In "risk_off" the engine only lets defensive
+        # / inverse names be bought (the rest is forced HOLD), so lean that way.
+        "market_regime": regime,
+        "regime_note": (
+            "market_regime.regime to ogólny reżim rynku (risk_on / neutral / risk_off) z trendu "
+            "benchmarku, VIX-a i dzisiejszej sesji. W risk_off bądź defensywny: silnik i tak "
+            f"pozwoli KUPIĆ tylko nazwy defensywne/odwrotne ({', '.join(settings.defensive_symbol_list)}), "
+            "resztę wymusi na HOLD. Wchodź tylko w realnie mocne setupy — nie handluj dla samego handlu."
+        ),
+        "min_buy_confidence": settings.min_buy_confidence,
+        "conviction_note": (
+            f"Automatyczne BUY z confidence poniżej {settings.min_buy_confidence} jest ODRZUCANE — "
+            "gotówka to też pozycja. Podawaj realną pewność; nie zawyżaj, żeby wymusić wejście."
+        ),
     }
 
     decision_data = advisor.decide(
@@ -755,6 +985,11 @@ def run_cycle(
     if decision_data.action == "BUY":
         ticker_vol = (market_data.get(decision_data.symbol) or {}).get("technical", {}).get("volatility_pct_1h")
         effective_size_pct = volatility_adjusted_size(settings, decision_data.size_pct, ticker_vol)
+        # Risk-based cap: hitting this ticker's (vol-scaled) stop must not cost
+        # more than risk_per_trade_pct of the whole account -- a wider stop
+        # implies a smaller slice. Composed via min(), so it only ever shrinks.
+        stop_dist = dynamic_stop_loss_pct(settings, ticker_vol)
+        effective_size_pct = round(min(effective_size_pct, risk_based_size_cap(settings, portfolio, stop_dist)), 4)
 
     decision = Decision(
         symbol=decision_data.symbol,
@@ -811,6 +1046,49 @@ def run_cycle(
     # Post-stop-loss cooldown: refuse to re-buy a coin we just cut, even if
     # Claude wants back in -- this is the anti-churn guard for a small account.
     if decision_data.action == "BUY":
+        # Conviction floor: a weak-edge BUY is not worth the spread -- reject it
+        # outright rather than churn the account (cash is a valid position).
+        if settings.min_buy_confidence > 0 and decision_data.confidence < settings.min_buy_confidence:
+            decision.rejection_reason = (
+                f"Zbyt niska pewność: {decision_data.confidence:.2f} < próg {settings.min_buy_confidence:.2f} "
+                "— wejście pominięte (gotówka to też pozycja)"
+            )
+            db.add(decision)
+            db.commit()
+            db.refresh(decision)
+            return decision
+
+        # Regime gate: while the broad market is risk-off, only defensive /
+        # inverse names may be OPENED; everything else is forced to HOLD.
+        if (
+            settings.regime_gate_enabled
+            and regime.get("regime") == "risk_off"
+            and decision_data.symbol not in settings.defensive_symbol_list
+        ):
+            decision.rejection_reason = (
+                f"Reżim risk-off ({'; '.join(regime.get('reasons') or []) or 'sygnały rynku'}) — "
+                f"nowe wejście tylko na nazwach defensywnych/odwrotnych ({', '.join(settings.defensive_symbol_list)})"
+            )
+            db.add(decision)
+            db.commit()
+            db.refresh(decision)
+            return decision
+
+        # Per-day new-entry cap: stop a small account churning on many low-edge
+        # entries. SELL/HOLD and mechanical exits are unaffected.
+        if (
+            settings.max_new_positions_per_day > 0
+            and count_new_entries_today(db, venue=venue) >= settings.max_new_positions_per_day
+        ):
+            decision.rejection_reason = (
+                f"Limit nowych wejść na dziś osiągnięty ({settings.max_new_positions_per_day}) — "
+                "nowe BUY wstrzymane do jutra (anty-churn)"
+            )
+            db.add(decision)
+            db.commit()
+            db.refresh(decision)
+            return decision
+
         in_cooldown, cooldown_reason = stop_loss_cooldown_active(db, decision_data.symbol, venue=venue)
         if in_cooldown:
             decision.rejection_reason = cooldown_reason
