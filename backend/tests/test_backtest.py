@@ -109,3 +109,28 @@ def test_backtest_report_includes_yearly_breakdown_and_benchmark_drawdown(settin
     assert "years_beating_benchmark" in report
     row = report["yearly_breakdown"][0]
     assert set(row.keys()) == {"year", "strategy_return_pct", "benchmark_return_pct", "alpha_pct"}
+
+
+def test_backtest_handles_millisecond_timestamps_without_crashing(settings):
+    """Regression: Yahoo bars carry epoch-MILLISECOND timestamps. Earlier these
+    flowed into datetime.fromtimestamp() as if they were seconds and blew up
+    the yearly breakdown with 'year out of range'. Feed ms-stamped multi-year
+    data and assert it runs and buckets into sane calendar years."""
+    import math
+
+    s = settings.model_copy(update={
+        "entry_filter_enabled": False, "risk_per_trade_pct": 1.0,
+        "max_concurrent_positions": 4, "min_hold_minutes": 0, "max_position_pct": 50.0,
+    })
+    day_ms = 86_400_000
+    start_ms = 1_167_609_600_000  # 2007-01-01 in ms
+    rows = []
+    for i in range(900):  # ~2.5 years of daily bars
+        c = 100 * (1.0004) ** i * (1 + 0.03 * math.sin(i / 9))
+        rows.append([start_ms + i * day_ms, c, c, c, c, 1000])
+    report = backtest.run_backtest({"SPY": rows, "QQQ": rows}, s, benchmark_symbol="SPY")
+
+    assert "error" not in report
+    years = [row["year"] for row in report["yearly_breakdown"]]
+    assert all(2006 <= y <= 2011 for y in years)  # sane calendar years, not 38551
+    assert len(years) >= 2

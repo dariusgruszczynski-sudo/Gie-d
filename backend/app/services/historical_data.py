@@ -26,13 +26,19 @@ SECONDS_PER_YEAR = 365.25 * 86400
 
 def get_daily_history(symbol: str, years: int = 20) -> list[list]:
     """Returns rows [open_time_ms, open, high, low, close, volume] oldest-first,
-    covering up to `years` years of DAILY bars. Yahoo's range parameter only
-    accepts fixed buckets (1y/2y/5y/10y/max, no arbitrary "20y"), so this
-    always requests "max" and filters to the requested window client-side."""
+    covering up to `years` years of DAILY bars.
+
+    Uses explicit period1/period2 (unix seconds) rather than range=max: with
+    range=max Yahoo silently DOWNSAMPLES a 20-year window to MONTHLY bars (~241
+    points), which is useless for a strategy whose stops/indicators are tuned on
+    daily data. period1/period2 + interval=1d returns true daily bars. Still
+    filters client-side to the requested window as a belt-and-suspenders guard."""
+    now = int(time.time())
+    period1 = now - int(years * SECONDS_PER_YEAR)
     try:
         resp = httpx.get(
             YAHOO_CHART_URL.format(symbol=symbol),
-            params={"range": "max", "interval": "1d"},
+            params={"period1": period1, "period2": now, "interval": "1d"},
             headers=_HEADERS,
             timeout=REQUEST_TIMEOUT,
             follow_redirects=True,

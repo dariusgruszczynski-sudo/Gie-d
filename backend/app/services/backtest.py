@@ -42,10 +42,16 @@ VOL_WINDOW = 32
 
 
 def _epoch(t) -> float:
-    """Normalize a bar timestamp (ISO string from Alpaca, ms int from Yahoo, or
-    a plain number from synthetic data) to a sortable epoch-seconds float."""
+    """Normalize a bar timestamp to epoch SECONDS. Accepts an ISO string
+    (Alpaca), an epoch-milliseconds int (Yahoo / eToro), or epoch-seconds
+    (synthetic data). Values above ~1e11 are treated as milliseconds -- 1e11
+    seconds is ~year 5138, so no real trading date collides, while any ms
+    timestamp today (~1.7e12) is safely above the threshold. Without this,
+    ms timestamps flowed straight into datetime.fromtimestamp() and blew up
+    with 'year out of range' in the yearly breakdown."""
     if isinstance(t, (int, float)):
-        return float(t)
+        v = float(t)
+        return v / 1000.0 if abs(v) > 1e11 else v
     try:
         return datetime.fromisoformat(str(t).replace("Z", "+00:00")).timestamp()
     except ValueError:
