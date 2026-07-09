@@ -915,3 +915,24 @@ def test_volatile_ticker_buy_is_sized_down_end_to_end(db_session, settings):
     # Raw 50% of 1000 = $500; vol-scaling must have cut it well below that.
     assert broker.orders[0].usdt_value < 500.0
     assert decision.size_pct < 50.0
+
+
+def test_dynamic_stop_loss_scales_with_volatility(settings):
+    """The volatility-scaled stop must widen for volatile tickers and fall back
+    to the fixed stop when volatility is unknown -- this is the fix for the
+    whipsaw where a fixed 2% stop sold every dip at a loss."""
+    s = settings.model_copy(update={
+        "stop_loss_pct": 2.0, "stop_loss_vol_mult": 6.0,
+        "stop_loss_min_pct": 2.5, "stop_loss_max_pct": 12.0,
+    })
+    # Unknown volatility -> fixed stop.
+    assert trading_engine.dynamic_stop_loss_pct(s, None) == 2.0
+    # Calm ticker (0.25%/1h) -> 6*0.25=1.5, floored to the 2.5% minimum.
+    assert trading_engine.dynamic_stop_loss_pct(s, 0.25) == 2.5
+    # Volatile ticker (1.5%/1h) -> 6*1.5=9% (within band).
+    assert trading_engine.dynamic_stop_loss_pct(s, 1.5) == 9.0
+    # Very volatile (crypto, 3%/1h) -> 18% capped at the 12% max.
+    assert trading_engine.dynamic_stop_loss_pct(s, 3.0) == 12.0
+    # Disabled -> fixed stop regardless of volatility.
+    off = s.model_copy(update={"stop_loss_vol_mult": 0.0})
+    assert trading_engine.dynamic_stop_loss_pct(off, 3.0) == 2.0

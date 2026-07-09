@@ -48,6 +48,16 @@ class Settings(BaseSettings):
     # instead of just buying and holding. Set take_profit_pct=0 to disable
     # take-profit, stop_loss_pct=0 to disable stop-loss.
     stop_loss_pct: float = 2.0
+    # Volatility-scaled (ATR-style) hard stop: instead of a fixed %, the stop
+    # distance scales with the ticker's own 1h-return volatility, so it sits
+    # OUTSIDE normal noise -- a calm index isn't shaken out on a routine 2%
+    # wobble (then missing the bounce), while a wild name (TSLA/crypto) gets a
+    # proportionally wider stop. stop% = clamp(mult * volatility_pct_1h,
+    # min_pct, max_pct). Set stop_loss_vol_mult=0 to disable and fall back to
+    # the fixed stop_loss_pct above.
+    stop_loss_vol_mult: float = 6.0
+    stop_loss_min_pct: float = 2.5
+    stop_loss_max_pct: float = 12.0
     # After a stop-loss cuts a position, block re-buying that same coin for
     # this many minutes -- stops the bot from "piłowanie" (buy top -> stop ->
     # rebuy -> stop) that bleeds a small account dry on fees. 0 = disabled.

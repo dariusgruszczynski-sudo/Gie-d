@@ -18,7 +18,7 @@ from app.services.claude_advisor import ClaudeAdvisor
 from app.services.market_context import MarketContextClient
 from app.services.market_hours import SessionInfo
 from app.services.news_client import NewsClient
-from app.services.technical_indicators import compute_technical_indicators
+from app.services.technical_indicators import compute_technical_indicators, compute_volatility_pct
 
 logger = logging.getLogger(__name__)
 
@@ -297,16 +297,32 @@ def stop_loss_cooldown_active(db: Session, symbol: str, *, venue: str = "alpaca"
     return True, f"Cooldown po stop-lossie: {symbol} zablokowany do odkupu jeszcze ~{mins_left} min"
 
 
-def _decide_mechanical_exit(settings: Settings, base: str, basis: float, price: float, peak: float) -> tuple[str | None, bool]:
-    """Returns (reason, is_stop_loss) for a held position, or (None, False) to
-    hold. Hard stop-loss is always a floor from the entry price. For the upside,
-    either a trailing stop (let winners run, arm at +take_profit_pct) or a fixed
-    take-profit, depending on trailing_stop_enabled."""
-    change_pct = (price - basis) / basis * 100
+def dynamic_stop_loss_pct(settings: Settings, vol_pct: float | None) -> float:
+    """Volatility-scaled (ATR-style) hard-stop distance in %. Scales with the
+    ticker's own 1h-return volatility so the stop sits OUTSIDE normal noise --
+    fixing the whipsaw where a fixed 2% stop shakes you out of a routine wobble
+    and you sell the dip. Falls back to the fixed stop_loss_pct when scaling is
+    disabled (mult=0) or volatility is unknown (insufficient history)."""
+    if settings.stop_loss_vol_mult <= 0 or not vol_pct:
+        return settings.stop_loss_pct
+    scaled = settings.stop_loss_vol_mult * vol_pct
+    return max(settings.stop_loss_min_pct, min(settings.stop_loss_max_pct, scaled))
 
-    if settings.stop_loss_pct > 0 and change_pct <= -settings.stop_loss_pct:
+
+def _decide_mechanical_exit(
+    settings: Settings, base: str, basis: float, price: float, peak: float, stop_pct: float | None = None
+) -> tuple[str | None, bool]:
+    """Returns (reason, is_stop_loss) for a held position, or (None, False) to
+    hold. Hard stop-loss is a floor from the entry price (`stop_pct`, defaulting
+    to the fixed stop_loss_pct). For the upside, either a trailing stop (let
+    winners run, arm at +take_profit_pct) or a fixed take-profit, depending on
+    trailing_stop_enabled."""
+    change_pct = (price - basis) / basis * 100
+    stop = settings.stop_loss_pct if stop_pct is None else stop_pct
+
+    if stop > 0 and change_pct <= -stop:
         return (
-            f"Stop-loss: {base} {change_pct:.1f}% od wejścia (średnia {basis:.2f} → {price:.2f})",
+            f"Stop-loss: {base} {change_pct:.1f}% od wejścia (stop {stop:.1f}%, średnia {basis:.2f} → {price:.2f})",
             True,
         )
 
@@ -379,7 +395,17 @@ def check_take_profit_stop_loss(
             continue
         peak = max(peaks.get(symbol, basis), price)
 
-        reason, is_stop_loss = _decide_mechanical_exit(settings, base, basis, price, peak)
+        # Volatility-scaled stop distance: fetch a short 1h history for this
+        # held symbol and derive a stop that sits outside its normal noise.
+        vol_pct = None
+        try:
+            closes = [float(r[4]) for r in broker.get_klines(symbol, "1h", 30)]
+            vol_pct = compute_volatility_pct(closes)
+        except Exception:
+            logger.warning("Volatility fetch failed for %s, using fixed stop", symbol, exc_info=True)
+        stop_pct = dynamic_stop_loss_pct(settings, vol_pct)
+
+        reason, is_stop_loss = _decide_mechanical_exit(settings, base, basis, price, peak, stop_pct=stop_pct)
         if reason is None:
             new_peaks[symbol] = peak  # still holding, remember the peak
             continue
