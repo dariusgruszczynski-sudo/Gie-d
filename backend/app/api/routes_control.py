@@ -11,6 +11,7 @@ from app.db import get_db
 from app.serialization import serialize
 from app.services import risk_manager
 from app.services.alpaca_client import AlpacaAPIError, AlpacaClient
+from app.services.etoro_client import EToroAPIError, EToroClient
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.email_reporter import send_daily_report
 from app.services.market_context import MarketContextClient
@@ -37,6 +38,7 @@ class ManualTradeRequest(BaseModel):
     side: Literal["BUY", "SELL"]
     usdt_amount: float | None = None
     quantity: float | None = None
+    venue: Literal["alpaca", "etoro"] = "alpaca"
 
     @model_validator(mode="after")
     def check_amount(self):
@@ -51,7 +53,14 @@ def manual_trade(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):
-    broker = AlpacaClient(settings)
+    if req.venue == "etoro":
+        if not settings.etoro_enabled:
+            raise HTTPException(status_code=400, detail="Portfel eToro jest wyłączony (ETORO_ENABLED=false)")
+        broker = EToroClient(settings)
+        whitelist = settings.etoro_whitelist_symbols
+    else:
+        broker = AlpacaClient(settings)
+        whitelist = settings.whitelist_symbols
     try:
         trade = execute_manual_trade(
             db,
@@ -61,8 +70,10 @@ def manual_trade(
             side=req.side,
             usdt_amount=req.usdt_amount,
             quantity=req.quantity,
+            venue=req.venue,
+            whitelist=whitelist,
         )
-    except (ValueError, AlpacaAPIError) as exc:
+    except (ValueError, AlpacaAPIError, EToroAPIError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return serialize(trade)
 

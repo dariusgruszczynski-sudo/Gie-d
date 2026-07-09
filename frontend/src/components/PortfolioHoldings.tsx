@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { PortfolioSnapshot } from "../api/client";
+import { CollapsibleH2 } from "./CollapsibleH2";
 
 interface HoldingRow {
   asset: string;
@@ -61,16 +63,19 @@ function fmtUsd(value: number): string {
 export function PortfolioHoldings({
   current,
   costBasis,
+  title = "Twoje pozycje",
+  defaultCollapsed = false,
 }: {
   current: PortfolioSnapshot | null;
   costBasis: Record<string, number>;
+  title?: string;
+  defaultCollapsed?: boolean;
 }) {
+  const [open, setOpen] = useState(!defaultCollapsed);
   return (
     <div className="panel">
-      <h2>Twoje pozycje</h2>
-      <p className="subtitle" style={{ marginTop: -6, marginBottom: 12 }}>
-        Rozbicie portfela na monety z ceną wejścia i bieżącym zyskiem/stratą (niezrealizowanym) na każdej pozycji.
-      </p>
+      <CollapsibleH2 title={title} open={open} onToggle={() => setOpen((o) => !o)} />
+      {open && (
       <div className="table-wrap">
         {current && current.total_value_usdt > 0 ? (
           <table>
@@ -113,6 +118,7 @@ export function PortfolioHoldings({
           <p className="subtitle">Brak jeszcze danych o portfelu — pierwszy cykl automatu je utworzy.</p>
         )}
       </div>
+      )}
     </div>
   );
 }

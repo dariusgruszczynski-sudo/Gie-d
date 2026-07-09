@@ -1,14 +1,15 @@
+import { useState } from "react";
 import { PortfolioSnapshot } from "../api/client";
+import { CollapsibleH2 } from "./CollapsibleH2";
 
 export function MarketLog({ history, whitelist }: { history: PortfolioSnapshot[]; whitelist: string[] }) {
   const rows = [...history].reverse().slice(0, 40);
+  const [open, setOpen] = useState(false); // long table -- collapsed by default
 
   return (
     <div className="panel">
-      <h2>Log rynkowy</h2>
-      <p className="subtitle" style={{ marginTop: -6, marginBottom: 12 }}>
-        Zapis z każdego cyklu automatu — niezależnie od tego, czy padła pełna decyzja Claude.
-      </p>
+      <CollapsibleH2 title="Log rynkowy" open={open} onToggle={() => setOpen((o) => !o)} summary={`${rows.length} cykli`} />
+      {open && (
       <div className="table-wrap">
         <table>
           <thead>
@@ -37,6 +38,7 @@ export function MarketLog({ history, whitelist }: { history: PortfolioSnapshot[]
         </table>
         {rows.length === 0 && <p className="subtitle">Brak jeszcze zapisów — pierwszy cykl automatu je utworzy.</p>}
       </div>
+      )}
     </div>
   );
 }

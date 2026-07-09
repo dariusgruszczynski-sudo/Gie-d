@@ -1,9 +1,19 @@
 import { useState } from "react";
-import { api, StatusResponse } from "../api/client";
+import { api } from "../api/client";
 
-export function ManualTradePanel({ status, onChanged }: { status: StatusResponse; onChanged: () => void }) {
+export function ManualTradePanel({
+  whitelist,
+  onChanged,
+  venue = "alpaca",
+  title = "Ręczna transakcja",
+}: {
+  whitelist: string[];
+  onChanged: () => void;
+  venue?: "alpaca" | "etoro";
+  title?: string;
+}) {
   const [busy, setBusy] = useState(false);
-  const [symbol, setSymbol] = useState(status.whitelist[0] ?? "SPY");
+  const [symbol, setSymbol] = useState(whitelist[0] ?? "");
   const [side, setSide] = useState<"BUY" | "SELL">("BUY");
   const [usdtAmount, setUsdtAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +28,7 @@ export function ManualTradePanel({ status, onChanged }: { status: StatusResponse
     }
     setBusy(true);
     try {
-      await api.manualTrade({ symbol, side, usdt_amount: amount });
+      await api.manualTrade({ symbol: symbol || whitelist[0], side, usdt_amount: amount, venue });
       setUsdtAmount("");
       onChanged();
     } catch (e) {
@@ -30,11 +40,11 @@ export function ManualTradePanel({ status, onChanged }: { status: StatusResponse
 
   return (
     <div className="panel">
-      <h2>Ręczna transakcja</h2>
+      <h2>{title}</h2>
       <form className="control-form" onSubmit={submitManualTrade}>
         <div className="row">
           <select value={symbol} onChange={(e) => setSymbol(e.target.value)}>
-            {status.whitelist.map((s) => (
+            {whitelist.map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>

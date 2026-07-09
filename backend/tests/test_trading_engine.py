@@ -721,6 +721,30 @@ def test_failed_mechanical_exit_surfaces_real_reason(db_session, settings):
     assert "insufficient qty" in decision.rejection_reason
 
 
+def test_manual_trade_stamps_venue_and_uses_venue_whitelist(db_session, settings):
+    """A manual eToro trade must validate against the eToro whitelist and stamp
+    its records venue='etoro' (so they land in the right portfolio)."""
+    from app.models import Trade
+
+    broker = FakeAlpaca(prices={"BTC": 50000.0}, balances={"USD": 1000.0, "BTC": 0.0})
+    trade = trading_engine.execute_manual_trade(
+        db_session, settings, broker, symbol="BTC", side="BUY", usdt_amount=100.0,
+        venue="etoro", whitelist=["BTC", "ETH"],
+    )
+    assert trade.venue == "etoro"
+    assert db_session.query(Trade).filter(Trade.venue == "etoro").count() == 1
+
+    # A symbol outside the venue whitelist is rejected.
+    try:
+        trading_engine.execute_manual_trade(
+            db_session, settings, broker, symbol="SPY", side="BUY", usdt_amount=100.0,
+            venue="etoro", whitelist=["BTC", "ETH"],
+        )
+        assert False, "expected ValueError"
+    except ValueError:
+        pass
+
+
 def test_etoro_venue_cycle_is_isolated_and_stamped(db_session, settings, monkeypatch):
     """The eToro venue trades 24/7 (always_open) even while the US market is
     closed, stamps its records venue='etoro', and uses its OWN state columns so

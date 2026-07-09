@@ -138,6 +138,11 @@ export const api = {
     }>("/api/control/refresh-portfolio", { method: "POST" }),
   sendReportNow: () => apiFetch<{ message: string }>("/api/control/send-report-now", { method: "POST" }),
   restart: () => apiFetch<{ message: string }>("/api/control/restart", { method: "POST" }),
-  manualTrade: (body: { symbol: string; side: "BUY" | "SELL"; usdt_amount?: number; quantity?: number }) =>
-    apiFetch<Trade>("/api/control/manual-trade", { method: "POST", body: JSON.stringify(body) }),
+  manualTrade: (body: {
+    symbol: string;
+    side: "BUY" | "SELL";
+    usdt_amount?: number;
+    quantity?: number;
+    venue?: "alpaca" | "etoro";
+  }) => apiFetch<Trade>("/api/control/manual-trade", { method: "POST", body: JSON.stringify(body) }),
 };

@@ -900,24 +900,28 @@ def _execute_trade(
 def execute_manual_trade(
     db: Session,
     settings: Settings,
-    broker: AlpacaClient,
+    broker,
     symbol: str,
     side: str,
     usdt_amount: float | None = None,
     quantity: float | None = None,
+    *,
+    venue: str = "alpaca",
+    whitelist: list[str] | None = None,
 ) -> Trade:
     """Human-initiated trade from the dashboard, bypassing Claude entirely.
     Intentionally NOT gated by the pause/halt state or the automated
     max_position_pct cap -- that's the whole point of a manual override. Still
     enforced: the trading whitelist, as a safety net against a typo'd or
-    otherwise unintended symbol reaching a real order."""
-    whitelist_check = risk_manager.validate_symbol_whitelist(settings, symbol)
+    otherwise unintended symbol reaching a real order. `venue` selects which
+    portfolio it belongs to (records are stamped accordingly)."""
+    whitelist_check = risk_manager.validate_symbol_whitelist(settings, symbol, whitelist)
     if not whitelist_check.approved:
         raise ValueError(whitelist_check.reason)
 
     # Deliberately not blocked when the market is closed -- same as the
-    # existing pause/halt bypass, a manual click is the override; Alpaca itself
-    # is the final backstop if the session genuinely can't trade.
+    # existing pause/halt bypass, a manual click is the override; the broker
+    # itself is the final backstop if the session genuinely can't trade.
     if usdt_amount is not None:
         result = broker.place_order_for_session(symbol, side, usdt_amount=usdt_amount)
     elif quantity is not None:
@@ -933,6 +937,7 @@ def execute_manual_trade(
         reasoning="Ręczna transakcja zainicjowana z dashboardu (z pominięciem Claude).",
         triggered_by=TriggerType.MANUAL,
         executed=True,
+        venue=venue,
     )
     db.add(decision)
     db.commit()
@@ -947,6 +952,7 @@ def execute_manual_trade(
         order_id=result.order_id,
         mode=TradeMode.LIVE,
         is_manual=True,
+        venue=venue,
         decision_id=decision.id,
     )
     db.add(trade)

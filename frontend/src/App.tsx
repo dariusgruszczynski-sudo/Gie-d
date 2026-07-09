@@ -153,6 +153,7 @@ export default function App() {
 
         {status && <StatusBanner status={status} />}
 
+        {/* ===== Panele kontrolne ===== */}
         {status && <ControlToolbar status={status} onChanged={refresh} muted={muted} onToggleMuted={toggleMuted} />}
 
         {status && (
@@ -166,47 +167,43 @@ export default function App() {
           </div>
         )}
 
-        {/* ===== Portfel dzienny — Alpaca (akcje US) ===== */}
-        <div className="venue-section venue-section-alpaca">
-          <div className="venue-section-header">
-            <span className="venue-dot venue-dot-alpaca" />
-            <h2>Portfel dzienny — Alpaca (akcje US)</h2>
+        {status && (
+          <div className="grid">
+            <ManualTradePanel whitelist={status.whitelist} onChanged={refresh} venue="alpaca" title="Ręczna transakcja — Alpaca (akcje)" />
+            {status.etoro_enabled ? (
+              <ManualTradePanel whitelist={status.etoro_whitelist} onChanged={refresh} venue="etoro" title="Ręczna transakcja — eToro (krypto/forex)" />
+            ) : (
+              <div className="panel">
+                <h2>Ręczna transakcja — eToro</h2>
+                <p className="subtitle venue-off-note">Portfel eToro wyłączony — włącz go (ETORO_ENABLED) i zasil konto, żeby handlować krypto/forex.</p>
+              </div>
+            )}
           </div>
+        )}
 
-          {portfolio && <Scorecard data={portfolio.scorecard} />}
-
+        {/* ===== W co inwestuję (oba portfele) ===== */}
+        <div className="grid">
           {status && <InvestmentThesis whitelist={status.whitelist} />}
-
-          <div className="grid">
-            {portfolio && <PortfolioChart history={portfolio.history} current={portfolio.current} scorecard={portfolio.scorecard} />}
-            {status && <ManualTradePanel status={status} onChanged={refresh} />}
-          </div>
-
-          <div className="grid">
-            <PortfolioHoldings current={portfolio?.current ?? null} costBasis={portfolio?.cost_basis ?? {}} />
-            <TradesTable trades={trades} />
-          </div>
+          {status && <InvestmentThesis whitelist={status.etoro_whitelist} />}
         </div>
 
-        {/* ===== Portfel nocny — eToro (krypto/forex 24-7) ===== */}
-        <div className="venue-section venue-section-etoro">
-          <div className="venue-section-header">
-            <span className="venue-dot venue-dot-etoro" />
-            <h2>Portfel nocny — eToro (krypto / forex, 24-7)</h2>
-            {status?.etoro_mode && (
-              <span className="venue-mode-tag">{status.etoro_mode === "paper" ? "DEMO" : "LIVE"}</span>
-            )}
-            {status && !status.etoro_enabled && <span className="venue-off-tag">wyłączony — włącz po zasileniu konta</span>}
-          </div>
+        {/* ===== Wykresy wartości (oba portfele) ===== */}
+        {portfolio && <Scorecard data={portfolio.scorecard} />}
+        <div className="grid">
+          <PortfolioChart history={portfolio?.history ?? []} current={portfolio?.current ?? null} scorecard={portfolio?.scorecard ?? null} />
+          <PortfolioChart history={etoroPortfolio?.history ?? []} current={etoroPortfolio?.current ?? null} scorecard={null} />
+        </div>
 
-          {status && <InvestmentThesis whitelist={status.etoro_whitelist} />}
+        {/* ===== Pozycje (oba portfele, obok siebie) ===== */}
+        <div className="grid">
+          <PortfolioHoldings current={portfolio?.current ?? null} costBasis={portfolio?.cost_basis ?? {}} title="Pozycje — Alpaca" />
+          <PortfolioHoldings current={etoroPortfolio?.current ?? null} costBasis={etoroPortfolio?.cost_basis ?? {}} title="Pozycje — eToro" />
+        </div>
 
-          {etoroPortfolio && <PortfolioChart history={etoroPortfolio.history} current={etoroPortfolio.current} scorecard={null} />}
-
-          <div className="grid">
-            <PortfolioHoldings current={etoroPortfolio?.current ?? null} costBasis={etoroPortfolio?.cost_basis ?? {}} />
-            <TradesTable trades={etoroTrades} />
-          </div>
+        {/* ===== Historia transakcji (oba portfele, obok siebie) ===== */}
+        <div className="grid">
+          <TradesTable trades={trades} title="Transakcje — Alpaca" />
+          <TradesTable trades={etoroTrades} title="Transakcje — eToro" />
         </div>
 
         {/* ===== Log decyzji Claude — na samym dole (oba portfele) ===== */}

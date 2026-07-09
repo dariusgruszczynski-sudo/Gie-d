@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Decision } from "../api/client";
+import { CollapsibleH2 } from "./CollapsibleH2";
 
 function contextSummary(d: Decision): string | null {
   const parts: string[] = [];
@@ -25,9 +27,16 @@ function contextSummary(d: Decision): string | null {
 }
 
 export function DecisionsLog({ decisions }: { decisions: Decision[] }) {
+  const [open, setOpen] = useState(false); // long log -- collapsed by default
   return (
     <div className="panel">
-      <h2>Log decyzji Claude</h2>
+      <CollapsibleH2
+        title="Log decyzji Claude"
+        open={open}
+        onToggle={() => setOpen((o) => !o)}
+        summary={`${decisions.length} wpisów`}
+      />
+      {open && (
       <div className="table-wrap">
         <table>
           <thead>
@@ -74,6 +83,7 @@ export function DecisionsLog({ decisions }: { decisions: Decision[] }) {
         </table>
         {decisions.length === 0 && <p className="subtitle">Brak jeszcze decyzji.</p>}
       </div>
+      )}
     </div>
   );
 }

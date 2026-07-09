@@ -121,14 +121,15 @@ def can_trade_automated(db: Session) -> ValidationResult:
     return ValidationResult(True)
 
 
-def validate_symbol_whitelist(settings: Settings, symbol: str) -> ValidationResult:
+def validate_symbol_whitelist(settings: Settings, symbol: str, whitelist: list[str] | None = None) -> ValidationResult:
     """Whitelist-only check, used for manual trades. Manual overrides
     intentionally skip the pause/halt gate and the automated max_position_pct
     cap (the whole point of a manual override is discretion over size), but
     a fat-fingered or malicious symbol outside the whitelist is never a
     deliberate choice worth allowing."""
-    if symbol not in settings.whitelist_symbols:
-        return ValidationResult(False, f"{symbol} nie jest na whiteliście ({settings.whitelist_symbols})")
+    allowed = whitelist if whitelist is not None else settings.whitelist_symbols
+    if symbol not in allowed:
+        return ValidationResult(False, f"{symbol} nie jest na whiteliście ({allowed})")
     return ValidationResult(True)
 
 
