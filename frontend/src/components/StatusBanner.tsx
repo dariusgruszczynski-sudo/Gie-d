@@ -23,9 +23,22 @@ function TrendArrow({ value }: { value: number | null }) {
   );
 }
 
-function TileIcon({ name }: { name: "shield" | "lock" | "coins" }) {
+function fmtTokens(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return Math.round(value).toString();
+}
+
+function TileIcon({ name }: { name: "shield" | "lock" | "coins" | "chip" }) {
   const common = { width: 15, height: 15, viewBox: "0 0 24 24", fill: "none" as const, "aria-hidden": true as const };
   switch (name) {
+    case "chip":
+      return (
+        <svg {...common}>
+          <rect x="7" y="7" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+          <path d="M10 3 v2 M14 3 v2 M10 19 v2 M14 19 v2 M3 10 h2 M3 14 h2 M19 10 h2 M19 14 h2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      );
     case "shield":
       return (
         <svg {...common}>
@@ -68,6 +81,7 @@ export function StatusBanner({ status }: { status: StatusResponse }) {
       : "banner";
 
   const spentAnimated = useCountUp(status.claude_spend_usd_this_month);
+  const tokensAnimated = useCountUp(status.claude_total_tokens_this_month);
 
   return (
     <div className={bannerClass}>
@@ -124,6 +138,19 @@ export function StatusBanner({ status }: { status: StatusResponse }) {
               ${spentAnimated.toFixed(2)} / ${status.claude_monthly_budget_usd.toFixed(2)}
             </strong>
           </div>
+        </div>
+
+        <div className="stat-tile stat-tile-tokens">
+          <div className="stat-tile-top">
+            <TileIcon name="chip" />
+            <span className="stat-tile-label">Tokeny Claude (miesiąc)</span>
+            <LiveDot />
+          </div>
+          <strong className="tokens-total">{fmtTokens(tokensAnimated)}</strong>
+          <span className="tokens-split">
+            ↓ {fmtTokens(status.claude_input_tokens_this_month)} wej. · ↑{" "}
+            {fmtTokens(status.claude_output_tokens_this_month)} wyj.
+          </span>
         </div>
 
         <div className="stat-tile stat-tile-live">

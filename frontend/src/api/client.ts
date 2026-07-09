@@ -35,6 +35,9 @@ export interface StatusResponse {
   claude_spend_usd_this_month: number;
   claude_budget_pct_used: number;
   claude_budget_alert: boolean;
+  claude_input_tokens_this_month: number;
+  claude_output_tokens_this_month: number;
+  claude_total_tokens_this_month: number;
 }
 
 export interface PortfolioSnapshot {

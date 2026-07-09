@@ -162,6 +162,11 @@ class SystemState(Base):
     etoro_analysis_state_json: Mapped[str] = mapped_column(Text, default="{}")
     claude_budget_month_key: Mapped[str] = mapped_column(String(7), default="")
     claude_spend_usd_this_month: Mapped[float] = mapped_column(Float, default=0.0)
+    # Live token meter: running input/output token totals for the current month,
+    # reset alongside the spend counter on a month rollover. Lets the dashboard
+    # show real token throughput, not just the estimated dollar figure.
+    claude_input_tokens_this_month: Mapped[int] = mapped_column(Integer, default=0)
+    claude_output_tokens_this_month: Mapped[int] = mapped_column(Integer, default=0)
     # Buy-and-hold benchmark baseline, set on the first cycle that can price
     # the benchmark ticker (and reset alongside the portfolio). Lets the
     # scorecard answer "am I beating just holding SPY?": benchmark value now =

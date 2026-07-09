@@ -1042,7 +1042,9 @@ def run_cycle(
         trigger_reason=trigger_reason.value,
     )
     _mark_analysis_done_today(db, venue=venue)
-    budget_tracker.record_usage_cost(db, decision_data.cost_usd)
+    budget_tracker.record_usage_cost(
+        db, decision_data.cost_usd, decision_data.input_tokens, decision_data.output_tokens
+    )
 
     # Volatility-aware sizing: scale a BUY down for a more-volatile ticker so
     # one wild name (MSTR) can't dominate P&L. HOLD/SELL are untouched.

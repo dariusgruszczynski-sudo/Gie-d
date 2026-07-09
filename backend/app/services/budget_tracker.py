@@ -32,20 +32,30 @@ def estimate_cost_usd(model: str, input_tokens: int, output_tokens: int) -> floa
     return (input_tokens / 1_000_000) * input_price + (output_tokens / 1_000_000) * output_price
 
 
-def record_usage_cost(db: Session, cost_usd: float) -> None:
+def record_usage_cost(db: Session, cost_usd: float, input_tokens: int = 0, output_tokens: int = 0) -> None:
     state = risk_manager.get_state(db)
     month_key = date.today().strftime("%Y-%m")
     if state.claude_budget_month_key != month_key:
+        # New month -> reset the dollar AND token meters together so both always
+        # describe the same window.
         state.claude_budget_month_key = month_key
         state.claude_spend_usd_this_month = 0.0
+        state.claude_input_tokens_this_month = 0
+        state.claude_output_tokens_this_month = 0
     state.claude_spend_usd_this_month += cost_usd
+    state.claude_input_tokens_this_month += int(input_tokens)
+    state.claude_output_tokens_this_month += int(output_tokens)
     db.commit()
 
 
 def get_budget_status(db: Session, settings: Settings) -> dict:
     state = risk_manager.get_state(db)
     today_month = date.today().strftime("%Y-%m")
-    spent = state.claude_spend_usd_this_month if state.claude_budget_month_key == today_month else 0.0
+    is_current = state.claude_budget_month_key == today_month
+    spent = state.claude_spend_usd_this_month if is_current else 0.0
+    # Tokens live in the same monthly window as spend; a stale month reads zero.
+    in_tokens = state.claude_input_tokens_this_month if is_current else 0
+    out_tokens = state.claude_output_tokens_this_month if is_current else 0
     budget = settings.claude_monthly_budget_usd
     pct_used = (spent / budget * 100) if budget > 0 else 0.0
     return {
@@ -53,4 +63,9 @@ def get_budget_status(db: Session, settings: Settings) -> dict:
         "claude_spend_usd_this_month": round(spent, 4),
         "claude_budget_pct_used": round(pct_used, 1),
         "claude_budget_alert": pct_used >= settings.claude_budget_alert_threshold_pct,
+        # Live token meter for the current month (input + output kept separate so
+        # the UI can show throughput and the cache/output split).
+        "claude_input_tokens_this_month": in_tokens,
+        "claude_output_tokens_this_month": out_tokens,
+        "claude_total_tokens_this_month": in_tokens + out_tokens,
     }

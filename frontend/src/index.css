@@ -328,6 +328,19 @@ h1 {
   font-family: var(--font-mono);
 }
 
+.stat-tile-tokens .tokens-total {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-tile-tokens .tokens-split {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
 .stat-tile-top {
   display: flex;
   align-items: center;
