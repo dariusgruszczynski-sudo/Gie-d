@@ -100,9 +100,13 @@ def get_portfolio(
 
     # Queried separately (not just history[0]) so "since the very beginning"
     # P&L stays correct even once more than `limit` snapshots have accumulated.
+    # Anchor on the first snapshot with a REAL value (> 0): a leading $0
+    # snapshot (recorded right after a history reset, before the account was
+    # first priced) would otherwise become the baseline and make "Od początku"
+    # show "—" forever (division by a zero baseline).
     inception_row = db.execute(
         select(PortfolioSnapshot)
-        .where(PortfolioSnapshot.venue == venue)
+        .where(PortfolioSnapshot.venue == venue, PortfolioSnapshot.total_value_usdt > 0)
         .order_by(PortfolioSnapshot.timestamp.asc())
         .limit(1)
     ).scalar_one_or_none()
