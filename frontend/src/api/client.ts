@@ -11,24 +11,6 @@ export interface MarketRegime {
   reasons: string[];
 }
 
-export interface Tunable {
-  key: string;
-  label: string;
-  min: number;
-  max: number;
-  step: number;
-  is_int: boolean;
-  unit: string;
-  help: string;
-  value: number;
-  default: number;
-  overridden: boolean;
-}
-
-export interface TuningResponse {
-  tunables: Tunable[];
-}
-
 export interface StatusResponse {
   mode: "testnet" | "live";
   quote_currency: string;
@@ -146,9 +128,6 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   status: () => apiFetch<StatusResponse>("/api/status"),
-  tuning: () => apiFetch<TuningResponse>("/api/tuning"),
-  setTuning: (values: Record<string, number>) =>
-    apiFetch<TuningResponse>("/api/control/tuning", { method: "POST", body: JSON.stringify({ values }) }),
   portfolio: (venue: string = "alpaca") => apiFetch<PortfolioResponse>(`/api/portfolio?limit=2000&venue=${venue}`),
   trades: (venue?: string) => apiFetch<Trade[]>(venue ? `/api/trades?venue=${venue}` : "/api/trades"),
   decisions: (venue?: string) => apiFetch<Decision[]>(venue ? `/api/decisions?venue=${venue}` : "/api/decisions"),

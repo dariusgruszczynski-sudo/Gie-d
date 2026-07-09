@@ -177,10 +177,6 @@ class SystemState(Base):
     # HMAC key for signing login session cookies -- generated once on first
     # boot and persisted so restarting the app doesn't log everyone out.
     session_secret: Mapped[str] = mapped_column(String(64), default="")
-    # Runtime slider overrides {setting_key -> value} the user dragged on the
-    # dashboard -- layered on top of the .env Settings each cycle without a
-    # redeploy (see services/tuning.py). Only whitelisted keys are honoured.
-    tuning_overrides_json: Mapped[str] = mapped_column(Text, default="{}")
     # Last computed broad-market regime {regime, score, reasons} -- cached here
     # by the Alpaca cycle so /api/status can show it without recomputing on
     # every 15s poll.

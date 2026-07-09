@@ -12,7 +12,6 @@ from app.services.etoro_client import EToroClient
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.trading_engine import run_cycle
-from app.services.tuning import apply_tuning
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +22,6 @@ def _job() -> None:
     settings = get_settings()
     db = SessionLocal()
     try:
-        settings = apply_tuning(db, settings)  # live slider overrides, no redeploy
         broker = AlpacaClient(settings)
         news = NewsClient(settings)
         advisor = ClaudeAdvisor(settings)
@@ -46,7 +44,6 @@ def _etoro_job() -> None:
         return
     db = SessionLocal()
     try:
-        settings = apply_tuning(db, settings)  # live slider overrides, no redeploy
         broker = EToroClient(settings)
         news = NewsClient(settings)
         advisor = ClaudeAdvisor(settings)

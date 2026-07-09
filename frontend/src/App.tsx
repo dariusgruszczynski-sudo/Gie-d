@@ -14,7 +14,6 @@ import { PortfolioChart } from "./components/PortfolioChart";
 import { PortfolioHoldings } from "./components/PortfolioHoldings";
 import { PriceTicker } from "./components/PriceTicker";
 import { StatusBanner } from "./components/StatusBanner";
-import { TuningPanel } from "./components/TuningPanel";
 import { TradesTable } from "./components/TradesTable";
 import { VenueControls } from "./components/VenueControls";
 import { isSoundMuted, playTradeSound, setSoundMuted } from "./tradeSound";
@@ -176,12 +175,6 @@ export default function App() {
         )}
 
         {status && <ControlToolbar status={status} onChanged={refresh} muted={muted} onToggleMuted={toggleMuted} />}
-
-        {status && (
-          <div style={{ marginBottom: 16 }}>
-            <TuningPanel />
-          </div>
-        )}
 
         {status && (
           <MarketStrip

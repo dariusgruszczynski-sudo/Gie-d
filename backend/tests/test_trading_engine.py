@@ -1112,35 +1112,3 @@ def test_auto_blacklist_after_stop_streak_extends_cooldown(db_session, settings)
     _stop_once(broker)  # 2nd stop within window -> quarantine (~48h)
     assert _cooldown_minutes_left() > 60 * 40
 
-
-# ============================================================================
-# Runtime tuning (dashboard sliders) -- overrides layered on top of .env
-# ============================================================================
-def test_tuning_overrides_clamp_persist_and_apply(db_session, settings):
-    from app.services import tuning
-
-    # Out-of-range values are clamped to each knob's bounds; unknown keys dropped.
-    tuning.set_overrides(db_session, {
-        "risk_per_trade_pct": 99.0,        # clamps to max 5.0
-        "max_new_positions_per_day": 2.7,  # int knob -> rounds to 3
-        "reward_risk_ratio": 2.0,
-        "totally_unknown_key": 123,        # ignored
-    })
-    eff = tuning.apply_tuning(db_session, settings)
-    assert eff.risk_per_trade_pct == 5.0
-    assert eff.max_new_positions_per_day == 3
-    assert eff.reward_risk_ratio == 2.0
-    # The base settings object is untouched (only the copy carries overrides).
-    assert settings.reward_risk_ratio == 1.5
-
-    values = {t["key"]: t for t in tuning.effective_values(db_session, settings)["tunables"]}
-    assert values["risk_per_trade_pct"]["value"] == 5.0
-    assert values["risk_per_trade_pct"]["overridden"] is True
-    assert values["min_buy_confidence"]["overridden"] is False  # never set -> env default
-    assert values["min_buy_confidence"]["value"] == settings.min_buy_confidence
-
-
-def test_apply_tuning_noop_without_overrides(db_session, settings):
-    from app.services import tuning
-
-    assert tuning.apply_tuning(db_session, settings) is settings

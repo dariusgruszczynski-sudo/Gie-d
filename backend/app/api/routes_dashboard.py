@@ -91,14 +91,6 @@ def _load_regime(state: SystemState) -> dict | None:
         return None
 
 
-@router.get("/tuning")
-def get_tuning(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
-    """Slider specs + current effective values for the dashboard tuning panel."""
-    from app.services import tuning
-
-    return tuning.effective_values(db, settings)
-
-
 @router.get("/portfolio")
 def get_portfolio(
     limit: int = Query(200, le=2000),
