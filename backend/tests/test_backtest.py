@@ -4,9 +4,13 @@ from app.services import backtest, signals
 
 
 def _uptrend(n=420, slope=0.0006, wobble=0.04, phase=0.0):
-    """Deterministic gently-rising series with oscillation, so SMA50>SMA200
-    holds after warmup while RSI still dips out of overbought on pullbacks."""
-    return [100 * (1 + slope) ** i * (1 + wobble * math.sin(i / 9 + phase)) for i in range(n)]
+    """Deterministic gently-rising OHLC rows [t,o,h,l,c,v] (timestamp-aligned),
+    so SMA50>SMA200 holds after warmup while RSI still dips out of overbought."""
+    rows = []
+    for i in range(n):
+        c = 100 * (1 + slope) ** i * (1 + wobble * math.sin(i / 9 + phase))
+        rows.append([i * 3600, c, c, c, c, 1000])  # hourly-spaced epoch stamps
+    return rows
 
 
 # ---- entry-confluence filter --------------------------------------------
@@ -38,9 +42,9 @@ def test_backtest_runs_and_reports_uptrend(settings):
     data = {"SPY": _uptrend(), "QQQ": _uptrend(phase=1.0)}
     report = backtest.run_backtest(data, s, benchmark_symbol="SPY", starting_cash=1000.0)
 
-    for key in ("bars", "entries", "closed_trades", "win_rate_pct", "expectancy_R", "total_return_pct", "alpha_pct", "max_drawdown_pct"):
+    for key in ("steps", "entries", "closed_trades", "win_rate_pct", "expectancy_R", "total_return_pct", "alpha_pct", "max_drawdown_pct"):
         assert key in report
-    assert report["bars"] > 0
+    assert report["steps"] > 0
     assert report["entries"] > 0
     assert report["total_return_pct"] > 0  # a rising market should make money
 

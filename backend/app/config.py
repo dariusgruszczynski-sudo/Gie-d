@@ -36,7 +36,10 @@ class Settings(BaseSettings):
     etoro_paper: bool = True
     # Krypto handluje 24/7 (także w weekend) -- to pokrywa noce, gdy rynek US
     # jest zamknięty. Spot, bez dźwigni, ta sama mechanika co portfel Alpaca.
-    etoro_whitelist: str = "BTC,ETH,SOL"
+    # Krypto majors (24/7, także weekend) + główne pary forex (24/5). Wszystkie
+    # mają zmapowane świece Yahoo i resolver ID w etoro_client, więc filtr
+    # konfluencji działa. Pokrywa noce i weekendy, gdy rynek US jest zamknięty.
+    etoro_whitelist: str = "BTC,ETH,SOL,XRP,ADA,DOGE,LTC,BCH,EURUSD,GBPUSD,USDJPY"
 
     daily_loss_limit_pct: float = 20.0
     weekly_loss_limit_pct: float = 70.0
@@ -127,7 +130,7 @@ class Settings(BaseSettings):
     # Wide-spread / thinner names (inverse ETFs, small caps, sector/bond ETFs):
     # every round trip pays more spread, so their edge must be larger. Haircut
     # their BUY size by high_spread_size_scale (1.0 = no haircut).
-    high_spread_symbols: str = "SH,PSQ,IWM,XLE,TLT"
+    high_spread_symbols: str = "SH,PSQ,IWM,XLE,TLT,SLV,EEM,EFA,XLU,XLP,XLI"
     high_spread_size_scale: float = 0.6
     # --- Sizing oparty na ryzyku + reżim rynku (Pakiet 3) -------------------
     # Risk-based position cap: size a BUY so that hitting its stop costs at most
@@ -172,7 +175,12 @@ class Settings(BaseSettings):
     #    the news trigger), deep liquidity, fractional-OK. Deliberately NOT a
     #    3x-leveraged ETF: those move ~2% within an hour, which with the
     #    global 2% stop-loss would just churn the account through stop-outs.
-    trading_whitelist: str = "SPY,QQQ,AAPL,NVDA,MSTR,TSLA,GLD,TLT,XLE,IWM,SH,PSQ"
+    #  - Sector rotation (added): XLF (financials), XLK (tech), XLV (health),
+    #    XLU (utilities), XLI (industrials), XLP (staples) -- lets the trend
+    #    filter rotate into WHATEVER sector is leading instead of only tech.
+    #  - International: EEM (emerging), EFA (developed ex-US) -- decorrelate
+    #    from the US tape. Plus DIA (Dow), SLV (silver). All liquid + fractional.
+    trading_whitelist: str = "SPY,QQQ,DIA,AAPL,NVDA,MSTR,TSLA,GLD,SLV,TLT,XLE,XLF,XLK,XLV,XLU,XLI,XLP,EEM,EFA,IWM,SH,PSQ"
     # Benchmark the whole strategy against simply buying and holding this
     # ticker -- if the bot can't beat holding SPY, it isn't earning its
     # complexity. Drives the dashboard scorecard and is fed back to Claude.

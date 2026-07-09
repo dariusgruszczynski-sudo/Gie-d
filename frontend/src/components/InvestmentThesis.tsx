@@ -56,6 +56,81 @@ const TICKER_INFO: Record<string, TickerInfo> = {
     description:
       "ETF 2000 mniejszych spółek amerykańskich. Bardziej wrażliwy na kondycję krajowej gospodarki i apetyt na ryzyko niż wielkie techy — bywa liderem odbić i wcześnie sygnalizuje zmiany nastroju.",
   },
+  DIA: {
+    name: "SPDR Dow Jones Industrial Average",
+    description:
+      "ETF na indeks Dow Jones — 30 dużych, dojrzałych spółek przemysłowo-usługowych. Mniej tech niż SPY/QQQ, spokojniejszy, „stary” rdzeń rynku. Dobra przeciwwaga dla technologicznej części listy.",
+  },
+  SLV: {
+    name: "iShares Silver Trust",
+    description:
+      "ETF odwzorowujący cenę srebra. Jak złoto (GLD), ale bardziej zmienny — łączy cechy metalu szlachetnego (risk-off) i surowca przemysłowego. Dywersyfikacja poza akcje.",
+  },
+  XLF: {
+    name: "Financial Select Sector SPDR",
+    description:
+      "ETF sektora finansowego (banki, ubezpieczyciele). Wrażliwy na stopy procentowe i cykl gospodarczy — często prowadzi, gdy rynek stawia na wzrost i wyższe stopy. Nieskorelowany z tech.",
+  },
+  XLK: {
+    name: "Technology Select Sector SPDR",
+    description:
+      "ETF sektora technologicznego (podobny do QQQ, ale czysty sektor). Ekspozycja na trend tech bez pojedynczej spółki — sposób, by grać momentum technologii z mniejszym ryzykiem jednej nazwy.",
+  },
+  XLV: {
+    name: "Health Care Select Sector SPDR",
+    description:
+      "ETF sektora ochrony zdrowia (farma, biotech, sprzęt medyczny). Klasyczny defensywny sektor — popyt stabilny niezależnie od cyklu, często trzyma się lepiej w słabszym rynku.",
+  },
+  XLU: {
+    name: "Utilities Select Sector SPDR",
+    description:
+      "ETF sektora użyteczności publicznej (energetyka, woda). Najbardziej defensywny sektor, płaci dywidendy, zachowuje się jak „obligacyjny” — zwykle mocny w risk-off i przy spadających stopach.",
+  },
+  XLI: {
+    name: "Industrial Select Sector SPDR",
+    description:
+      "ETF sektora przemysłowego (lotnictwo, maszyny, logistyka). Cykliczny — rośnie, gdy gospodarka przyspiesza. Barometr realnej aktywności gospodarczej, inny rytm niż tech.",
+  },
+  XLP: {
+    name: "Consumer Staples Select Sector SPDR",
+    description:
+      "ETF dóbr podstawowych (żywność, napoje, chemia domowa). Defensywny — ludzie kupują je zawsze, więc trzyma się stabilnie w bessie. Schronienie, gdy apetyt na ryzyko spada.",
+  },
+  EEM: {
+    name: "iShares MSCI Emerging Markets",
+    description:
+      "ETF rynków wschodzących (Chiny, Indie, Brazylia i in.). Ekspozycja poza USA — inny cykl, wrażliwy na dolara i surowce. Dywersyfikacja geograficzna wobec amerykańskiej reszty listy.",
+  },
+  EFA: {
+    name: "iShares MSCI EAFE (rynki rozwinięte ex-US)",
+    description:
+      "ETF rozwiniętych rynków poza USA (Europa, Japonia, Australia). Pozwala botowi złapać trend, gdy to rynki zagraniczne, a nie amerykańskie, są liderem.",
+  },
+  XRP: {
+    name: "XRP (Ripple)",
+    description:
+      "Kryptowaluta skupiona na płatnościach transgranicznych. Płynna, mocno reaguje na newsy regulacyjne (sprawy sądowe SEC). Spot, 24/7.",
+  },
+  ADA: {
+    name: "Cardano",
+    description:
+      "Blockchain warstwy 1 (proof-of-stake). Wysokobetowy altcoin — potrafi ruszyć się mocniej niż BTC/ETH. Spot, 24/7; rozmiar przycina skalowanie wg zmienności.",
+  },
+  DOGE: {
+    name: "Dogecoin",
+    description:
+      "Kryptowaluta „memowa”, bardzo zmienna i napędzana sentymentem/social media (Elon). Wysokie ryzyko i amplituda — spot, 24/7, rozmiar mocno przycinany przez skalowanie wg zmienności.",
+  },
+  LTC: {
+    name: "Litecoin",
+    description:
+      "Jedna z najstarszych kryptowalut, „srebro do bitcoinowego złota”. Płynna, zwykle podąża za BTC z podobną lub nieco większą amplitudą. Spot, 24/7.",
+  },
+  BCH: {
+    name: "Bitcoin Cash",
+    description:
+      "Fork bitcoina nastawiony na tańsze płatności. Płynny altcoin, koreluje z BTC. Spot, 24/7; rozmiar przycina skalowanie wg zmienności.",
+  },
   SH: {
     name: "ProShares Short S&P 500 (inverse)",
     description:
