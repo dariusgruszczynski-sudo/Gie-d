@@ -89,6 +89,8 @@ def init_db() -> None:
     _add_column_if_missing("system_state", "etoro_seen_ticker_headlines_json", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "etoro_analysis_state_json", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "etoro_paused", "BOOLEAN", "1")
+    _add_column_if_missing("system_state", "tuning_overrides_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "market_regime_json", "TEXT", "'{}'")
     # Dead columns from the pre-generic-whitelist schema (superseded by
     # balances_json/prices_json/last_check_prices_json) -- NOT NULL with no
     # DB-level default, so they broke every insert once the ORM stopped

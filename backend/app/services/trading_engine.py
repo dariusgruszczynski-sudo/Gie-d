@@ -903,6 +903,10 @@ def run_cycle(
     # trend + VIX + today's tape. Always given to Claude; equities-only (the
     # crypto venue has no SPY/VIX regime), so the eToro path skips the gate.
     regime = compute_market_regime(market_data, global_context, settings) if venue == "alpaca" else {"regime": "neutral", "score": 0, "reasons": []}
+    if venue == "alpaca":
+        # Cache it so /api/status can show the regime chip without recomputing.
+        state.market_regime_json = json.dumps(regime)
+        db.commit()
     performance_context = build_performance_context(db, settings, portfolio, venue=venue, whitelist=symbols)
     # Upcoming earnings per ticker (days until next report). Best-effort --
     # never blocks the cycle if the calendar lookup fails. Only meaningful for

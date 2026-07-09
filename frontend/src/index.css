@@ -1737,3 +1737,125 @@ button {
   }
   .market-strip-sweep { display: none; }
 }
+
+/* ============================================================
+   Reżim rynku (badge) + panel strojenia (suwaki)
+   ============================================================ */
+.regime-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.regime-badge-icon { font-size: 0.66rem; }
+.regime-on {
+  background: color-mix(in srgb, var(--green) 16%, transparent);
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 35%, transparent);
+}
+.regime-neutral {
+  background: color-mix(in srgb, var(--muted) 16%, transparent);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--muted) 30%, transparent);
+}
+.regime-off {
+  background: color-mix(in srgb, var(--red) 15%, transparent);
+  color: var(--red);
+  border-color: color-mix(in srgb, var(--red) 38%, transparent);
+  animation: regime-off-pulse 2.6s ease-in-out infinite;
+}
+@keyframes regime-off-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--red) 40%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--red) 0%, transparent); }
+}
+
+.tuning-body { margin-top: 8px; }
+.tuning-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px 22px;
+}
+.tuning-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.tuning-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tuning-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.tuning-value {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.tuning-value-changed { color: var(--accent); font-weight: 600; }
+
+.tuning-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-2) 100%);
+  opacity: 0.85;
+  outline: none;
+  cursor: pointer;
+}
+.tuning-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+.tuning-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent);
+  cursor: pointer;
+}
+.tuning-row-foot {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tuning-help {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.tuning-reset {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.72rem;
+  cursor: pointer;
+  padding: 0;
+  white-space: nowrap;
+}
+.tuning-reset:hover { text-decoration: underline; }

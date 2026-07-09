@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { MarketSession, Scorecard as ScorecardData, SessionBounds } from "../api/client";
+import { MarketRegime, MarketSession, Scorecard as ScorecardData, SessionBounds } from "../api/client";
+import { RegimeBadge } from "./RegimeBadge";
 
 // Jeden scalony pasek u góry: status sesji + zegar (kompaktowo) po lewej,
 // wynik vs benchmark (alpha) po prawej. Zastępuje dwa duże panele
@@ -47,12 +48,14 @@ export function MarketStrip({
   lastCycleAt,
   pollIntervalMinutes,
   scorecard,
+  regime,
 }: {
   session: MarketSession;
   bounds: SessionBounds | null;
   lastCycleAt: string | null;
   pollIntervalMinutes: number;
   scorecard: ScorecardData | null;
+  regime: MarketRegime | null;
 }) {
   const [now, setNow] = useState(() => new Date());
 
@@ -102,6 +105,7 @@ export function MarketStrip({
             cykl {fmtAgo(lastCycleAt, now)} · co {pollIntervalMinutes} min
           </span>
         )}
+        <RegimeBadge regime={regime} />
       </div>
 
       {/* --- Prawa strona: wynik vs benchmark (alpha) --- */}

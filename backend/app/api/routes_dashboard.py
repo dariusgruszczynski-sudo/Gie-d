@@ -77,9 +77,26 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "etoro_enabled": settings.etoro_enabled,
         "etoro_whitelist": settings.etoro_whitelist_symbols,
         "etoro_mode": ("paper" if settings.etoro_paper else "live") if settings.etoro_enabled else None,
+        "market_regime": _load_regime(state),
         **_serialize_session_info(settings),
         **budget_tracker.get_budget_status(db, settings),
     }
+
+
+def _load_regime(state: SystemState) -> dict | None:
+    try:
+        data = json.loads(state.market_regime_json or "{}")
+        return data or None
+    except json.JSONDecodeError:
+        return None
+
+
+@router.get("/tuning")
+def get_tuning(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """Slider specs + current effective values for the dashboard tuning panel."""
+    from app.services import tuning
+
+    return tuning.effective_values(db, settings)
 
 
 @router.get("/portfolio")

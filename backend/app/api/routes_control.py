@@ -17,6 +17,7 @@ from app.services.email_reporter import send_daily_report
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.trading_engine import compute_portfolio, execute_manual_trade, run_cycle
+from app.services import tuning
 
 router = APIRouter(prefix="/api/control", tags=["control"])
 
@@ -92,6 +93,7 @@ def run_cycle_now(venue: str = "alpaca", db: Session = Depends(get_db), settings
     decision rather than returning 'no trigger'. Per venue (Alpaca/eToro)."""
     if venue == "etoro" and not settings.etoro_enabled:
         raise HTTPException(status_code=400, detail="Portfel eToro jest wyłączony (ETORO_ENABLED=false)")
+    settings = tuning.apply_tuning(db, settings)  # respect live slider overrides
     broker, whitelist, always_open = _broker_for(venue, settings)
     news = NewsClient(settings)
     advisor = ClaudeAdvisor(settings)
@@ -129,6 +131,23 @@ def refresh_portfolio(venue: str = "alpaca", db: Session = Depends(get_db), sett
         "failed_symbols": portfolio["failed_symbols"],
         "quote_currency": settings.quote_currency,
     }
+
+
+class TuningRequest(BaseModel):
+    values: dict[str, float]
+
+
+@router.post("/tuning")
+def update_tuning(
+    req: TuningRequest,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    """Persist dashboard slider overrides. Values are clamped to each knob's
+    bounds server-side and take effect on the next automated cycle (no
+    redeploy). Returns the full effective set for the panel to re-render."""
+    tuning.set_overrides(db, req.values)
+    return tuning.effective_values(db, settings)
 
 
 @router.post("/send-report-now")
