@@ -66,6 +66,37 @@ const TICKER_INFO: Record<string, TickerInfo> = {
     description:
       "ETF ODWROTNY do Nasdaq-100 — rośnie, gdy tech spada (1x, bez lewara). Odpowiednik SH, ale wycelowany w sektor technologiczny. Sposób na grę pod korektę tech bez shortowania z nieograniczoną stratą.",
   },
+  // --- Portfel nocny eToro: krypto (spot) + forex ---
+  BTC: {
+    name: "Bitcoin",
+    description:
+      "Największa i najpłynniejsza kryptowaluta, handlowana 24/7 (także w weekend) — rdzeń portfela nocnego. Zmienna, ale spot (bez dźwigni), więc strata ograniczona jak przy każdej długiej pozycji. Reaguje mocno na newsy o ETF-ach, regulacjach i przepływach on-chain.",
+  },
+  ETH: {
+    name: "Ethereum",
+    description:
+      "Druga co do wielkości kryptowaluta, baza dla DeFi i większości tokenów. Trochę bardziej zmienna niż BTC, często podąża za nim z większą amplitudą. Spot, 24/7.",
+  },
+  SOL: {
+    name: "Solana",
+    description:
+      "Szybki, wysokobetowy blockchain warstwy 1 — potrafi ruszyć się mocniej niż BTC/ETH w obie strony. Płynny, ale bardziej ryzykowny; rozmiar pozycji przycina skalowanie wg zmienności.",
+  },
+  EURUSD: {
+    name: "EUR/USD (forex)",
+    description:
+      "Najpłynniejsza para walutowa świata, handel 24/5. Napędzana decyzjami banków centralnych (EBC/Fed) i danymi makro. Na eToro to instrument CFD — ruchy zwykle mniejsze niż krypto.",
+  },
+  GBPUSD: {
+    name: "GBP/USD (forex)",
+    description:
+      "Funt do dolara — płynna para 24/5, bardziej zmienna niż EUR/USD, wrażliwa na dane z UK i USA oraz nastroje risk-on/risk-off.",
+  },
+  USDJPY: {
+    name: "USD/JPY (forex)",
+    description:
+      "Dolar do jena — bardzo płynna para 24/5, klasyczny barometr apetytu na ryzyko (jen to waluta „bezpiecznej przystani”). Silnie reaguje na różnice stóp procentowych USA/Japonia.",
+  },
 };
 
 function fallbackInfo(ticker: string): TickerInfo {

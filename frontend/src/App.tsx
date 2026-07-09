@@ -11,7 +11,6 @@ import { ManualTradePanel } from "./components/ManualTradePanel";
 import { MarketLog } from "./components/MarketLog";
 import { PortfolioChart } from "./components/PortfolioChart";
 import { PortfolioHoldings } from "./components/PortfolioHoldings";
-import { PortfoliosBar } from "./components/PortfoliosBar";
 import { PriceTicker } from "./components/PriceTicker";
 import { Scorecard } from "./components/Scorecard";
 import { SessionClock } from "./components/SessionClock";
@@ -48,7 +47,7 @@ export default function App() {
         api.status(),
         api.portfolio("alpaca"),
         api.trades("alpaca"),
-        api.decisions("alpaca"),
+        api.decisions(),
       ]);
       setStatus(s);
       setPortfolio(p);
@@ -114,9 +113,29 @@ export default function App() {
       {splashDecision && <DecisionSplash decision={splashDecision} onDismiss={() => setSplashDecision(null)} />}
       <EmberBackground />
       {status && (
-        <div className="ticker">
-          <AccountSummary current={portfolio?.current ?? null} inception={portfolio?.inception ?? null} />
-          <PriceTicker history={portfolio?.history ?? []} whitelist={status.whitelist} />
+        <div className="tickers-stack">
+          <div className="ticker-labeled">
+            <span className="ticker-venue-label">
+              <span className="venue-dot venue-dot-alpaca" /> Portfel dzienny · Alpaca (akcje US)
+            </span>
+            <div className="ticker">
+              <AccountSummary current={portfolio?.current ?? null} inception={portfolio?.inception ?? null} />
+              <PriceTicker history={portfolio?.history ?? []} whitelist={status.whitelist} />
+            </div>
+          </div>
+          <div className="ticker-labeled">
+            <span className="ticker-venue-label">
+              <span className="venue-dot venue-dot-etoro" /> Portfel nocny · eToro (krypto/forex 24-7)
+              {status.etoro_mode && (
+                <span className="venue-mode-tag">{status.etoro_mode === "paper" ? "DEMO" : "LIVE"}</span>
+              )}
+              {!status.etoro_enabled && <span className="venue-off-tag">wyłączony</span>}
+            </span>
+            <div className="ticker">
+              <AccountSummary current={etoroPortfolio?.current ?? null} inception={etoroPortfolio?.inception ?? null} />
+              <PriceTicker history={etoroPortfolio?.history ?? []} whitelist={status.etoro_whitelist} />
+            </div>
+          </div>
         </div>
       )}
       <div className="app">
@@ -134,15 +153,6 @@ export default function App() {
 
         {status && <StatusBanner status={status} />}
 
-        {status && (
-          <PortfoliosBar
-            alpaca={portfolio}
-            etoro={etoroPortfolio}
-            etoroEnabled={status.etoro_enabled}
-            etoroMode={status.etoro_mode}
-          />
-        )}
-
         {status && <ControlToolbar status={status} onChanged={refresh} muted={muted} onToggleMuted={toggleMuted} />}
 
         {status && (
@@ -156,52 +166,53 @@ export default function App() {
           </div>
         )}
 
-        {portfolio && <Scorecard data={portfolio.scorecard} />}
+        {/* ===== Portfel dzienny — Alpaca (akcje US) ===== */}
+        <div className="venue-section venue-section-alpaca">
+          <div className="venue-section-header">
+            <span className="venue-dot venue-dot-alpaca" />
+            <h2>Portfel dzienny — Alpaca (akcje US)</h2>
+          </div>
 
-        {status && <InvestmentThesis whitelist={status.whitelist} />}
+          {portfolio && <Scorecard data={portfolio.scorecard} />}
 
-        <div className="grid">
-          {portfolio && <PortfolioChart history={portfolio.history} current={portfolio.current} scorecard={portfolio.scorecard} />}
-          {status && <ManualTradePanel status={status} onChanged={refresh} />}
+          {status && <InvestmentThesis whitelist={status.whitelist} />}
+
+          <div className="grid">
+            {portfolio && <PortfolioChart history={portfolio.history} current={portfolio.current} scorecard={portfolio.scorecard} />}
+            {status && <ManualTradePanel status={status} onChanged={refresh} />}
+          </div>
+
+          <div className="grid">
+            <PortfolioHoldings current={portfolio?.current ?? null} costBasis={portfolio?.cost_basis ?? {}} />
+            <TradesTable trades={trades} />
+          </div>
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <PortfolioHoldings current={portfolio?.current ?? null} costBasis={portfolio?.cost_basis ?? {}} />
+        {/* ===== Portfel nocny — eToro (krypto/forex 24-7) ===== */}
+        <div className="venue-section venue-section-etoro">
+          <div className="venue-section-header">
+            <span className="venue-dot venue-dot-etoro" />
+            <h2>Portfel nocny — eToro (krypto / forex, 24-7)</h2>
+            {status?.etoro_mode && (
+              <span className="venue-mode-tag">{status.etoro_mode === "paper" ? "DEMO" : "LIVE"}</span>
+            )}
+            {status && !status.etoro_enabled && <span className="venue-off-tag">wyłączony — włącz po zasileniu konta</span>}
+          </div>
+
+          {status && <InvestmentThesis whitelist={status.etoro_whitelist} />}
+
+          {etoroPortfolio && <PortfolioChart history={etoroPortfolio.history} current={etoroPortfolio.current} scorecard={null} />}
+
+          <div className="grid">
+            <PortfolioHoldings current={etoroPortfolio?.current ?? null} costBasis={etoroPortfolio?.cost_basis ?? {}} />
+            <TradesTable trades={etoroTrades} />
+          </div>
         </div>
 
+        {/* ===== Log decyzji Claude — na samym dole (oba portfele) ===== */}
         <div style={{ marginBottom: 16 }}>
           <DecisionsLog decisions={decisions} />
         </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <TradesTable trades={trades} />
-        </div>
-
-        {status?.etoro_enabled && (
-          <div className="venue-section venue-section-etoro">
-            <div className="venue-section-header">
-              <span className="venue-dot venue-dot-etoro" />
-              <h2>Portfel nocny — eToro (krypto / forex, 24-7)</h2>
-              {status.etoro_mode && (
-                <span className="venue-mode-tag">{status.etoro_mode === "paper" ? "DEMO" : "LIVE"}</span>
-              )}
-            </div>
-            <div className="ticker" style={{ marginBottom: 12 }}>
-              <AccountSummary
-                current={etoroPortfolio?.current ?? null}
-                inception={etoroPortfolio?.inception ?? null}
-              />
-              <PriceTicker history={etoroPortfolio?.history ?? []} whitelist={status.etoro_whitelist} />
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <PortfolioHoldings
-                current={etoroPortfolio?.current ?? null}
-                costBasis={etoroPortfolio?.cost_basis ?? {}}
-              />
-            </div>
-            <TradesTable trades={etoroTrades} />
-          </div>
-        )}
 
         <MarketLog history={portfolio?.history ?? []} whitelist={status?.whitelist ?? []} />
       </div>

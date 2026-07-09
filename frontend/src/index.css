@@ -1490,3 +1490,49 @@ button {
   margin: 0;
   font-size: 1.15rem;
 }
+
+/* ---- Stacked per-venue ticker bars (Alpaca over eToro) ---- */
+.tickers-stack {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.tickers-stack .ticker {
+  position: static;
+  box-shadow: none;
+}
+.ticker-labeled {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, #070910 0%, #0c1018 100%);
+}
+.ticker-venue-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 14px;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid rgba(33, 40, 66, 0.5);
+}
+.venue-off-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(139, 147, 172, 0.12);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.venue-section {
+  margin-bottom: 20px;
+}
+.venue-section-alpaca {
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
+}
