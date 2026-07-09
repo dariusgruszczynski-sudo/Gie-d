@@ -13,11 +13,19 @@ Note on timeframe: on the free Alpaca feed hourly history is too short for a
 200-bar SMA (~30 trading days of 1h bars), so the runner defaults to DAILY bars
 -- this measures the same LOGIC/edge on a longer sample, not the exact live 1h
 cadence. Stops/vol scale with the chosen timeframe.
+
+The report includes a YEARLY breakdown (strategy vs benchmark return + alpha
+per calendar year) -- a single aggregate number over a multi-year run can hide
+a strategy that lags a raging bull market yet actually protects capital in a
+crash year (2008/2020/2022). Feed it deep history via
+app.services.historical_data (Yahoo, free, decades back) to see that; the
+default Alpaca feed alone only reaches back a few years.
 """
 
 import math
+from collections import OrderedDict
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.config import Settings
 from app.services import signals
@@ -42,6 +50,45 @@ def _epoch(t) -> float:
         return datetime.fromisoformat(str(t).replace("Z", "+00:00")).timestamp()
     except ValueError:
         return 0.0
+
+
+def _yearly_breakdown(timeline: list[float], equity_curve: list[float], bench_curve: list[float | None]) -> list[dict]:
+    """Splits the run into calendar years and reports strategy vs benchmark
+    return for EACH one -- the whole point of testing 20 years instead of the
+    last bull run: a system can lag buy-and-hold in a raging uptrend yet still
+    be worth running if it protects capital in years like 2008/2022, which a
+    single aggregate number can't show."""
+    if not timeline:
+        return []
+    year_of = [datetime.fromtimestamp(t, tz=timezone.utc).year for t in timeline]
+    bounds: "OrderedDict[int, list[int]]" = OrderedDict()
+    for i, y in enumerate(year_of):
+        if y not in bounds:
+            bounds[y] = [i, i]
+        else:
+            bounds[y][1] = i
+
+    rows = []
+    prev_equity = equity_curve[0]
+    prev_bench = next((b for b in bench_curve if b is not None), None)
+    for year, (start_i, end_i) in bounds.items():
+        end_equity = equity_curve[end_i]
+        strat_ret = (end_equity / prev_equity - 1) * 100 if prev_equity else None
+
+        end_bench = bench_curve[end_i]
+        bench_ret = (end_bench / prev_bench - 1) * 100 if prev_bench and end_bench is not None else None
+
+        alpha = strat_ret - bench_ret if strat_ret is not None and bench_ret is not None else None
+        rows.append({
+            "year": year,
+            "strategy_return_pct": round(strat_ret, 2) if strat_ret is not None else None,
+            "benchmark_return_pct": round(bench_ret, 2) if bench_ret is not None else None,
+            "alpha_pct": round(alpha, 2) if alpha is not None else None,
+        })
+        prev_equity = end_equity
+        if end_bench is not None:
+            prev_bench = end_bench
+    return rows
 
 
 @dataclass
@@ -74,6 +121,7 @@ def run_backtest(
     positions: dict[str, _Pos] = {}
     idx = {s: 0 for s in symbols}  # bars with time <= current step
     equity_curve: list[float] = []
+    bench_curve: list[float | None] = []
     sell_returns_r: list[float] = []
     wins = losses = n_entries = 0
     realized_total = 0.0
@@ -156,6 +204,9 @@ def run_backtest(
             n_entries += 1
 
         equity_curve.append(cash + sum(closes[s][idx[s] - 1] * p.qty for s, p in positions.items() if idx[s] > 0))
+        bench_curve.append(
+            bench_shares * closes[bench][idx[bench] - 1] if bench_shares is not None and idx[bench] > 0 else None
+        )
 
     # Liquidate whatever is still open at each symbol's last price.
     for s, p in positions.items():
@@ -170,12 +221,22 @@ def run_backtest(
     if bench and bench_shares is not None:
         bench_return_pct = (bench_shares * closes[bench][-1] / bench_start_equity - 1) * 100
 
-    peak = -math.inf
-    max_dd = 0.0
-    for e in equity_curve:
-        peak = max(peak, e)
-        if peak > 0:
-            max_dd = max(max_dd, (peak - e) / peak * 100)
+    def _max_dd(curve: list[float]) -> float:
+        peak = -math.inf
+        dd = 0.0
+        for e in curve:
+            peak = max(peak, e)
+            if peak > 0:
+                dd = max(dd, (peak - e) / peak * 100)
+        return dd
+
+    max_dd = _max_dd(equity_curve)
+    bench_curve_clean = [b for b in bench_curve if b is not None]
+    bench_max_dd = _max_dd(bench_curve_clean) if bench_curve_clean else None
+
+    yearly = _yearly_breakdown(timeline, equity_curve, bench_curve)
+    years_beating_benchmark = sum(1 for r in yearly if (r["alpha_pct"] or 0) > 0)
+    years_with_alpha = sum(1 for r in yearly if r["alpha_pct"] is not None)
 
     avg_r = round(sum(sell_returns_r) / len(sell_returns_r), 3) if sell_returns_r else None
     return {
@@ -192,5 +253,10 @@ def run_backtest(
         "benchmark_return_pct": round(bench_return_pct, 2) if bench_return_pct is not None else None,
         "alpha_pct": round(total_return_pct - bench_return_pct, 2) if bench_return_pct is not None else None,
         "max_drawdown_pct": round(max_dd, 2),
+        "benchmark_max_drawdown_pct": round(bench_max_dd, 2) if bench_max_dd is not None else None,
         "final_equity": round(final_equity, 2),
+        # Rok po roku: pokazuje, czy strategia broni kapitału w latach spadkowych
+        # (2008/2020/2022), nawet jeśli w sumie przegrywa z hossą ostatnich lat.
+        "yearly_breakdown": yearly,
+        "years_beating_benchmark": f"{years_beating_benchmark}/{years_with_alpha}" if years_with_alpha else None,
     }

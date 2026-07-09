@@ -110,11 +110,15 @@ class Settings(BaseSettings):
     # is second-order -- so a BUY must clear a transparent confluence of trend +
     # momentum + RSI before it commits capital (trading WITH the trend avoids
     # knife-catching and lifts the win rate). Score is 0-3 over {SMA50>SMA200,
-    # MACD bullish, RSI in a healthy long zone}; a BUY needs >= entry_min_score
-    # AND RSI below entry_rsi_overbought. entry_filter_enabled=False disables it.
+    # MACD bullish, RSI in a healthy/momentum zone}; a BUY needs >= entry_min_score.
+    # A 6-year backtest showed an earlier RSI-overbought VETO made results worse
+    # (fewer entries, lower expectancy) -- it filtered out continuation entries
+    # into exactly the strong multi-month trends this strategy needs to catch,
+    # since persistently high RSI in a genuine trend is normal, not exhaustion.
+    # Removed: RSI now only ever adds to the score. entry_filter_enabled=False
+    # disables the whole filter.
     entry_filter_enabled: bool = True
     entry_min_score: int = 2
-    entry_rsi_overbought: float = 72.0
     # --- Ilościowa auto-degradacja setupów (Tier 1) -------------------------
     # Once a ticker has >= auto_demote_min_trades CLOSED trades on a venue with
     # negative realized P&L and a sub-par win rate, block opening fresh
