@@ -9,11 +9,10 @@ import { EmberBackground } from "./components/EmberBackground";
 import { InvestmentThesis } from "./components/InvestmentThesis";
 import { ManualTradePanel } from "./components/ManualTradePanel";
 import { MarketLog } from "./components/MarketLog";
+import { MarketStrip } from "./components/MarketStrip";
 import { PortfolioChart } from "./components/PortfolioChart";
 import { PortfolioHoldings } from "./components/PortfolioHoldings";
 import { PriceTicker } from "./components/PriceTicker";
-import { Scorecard } from "./components/Scorecard";
-import { SessionClock } from "./components/SessionClock";
 import { StatusBanner } from "./components/StatusBanner";
 import { TradesTable } from "./components/TradesTable";
 import { VenueControls } from "./components/VenueControls";
@@ -178,14 +177,13 @@ export default function App() {
         {status && <ControlToolbar status={status} onChanged={refresh} muted={muted} onToggleMuted={toggleMuted} />}
 
         {status && (
-          <div style={{ marginBottom: 16 }}>
-            <SessionClock
-              session={status.market_session}
-              bounds={status.session_bounds}
-              lastCycleAt={portfolio?.current?.timestamp ?? null}
-              pollIntervalMinutes={status.poll_interval_minutes}
-            />
-          </div>
+          <MarketStrip
+            session={status.market_session}
+            bounds={status.session_bounds}
+            lastCycleAt={portfolio?.current?.timestamp ?? null}
+            pollIntervalMinutes={status.poll_interval_minutes}
+            scorecard={portfolio?.scorecard ?? null}
+          />
         )}
 
         {status && (
@@ -209,7 +207,6 @@ export default function App() {
         </div>
 
         {/* ===== Wykresy wartości (oba portfele) ===== */}
-        {portfolio && <Scorecard data={portfolio.scorecard} />}
         <div className="grid">
           <PortfolioChart history={portfolio?.history ?? []} current={portfolio?.current ?? null} scorecard={portfolio?.scorecard ?? null} />
           <PortfolioChart history={etoroPortfolio?.history ?? []} current={etoroPortfolio?.current ?? null} scorecard={null} />

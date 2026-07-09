@@ -1566,3 +1566,174 @@ button {
 .venue-controls-row .btn-hero {
   min-width: 96px;
 }
+
+/* ============================================================
+   Market strip — scalony pasek: sesja + zegar + wynik vs benchmark
+   ============================================================ */
+.market-strip {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 24px;
+  margin-bottom: 16px;
+  padding: 12px 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: linear-gradient(168deg, var(--panel-2), var(--panel));
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+.market-strip-open {
+  border-color: color-mix(in srgb, var(--green) 40%, var(--border));
+}
+
+/* Delikatny przesuwający się połysk — subtelny "living" akcent. */
+.market-strip-sweep {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in srgb, var(--accent) 10%, transparent) 48%,
+    color-mix(in srgb, var(--accent-2) 12%, transparent) 52%,
+    transparent 80%
+  );
+  transform: translateX(-120%);
+  animation: strip-sweep 7s ease-in-out infinite;
+}
+@keyframes strip-sweep {
+  0%, 100% { transform: translateX(-120%); }
+  55%, 60% { transform: translateX(120%); }
+}
+
+.market-strip-cluster {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+.market-strip-alpha {
+  margin-left: auto;
+}
+
+.session-badge-pulse {
+  animation: session-glow 2.4s ease-in-out infinite;
+}
+@keyframes session-glow {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 45%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--green) 0%, transparent); }
+}
+
+.market-strip-clock {
+  display: flex;
+  gap: 16px;
+}
+.market-strip-clock-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.market-strip-tz {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.market-strip-time {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.market-strip-time-sm {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+@media (max-width: 720px) {
+  .market-strip-schedule { display: none; }
+}
+
+.market-strip-cycle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.market-strip-cycle-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
+  animation: cycle-ping 2s ease-out infinite;
+}
+@keyframes cycle-ping {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+  70%, 100% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+
+.market-strip-figs {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.market-strip-fig {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.market-strip-fig-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.market-strip-fig strong {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.market-strip-fig strong.up { color: var(--green); }
+.market-strip-fig strong.down { color: var(--red); }
+.market-strip-fig-sub {
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* Animowany, delikatnie płynący gradient na nazwie marki (bajer). */
+.brand-accent {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: brand-shimmer 6s linear infinite;
+}
+@keyframes brand-shimmer {
+  to { background-position: 200% center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .market-strip-sweep,
+  .session-badge-pulse,
+  .market-strip-cycle-dot,
+  .brand-accent {
+    animation: none;
+  }
+  .market-strip-sweep { display: none; }
+}
