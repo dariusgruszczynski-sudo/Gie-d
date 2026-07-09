@@ -1,0 +1,14 @@
+# Override, który zamyka aplikację do localhost -- używaj RAZEM z Caddy.
+# Zamiast "8000:8000" (nasłuch na 0.0.0.0, cały świat) publikujemy port tylko
+# na pętli lokalnej 127.0.0.1:8000. Do dashboardu da się wtedy dostać wyłącznie
+# przez reverse proxy Caddy (HTTPS), a nie po gołym HTTP z internetu.
+#
+# Uruchomienie:
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.localhost.yml up -d
+#
+# Po tym pamiętaj zamknąć port 8000 na firewallu:
+#   ufw delete allow 8000/tcp
+services:
+  app:
+    ports:
+      - "127.0.0.1:8000:8000"
