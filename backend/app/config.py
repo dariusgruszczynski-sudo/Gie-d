@@ -82,15 +82,15 @@ class Settings(BaseSettings):
     # stop_dist * reward_risk_ratio and the trailing at stop_dist *
     # trailing_stop_frac. Set reward_risk_ratio=0 to fall back to the fixed
     # take_profit_pct / trailing_stop_pct above.
-    reward_risk_ratio: float = 1.5
+    reward_risk_ratio: float = 2.0
     trailing_stop_frac: float = 0.5
     # Partial profit-taking: once a position reaches +partial_take_profit_r *
     # stop_dist, sell partial_take_profit_frac of it and let the rest run under
     # the trailing stop. This books a realized WIN (take-profit alone almost
     # never fired) while keeping upside open. Set enabled=False to disable.
     partial_take_profit_enabled: bool = True
-    partial_take_profit_frac: float = 0.5
-    partial_take_profit_r: float = 1.0
+    partial_take_profit_frac: float = 0.33
+    partial_take_profit_r: float = 1.5
     # --- Anty-churn (Pakiet 2) ----------------------------------------------
     # Hard conviction floor: an automated BUY below this confidence is rejected
     # outright -- cash is a valid position, don't trade a weak edge. 0 disables.
@@ -102,6 +102,33 @@ class Settings(BaseSettings):
     # / take-profit / partial) may fire. The hard stop-loss is ALWAYS allowed.
     # Kills in-and-out round trips that only pay the spread. 0 disables.
     min_hold_minutes: int = 30
+    # --- Filtr konfluencji wejść (Tier 1: przewaga wejścia) -----------------
+    # Entry edge (win rate) is the FIRST-ORDER driver of profit -- exit geometry
+    # is second-order -- so a BUY must clear a transparent confluence of trend +
+    # momentum + RSI before it commits capital (trading WITH the trend avoids
+    # knife-catching and lifts the win rate). Score is 0-3 over {SMA50>SMA200,
+    # MACD bullish, RSI in a healthy long zone}; a BUY needs >= entry_min_score
+    # AND RSI below entry_rsi_overbought. entry_filter_enabled=False disables it.
+    entry_filter_enabled: bool = True
+    entry_min_score: int = 2
+    entry_rsi_overbought: float = 72.0
+    # --- Ilościowa auto-degradacja setupów (Tier 1) -------------------------
+    # Once a ticker has >= auto_demote_min_trades CLOSED trades on a venue with
+    # negative realized P&L and a sub-par win rate, block opening fresh
+    # positions in it -- stop repeating a setup the data says doesn't work.
+    auto_demote_enabled: bool = True
+    auto_demote_min_trades: int = 5
+    auto_demote_win_rate_floor: float = 40.0
+    # --- Ochrona przewagi: koszty / churn / koncentracja (Tier 2) -----------
+    # Cap on concurrently-held positions per venue. The whitelist is heavily
+    # correlated (tech beta), so many open names are really ONE bet -- this
+    # bounds that concentration. 0 disables.
+    max_concurrent_positions: int = 4
+    # Wide-spread / thinner names (inverse ETFs, small caps, sector/bond ETFs):
+    # every round trip pays more spread, so their edge must be larger. Haircut
+    # their BUY size by high_spread_size_scale (1.0 = no haircut).
+    high_spread_symbols: str = "SH,PSQ,IWM,XLE,TLT"
+    high_spread_size_scale: float = 0.6
     # --- Sizing oparty na ryzyku + reżim rynku (Pakiet 3) -------------------
     # Risk-based position cap: size a BUY so that hitting its stop costs at most
     # risk_per_trade_pct of the WHOLE account (position_value * stop_dist =
@@ -161,7 +188,10 @@ class Settings(BaseSettings):
     volatility_min_scale: float = 0.35
 
     poll_interval_minutes: int = 15
-    price_move_trigger_pct: float = 2.0
+    # Raised from 2.0 -> 3.0 (Tier 2): a lower bar woke Claude on routine noise
+    # and drove low-edge, cost-bleeding trades. A wider trigger = fewer, better
+    # analyses (the expectancy model showed cost meaningfully lifts break-even).
+    price_move_trigger_pct: float = 3.0
     # Heartbeat: force a full Claude analysis at least this often during
     # tradable hours, even when no price crossed the trigger threshold --
     # otherwise the bot only ever looks at the market on spikes and can sit
@@ -206,6 +236,10 @@ class Settings(BaseSettings):
     @property
     def etoro_whitelist_symbols(self) -> list[str]:
         return [s.strip().upper() for s in self.etoro_whitelist.split(",") if s.strip()]
+
+    @property
+    def high_spread_symbol_list(self) -> list[str]:
+        return [s.strip().upper() for s in self.high_spread_symbols.split(",") if s.strip()]
 
     @property
     def defensive_symbol_list(self) -> list[str]:

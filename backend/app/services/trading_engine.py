@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models import Decision, PortfolioSnapshot, Trade, TradeAction, TradeMode, TriggerType
-from app.services import budget_tracker, earnings_calendar, email_reporter, market_hours, risk_manager, scorecard
+from app.services import budget_tracker, earnings_calendar, email_reporter, market_hours, risk_manager, scorecard, signals
 from app.services.alpaca_client import AlpacaAPIError, AlpacaClient
 from app.services.etoro_client import EToroAPIError
 from app.services.claude_advisor import ClaudeAdvisor
@@ -686,6 +686,65 @@ def _mark_analysis_done_today(db: Session, *, venue: str = "alpaca") -> None:
 RECENT_TRADES_FOR_LEARNING = 15
 
 
+def compute_symbol_stats(db: Session, *, venue: str = "alpaca") -> dict:
+    """Per-symbol realized track record on a venue, walked from trade history
+    (running average cost, P&L booked on each SELL): closed trades, wins,
+    losses, win rate, realized P&L. Turns the learning loop QUANTITATIVE --
+    Claude sees 'my MSTR breakouts are 1/6' instead of a vague memory -- and
+    drives auto-demotion of chronically losing setups."""
+    from collections import defaultdict
+
+    trades = db.execute(
+        select(Trade).where(Trade.venue == venue).order_by(Trade.timestamp.asc())
+    ).scalars().all()
+    qty: dict[str, float] = defaultdict(float)
+    cost: dict[str, float] = defaultdict(float)
+    acc: dict[str, dict] = defaultdict(lambda: {"closed": 0, "wins": 0, "losses": 0, "realized_pnl": 0.0})
+    for t in trades:
+        s = t.symbol
+        if t.side.upper() == "BUY":
+            qty[s] += t.quantity
+            cost[s] += t.usdt_value
+        else:
+            held = qty[s]
+            if held <= 1e-12:
+                continue
+            avg = cost[s] / held
+            sell_qty = min(t.quantity, held)
+            pnl = (t.price - avg) * sell_qty
+            a = acc[s]
+            a["closed"] += 1
+            a["realized_pnl"] += pnl
+            a["wins" if pnl >= 0 else "losses"] += 1
+            cost[s] -= avg * sell_qty
+            qty[s] -= sell_qty
+            if qty[s] <= 1e-12:
+                qty[s] = 0.0
+                cost[s] = 0.0
+    return {
+        s: {
+            "closed": a["closed"],
+            "wins": a["wins"],
+            "losses": a["losses"],
+            "win_rate": round(a["wins"] / a["closed"] * 100, 1) if a["closed"] else None,
+            "realized_pnl": round(a["realized_pnl"], 2),
+        }
+        for s, a in acc.items()
+    }
+
+
+def count_open_positions(portfolio: dict, settings: Settings, symbols: list[str]) -> int:
+    """Number of currently-held (non-dust) positions in `symbols` -- drives the
+    per-venue concurrency cap that bounds correlated exposure."""
+    n = 0
+    for sym in symbols:
+        qty = portfolio["balances"].get(_base_asset(sym, settings.quote_currency), 0.0)
+        price = portfolio["prices"].get(sym)
+        if qty > 0 and price and qty * price >= MIN_SELL_NOTIONAL_USD:
+            n += 1
+    return n
+
+
 def build_performance_context(
     db: Session, settings: Settings, portfolio: dict, *, venue: str = "alpaca", whitelist: list[str] | None = None
 ) -> dict:
@@ -750,6 +809,8 @@ def build_performance_context(
         "recent_trades": recent_trades,
         "scorecard": card,
         "lessons_learned": lessons,
+        # Quantitative per-symbol track record -- what actually works for me.
+        "per_symbol_stats": compute_symbol_stats(db, venue=venue),
     }
 
 
@@ -994,6 +1055,10 @@ def run_cycle(
         # implies a smaller slice. Composed via min(), so it only ever shrinks.
         stop_dist = dynamic_stop_loss_pct(settings, ticker_vol)
         effective_size_pct = round(min(effective_size_pct, risk_based_size_cap(settings, portfolio, stop_dist)), 4)
+        # Wide-spread / thinner names pay more on every round trip -> haircut
+        # their size so they only earn a slot when the edge is proportionally big.
+        if decision_data.symbol in settings.high_spread_symbol_list and settings.high_spread_size_scale < 1.0:
+            effective_size_pct = round(effective_size_pct * settings.high_spread_size_scale, 4)
 
     decision = Decision(
         symbol=decision_data.symbol,
@@ -1092,6 +1157,64 @@ def run_cycle(
             db.commit()
             db.refresh(decision)
             return decision
+
+        # Entry-confluence filter: a BUY must trade WITH the trend/momentum
+        # (score >= threshold, not overbought). Entry edge is the first-order
+        # driver of profit -- this is the biggest lever on the win rate.
+        if settings.entry_filter_enabled:
+            tech = (market_data.get(decision_data.symbol) or {}).get("technical", {})
+            sig = signals.entry_confluence(settings, tech)
+            if not sig.ok:
+                decision.rejection_reason = (
+                    f"Filtr konfluencji: brak zgodnego sygnału wejścia dla {decision_data.symbol} "
+                    f"(score {sig.score}/{settings.entry_min_score}"
+                    f"{'; ' + '; '.join(sig.reasons) if sig.reasons else ''})"
+                )
+                db.add(decision)
+                db.commit()
+                db.refresh(decision)
+                return decision
+
+        # Concurrency cap: bound correlated exposure (the whitelist is mostly
+        # tech beta -> many open names are really one bet). Scaling INTO an
+        # already-held name is exempt.
+        base_sym = _base_asset(decision_data.symbol, settings.quote_currency)
+        already_held = (
+            portfolio["balances"].get(base_sym, 0.0) * portfolio["prices"].get(decision_data.symbol, 0.0)
+            >= MIN_SELL_NOTIONAL_USD
+        )
+        if (
+            settings.max_concurrent_positions > 0
+            and not already_held
+            and count_open_positions(portfolio, settings, symbols) >= settings.max_concurrent_positions
+        ):
+            decision.rejection_reason = (
+                f"Limit równoczesnych pozycji osiągnięty ({settings.max_concurrent_positions}) — "
+                "ograniczenie skorelowanej ekspozycji"
+            )
+            db.add(decision)
+            db.commit()
+            db.refresh(decision)
+            return decision
+
+        # Auto-demotion: a ticker with a proven negative track record on this
+        # venue is quarantined from NEW entries -- stop repeating what loses.
+        if settings.auto_demote_enabled:
+            st = (performance_context.get("per_symbol_stats") or {}).get(decision_data.symbol)
+            if (
+                st
+                and st["closed"] >= settings.auto_demote_min_trades
+                and st["realized_pnl"] < 0
+                and (st["win_rate"] or 0) < settings.auto_demote_win_rate_floor
+            ):
+                decision.rejection_reason = (
+                    f"Auto-degradacja {decision_data.symbol}: ujemna historia "
+                    f"({st['wins']}W/{st['losses']}L, P&L {st['realized_pnl']:.2f}) — nowe wejście zablokowane"
+                )
+                db.add(decision)
+                db.commit()
+                db.refresh(decision)
+                return decision
 
         in_cooldown, cooldown_reason = stop_loss_cooldown_active(db, decision_data.symbol, venue=venue)
         if in_cooldown:

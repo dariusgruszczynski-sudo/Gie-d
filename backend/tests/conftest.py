@@ -51,4 +51,10 @@ def settings():
         risk_per_trade_pct=0.0,
         regime_gate_enabled=False,
         auto_blacklist_stop_count=0,
+        # Entry filter / concurrency / auto-demote / spread haircut off by
+        # default too -- dedicated tests enable each one explicitly.
+        entry_filter_enabled=False,
+        max_concurrent_positions=0,
+        auto_demote_enabled=False,
+        high_spread_size_scale=1.0,
     )

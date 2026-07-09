@@ -1112,3 +1112,69 @@ def test_auto_blacklist_after_stop_streak_extends_cooldown(db_session, settings)
     _stop_once(broker)  # 2nd stop within window -> quarantine (~48h)
     assert _cooldown_minutes_left() > 60 * 40
 
+
+
+# ============================================================================
+# Tier 1/2 -- entry filter, concurrency cap, auto-demote, spread haircut, stats
+# ============================================================================
+def test_entry_filter_blocks_buy_without_confluence(db_session, settings):
+    # FakeAlpaca returns 1 bar -> indicators are None -> confluence score 0.
+    s = settings.model_copy(update={"entry_filter_enabled": True, "entry_min_score": 2})
+    broker = FakeAlpaca()
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Chcę wejść."))
+    decision = trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor, force=True)
+    assert decision.executed is False
+    assert "konfluencji" in (decision.rejection_reason or "")
+    assert len(broker.orders) == 0
+
+
+def test_entry_filter_allows_buy_with_confluence(db_session, settings, monkeypatch):
+    s = settings.model_copy(update={"entry_filter_enabled": True})
+    monkeypatch.setattr(
+        trading_engine.signals, "entry_confluence",
+        lambda settings, tech: trading_engine.signals.EntrySignal(True, 3, ["ok"]),
+    )
+    broker = FakeAlpaca()
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Silny sygnał."))
+    decision = trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor, force=True)
+    assert decision.executed is True
+
+
+def test_concurrency_cap_blocks_new_uncorrelated_entry(db_session, settings):
+    s = settings.model_copy(update={"max_concurrent_positions": 1})
+    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
+    # One position already open (QQQ) -> the cap is reached.
+    trading_engine.execute_manual_trade(db_session, s, broker, symbol="QQQ", side="BUY", usdt_amount=200.0)
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Druga pozycja."))
+    decision = trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor, force=True)
+    assert decision.executed is False
+    assert "równoczesnych pozycji" in (decision.rejection_reason or "")
+
+
+def test_auto_demote_blocks_chronically_losing_symbol(db_session, settings):
+    s = settings.model_copy(update={"auto_demote_enabled": True, "auto_demote_min_trades": 2})
+    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 5000.0, "SPY": 0.0, "QQQ": 0.0})
+    # Two closed LOSING round trips on SPY -> negative track record.
+    for _ in range(2):
+        broker.prices["SPY"] = 100.0
+        trading_engine.execute_manual_trade(db_session, s, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
+        broker.prices["SPY"] = 95.0
+        trading_engine.execute_manual_trade(db_session, s, broker, symbol="SPY", side="SELL", quantity=1.0)
+
+    stats = trading_engine.compute_symbol_stats(db_session, venue="alpaca")
+    assert stats["SPY"]["closed"] == 2 and stats["SPY"]["realized_pnl"] < 0
+
+    broker.prices["SPY"] = 100.0
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Może tym razem."))
+    decision = trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor, force=True)
+    assert decision.executed is False
+    assert "Auto-degradacja" in (decision.rejection_reason or "")
+
+
+def test_high_spread_symbol_gets_size_haircut(db_session, settings):
+    s = settings.model_copy(update={"high_spread_symbols": "SPY", "high_spread_size_scale": 0.5})
+    broker = FakeAlpaca()
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 20, 0.9, "Szerokospreadowy."))
+    decision = trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor, force=True)
+    assert decision.executed is True
+    assert decision.size_pct == 10.0  # 20% haircut by 0.5
