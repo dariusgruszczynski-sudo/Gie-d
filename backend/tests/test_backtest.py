@@ -111,6 +111,28 @@ def test_backtest_report_includes_yearly_breakdown_and_benchmark_drawdown(settin
     assert set(row.keys()) == {"year", "strategy_return_pct", "benchmark_return_pct", "alpha_pct"}
 
 
+def test_backtest_reports_cagr_and_calmar(settings):
+    """CAGR and Calmar (CAGR / max drawdown) are the risk-adjusted metrics that
+    reveal this strategy's real edge -- they must be present, numeric, and
+    internally consistent (Calmar == CAGR / maxDD)."""
+    s = settings.model_copy(update={
+        "entry_filter_enabled": False, "risk_per_trade_pct": 1.0,
+        "max_concurrent_positions": 4, "min_hold_minutes": 0, "max_position_pct": 50.0,
+    })
+    data = {"SPY": _uptrend(n=800), "QQQ": _uptrend(n=800, phase=1.0)}
+    report = backtest.run_backtest(data, s, benchmark_symbol="SPY", starting_cash=1000.0)
+
+    for key in ("cagr_pct", "benchmark_cagr_pct", "calmar", "benchmark_calmar"):
+        assert key in report
+    assert isinstance(report["cagr_pct"], float)
+    # Calmar must equal CAGR / max drawdown (both in percent -> ratio). Use a
+    # relative tolerance: a synthetic uptrend can have a near-zero drawdown that
+    # makes the ratio huge, where 2-dp rounding of the inputs still diverges.
+    if report["calmar"] is not None and report["max_drawdown_pct"]:
+        expected = report["cagr_pct"] / report["max_drawdown_pct"]
+        assert math.isclose(report["calmar"], expected, rel_tol=0.01)
+
+
 def test_backtest_handles_millisecond_timestamps_without_crashing(settings):
     """Regression: Yahoo bars carry epoch-MILLISECOND timestamps. Earlier these
     flowed into datetime.fromtimestamp() as if they were seconds and blew up

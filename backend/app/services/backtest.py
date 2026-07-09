@@ -240,6 +240,29 @@ def run_backtest(
     bench_curve_clean = [b for b in bench_curve if b is not None]
     bench_max_dd = _max_dd(bench_curve_clean) if bench_curve_clean else None
 
+    # CAGR + Calmar: the metrics that actually reveal this strategy's edge. In
+    # ABSOLUTE return it lags a raging bull (it's underinvested), but Calmar
+    # (CAGR per unit of max drawdown) is where a low-drawdown system wins -- it
+    # earns its return with a fraction of the pain. span_years from the timeline
+    # (epoch seconds) so a 20y run and a 2y run are compared on equal footing.
+    span_years = (timeline[-1] - timeline[0]) / (365.25 * 86400) if len(timeline) > 1 else 0.0
+
+    def _cagr(final: float, start: float) -> float | None:
+        if span_years <= 0 or start <= 0 or final <= 0:
+            return None
+        return ((final / start) ** (1 / span_years) - 1) * 100
+
+    def _calmar(cagr: float | None, dd: float | None) -> float | None:
+        if cagr is None or not dd:  # dd of 0 -> undefined (no drawdown to divide by)
+            return None
+        return cagr / dd
+
+    cagr_pct = _cagr(final_equity, starting_cash)
+    bench_final = bench_shares * closes[bench][-1] if bench and bench_shares is not None else None
+    bench_cagr_pct = _cagr(bench_final, bench_start_equity) if bench_final is not None else None
+    calmar = _calmar(cagr_pct, max_dd)
+    bench_calmar = _calmar(bench_cagr_pct, bench_max_dd)
+
     yearly = _yearly_breakdown(timeline, equity_curve, bench_curve)
     years_beating_benchmark = sum(1 for r in yearly if (r["alpha_pct"] or 0) > 0)
     years_with_alpha = sum(1 for r in yearly if r["alpha_pct"] is not None)
@@ -260,6 +283,13 @@ def run_backtest(
         "alpha_pct": round(total_return_pct - bench_return_pct, 2) if bench_return_pct is not None else None,
         "max_drawdown_pct": round(max_dd, 2),
         "benchmark_max_drawdown_pct": round(bench_max_dd, 2) if bench_max_dd is not None else None,
+        # CAGR + Calmar: risk-adjusted view. Calmar = CAGR / max drawdown, so a
+        # system that grows steadily with shallow drawdowns beats a boom-bust one
+        # even at a lower headline return -- this is where the strategy shines.
+        "cagr_pct": round(cagr_pct, 2) if cagr_pct is not None else None,
+        "benchmark_cagr_pct": round(bench_cagr_pct, 2) if bench_cagr_pct is not None else None,
+        "calmar": round(calmar, 2) if calmar is not None else None,
+        "benchmark_calmar": round(bench_calmar, 2) if bench_calmar is not None else None,
         "final_equity": round(final_equity, 2),
         # Rok po roku: pokazuje, czy strategia broni kapitału w latach spadkowych
         # (2008/2020/2022), nawet jeśli w sumie przegrywa z hossą ostatnich lat.

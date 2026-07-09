@@ -23,6 +23,9 @@ Usage (inside the container -- files live in /app, not /app/backend):
 
     # Compare with the entry filter off:
     docker compose exec -T -e ENTRY_FILTER_ENABLED=false app python scripts/run_backtest.py --years 20
+
+    # Sweep the exposure frontier (risk/trade x concurrent positions) on 20y:
+    docker compose exec -T app python scripts/run_backtest.py --years 20 --sweep
 """
 
 import argparse
@@ -77,6 +80,67 @@ def _fetch_yahoo(symbols: list[str], years: int) -> dict[str, list[list]]:
     return out
 
 
+# Exposure frontier: the 20-year backtest showed the strategy is UNDERINVESTED
+# (protects capital superbly but lags SPY in absolute return because it rarely
+# has much at risk). The two levers that raise exposure are risk-per-trade and
+# how many positions may run at once -- so sweep that grid and print the
+# return<->drawdown frontier + Calmar, letting the user pick their point on the
+# risk/return curve from DATA rather than by feel.
+SWEEP_RISK_PCTS = [0.5, 1.0, 1.5, 2.0]
+SWEEP_MAX_POSITIONS = [4, 6, 8]
+
+
+def _run_sweep(bars_by_symbol: dict[str, list[list]], settings, benchmark_symbol: str, cash: float) -> None:
+    print("\n=== PRZEMIATANIE EKSPOZYCJI (ryzyko/transakcję × liczba pozycji), 20 lat ===")
+    print("  Strategia jest niedoinwestowana — ten test pokazuje granicę zysk↔obsunięcie.")
+    header = f"  {'ryzyko%':>8} {'pozycje':>8} {'zwrot%':>10} {'CAGR%':>8} {'maxDD%':>8} {'Calmar':>8} {'trafność%':>10} {'alpha%':>9}"
+    print(header)
+    print("  " + "-" * (len(header) - 2))
+    rows = []
+    for risk in SWEEP_RISK_PCTS:
+        for maxpos in SWEEP_MAX_POSITIONS:
+            s = settings.model_copy(update={
+                "risk_per_trade_pct": risk,
+                "max_concurrent_positions": maxpos,
+            })
+            rep = backtest.run_backtest(bars_by_symbol, s, benchmark_symbol=benchmark_symbol, starting_cash=cash)
+            if rep.get("error"):
+                continue
+            rows.append((risk, maxpos, rep))
+            print(f"  {risk:>8.1f} {maxpos:>8} "
+                  f"{_fmt_num(rep.get('total_return_pct')):>10} "
+                  f"{_fmt_num(rep.get('cagr_pct')):>8} "
+                  f"{_fmt_num(rep.get('max_drawdown_pct')):>8} "
+                  f"{_fmt_num(rep.get('calmar')):>8} "
+                  f"{_fmt_num(rep.get('win_rate_pct')):>10} "
+                  f"{_fmt_num(rep.get('alpha_pct')):>9}")
+
+    if not rows:
+        print("  Brak wyników — za mało danych.")
+        return
+
+    bench = rows[0][2]
+    print(f"\n  Benchmark ({benchmark_symbol}): zwrot {bench.get('benchmark_return_pct')}%, "
+          f"CAGR {bench.get('benchmark_cagr_pct')}%, maxDD {bench.get('benchmark_max_drawdown_pct')}%, "
+          f"Calmar {bench.get('benchmark_calmar')}")
+
+    best_calmar = max(rows, key=lambda r: r[2].get("calmar") or -1e9)
+    best_return = max(rows, key=lambda r: r[2].get("total_return_pct") or -1e9)
+    print("\nRekomendacja (na danych, nie na wyczucie):")
+    print(f"  • Najlepszy Calmar (zysk/ból): ryzyko {best_calmar[0]}% × {best_calmar[1]} pozycji "
+          f"→ Calmar {best_calmar[2].get('calmar')}, zwrot {best_calmar[2].get('total_return_pct')}%, "
+          f"maxDD {best_calmar[2].get('max_drawdown_pct')}%")
+    print(f"  • Najwyższy zwrot: ryzyko {best_return[0]}% × {best_return[1]} pozycji "
+          f"→ zwrot {best_return[2].get('total_return_pct')}%, maxDD {best_return[2].get('max_drawdown_pct')}%, "
+          f"Calmar {best_return[2].get('calmar')}")
+    print("  Wybierz swój punkt: wyższy Calmar = spokojniejsza jazda, wyższy zwrot = większe obsunięcia.")
+    print("  Ustaw wybrane na serwerze przez RISK_PER_TRADE_PCT i MAX_CONCURRENT_POSITIONS w .env, potem restart.")
+
+
+def _fmt_num(v) -> str:
+    return f"{v:+.1f}" if isinstance(v, (int, float)) else "—"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Backtest the mechanical GielDarek strategy on historical bars.")
     parser.add_argument("--source", choices=["alpaca", "yahoo"], default=None,
@@ -86,6 +150,8 @@ def main() -> None:
     parser.add_argument("--bars", type=int, default=1500, help="Alpaca: liczba świec (gdy --source alpaca / --years=0)")
     parser.add_argument("--timeframe", default="1d", help="Alpaca: 1d (domyślnie) lub 1h")
     parser.add_argument("--cash", type=float, default=1000.0, help="startowy kapitał (domyślnie 1000)")
+    parser.add_argument("--sweep", action="store_true",
+                         help="Przemiataj siatkę ekspozycji (ryzyko/transakcję × liczba pozycji) i pokaż granicę zysk↔obsunięcie + Calmar.")
     args = parser.parse_args()
 
     settings = get_settings()
@@ -99,6 +165,10 @@ def main() -> None:
 
     if not bars_by_symbol:
         print("\nBrak wystarczających danych do backtestu. Spróbuj --source yahoo --years 20.")
+        return
+
+    if args.sweep:
+        _run_sweep(bars_by_symbol, settings, settings.benchmark_symbol, args.cash)
         return
 
     report = backtest.run_backtest(
@@ -146,6 +216,14 @@ def main() -> None:
     if bench_dd is not None and strat_dd is not None:
         print(f"  Max obsunięcie: strategia {strat_dd}% vs {settings.benchmark_symbol} {bench_dd}% -> "
               f"{'strategia broni kapitału lepiej' if strat_dd < bench_dd else 'strategia obsuwa się MOCNIEJ niż indeks'}")
+    cagr, bench_cagr = report.get("cagr_pct"), report.get("benchmark_cagr_pct")
+    calmar, bench_calmar = report.get("calmar"), report.get("benchmark_calmar")
+    if cagr is not None and bench_cagr is not None:
+        print(f"  CAGR (roczny zwrot składany): strategia {cagr}% vs {settings.benchmark_symbol} {bench_cagr}%")
+    if calmar is not None and bench_calmar is not None:
+        print(f"  Calmar (zwrot na jednostkę bólu): strategia {calmar} vs {settings.benchmark_symbol} {bench_calmar} -> "
+              f"{'strategia zarabia SPOKOJNIEJ (lepszy stosunek zysk/obsunięcie)' if calmar > bench_calmar else 'indeks ma lepszy Calmar'}")
+        print("  Uruchom --sweep, by zobaczyć, ile zwrotu odblokowuje większa ekspozycja i jakim kosztem obsunięcia.")
 
 
 if __name__ == "__main__":
