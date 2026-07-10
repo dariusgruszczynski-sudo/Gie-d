@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     etoro_api_key: str = ""
     etoro_user_key: str = ""
     etoro_paper: bool = True
+    # Minimum notional (USD) for an eToro order. eToro rejects trades below its
+    # per-instrument minimum (~$10 for most crypto), so with a thinly funded
+    # account a % -sized BUY rounds below that and fires a doomed REAL order
+    # every cycle. Guard it client-side: skip with a clear reason instead of
+    # spamming the live API with rejected orders. Set to 0 to disable the guard.
+    etoro_min_order_usd: float = 10.0
     # Krypto handluje 24/7 (także w weekend) -- to pokrywa noce, gdy rynek US
     # jest zamknięty. Spot, bez dźwigni, ta sama mechanika co portfel Alpaca.
     # Krypto majors (24/7, także weekend) + główne pary forex (24/5). Wszystkie

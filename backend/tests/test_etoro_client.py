@@ -104,3 +104,30 @@ def test_place_order_rejects_zero_amount(etoro_settings, monkeypatch):
     monkeypatch.setattr(client, "get_price", lambda symbol: 100.0)
     with pytest.raises(EToroAPIError):
         client.place_order_for_session("BTC", "BUY", usdt_amount=0.0)
+
+
+def test_place_order_rejects_buy_below_min_notional(etoro_settings, monkeypatch):
+    """A thinly funded account sizes a BUY below eToro's minimum -- guard it
+    client-side so we never fire a doomed REAL order every cycle."""
+    client = EToroClient(etoro_settings.model_copy(update={"etoro_min_order_usd": 10.0}))
+    monkeypatch.setattr(client, "get_price", lambda symbol: 100.0)
+    with pytest.raises(EToroAPIError, match="poniżej minimum"):
+        client.place_order_for_session("BTC", "BUY", usdt_amount=3.0)
+
+
+def test_place_order_allows_sell_below_min_notional(etoro_settings, monkeypatch):
+    """The min-notional guard is BUY-only: a SELL must still be able to close a
+    tiny leftover position (dust) rather than being trapped in it."""
+    client = EToroClient(etoro_settings.model_copy(update={"etoro_min_order_usd": 10.0}))
+    captured = {}
+
+    def fake_request(method, path, **kwargs):
+        if path == "/api/v1/market-data/instruments/rates":
+            return {"rates": [{"ask": 100.0, "bid": 100.0}]}
+        captured["body"] = kwargs["json"]
+        return {"orderId": "sell1"}
+
+    monkeypatch.setattr(client, "_request", fake_request)
+    result = client.place_order_for_session("BTC", "SELL", quantity=0.03)  # $3 notional
+    assert result.order_id == "sell1"
+    assert captured["body"]["isBuy"] is False

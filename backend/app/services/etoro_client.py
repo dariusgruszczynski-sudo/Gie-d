@@ -190,6 +190,15 @@ class EToroClient:
             amount_usd = units * price
         if amount_usd <= 0:
             raise EToroAPIError(f"Kwota zlecenia eToro dla {symbol} <= 0")
+        # Below eToro's minimum notional the live API rejects the order anyway;
+        # stop it here so a thinly funded account doesn't fire a doomed REAL
+        # order every cycle. Only guards a BUY (SELL just closes a held position).
+        min_usd = self._settings.etoro_min_order_usd
+        if is_buy and min_usd > 0 and amount_usd < min_usd:
+            raise EToroAPIError(
+                f"Kwota zlecenia eToro dla {symbol} (${amount_usd:.2f}) poniżej minimum "
+                f"${min_usd:.2f} — pomijam (za mały kredyt, zasil konto eToro)"
+            )
 
         body = {
             "instrumentId": iid,
