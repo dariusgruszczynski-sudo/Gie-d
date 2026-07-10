@@ -152,10 +152,26 @@ def main() -> None:
     parser.add_argument("--cash", type=float, default=1000.0, help="startowy kapitał (domyślnie 1000)")
     parser.add_argument("--sweep", action="store_true",
                          help="Przemiataj siatkę ekspozycji (ryzyko/transakcję × liczba pozycji) i pokaż granicę zysk↔obsunięcie + Calmar.")
+    parser.add_argument("--venue", choices=["alpaca", "etoro"], default="alpaca",
+                         help="alpaca (akcje US, benchmark SPY) lub etoro (krypto/forex, benchmark BTC). etoro wymusza Yahoo.")
     args = parser.parse_args()
 
     settings = get_settings()
-    symbols = sorted(set(settings.whitelist_symbols) | {settings.benchmark_symbol})
+    if args.venue == "etoro":
+        # Crypto/forex whitelist, benchmarked against buy-and-hold BTC (holding a
+        # basket of alts vs. just holding bitcoin is the crypto analogue of
+        # "beating SPY"). eToro has no candle feed, so this is Yahoo-only.
+        whitelist = settings.etoro_whitelist_symbols
+        benchmark = "BTC"
+        if args.source == "alpaca":
+            print("Uwaga: --venue etoro wymaga Yahoo — ignoruję --source alpaca.")
+        args.source = "yahoo"
+        if args.years <= 0:
+            args.years = 10  # crypto history on Yahoo starts ~2014 (BTC) / 2017 (ETH)
+    else:
+        whitelist = settings.whitelist_symbols
+        benchmark = benchmark
+    symbols = sorted(set(whitelist) | {benchmark})
     source = args.source or ("yahoo" if args.years > 0 else "alpaca")
 
     if source == "yahoo":
@@ -168,11 +184,11 @@ def main() -> None:
         return
 
     if args.sweep:
-        _run_sweep(bars_by_symbol, settings, settings.benchmark_symbol, args.cash)
+        _run_sweep(bars_by_symbol, settings, benchmark, args.cash)
         return
 
     report = backtest.run_backtest(
-        bars_by_symbol, settings, benchmark_symbol=settings.benchmark_symbol, starting_cash=args.cash
+        bars_by_symbol, settings, benchmark_symbol=benchmark, starting_cash=args.cash
     )
 
     print(f"\n=== WYNIK BACKTESTU ({source}, mechaniczny rdzeń, bez Claude) ===")
@@ -183,7 +199,7 @@ def main() -> None:
 
     yearly = report.get("yearly_breakdown") or []
     if yearly:
-        print(f"\n=== ROK PO ROKU: strategia vs {settings.benchmark_symbol} (analiza zachowań w różnych reżimach) ===")
+        print(f"\n=== ROK PO ROKU: strategia vs {benchmark} (analiza zachowań w różnych reżimach) ===")
         print(f"  {'rok':>6} {'strategia':>11} {'benchmark':>11} {'alpha':>9}")
         for row in yearly:
             sr = f"{row['strategy_return_pct']:+.1f}%" if row["strategy_return_pct"] is not None else "—"
@@ -206,7 +222,7 @@ def main() -> None:
     if exp is not None:
         print(f"  Expectancy {exp}R/transakcję -> {'dodatnia' if exp > 0 else 'ujemna'}")
     if alpha is not None:
-        print(f"  Alpha (cały okres) vs {settings.benchmark_symbol}: {alpha:+}% -> "
+        print(f"  Alpha (cały okres) vs {benchmark}: {alpha:+}% -> "
               f"{'BIJE indeks' if alpha > 0 else 'przegrywa z indeksem'}")
     ybb = report.get("years_beating_benchmark")
     if ybb:
@@ -214,14 +230,14 @@ def main() -> None:
     bench_dd = report.get("benchmark_max_drawdown_pct")
     strat_dd = report.get("max_drawdown_pct")
     if bench_dd is not None and strat_dd is not None:
-        print(f"  Max obsunięcie: strategia {strat_dd}% vs {settings.benchmark_symbol} {bench_dd}% -> "
+        print(f"  Max obsunięcie: strategia {strat_dd}% vs {benchmark} {bench_dd}% -> "
               f"{'strategia broni kapitału lepiej' if strat_dd < bench_dd else 'strategia obsuwa się MOCNIEJ niż indeks'}")
     cagr, bench_cagr = report.get("cagr_pct"), report.get("benchmark_cagr_pct")
     calmar, bench_calmar = report.get("calmar"), report.get("benchmark_calmar")
     if cagr is not None and bench_cagr is not None:
-        print(f"  CAGR (roczny zwrot składany): strategia {cagr}% vs {settings.benchmark_symbol} {bench_cagr}%")
+        print(f"  CAGR (roczny zwrot składany): strategia {cagr}% vs {benchmark} {bench_cagr}%")
     if calmar is not None and bench_calmar is not None:
-        print(f"  Calmar (zwrot na jednostkę bólu): strategia {calmar} vs {settings.benchmark_symbol} {bench_calmar} -> "
+        print(f"  Calmar (zwrot na jednostkę bólu): strategia {calmar} vs {benchmark} {bench_calmar} -> "
               f"{'strategia zarabia SPOKOJNIEJ (lepszy stosunek zysk/obsunięcie)' if calmar > bench_calmar else 'indeks ma lepszy Calmar'}")
         print("  Uruchom --sweep, by zobaczyć, ile zwrotu odblokowuje większa ekspozycja i jakim kosztem obsunięcia.")
 

@@ -68,6 +68,28 @@ def test_get_daily_history_drops_null_gaps(monkeypatch):
     assert rows[1][4] == 12.0
 
 
+def test_crypto_and_forex_symbols_map_to_yahoo_symbols(monkeypatch):
+    """The eToro whitelist can only be backtested if crypto/forex tickers are
+    rewritten to their Yahoo chart symbols -- otherwise 'BTC' is sent verbatim
+    and Yahoo returns nothing, so the venue is silently un-backtestable."""
+    captured = {}
+    now = time.time()
+
+    def fake_get(url, params=None, **kwargs):
+        captured["url"] = url
+        return FakeResp(_payload([int(now - 86400)], [42.0]))
+
+    monkeypatch.setattr(historical_data.httpx, "get", fake_get)
+
+    historical_data.get_daily_history("BTC", years=10)
+    assert "BTC-USD" in captured["url"]
+    historical_data.get_daily_history("EURUSD", years=10)
+    assert "EURUSD=X" in captured["url"]
+    # A plain equity ticker is not in the map -> passes through unchanged.
+    historical_data.get_daily_history("SPY", years=10)
+    assert captured["url"].endswith("/SPY")
+
+
 def test_get_daily_history_degrades_to_empty_on_error(monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("network down")
