@@ -1080,6 +1080,60 @@ def test_regime_gate_blocks_non_defensive_buy_but_allows_defensive(db_session, s
     assert allowed.executed is True
 
 
+def test_etoro_regime_from_btc_trend_and_crypto_breadth_ignores_equity_inputs(settings):
+    """The crypto/forex venue derives its OWN regime from BTC + crypto breadth,
+    NOT from SPY/VIX; FX pairs are excluded from the crypto-beta breadth."""
+    s = settings.model_copy(update={"etoro_whitelist": "BTC,ETH,SOL,EURUSD"})
+    down = {
+        "BTC": {"technical": {"sma50_vs_sma200_1h": "below"}},
+        "ETH": {"technical": {"sma50_vs_sma200_1h": "below"}},
+        "SOL": {"technical": {"sma50_vs_sma200_1h": "below"}},
+        "EURUSD": {"technical": {"sma50_vs_sma200_1h": "above"}},  # FX -> excluded from breadth
+    }
+    assert trading_engine.compute_market_regime(down, {}, s, venue="etoro")["regime"] == "risk_off"
+
+    up = {k: {"technical": {"sma50_vs_sma200_1h": "above"}} for k in ("BTC", "ETH", "SOL")}
+    assert trading_engine.compute_market_regime(up, {}, s, venue="etoro")["regime"] == "risk_on"
+
+    # A screaming-panic EQUITY tape must NOT move the crypto regime.
+    equity_panic = {"vix_level": 45.0, "sp500_change_pct": -4.0}
+    assert trading_engine.compute_market_regime({}, equity_panic, s, venue="etoro")["regime"] == "neutral"
+
+
+def test_etoro_regime_gate_blocks_crypto_but_allows_haven_fx(db_session, settings, monkeypatch):
+    """In a crypto risk-off the eToro gate blocks new crypto longs (cash is the
+    defensive position) but still allows the safe-haven FX set (USDJPY)."""
+    s = settings.model_copy(update={
+        "etoro_enabled": True, "etoro_regime_gate_enabled": True,
+        "etoro_whitelist": "BTC,ETH,USDJPY", "etoro_defensive_symbols": "USDJPY,USDCHF,USDCAD",
+    })
+    risk_manager.resume(db_session, "etoro")
+    monkeypatch.setattr(
+        trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.CLOSED)
+    )
+    monkeypatch.setattr(
+        trading_engine, "compute_market_regime",
+        lambda *a, **k: {"regime": "risk_off", "score": -2, "reasons": ["BTC trend spadkowy"]},
+    )
+    prices = {"BTC": 50000.0, "ETH": 3000.0, "USDJPY": 150.0}
+    balances = {"USD": 1000.0, "BTC": 0.0, "ETH": 0.0, "USDJPY": 0.0}
+
+    broker = FakeAlpaca(prices=dict(prices), balances=dict(balances))
+    blocked = trading_engine.run_cycle(
+        db_session, s, broker, FakeNews(), FakeAdvisor(TradingDecision("BUY", "BTC", 10, 0.9, "krypto")),
+        force=True, venue="etoro", whitelist=["BTC", "ETH", "USDJPY"], always_open=True,
+    )
+    assert blocked.executed is False
+    assert "risk-off" in (blocked.rejection_reason or "")
+
+    broker2 = FakeAlpaca(prices=dict(prices), balances=dict(balances))
+    allowed = trading_engine.run_cycle(
+        db_session, s, broker2, FakeNews(), FakeAdvisor(TradingDecision("BUY", "USDJPY", 10, 0.9, "haven")),
+        force=True, venue="etoro", whitelist=["BTC", "ETH", "USDJPY"], always_open=True,
+    )
+    assert allowed.executed is True
+
+
 # ============================================================================
 # Pakiet 4 -- auto-blacklist after a stop-loss streak
 # ============================================================================

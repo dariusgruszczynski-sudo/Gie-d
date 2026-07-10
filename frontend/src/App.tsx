@@ -13,6 +13,7 @@ import { MarketStrip } from "./components/MarketStrip";
 import { PortfolioChart } from "./components/PortfolioChart";
 import { PortfolioHoldings } from "./components/PortfolioHoldings";
 import { PriceTicker } from "./components/PriceTicker";
+import { RegimeBadge } from "./components/RegimeBadge";
 import { StatusBanner } from "./components/StatusBanner";
 import { TradesTable } from "./components/TradesTable";
 import { VenueControls } from "./components/VenueControls";
@@ -128,6 +129,9 @@ export default function App() {
               <span className="venue-dot venue-dot-etoro" /> Portfel nocny · eToro (krypto/forex 24-7)
               {status.etoro_mode && (
                 <span className="venue-mode-tag">{status.etoro_mode === "paper" ? "DEMO" : "LIVE"}</span>
+              )}
+              {status.etoro_enabled && status.etoro_market_regime && (
+                <RegimeBadge regime={status.etoro_market_regime} prefix="Krypto/Forex" />
               )}
               {!status.etoro_enabled && <span className="venue-off-tag">wyłączony</span>}
             </span>

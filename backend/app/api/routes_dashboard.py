@@ -77,15 +77,16 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "etoro_enabled": settings.etoro_enabled,
         "etoro_whitelist": settings.etoro_whitelist_symbols,
         "etoro_mode": ("paper" if settings.etoro_paper else "live") if settings.etoro_enabled else None,
-        "market_regime": _load_regime(state),
+        "market_regime": _load_regime(state.market_regime_json),
+        "etoro_market_regime": _load_regime(state.etoro_market_regime_json) if settings.etoro_enabled else None,
         **_serialize_session_info(settings),
         **budget_tracker.get_budget_status(db, settings),
     }
 
 
-def _load_regime(state: SystemState) -> dict | None:
+def _load_regime(regime_json: str | None) -> dict | None:
     try:
-        data = json.loads(state.market_regime_json or "{}")
+        data = json.loads(regime_json or "{}")
         return data or None
     except json.JSONDecodeError:
         return None

@@ -372,35 +372,80 @@ def count_new_entries_today(db: Session, *, venue: str = "alpaca") -> int:
     return len(rows)
 
 
-def compute_market_regime(market_data: dict, market_context: dict, settings: Settings) -> dict:
-    """Cheap risk-on / neutral / risk-off read of the broad market from signals
-    we already fetch: the benchmark's own 50/200 trend, the VIX fear level, and
-    today's S&P move. Fed to Claude as context every cycle; also gates BUYs to
-    defensive/inverse names while risk-off (see regime_gate_enabled)."""
+def _is_forex_symbol(symbol: str) -> bool:
+    """A whitelist ticker is FX (not crypto) if its Yahoo mapping is a currency
+    pair (…=X). Single source of truth: the eToro candle provider's map."""
+    from app.services.etoro_market_data import YAHOO_SYMBOL
+
+    return YAHOO_SYMBOL.get(symbol.upper(), "").endswith("=X")
+
+
+def _trend_of(market_data: dict, symbol: str) -> str | None:
+    return ((market_data.get(symbol) or {}).get("technical") or {}).get("sma50_vs_sma200_1h")
+
+
+def compute_market_regime(
+    market_data: dict, market_context: dict, settings: Settings, venue: str = "alpaca"
+) -> dict:
+    """Cheap risk-on / neutral / risk-off read, computed from each venue's OWN
+    signals so the gate is meaningful per asset class.
+
+    alpaca (equities): benchmark 50/200 trend + VIX fear level + today's S&P move.
+    etoro  (crypto/forex): BTC (the crypto-beta proxy) 50/200 trend + the breadth
+      of the crypto majors -- an equity VIX/SPY read is meaningless for a 24/7
+      crypto/forex book. FX pairs are excluded from the crypto-beta breadth (they
+      march to central-bank/macro flow, and the haven pairs are the venue's
+      defensive set), so a crypto drawdown doesn't wrongly flag FX as risk-off.
+
+    Fed to Claude every cycle; also gates BUYs while risk-off (regime_gate_enabled
+    / etoro_regime_gate_enabled)."""
     reasons: list[str] = []
     score = 0
 
-    bench = market_data.get(settings.benchmark_symbol, {})
-    trend = (bench.get("technical") or {}).get("sma50_vs_sma200_1h")
-    if trend == "below":
-        score -= 1
-        reasons.append(f"{settings.benchmark_symbol}: SMA50 < SMA200 (trend spadkowy)")
-    elif trend == "above":
-        score += 1
-        reasons.append(f"{settings.benchmark_symbol}: SMA50 > SMA200 (trend wzrostowy)")
-
-    vix = market_context.get("vix_level")
-    if vix is not None and vix >= settings.regime_vix_risk_off:
-        score -= 1
-        reasons.append(f"VIX {vix} ≥ {settings.regime_vix_risk_off} (podwyższony strach)")
-
-    sp = market_context.get("sp500_change_pct")
-    if sp is not None:
-        if sp <= -1.0:
+    if venue == "etoro":
+        bench = settings.etoro_regime_benchmark.upper()
+        bench_trend = _trend_of(market_data, bench)
+        if bench_trend == "below":
             score -= 1
-            reasons.append(f"S&P dziś {sp}%")
-        elif sp >= 1.0:
+            reasons.append(f"{bench}: SMA50 < SMA200 (krypto w trendzie spadkowym)")
+        elif bench_trend == "above":
             score += 1
+            reasons.append(f"{bench}: SMA50 > SMA200 (krypto w trendzie wzrostowym)")
+
+        # Breadth across the crypto majors only (FX excluded).
+        crypto = [s for s in market_data if not _is_forex_symbol(s)]
+        below = sum(1 for s in crypto if _trend_of(market_data, s) == "below")
+        above = sum(1 for s in crypto if _trend_of(market_data, s) == "above")
+        rated = below + above
+        if rated:
+            if below / rated >= 0.6:
+                score -= 1
+                reasons.append(f"Szerokość krypto: {below}/{rated} majorów w trendzie spadkowym")
+            elif above / rated >= 0.6:
+                score += 1
+                reasons.append(f"Szerokość krypto: {above}/{rated} majorów w trendzie wzrostowym")
+    else:
+        bench = settings.benchmark_symbol
+        trend = _trend_of(market_data, bench)
+        if trend == "below":
+            score -= 1
+            reasons.append(f"{bench}: SMA50 < SMA200 (trend spadkowy)")
+        elif trend == "above":
+            score += 1
+            reasons.append(f"{bench}: SMA50 > SMA200 (trend wzrostowy)")
+
+        vix = market_context.get("vix_level")
+        if vix is not None and vix >= settings.regime_vix_risk_off:
+            score -= 1
+            reasons.append(f"VIX {vix} ≥ {settings.regime_vix_risk_off} (podwyższony strach)")
+
+        sp = market_context.get("sp500_change_pct")
+        if sp is not None:
+            if sp <= -1.0:
+                score -= 1
+                reasons.append(f"S&P dziś {sp}%")
+            elif sp >= 1.0:
+                score += 1
 
     if score <= -2:
         regime = "risk_off"
@@ -960,14 +1005,24 @@ def run_cycle(
         seen_titles = {h["title"] for h in fresh_headlines}
         headlines = fresh_headlines + [h for h in headlines if h["title"] not in seen_titles]
     global_context = market_ctx.get_market_context() if market_ctx is not None else {}
-    # Broad-market regime (risk-on / neutral / risk-off) from the benchmark
-    # trend + VIX + today's tape. Always given to Claude; equities-only (the
-    # crypto venue has no SPY/VIX regime), so the eToro path skips the gate.
-    regime = compute_market_regime(market_data, global_context, settings) if venue == "alpaca" else {"regime": "neutral", "score": 0, "reasons": []}
-    if venue == "alpaca":
-        # Cache it so /api/status can show the regime chip without recomputing.
+    # Risk regime, computed per venue from that venue's OWN signals: equities
+    # from SPY trend + VIX + tape; crypto/forex from BTC trend + crypto breadth.
+    # Always given to Claude; gates BUYs while risk-off (see the gate below).
+    regime = compute_market_regime(market_data, global_context, settings, venue=venue)
+    # Cache per venue so /api/status can show each venue's regime chip.
+    if venue == "etoro":
+        state.etoro_market_regime_json = json.dumps(regime)
+    else:
         state.market_regime_json = json.dumps(regime)
-        db.commit()
+    db.commit()
+    # Venue-appropriate regime gate: equities gate on the equity regime + equity
+    # defensive names; crypto/forex on its own regime + safe-haven FX set.
+    if venue == "etoro":
+        regime_gate_on = settings.etoro_regime_gate_enabled
+        defensive_list = settings.etoro_defensive_symbol_list
+    else:
+        regime_gate_on = settings.regime_gate_enabled
+        defensive_list = settings.defensive_symbol_list
     performance_context = build_performance_context(db, settings, portfolio, venue=venue, whitelist=symbols)
     # Upcoming earnings per ticker (days until next report). Best-effort --
     # never blocks the cycle if the calendar lookup fails. Only meaningful for
@@ -1019,9 +1074,9 @@ def run_cycle(
         # / inverse names be bought (the rest is forced HOLD), so lean that way.
         "market_regime": regime,
         "regime_note": (
-            "market_regime.regime to ogólny reżim rynku (risk_on / neutral / risk_off) z trendu "
-            "benchmarku, VIX-a i dzisiejszej sesji. W risk_off bądź defensywny: silnik i tak "
-            f"pozwoli KUPIĆ tylko nazwy defensywne/odwrotne ({', '.join(settings.defensive_symbol_list)}), "
+            "market_regime.regime to reżim rynku (risk_on / neutral / risk_off) — dla akcji z trendu "
+            "SPY/VIX/sesji, dla eToro z trendu BTC i szerokości rynku krypto. W risk_off bądź "
+            f"defensywny: silnik pozwoli KUPIĆ tylko {', '.join(defensive_list) or '— nic (tylko gotówka)'}, "
             "resztę wymusi na HOLD. Wchodź tylko w realnie mocne setupy — nie handluj dla samego handlu."
         ),
         "min_buy_confidence": settings.min_buy_confidence,
@@ -1129,16 +1184,19 @@ def run_cycle(
             db.refresh(decision)
             return decision
 
-        # Regime gate: while the broad market is risk-off, only defensive /
-        # inverse names may be OPENED; everything else is forced to HOLD.
+        # Regime gate: while this venue's regime is risk-off, only its defensive
+        # set may be OPENED (equity havens/inverses for stocks; safe-haven FX for
+        # the crypto/forex book -> crypto longs blocked, cash/haven-FX only);
+        # everything else is forced to HOLD.
         if (
-            settings.regime_gate_enabled
+            regime_gate_on
             and regime.get("regime") == "risk_off"
-            and decision_data.symbol not in settings.defensive_symbol_list
+            and decision_data.symbol not in defensive_list
         ):
+            allowed = ", ".join(defensive_list) or "nic (tylko gotówka)"
             decision.rejection_reason = (
                 f"Reżim risk-off ({'; '.join(regime.get('reasons') or []) or 'sygnały rynku'}) — "
-                f"nowe wejście tylko na nazwach defensywnych/odwrotnych ({', '.join(settings.defensive_symbol_list)})"
+                f"nowe wejście tylko na nazwach defensywnych ({allowed})"
             )
             db.add(decision)
             db.commit()

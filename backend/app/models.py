@@ -186,3 +186,6 @@ class SystemState(Base):
     # by the Alpaca cycle so /api/status can show it without recomputing on
     # every 15s poll.
     market_regime_json: Mapped[str] = mapped_column(Text, default="{}")
+    # The eToro venue's own risk regime (BTC trend + crypto breadth), cached by
+    # the eToro cycle so the dashboard can show a separate crypto/forex chip.
+    etoro_market_regime_json: Mapped[str] = mapped_column(Text, default="{}")

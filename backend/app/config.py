@@ -157,6 +157,18 @@ class Settings(BaseSettings):
     regime_gate_enabled: bool = True
     regime_vix_risk_off: float = 25.0
     defensive_symbols: str = "GLD,TLT,SH,PSQ"
+    # --- eToro (crypto/forex) has its OWN risk regime -----------------------
+    # The equity regime (SPY trend + VIX) is meaningless for a 24/7 crypto/forex
+    # book, so the eToro venue derives its own read: BTC as the crypto-beta proxy
+    # (its 50/200 trend) plus the breadth of the crypto majors (how many are in a
+    # downtrend). In eToro risk-off the gate blocks new CRYPTO longs (there are no
+    # inverse crypto instruments on a spot whitelist -> cash is the defensive
+    # position) but still allows the safe-haven FX pairs below, which strengthen
+    # exactly when risk comes off. Set etoro_regime_gate_enabled=False to keep the
+    # signal as context but drop the hard block.
+    etoro_regime_gate_enabled: bool = True
+    etoro_regime_benchmark: str = "BTC"
+    etoro_defensive_symbols: str = "USDJPY,USDCHF,USDCAD"
     # --- Auto-blacklist po serii stop-lossów (Pakiet 4) ---------------------
     # If a ticker stop-losses auto_blacklist_stop_count times within
     # auto_blacklist_window_hours, quarantine it: block re-buying for
@@ -265,6 +277,13 @@ class Settings(BaseSettings):
         and inverse ETFs that tend to hold up (or profit) when the broad market
         falls. Everything else is HOLD-only while risk-off."""
         return [s.strip().upper() for s in self.defensive_symbols.split(",") if s.strip()]
+
+    @property
+    def etoro_defensive_symbol_list(self) -> list[str]:
+        """Safe-haven FX pairs the eToro venue may still BUY in a crypto risk-off
+        regime (USD-strength / haven pairs that firm up when risk comes off).
+        Crypto longs are HOLD-only while risk-off -> cash / haven-FX."""
+        return [s.strip().upper() for s in self.etoro_defensive_symbols.split(",") if s.strip()]
 
     @property
     def dashboard_credentials(self) -> dict[str, str]:

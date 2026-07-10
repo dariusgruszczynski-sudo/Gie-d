@@ -138,12 +138,31 @@ def _get_rss(source: str, url: str, limit: int, params: dict | None = None) -> l
         return []
 
 
+# Per-ticker news query needs the right noun per asset class: "BTC stock" is
+# nonsense and starves the crypto/forex trigger of relevant hits. Map crypto to
+# its full name + "crypto" and FX to "XXX/YYY forex"; equities keep "TICKER stock".
+_CRYPTO_NAMES = {
+    "BTC": "Bitcoin", "ETH": "Ethereum", "SOL": "Solana", "XRP": "XRP",
+    "ADA": "Cardano", "DOGE": "Dogecoin", "LTC": "Litecoin", "BCH": "Bitcoin Cash",
+}
+_FOREX_PAIRS = {"EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCHF", "USDCAD"}
+
+
+def _ticker_query(ticker: str) -> str:
+    t = ticker.upper()
+    if t in _CRYPTO_NAMES:
+        return f"{_CRYPTO_NAMES[t]} crypto"
+    if t in _FOREX_PAIRS:
+        return f"{t[:3]}/{t[3:]} forex"
+    return f"{ticker} stock"
+
+
 def _get_ticker_headlines(ticker: str, limit: int) -> list[dict]:
     return _get_rss(
         f"Google News ({ticker})",
         GOOGLE_NEWS_RSS_URL,
         limit,
-        params={"q": f"{ticker} stock", "hl": "en-US", "gl": "US", "ceid": "US:en"},
+        params={"q": _ticker_query(ticker), "hl": "en-US", "gl": "US", "ceid": "US:en"},
     )
 
 

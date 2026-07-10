@@ -31,6 +31,7 @@ export interface StatusResponse {
   market_session: MarketSession;
   session_bounds: SessionBounds | null;
   market_regime: MarketRegime | null;
+  etoro_market_regime: MarketRegime | null;
   claude_monthly_budget_usd: number;
   claude_spend_usd_this_month: number;
   claude_budget_pct_used: number;
