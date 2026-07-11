@@ -15,7 +15,7 @@ export interface StatusResponse {
   mode: "testnet" | "live";
   quote_currency: string;
   is_paused: boolean;
-  etoro_paused: boolean;
+  crypto_paused: boolean;
   is_halted: boolean;
   halted_reason: string | null;
   day_pnl_pct: number | null;
@@ -25,13 +25,12 @@ export interface StatusResponse {
   max_position_pct: number;
   whitelist: string[];
   poll_interval_minutes: number;
-  etoro_enabled: boolean;
-  etoro_whitelist: string[];
-  etoro_mode: "paper" | "live" | null;
+  crypto_enabled: boolean;
+  crypto_whitelist: string[];
   market_session: MarketSession;
   session_bounds: SessionBounds | null;
   market_regime: MarketRegime | null;
-  etoro_market_regime: MarketRegime | null;
+  crypto_market_regime: MarketRegime | null;
   claude_monthly_budget_usd: number;
   claude_spend_usd_this_month: number;
   claude_budget_pct_used: number;
@@ -156,6 +155,6 @@ export const api = {
     side: "BUY" | "SELL";
     usdt_amount?: number;
     quantity?: number;
-    venue?: "alpaca" | "etoro";
+    venue?: "alpaca" | "crypto";
   }) => apiFetch<Trade>("/api/control/manual-trade", { method: "POST", body: JSON.stringify(body) }),
 };

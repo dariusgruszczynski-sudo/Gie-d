@@ -152,19 +152,20 @@ def main() -> None:
     parser.add_argument("--cash", type=float, default=1000.0, help="startowy kapitał (domyślnie 1000)")
     parser.add_argument("--sweep", action="store_true",
                          help="Przemiataj siatkę ekspozycji (ryzyko/transakcję × liczba pozycji) i pokaż granicę zysk↔obsunięcie + Calmar.")
-    parser.add_argument("--venue", choices=["alpaca", "etoro"], default="alpaca",
-                         help="alpaca (akcje US, benchmark SPY) lub etoro (krypto/forex, benchmark BTC). etoro wymusza Yahoo.")
+    parser.add_argument("--venue", choices=["alpaca", "crypto"], default="alpaca",
+                         help="alpaca (akcje US, benchmark SPY) lub crypto (24/7, benchmark BTCUSD). crypto wymusza Yahoo (głębsza historia niż Alpaca crypto).")
     args = parser.parse_args()
 
     settings = get_settings()
-    if args.venue == "etoro":
-        # Crypto/forex whitelist, benchmarked against buy-and-hold BTC (holding a
+    if args.venue == "crypto":
+        # Crypto whitelist, benchmarked against buy-and-hold BTC (holding a
         # basket of alts vs. just holding bitcoin is the crypto analogue of
-        # "beating SPY"). eToro has no candle feed, so this is Yahoo-only.
-        whitelist = settings.etoro_whitelist_symbols
-        benchmark = "BTC"
+        # "beating SPY"). Alpaca's own crypto history is too short for a
+        # multi-year regime test, so this is Yahoo-only.
+        whitelist = settings.crypto_whitelist_symbols
+        benchmark = "BTCUSD"
         if args.source == "alpaca":
-            print("Uwaga: --venue etoro wymaga Yahoo — ignoruję --source alpaca.")
+            print("Uwaga: --venue crypto wymaga Yahoo — ignoruję --source alpaca.")
         args.source = "yahoo"
         if args.years <= 0:
             args.years = 10  # crypto history on Yahoo starts ~2014 (BTC) / 2017 (ETH)

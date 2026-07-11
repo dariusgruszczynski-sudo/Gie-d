@@ -43,7 +43,7 @@ VOL_WINDOW = 32
 
 def _epoch(t) -> float:
     """Normalize a bar timestamp to epoch SECONDS. Accepts an ISO string
-    (Alpaca), an epoch-milliseconds int (Yahoo / eToro), or epoch-seconds
+    (Alpaca), an epoch-milliseconds int (Yahoo), or epoch-seconds
     (synthetic data). Values above ~1e11 are treated as milliseconds -- 1e11
     seconds is ~year 5138, so no real trading date collides, while any ms
     timestamp today (~1.7e12) is safely above the threshold. Without this,

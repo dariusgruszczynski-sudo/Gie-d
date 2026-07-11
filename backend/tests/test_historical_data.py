@@ -68,10 +68,10 @@ def test_get_daily_history_drops_null_gaps(monkeypatch):
     assert rows[1][4] == 12.0
 
 
-def test_crypto_and_forex_symbols_map_to_yahoo_symbols(monkeypatch):
-    """The eToro whitelist can only be backtested if crypto/forex tickers are
-    rewritten to their Yahoo chart symbols -- otherwise 'BTC' is sent verbatim
-    and Yahoo returns nothing, so the venue is silently un-backtestable."""
+def test_crypto_symbols_map_to_yahoo_symbols(monkeypatch):
+    """The crypto whitelist can only be backtested if tickers are rewritten to
+    their Yahoo chart symbols -- otherwise 'BTCUSD' is sent verbatim and Yahoo
+    returns nothing, so the venue is silently un-backtestable."""
     captured = {}
     now = time.time()
 
@@ -81,10 +81,8 @@ def test_crypto_and_forex_symbols_map_to_yahoo_symbols(monkeypatch):
 
     monkeypatch.setattr(historical_data.httpx, "get", fake_get)
 
-    historical_data.get_daily_history("BTC", years=10)
+    historical_data.get_daily_history("BTCUSD", years=10)
     assert "BTC-USD" in captured["url"]
-    historical_data.get_daily_history("EURUSD", years=10)
-    assert "EURUSD=X" in captured["url"]
     # A plain equity ticker is not in the map -> passes through unchanged.
     historical_data.get_daily_history("SPY", years=10)
     assert captured["url"].endswith("/SPY")

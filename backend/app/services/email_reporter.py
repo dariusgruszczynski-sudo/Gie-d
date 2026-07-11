@@ -116,9 +116,9 @@ def _scorecard_html(card: dict | None) -> str:
 
 
 def _venue_tag(venue: str) -> str:
-    is_etoro = venue == "etoro"
-    color = "#f5b544" if is_etoro else GOLD
-    label = "eToro" if is_etoro else "Alpaca"
+    is_crypto = venue == "crypto"
+    color = "#f5b544" if is_crypto else GOLD
+    label = "Krypto" if is_crypto else "Alpaca"
     return (
         f'<span style="font-size:10px;font-weight:700;color:{color};border:1px solid {color};'
         f'border-radius:4px;padding:1px 5px;">{label}</span>'
@@ -128,8 +128,8 @@ def _venue_tag(venue: str) -> str:
 def _build_html(
     *,
     alpaca_current: PortfolioSnapshot | None,
-    etoro_current: PortfolioSnapshot | None,
-    etoro_enabled: bool,
+    crypto_current: PortfolioSnapshot | None,
+    crypto_enabled: bool,
     day_pnl_pct: float | None,
     week_pnl_pct: float | None,
     state,
@@ -141,11 +141,11 @@ def _build_html(
 ) -> str:
     mode_label = "PRODUKCJA (realny kapitał)"
     alpaca_status = "zatrzymany (limit strat)" if state.is_halted else "zapauzowany" if state.is_paused else "aktywny"
-    etoro_status = "wyłączony" if not etoro_enabled else ("zatrzymany" if state.etoro_paused else "aktywny")
+    crypto_status = "wyłączony" if not crypto_enabled else ("zatrzymany" if state.crypto_paused else "aktywny")
 
     alpaca_val = alpaca_current.total_value_usdt if alpaca_current else 0.0
-    etoro_val = etoro_current.total_value_usdt if (etoro_enabled and etoro_current) else 0.0
-    total_val = alpaca_val + etoro_val
+    crypto_val = crypto_current.total_value_usdt if (crypto_enabled and crypto_current) else 0.0
+    total_val = alpaca_val + crypto_val
 
     decisions_rows = "".join(
         f"""
@@ -185,9 +185,9 @@ def _build_html(
         else ""
     )
 
-    etoro_cell = (
-        f'${etoro_val:,.2f} <span style="color:{MUTED};font-size:11px;">({etoro_status})</span>'
-        if etoro_enabled
+    crypto_cell = (
+        f'${crypto_val:,.2f} <span style="color:{MUTED};font-size:11px;">({crypto_status})</span>'
+        if crypto_enabled
         else f'<span style="color:{MUTED};">wyłączony</span>'
     )
 
@@ -206,13 +206,13 @@ def _build_html(
       <div style="color:{GOLD};font-size:13px;font-weight:700;margin-bottom:10px;">Portfele — widok zbiorczy</div>
       <table style="width:100%;border-collapse:collapse;">
         <tr>
-          <td style="color:{MUTED};font-size:11px;">PORTFEL DZIENNY (ALPACA)</td>
-          <td style="color:{MUTED};font-size:11px;">PORTFEL NOCNY (ETORO)</td>
+          <td style="color:{MUTED};font-size:11px;">PORTFEL DZIENNY (AKCJE US)</td>
+          <td style="color:{MUTED};font-size:11px;">PORTFEL KRYPTO (24/7)</td>
           <td style="color:{MUTED};font-size:11px;">RAZEM</td>
         </tr>
         <tr>
           <td style="font-weight:700;padding-top:2px;">${alpaca_val:,.2f} <span style="color:{MUTED};font-size:11px;">({alpaca_status})</span></td>
-          <td style="font-weight:700;padding-top:2px;">{etoro_cell}</td>
+          <td style="font-weight:700;padding-top:2px;">{crypto_cell}</td>
           <td style="font-weight:800;padding-top:2px;color:{GOLD_BRIGHT};">${total_val:,.2f}</td>
         </tr>
       </table>
@@ -274,7 +274,7 @@ def _latest_snapshot(db: Session, venue: str) -> PortfolioSnapshot | None:
 
 def build_report(db: Session, settings: Settings) -> tuple[str, bytes]:
     alpaca_current = _latest_snapshot(db, "alpaca")
-    etoro_current = _latest_snapshot(db, "etoro")
+    crypto_current = _latest_snapshot(db, "crypto")
     since = datetime.utcnow() - timedelta(days=7)
     # Chart tracks the Alpaca (day) portfolio -- the account-wide day/week
     # loss baselines are Alpaca-driven.
@@ -323,8 +323,8 @@ def build_report(db: Session, settings: Settings) -> tuple[str, bytes]:
     chart_png = _render_chart_png(history)
     html = _build_html(
         alpaca_current=alpaca_current,
-        etoro_current=etoro_current,
-        etoro_enabled=settings.etoro_enabled,
+        crypto_current=crypto_current,
+        crypto_enabled=settings.crypto_enabled,
         day_pnl_pct=day_pnl_pct,
         week_pnl_pct=week_pnl_pct,
         state=state,

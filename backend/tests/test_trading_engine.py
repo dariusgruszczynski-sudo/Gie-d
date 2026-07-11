@@ -722,58 +722,58 @@ def test_failed_mechanical_exit_surfaces_real_reason(db_session, settings):
 
 
 def test_manual_trade_stamps_venue_and_uses_venue_whitelist(db_session, settings):
-    """A manual eToro trade must validate against the eToro whitelist and stamp
-    its records venue='etoro' (so they land in the right portfolio)."""
+    """A manual crypto trade must validate against the crypto whitelist and
+    stamp its records venue='crypto' (so they land in the right portfolio)."""
     from app.models import Trade
 
-    broker = FakeAlpaca(prices={"BTC": 50000.0}, balances={"USD": 1000.0, "BTC": 0.0})
+    broker = FakeAlpaca(prices={"BTCUSD": 50000.0}, balances={"USD": 1000.0, "BTCUSD": 0.0})
     trade = trading_engine.execute_manual_trade(
-        db_session, settings, broker, symbol="BTC", side="BUY", usdt_amount=100.0,
-        venue="etoro", whitelist=["BTC", "ETH"],
+        db_session, settings, broker, symbol="BTCUSD", side="BUY", usdt_amount=100.0,
+        venue="crypto", whitelist=["BTCUSD", "ETHUSD"],
     )
-    assert trade.venue == "etoro"
-    assert db_session.query(Trade).filter(Trade.venue == "etoro").count() == 1
+    assert trade.venue == "crypto"
+    assert db_session.query(Trade).filter(Trade.venue == "crypto").count() == 1
 
     # A symbol outside the venue whitelist is rejected.
     try:
         trading_engine.execute_manual_trade(
             db_session, settings, broker, symbol="SPY", side="BUY", usdt_amount=100.0,
-            venue="etoro", whitelist=["BTC", "ETH"],
+            venue="crypto", whitelist=["BTCUSD", "ETHUSD"],
         )
         assert False, "expected ValueError"
     except ValueError:
         pass
 
 
-def test_etoro_venue_cycle_is_isolated_and_stamped(db_session, settings, monkeypatch):
-    """The eToro venue trades 24/7 (always_open) even while the US market is
-    closed, stamps its records venue='etoro', and uses its OWN state columns so
-    the Alpaca venue's anchors stay untouched."""
+def test_crypto_venue_cycle_is_isolated_and_stamped(db_session, settings, monkeypatch):
+    """The crypto venue trades 24/7 (always_open) even while the US market is
+    closed, stamps its records venue='crypto', and uses its OWN state columns
+    so the equities venue's anchors stay untouched."""
     from app.models import Trade
 
-    etoro_settings = settings.model_copy(update={"etoro_enabled": True})
-    risk_manager.resume(db_session, "etoro")  # eToro starts paused -> press START
-    # Alpaca would be CLOSED right now -- eToro must trade anyway.
+    crypto_settings = settings.model_copy(update={"crypto_enabled": True})
+    risk_manager.resume(db_session, "crypto")  # crypto starts paused -> press START
+    # Equities would be CLOSED right now -- crypto must trade anyway.
     monkeypatch.setattr(
         trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.CLOSED)
     )
-    broker = FakeAlpaca(prices={"BTC": 50000.0, "ETH": 3000.0}, balances={"USD": 1000.0, "BTC": 0.0, "ETH": 0.0})
-    advisor = FakeAdvisor(TradingDecision("BUY", "BTC", 10, 0.9, "Krypto mocne."))
+    broker = FakeAlpaca(prices={"BTCUSD": 50000.0, "ETHUSD": 3000.0}, balances={"USD": 1000.0, "BTCUSD": 0.0, "ETHUSD": 0.0})
+    advisor = FakeAdvisor(TradingDecision("BUY", "BTCUSD", 10, 0.9, "Krypto mocne."))
 
     decision = trading_engine.run_cycle(
-        db_session, etoro_settings, broker, FakeNews(), advisor, force=True,
-        venue="etoro", whitelist=["BTC", "ETH"], always_open=True,
+        db_session, crypto_settings, broker, FakeNews(), advisor, force=True,
+        venue="crypto", whitelist=["BTCUSD", "ETHUSD"], always_open=True,
     )
 
-    assert decision.venue == "etoro"
+    assert decision.venue == "crypto"
     assert decision.executed is True
     trade = db_session.query(Trade).order_by(Trade.id.desc()).first()
-    assert trade.venue == "etoro"
-    assert trade.symbol == "BTC"
+    assert trade.venue == "crypto"
+    assert trade.symbol == "BTCUSD"
 
     state = risk_manager.get_state(db_session)
-    assert json.loads(state.etoro_check_prices_json)  # eToro anchors were set
-    assert json.loads(state.last_check_prices_json or "{}") == {}  # Alpaca column untouched
+    assert json.loads(state.crypto_check_prices_json)  # crypto anchors were set
+    assert json.loads(state.last_check_prices_json or "{}") == {}  # equities column untouched
 
 
 def test_dust_position_below_min_notional_is_skipped(db_session, settings):
@@ -1080,34 +1080,33 @@ def test_regime_gate_blocks_non_defensive_buy_but_allows_defensive(db_session, s
     assert allowed.executed is True
 
 
-def test_etoro_regime_from_btc_trend_and_crypto_breadth_ignores_equity_inputs(settings):
-    """The crypto/forex venue derives its OWN regime from BTC + crypto breadth,
-    NOT from SPY/VIX; FX pairs are excluded from the crypto-beta breadth."""
-    s = settings.model_copy(update={"etoro_whitelist": "BTC,ETH,SOL,EURUSD"})
+def test_crypto_regime_from_btc_trend_and_crypto_breadth_ignores_equity_inputs(settings):
+    """The crypto venue derives its OWN regime from BTC + crypto breadth, NOT
+    from SPY/VIX."""
+    s = settings.model_copy(update={"crypto_whitelist": "BTCUSD,ETHUSD,LTCUSD"})
     down = {
-        "BTC": {"technical": {"sma50_vs_sma200_1h": "below"}},
-        "ETH": {"technical": {"sma50_vs_sma200_1h": "below"}},
-        "SOL": {"technical": {"sma50_vs_sma200_1h": "below"}},
-        "EURUSD": {"technical": {"sma50_vs_sma200_1h": "above"}},  # FX -> excluded from breadth
+        "BTCUSD": {"technical": {"sma50_vs_sma200_1h": "below"}},
+        "ETHUSD": {"technical": {"sma50_vs_sma200_1h": "below"}},
+        "LTCUSD": {"technical": {"sma50_vs_sma200_1h": "below"}},
     }
-    assert trading_engine.compute_market_regime(down, {}, s, venue="etoro")["regime"] == "risk_off"
+    assert trading_engine.compute_market_regime(down, {}, s, venue="crypto")["regime"] == "risk_off"
 
-    up = {k: {"technical": {"sma50_vs_sma200_1h": "above"}} for k in ("BTC", "ETH", "SOL")}
-    assert trading_engine.compute_market_regime(up, {}, s, venue="etoro")["regime"] == "risk_on"
+    up = {k: {"technical": {"sma50_vs_sma200_1h": "above"}} for k in ("BTCUSD", "ETHUSD", "LTCUSD")}
+    assert trading_engine.compute_market_regime(up, {}, s, venue="crypto")["regime"] == "risk_on"
 
     # A screaming-panic EQUITY tape must NOT move the crypto regime.
     equity_panic = {"vix_level": 45.0, "sp500_change_pct": -4.0}
-    assert trading_engine.compute_market_regime({}, equity_panic, s, venue="etoro")["regime"] == "neutral"
+    assert trading_engine.compute_market_regime({}, equity_panic, s, venue="crypto")["regime"] == "neutral"
 
 
-def test_etoro_regime_gate_blocks_crypto_but_allows_haven_fx(db_session, settings, monkeypatch):
-    """In a crypto risk-off the eToro gate blocks new crypto longs (cash is the
-    defensive position) but still allows the safe-haven FX set (USDJPY)."""
+def test_crypto_regime_gate_blocks_new_longs_in_risk_off(db_session, settings, monkeypatch):
+    """In crypto risk-off the gate blocks new crypto longs -- a spot-only book
+    has no defensive instrument, so cash is the only defensive position."""
     s = settings.model_copy(update={
-        "etoro_enabled": True, "etoro_regime_gate_enabled": True,
-        "etoro_whitelist": "BTC,ETH,USDJPY", "etoro_defensive_symbols": "USDJPY,USDCHF,USDCAD",
+        "crypto_enabled": True, "crypto_regime_gate_enabled": True,
+        "crypto_whitelist": "BTCUSD,ETHUSD", "crypto_defensive_symbols": "",
     })
-    risk_manager.resume(db_session, "etoro")
+    risk_manager.resume(db_session, "crypto")
     monkeypatch.setattr(
         trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.CLOSED)
     )
@@ -1115,23 +1114,16 @@ def test_etoro_regime_gate_blocks_crypto_but_allows_haven_fx(db_session, setting
         trading_engine, "compute_market_regime",
         lambda *a, **k: {"regime": "risk_off", "score": -2, "reasons": ["BTC trend spadkowy"]},
     )
-    prices = {"BTC": 50000.0, "ETH": 3000.0, "USDJPY": 150.0}
-    balances = {"USD": 1000.0, "BTC": 0.0, "ETH": 0.0, "USDJPY": 0.0}
+    prices = {"BTCUSD": 50000.0, "ETHUSD": 3000.0}
+    balances = {"USD": 1000.0, "BTCUSD": 0.0, "ETHUSD": 0.0}
 
     broker = FakeAlpaca(prices=dict(prices), balances=dict(balances))
     blocked = trading_engine.run_cycle(
-        db_session, s, broker, FakeNews(), FakeAdvisor(TradingDecision("BUY", "BTC", 10, 0.9, "krypto")),
-        force=True, venue="etoro", whitelist=["BTC", "ETH", "USDJPY"], always_open=True,
+        db_session, s, broker, FakeNews(), FakeAdvisor(TradingDecision("BUY", "BTCUSD", 10, 0.9, "krypto")),
+        force=True, venue="crypto", whitelist=["BTCUSD", "ETHUSD"], always_open=True,
     )
     assert blocked.executed is False
     assert "risk-off" in (blocked.rejection_reason or "")
-
-    broker2 = FakeAlpaca(prices=dict(prices), balances=dict(balances))
-    allowed = trading_engine.run_cycle(
-        db_session, s, broker2, FakeNews(), FakeAdvisor(TradingDecision("BUY", "USDJPY", 10, 0.9, "haven")),
-        force=True, venue="etoro", whitelist=["BTC", "ETH", "USDJPY"], always_open=True,
-    )
-    assert allowed.executed is True
 
 
 # ============================================================================

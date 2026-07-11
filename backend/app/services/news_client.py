@@ -54,7 +54,7 @@ RSS_FEEDS: list[tuple[str, str]] = [
     # generic news coverage often lags or misses entirely
     ("SEC EDGAR 8-K filings", "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&company=&dateb=&owner=include&count=40&output=atom"),
     ("SEC EDGAR Form 4 (insider trades)", "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&company=&dateb=&owner=include&count=40&output=atom"),
-    # Crypto -- the 24/7 overnight venue trades BTC/ETH/SOL, driven far more by
+    # Crypto -- the 24/7 crypto venue trades BTC/ETH/..., driven far more by
     # crypto-native flow (ETF news, on-chain, exchange/regulatory events) than
     # by the general stock feeds above.
     ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/"),
@@ -66,12 +66,6 @@ RSS_FEEDS: list[tuple[str, str]] = [
     ("NewsBTC", "https://www.newsbtc.com/feed/"),
     ("Bitcoinist", "https://bitcoinist.com/feed/"),
     ("CoinJournal", "https://coinjournal.net/news/feed/"),
-    # Forex / macro -- the FX pairs (EUR/USD etc.) move on central-bank and
-    # macro headlines that the equity feeds cover only glancingly.
-    ("ForexLive", "https://www.forexlive.com/feed/"),
-    ("FXStreet", "https://www.fxstreet.com/rss/news"),
-    ("DailyFX", "https://www.dailyfx.com/feeds/market-news"),
-    ("Investing.com Forex", "https://www.investing.com/rss/news_1.rss"),
     ("Investing.com Crypto", "https://www.investing.com/rss/news_301.rss"),
 ]
 PER_SOURCE_LIMIT = 3
@@ -91,12 +85,10 @@ REDDIT_SUBREDDITS = [
     "stocks",
     "investing",
     "wallstreetbets",
-    # Crypto/forex crowd-positioning for the overnight venue.
+    # Crypto crowd-positioning for the 24/7 venue.
     "CryptoCurrency",
     "Bitcoin",
     "ethereum",
-    "solana",
-    "Forex",
 ]
 PER_SUBREDDIT_LIMIT = 5
 # Reddit blocks the default httpx User-Agent -- needs a descriptive one.
@@ -138,22 +130,21 @@ def _get_rss(source: str, url: str, limit: int, params: dict | None = None) -> l
         return []
 
 
-# Per-ticker news query needs the right noun per asset class: "BTC stock" is
-# nonsense and starves the crypto/forex trigger of relevant hits. Map crypto to
-# its full name + "crypto" and FX to "XXX/YYY forex"; equities keep "TICKER stock".
+# Per-ticker news query needs the right noun per asset class: "BTCUSD stock" is
+# nonsense and starves the crypto trigger of relevant hits. Map crypto to its
+# full name + "crypto"; equities keep "TICKER stock". Keyed by our whitelist
+# convention ("BTCUSD", with the quote-currency suffix).
 _CRYPTO_NAMES = {
-    "BTC": "Bitcoin", "ETH": "Ethereum", "SOL": "Solana", "XRP": "XRP",
-    "ADA": "Cardano", "DOGE": "Dogecoin", "LTC": "Litecoin", "BCH": "Bitcoin Cash",
+    "BTCUSD": "Bitcoin", "ETHUSD": "Ethereum", "LTCUSD": "Litecoin",
+    "BCHUSD": "Bitcoin Cash", "DOGEUSD": "Dogecoin", "LINKUSD": "Chainlink",
+    "AVAXUSD": "Avalanche", "ADAUSD": "Cardano",
 }
-_FOREX_PAIRS = {"EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCHF", "USDCAD"}
 
 
 def _ticker_query(ticker: str) -> str:
     t = ticker.upper()
     if t in _CRYPTO_NAMES:
         return f"{_CRYPTO_NAMES[t]} crypto"
-    if t in _FOREX_PAIRS:
-        return f"{t[:3]}/{t[3:]} forex"
     return f"{ticker} stock"
 
 

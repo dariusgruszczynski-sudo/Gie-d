@@ -8,7 +8,6 @@ from app.db import SessionLocal
 from app.services.alpaca_client import AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.email_reporter import send_daily_report
-from app.services.etoro_client import EToroClient
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.trading_engine import run_cycle
@@ -35,27 +34,28 @@ def _job() -> None:
         db.close()
 
 
-def _etoro_job() -> None:
-    """The 24-7 crypto/forex venue. Runs only when ETORO_ENABLED -- shares the
-    same pause/halt STOP gate as the Alpaca cycle, but trades round the clock
-    (always_open) with its own whitelist and isolated per-venue state."""
+def _crypto_job() -> None:
+    """The 24-7 crypto venue -- same Alpaca account, a separate asset-class
+    client. Runs only when CRYPTO_ENABLED -- shares the same pause/halt STOP
+    gate as the equities cycle, but trades round the clock (always_open) with
+    its own whitelist and isolated per-venue state."""
     settings = get_settings()
-    if not settings.etoro_enabled:
+    if not settings.crypto_enabled:
         return
     db = SessionLocal()
     try:
-        broker = EToroClient(settings)
+        broker = AlpacaClient(settings, asset_class="crypto")
         news = NewsClient(settings)
         advisor = ClaudeAdvisor(settings)
         market_ctx = MarketContextClient()
         decision = run_cycle(
             db, settings, broker, news, advisor, market_ctx,
-            venue="etoro", whitelist=settings.etoro_whitelist_symbols, always_open=True,
+            venue="crypto", whitelist=settings.crypto_whitelist_symbols, always_open=True,
         )
         if decision is not None:
-            logger.info("eToro cycle produced decision: %s %s", decision.action, decision.symbol)
+            logger.info("Crypto cycle produced decision: %s %s", decision.action, decision.symbol)
     except Exception:
-        logger.exception("eToro trading cycle failed")
+        logger.exception("Crypto trading cycle failed")
     finally:
         db.close()
 
@@ -97,13 +97,13 @@ def start_scheduler() -> BackgroundScheduler:
         minutes=settings.poll_interval_minutes,
         id="trading_cycle",
     )
-    # eToro (24-7 crypto/forex) venue -- the job itself no-ops unless
-    # ETORO_ENABLED, so it's always registered and just idles until enabled.
+    # Crypto (24-7, same Alpaca account) venue -- the job itself no-ops unless
+    # CRYPTO_ENABLED, so it's always registered and just idles until enabled.
     scheduler.add_job(
-        _etoro_job,
+        _crypto_job,
         "interval",
         minutes=settings.poll_interval_minutes,
-        id="etoro_trading_cycle",
+        id="crypto_trading_cycle",
     )
     scheduler.add_job(
         _report_job,

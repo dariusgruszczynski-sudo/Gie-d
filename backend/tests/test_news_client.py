@@ -132,11 +132,9 @@ def test_get_new_ticker_headlines_keeps_prior_seen_state_when_fetch_fails(monkey
 
 
 def test_ticker_query_is_asset_class_aware():
-    """Per-ticker news query must use the right noun per asset class: 'BTC stock'
-    is nonsense and starves the crypto/forex trigger of relevant hits."""
-    assert news_client._ticker_query("BTC") == "Bitcoin crypto"
-    assert news_client._ticker_query("eth") == "Ethereum crypto"
-    assert news_client._ticker_query("EURUSD") == "EUR/USD forex"
-    assert news_client._ticker_query("USDJPY") == "USD/JPY forex"
+    """Per-ticker news query must use the right noun per asset class: 'BTCUSD
+    stock' is nonsense and starves the crypto trigger of relevant hits."""
+    assert news_client._ticker_query("BTCUSD") == "Bitcoin crypto"
+    assert news_client._ticker_query("ethusd") == "Ethereum crypto"
     # A plain equity ticker keeps the stock query.
     assert news_client._ticker_query("NVDA") == "NVDA stock"

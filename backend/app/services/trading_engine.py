@@ -13,7 +13,6 @@ from app.config import Settings
 from app.models import Decision, PortfolioSnapshot, Trade, TradeAction, TradeMode, TriggerType
 from app.services import budget_tracker, earnings_calendar, email_reporter, market_hours, risk_manager, scorecard, signals
 from app.services.alpaca_client import AlpacaAPIError, AlpacaClient
-from app.services.etoro_client import EToroAPIError
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.market_context import MarketContextClient
 from app.services.market_hours import SessionInfo
@@ -28,17 +27,18 @@ logger = logging.getLogger(__name__)
 # on every poll -- it's economically irrelevant (fractions of a cent).
 MIN_SELL_NOTIONAL_USD = 1.0
 
-# Per-venue SystemState column mapping. The Alpaca venue keeps using the
-# original columns (its behaviour stays byte-for-byte identical); the eToro
-# venue uses dedicated etoro_* columns so the two venues' per-cycle state
-# (price anchors, trailing peaks, cooldowns, seen headlines) never collide.
+# Per-venue SystemState column mapping. The equities venue keeps using the
+# original columns (its behaviour stays byte-for-byte identical); the crypto
+# venue (same Alpaca account, 24/7 book) uses dedicated crypto_* columns so
+# the two venues' per-cycle state (price anchors, trailing peaks, cooldowns,
+# seen headlines) never collide.
 _STATE_COLUMNS = {
-    "anchors": {"alpaca": "last_check_prices_json", "etoro": "etoro_check_prices_json"},
-    "peaks": {"alpaca": "position_peaks_json", "etoro": "etoro_position_peaks_json"},
-    "cooldowns": {"alpaca": "stop_loss_cooldowns_json", "etoro": "etoro_stop_loss_cooldowns_json"},
-    "seen": {"alpaca": "seen_ticker_headlines_json", "etoro": "etoro_seen_ticker_headlines_json"},
-    "partial": {"alpaca": "partial_tp_taken_json", "etoro": "etoro_partial_tp_taken_json"},
-    "streak": {"alpaca": "stop_loss_streak_json", "etoro": "etoro_stop_loss_streak_json"},
+    "anchors": {"alpaca": "last_check_prices_json", "crypto": "crypto_check_prices_json"},
+    "peaks": {"alpaca": "position_peaks_json", "crypto": "crypto_position_peaks_json"},
+    "cooldowns": {"alpaca": "stop_loss_cooldowns_json", "crypto": "crypto_stop_loss_cooldowns_json"},
+    "seen": {"alpaca": "seen_ticker_headlines_json", "crypto": "crypto_seen_ticker_headlines_json"},
+    "partial": {"alpaca": "partial_tp_taken_json", "crypto": "crypto_partial_tp_taken_json"},
+    "streak": {"alpaca": "stop_loss_streak_json", "crypto": "crypto_stop_loss_streak_json"},
 }
 
 
@@ -47,20 +47,20 @@ def _state_col(kind: str, venue: str) -> str:
 
 
 def _get_analysis_marks(state, venue: str) -> tuple[str, str]:
-    """(last_full_analysis_date, last_analysis_at) for a venue. Alpaca uses the
-    original scalar columns; eToro uses its own JSON blob."""
-    if venue != "etoro":
+    """(last_full_analysis_date, last_analysis_at) for a venue. Equities uses
+    the original scalar columns; crypto uses its own JSON blob."""
+    if venue != "crypto":
         return state.last_full_analysis_date, state.last_analysis_at
-    b = json.loads(state.etoro_analysis_state_json or "{}")
+    b = json.loads(state.crypto_analysis_state_json or "{}")
     return b.get("last_full_date", ""), b.get("last_at", "")
 
 
 def _set_analysis_marks(state, venue: str, full_date: str, at: str) -> None:
-    if venue != "etoro":
+    if venue != "crypto":
         state.last_full_analysis_date = full_date
         state.last_analysis_at = at
     else:
-        state.etoro_analysis_state_json = json.dumps({"last_full_date": full_date, "last_at": at})
+        state.crypto_analysis_state_json = json.dumps({"last_full_date": full_date, "last_at": at})
 
 
 def _base_asset(symbol: str, quote_currency: str) -> str:
@@ -372,14 +372,6 @@ def count_new_entries_today(db: Session, *, venue: str = "alpaca") -> int:
     return len(rows)
 
 
-def _is_forex_symbol(symbol: str) -> bool:
-    """A whitelist ticker is FX (not crypto) if its Yahoo mapping is a currency
-    pair (…=X). Single source of truth: the eToro candle provider's map."""
-    from app.services.etoro_market_data import YAHOO_SYMBOL
-
-    return YAHOO_SYMBOL.get(symbol.upper(), "").endswith("=X")
-
-
 def _trend_of(market_data: dict, symbol: str) -> str | None:
     return ((market_data.get(symbol) or {}).get("technical") or {}).get("sma50_vs_sma200_1h")
 
@@ -391,19 +383,17 @@ def compute_market_regime(
     signals so the gate is meaningful per asset class.
 
     alpaca (equities): benchmark 50/200 trend + VIX fear level + today's S&P move.
-    etoro  (crypto/forex): BTC (the crypto-beta proxy) 50/200 trend + the breadth
-      of the crypto majors -- an equity VIX/SPY read is meaningless for a 24/7
-      crypto/forex book. FX pairs are excluded from the crypto-beta breadth (they
-      march to central-bank/macro flow, and the haven pairs are the venue's
-      defensive set), so a crypto drawdown doesn't wrongly flag FX as risk-off.
+    crypto (24/7, same account): BTC (the crypto-beta proxy) 50/200 trend + the
+      breadth of the crypto majors -- an equity VIX/SPY read is meaningless for
+      a 24/7 crypto book.
 
     Fed to Claude every cycle; also gates BUYs while risk-off (regime_gate_enabled
-    / etoro_regime_gate_enabled)."""
+    / crypto_regime_gate_enabled)."""
     reasons: list[str] = []
     score = 0
 
-    if venue == "etoro":
-        bench = settings.etoro_regime_benchmark.upper()
+    if venue == "crypto":
+        bench = settings.crypto_regime_benchmark.upper()
         bench_trend = _trend_of(market_data, bench)
         if bench_trend == "below":
             score -= 1
@@ -412,8 +402,8 @@ def compute_market_regime(
             score += 1
             reasons.append(f"{bench}: SMA50 > SMA200 (krypto w trendzie wzrostowym)")
 
-        # Breadth across the crypto majors only (FX excluded).
-        crypto = [s for s in market_data if not _is_forex_symbol(s)]
+        # Breadth across the crypto majors.
+        crypto = list(market_data.keys())
         below = sum(1 for s in crypto if _trend_of(market_data, s) == "below")
         above = sum(1 for s in crypto if _trend_of(market_data, s) == "above")
         rated = below + above
@@ -686,7 +676,7 @@ def check_take_profit_stop_loss(
                 session=session,
                 venue=venue,
             )
-        except (ValueError, AlpacaAPIError, EToroAPIError) as exc:
+        except (ValueError, AlpacaAPIError) as exc:
             # A SELL can still fail for other reasons (broker hiccup, a
             # rounding/qty rejection, ...), so the real exception text is
             # surfaced instead of a one-size-fits-all guess. Don't crash the
@@ -880,9 +870,10 @@ def run_cycle(
     dashboard.
 
     `venue`/`whitelist`/`always_open` select the portfolio: the default Alpaca
-    (day, US stocks/ETFs, market-hours gated) path is behaviour-identical; the
-    eToro crypto/forex venue passes always_open=True (trades 24/7) and skips the
-    account-wide day/week risk + SPY benchmark, which stay Alpaca-driven."""
+    equities (day, US stocks/ETFs, market-hours gated) path is behaviour-
+    identical; the crypto venue (same account, 24/7 book) passes
+    always_open=True and skips the account-wide day/week risk + SPY
+    benchmark, which stay equities-driven."""
     symbols = whitelist if whitelist is not None else settings.whitelist_symbols
     portfolio = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
     if venue == "alpaca":
@@ -1006,27 +997,27 @@ def run_cycle(
         headlines = fresh_headlines + [h for h in headlines if h["title"] not in seen_titles]
     global_context = market_ctx.get_market_context() if market_ctx is not None else {}
     # Risk regime, computed per venue from that venue's OWN signals: equities
-    # from SPY trend + VIX + tape; crypto/forex from BTC trend + crypto breadth.
+    # from SPY trend + VIX + tape; crypto from BTC trend + crypto breadth.
     # Always given to Claude; gates BUYs while risk-off (see the gate below).
     regime = compute_market_regime(market_data, global_context, settings, venue=venue)
     # Cache per venue so /api/status can show each venue's regime chip.
-    if venue == "etoro":
-        state.etoro_market_regime_json = json.dumps(regime)
+    if venue == "crypto":
+        state.crypto_market_regime_json = json.dumps(regime)
     else:
         state.market_regime_json = json.dumps(regime)
     db.commit()
     # Venue-appropriate regime gate: equities gate on the equity regime + equity
-    # defensive names; crypto/forex on its own regime + safe-haven FX set.
-    if venue == "etoro":
-        regime_gate_on = settings.etoro_regime_gate_enabled
-        defensive_list = settings.etoro_defensive_symbol_list
+    # defensive names; crypto on its own regime (spot-only -> no defensive set).
+    if venue == "crypto":
+        regime_gate_on = settings.crypto_regime_gate_enabled
+        defensive_list = settings.crypto_defensive_symbol_list
     else:
         regime_gate_on = settings.regime_gate_enabled
         defensive_list = settings.defensive_symbol_list
     performance_context = build_performance_context(db, settings, portfolio, venue=venue, whitelist=symbols)
     # Upcoming earnings per ticker (days until next report). Best-effort --
     # never blocks the cycle if the calendar lookup fails. Only meaningful for
-    # equities -- crypto/forex have no earnings, so the eToro venue skips it.
+    # equities -- crypto has no earnings, so the crypto venue skips it.
     if venue == "alpaca":
         try:
             earnings_days = earnings_calendar.get_days_until_earnings(symbols)
@@ -1075,7 +1066,7 @@ def run_cycle(
         "market_regime": regime,
         "regime_note": (
             "market_regime.regime to reżim rynku (risk_on / neutral / risk_off) — dla akcji z trendu "
-            "SPY/VIX/sesji, dla eToro z trendu BTC i szerokości rynku krypto. W risk_off bądź "
+            "SPY/VIX/sesji, dla krypto z trendu BTC i szerokości rynku krypto. W risk_off bądź "
             f"defensywny: silnik pozwoli KUPIĆ tylko {', '.join(defensive_list) or '— nic (tylko gotówka)'}, "
             "resztę wymusi na HOLD. Wchodź tylko w realnie mocne setupy — nie handluj dla samego handlu."
         ),
@@ -1330,7 +1321,7 @@ def run_cycle(
             session=session_info.session if session_info is not None else market_hours.REGULAR,
             venue=venue,
         )
-    except (ValueError, AlpacaAPIError, EToroAPIError) as exc:
+    except (ValueError, AlpacaAPIError) as exc:
         # e.g. a computed order size that rounds to zero, or a broker
         # rejection. Record why instead of crashing the whole scheduled cycle.
         logger.warning("Wykonanie zlecenia %s nieudane, pomijam", decision_data.symbol, exc_info=True)

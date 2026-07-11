@@ -70,9 +70,9 @@ def init_db() -> None:
     _add_column_if_missing("system_state", "stop_loss_cooldowns_json", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "position_peaks_json", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "partial_tp_taken_json", "TEXT", "'{}'")
-    _add_column_if_missing("system_state", "etoro_partial_tp_taken_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "crypto_partial_tp_taken_json", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "stop_loss_streak_json", "TEXT", "'{}'")
-    _add_column_if_missing("system_state", "etoro_stop_loss_streak_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "crypto_stop_loss_streak_json", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "seen_ticker_headlines_json", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "benchmark_start_date", "VARCHAR(10)", "''")
     _add_column_if_missing("system_state", "benchmark_start_price", "FLOAT", "0.0")
@@ -80,19 +80,20 @@ def init_db() -> None:
     _add_column_if_missing("system_state", "lessons_json", "TEXT", "'[]'")
     _add_column_if_missing("system_state", "last_self_review_date", "VARCHAR(10)", "''")
     _add_column_if_missing("system_state", "last_analysis_at", "VARCHAR(32)", "''")
-    # Dual-broker: tag each record with its venue (existing rows -> "alpaca")
-    # and give the eToro venue its own isolated per-cycle state columns.
+    # Two lots on one Alpaca account: tag each record with its venue (existing
+    # rows -> "alpaca") and give the crypto venue its own isolated per-cycle
+    # state columns.
     _add_column_if_missing("decisions", "venue", "VARCHAR(16)", "'alpaca'")
     _add_column_if_missing("trades", "venue", "VARCHAR(16)", "'alpaca'")
     _add_column_if_missing("portfolio_snapshots", "venue", "VARCHAR(16)", "'alpaca'")
-    _add_column_if_missing("system_state", "etoro_check_prices_json", "TEXT", "'{}'")
-    _add_column_if_missing("system_state", "etoro_position_peaks_json", "TEXT", "'{}'")
-    _add_column_if_missing("system_state", "etoro_stop_loss_cooldowns_json", "TEXT", "'{}'")
-    _add_column_if_missing("system_state", "etoro_seen_ticker_headlines_json", "TEXT", "'{}'")
-    _add_column_if_missing("system_state", "etoro_analysis_state_json", "TEXT", "'{}'")
-    _add_column_if_missing("system_state", "etoro_paused", "BOOLEAN", "1")
+    _add_column_if_missing("system_state", "crypto_check_prices_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "crypto_position_peaks_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "crypto_stop_loss_cooldowns_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "crypto_seen_ticker_headlines_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "crypto_analysis_state_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "crypto_paused", "BOOLEAN", "1")
     _add_column_if_missing("system_state", "market_regime_json", "TEXT", "'{}'")
-    _add_column_if_missing("system_state", "etoro_market_regime_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "crypto_market_regime_json", "TEXT", "'{}'")
     # Dead columns from the pre-generic-whitelist schema (superseded by
     # balances_json/prices_json/last_check_prices_json) -- NOT NULL with no
     # DB-level default, so they broke every insert once the ORM stopped

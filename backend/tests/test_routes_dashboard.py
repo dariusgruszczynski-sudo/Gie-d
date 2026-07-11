@@ -9,22 +9,22 @@ from app.services import market_hours
 
 def test_portfolio_venue_filter_separates_portfolios(db_session, settings):
     """/api/portfolio?venue=... must return only that venue's snapshots, so the
-    Alpaca and eToro portfolios never bleed into each other on the dashboard."""
+    equities and crypto portfolios never bleed into each other on the dashboard."""
     now = datetime.now(timezone.utc)
     db_session.add(
         PortfolioSnapshot(timestamp=now, total_value_usdt=500.0, usdt_balance=500.0, venue="alpaca")
     )
     db_session.add(
-        PortfolioSnapshot(timestamp=now, total_value_usdt=42.0, usdt_balance=42.0, venue="etoro")
+        PortfolioSnapshot(timestamp=now, total_value_usdt=42.0, usdt_balance=42.0, venue="crypto")
     )
     db_session.commit()
 
     alpaca = get_portfolio(limit=200, venue="alpaca", db=db_session, settings=settings)
-    etoro = get_portfolio(limit=200, venue="etoro", db=db_session, settings=settings)
+    crypto = get_portfolio(limit=200, venue="crypto", db=db_session, settings=settings)
 
     assert alpaca["current"]["total_value_usdt"] == 500.0
-    assert etoro["current"]["total_value_usdt"] == 42.0
-    assert etoro["scorecard"] is None  # crypto venue has no SPY scorecard
+    assert crypto["current"]["total_value_usdt"] == 42.0
+    assert crypto["scorecard"] is None  # crypto venue has no SPY scorecard
 
 
 def test_portfolio_inception_is_the_very_first_snapshot_even_beyond_limit(db_session, settings):

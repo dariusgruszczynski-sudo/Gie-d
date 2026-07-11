@@ -3,9 +3,9 @@ keyless, no history-window limit. The free Alpaca/IEX feed only reaches back a
 few years, which starves a backtest of the market REGIMES that matter most
 (2008 financial crisis, 2020 COVID crash, 2022 rate-hike bear market) -- a
 backtest that only sees one long bull run can't tell you whether the strategy
-protects capital when it counts. Same defensive pattern as market_context.py /
-etoro_market_data.py: any failure degrades to an empty series instead of
-raising, so one bad symbol never aborts a whole multi-symbol backtest."""
+protects capital when it counts. Same defensive pattern as market_context.py:
+any failure degrades to an empty series instead of raising, so one bad symbol
+never aborts a whole multi-symbol backtest."""
 
 import logging
 import time
@@ -23,19 +23,30 @@ _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; GielDarek/1.0)"}
 BATCH_DELAY_SECONDS = 0.3
 SECONDS_PER_YEAR = 365.25 * 86400
 
+# Our crypto whitelist ("BTCUSD") -> Yahoo chart symbol ("BTC-USD"), needed
+# because Alpaca's own crypto market data doesn't reach back far enough for a
+# multi-year regime backtest (Alpaca crypto only started ~2021-2022). Yahoo's
+# crypto history goes back to ~2014 (BTC) / 2017 (ETH), which is exactly the
+# multi-year calibration a backtest needs.
+CRYPTO_YAHOO_SYMBOL = {
+    "BTCUSD": "BTC-USD",
+    "ETHUSD": "ETH-USD",
+    "LTCUSD": "LTC-USD",
+    "BCHUSD": "BCH-USD",
+    "DOGEUSD": "DOGE-USD",
+    "LINKUSD": "LINK-USD",
+    "AVAXUSD": "AVAX-USD",
+    "ADAUSD": "ADA-USD",
+}
+
 
 def _yahoo_symbol(symbol: str) -> str:
-    """Map an eToro-style ticker to its Yahoo chart symbol so the backtest can
-    pull deep crypto/forex history (BTC -> BTC-USD, EURUSD -> EURUSD=X). A plain
-    US-equity ticker isn't in the map and passes through unchanged. Without this
-    a crypto symbol was sent to Yahoo verbatim ('BTC') and returned nothing, so
-    the eToro venue could never be backtested at all -- deep history for crypto
-    on Yahoo goes back ~2014 (BTC) / 2017 (ETH), which is exactly the multi-year
-    calibration the crypto whitelist was missing."""
-    # Reuse the single source of truth the live eToro candle provider already uses.
-    from app.services.etoro_market_data import YAHOO_SYMBOL
-
-    return YAHOO_SYMBOL.get(symbol.upper(), symbol)
+    """Map a crypto whitelist ticker to its Yahoo chart symbol so the backtest
+    can pull deep crypto history (BTCUSD -> BTC-USD). A plain US-equity ticker
+    isn't in the map and passes through unchanged. Without this a crypto
+    symbol was sent to Yahoo verbatim and returned nothing, so the crypto
+    venue could never be backtested at all."""
+    return CRYPTO_YAHOO_SYMBOL.get(symbol.upper(), symbol)
 
 
 def get_daily_history(symbol: str, years: int = 20) -> list[list]:
@@ -48,8 +59,8 @@ def get_daily_history(symbol: str, years: int = 20) -> list[list]:
     daily data. period1/period2 + interval=1d returns true daily bars. Still
     filters client-side to the requested window as a belt-and-suspenders guard.
 
-    Crypto/forex tickers are mapped to their Yahoo symbol (BTC -> BTC-USD) so the
-    eToro whitelist can be backtested on the same deep-history engine as stocks."""
+    Crypto tickers are mapped to their Yahoo symbol (BTCUSD -> BTC-USD) so the
+    crypto whitelist can be backtested on the same deep-history engine as stocks."""
     now = int(time.time())
     period1 = now - int(years * SECONDS_PER_YEAR)
     try:

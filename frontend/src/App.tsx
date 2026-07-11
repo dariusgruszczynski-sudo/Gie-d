@@ -24,8 +24,8 @@ const REFRESH_MS = 15000;
 export default function App() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
-  const [etoroPortfolio, setEtoroPortfolio] = useState<PortfolioResponse | null>(null);
-  const [etoroTrades, setEtoroTrades] = useState<Trade[]>([]);
+  const [cryptoPortfolio, setCryptoPortfolio] = useState<PortfolioResponse | null>(null);
+  const [cryptoTrades, setCryptoTrades] = useState<Trade[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -56,15 +56,15 @@ export default function App() {
       setDecisions(d);
       setError(null);
 
-      // The 24-7 crypto/forex portfolio is fetched only when the venue is
-      // enabled, so a single-broker setup pays no extra requests.
-      if (s.etoro_enabled) {
-        const [ep, et] = await Promise.all([api.portfolio("etoro"), api.trades("etoro")]);
-        setEtoroPortfolio(ep);
-        setEtoroTrades(et);
+      // The 24-7 crypto portfolio is fetched only when the venue is enabled,
+      // so a single-lot setup pays no extra requests.
+      if (s.crypto_enabled) {
+        const [cp, ct] = await Promise.all([api.portfolio("crypto"), api.trades("crypto")]);
+        setCryptoPortfolio(cp);
+        setCryptoTrades(ct);
       } else {
-        setEtoroPortfolio(null);
-        setEtoroTrades([]);
+        setCryptoPortfolio(null);
+        setCryptoTrades([]);
       }
 
       if (seenDecisionIds.current === null) {
@@ -117,7 +117,7 @@ export default function App() {
         <div className="tickers-stack">
           <div className="ticker-labeled">
             <span className="ticker-venue-label">
-              <span className="venue-dot venue-dot-alpaca" /> Portfel dzienny · Alpaca (akcje US)
+              <span className="venue-dot venue-dot-alpaca" /> Portfel dzienny · Akcje USA (Alpaca)
             </span>
             <div className="ticker">
               <AccountSummary current={portfolio?.current ?? null} inception={portfolio?.inception ?? null} />
@@ -126,18 +126,15 @@ export default function App() {
           </div>
           <div className="ticker-labeled">
             <span className="ticker-venue-label">
-              <span className="venue-dot venue-dot-etoro" /> Portfel nocny · eToro (krypto/forex 24-7)
-              {status.etoro_mode && (
-                <span className="venue-mode-tag">{status.etoro_mode === "paper" ? "DEMO" : "LIVE"}</span>
+              <span className="venue-dot venue-dot-crypto" /> Portfel krypto · 24/7 (Alpaca)
+              {status.crypto_enabled && status.crypto_market_regime && (
+                <RegimeBadge regime={status.crypto_market_regime} prefix="Krypto" />
               )}
-              {status.etoro_enabled && status.etoro_market_regime && (
-                <RegimeBadge regime={status.etoro_market_regime} prefix="Krypto/Forex" />
-              )}
-              {!status.etoro_enabled && <span className="venue-off-tag">wyłączony</span>}
+              {!status.crypto_enabled && <span className="venue-off-tag">wyłączony</span>}
             </span>
             <div className="ticker">
-              <AccountSummary current={etoroPortfolio?.current ?? null} inception={etoroPortfolio?.inception ?? null} />
-              <PriceTicker history={etoroPortfolio?.history ?? []} whitelist={status.etoro_whitelist} />
+              <AccountSummary current={cryptoPortfolio?.current ?? null} inception={cryptoPortfolio?.inception ?? null} />
+              <PriceTicker history={cryptoPortfolio?.history ?? []} whitelist={status.crypto_whitelist} />
             </div>
           </div>
         </div>
@@ -148,7 +145,7 @@ export default function App() {
           <div>
             <h1>Giel<span className="brand-accent">Darek</span></h1>
             <p className="subtitle">
-              Decyzje: Claude (Sonnet + Opus) · Wykonanie: Alpaca · Narzędzie prywatne, nie jest to porada inwestycyjna.
+              Decyzje: Claude (Sonnet + Opus) · Wykonanie: Alpaca (akcje USA + krypto 24/7) · Narzędzie prywatne, nie jest to porada inwestycyjna.
             </p>
           </div>
         </div>
@@ -162,17 +159,17 @@ export default function App() {
           <div className="grid">
             <VenueControls
               venue="alpaca"
-              label="Sterowanie — Alpaca (akcje)"
+              label="Sterowanie — Akcje USA"
               paused={status.is_paused}
               halted={status.is_halted}
               enabled
               onChanged={refresh}
             />
             <VenueControls
-              venue="etoro"
-              label="Sterowanie — eToro (krypto/forex)"
-              paused={status.etoro_paused}
-              enabled={status.etoro_enabled}
+              venue="crypto"
+              label="Sterowanie — Krypto 24/7"
+              paused={status.crypto_paused}
+              enabled={status.crypto_enabled}
               onChanged={refresh}
             />
           </div>
@@ -193,13 +190,13 @@ export default function App() {
 
         {status && (
           <div className="grid">
-            <ManualTradePanel whitelist={status.whitelist} onChanged={refresh} venue="alpaca" title="Ręczna transakcja — Alpaca (akcje)" />
-            {status.etoro_enabled ? (
-              <ManualTradePanel whitelist={status.etoro_whitelist} onChanged={refresh} venue="etoro" title="Ręczna transakcja — eToro (krypto/forex)" />
+            <ManualTradePanel whitelist={status.whitelist} onChanged={refresh} venue="alpaca" title="Ręczna transakcja — Akcje USA" />
+            {status.crypto_enabled ? (
+              <ManualTradePanel whitelist={status.crypto_whitelist} onChanged={refresh} venue="crypto" title="Ręczna transakcja — Krypto 24/7" />
             ) : (
               <div className="panel">
-                <h2>Ręczna transakcja — eToro</h2>
-                <p className="subtitle venue-off-note">Portfel eToro wyłączony — włącz go (ETORO_ENABLED) i zasil konto, żeby handlować krypto/forex.</p>
+                <h2>Ręczna transakcja — Krypto</h2>
+                <p className="subtitle venue-off-note">Portfel krypto wyłączony — włącz go (CRYPTO_ENABLED) i zasil konto, żeby handlować 24/7.</p>
               </div>
             )}
           </div>
@@ -208,25 +205,25 @@ export default function App() {
         {/* ===== W co inwestuję (oba portfele) ===== */}
         <div className="grid">
           {status && <InvestmentThesis whitelist={status.whitelist} />}
-          {status && <InvestmentThesis whitelist={status.etoro_whitelist} />}
+          {status && <InvestmentThesis whitelist={status.crypto_whitelist} />}
         </div>
 
         {/* ===== Wykresy wartości (oba portfele) ===== */}
         <div className="grid">
           <PortfolioChart history={portfolio?.history ?? []} current={portfolio?.current ?? null} scorecard={portfolio?.scorecard ?? null} />
-          <PortfolioChart history={etoroPortfolio?.history ?? []} current={etoroPortfolio?.current ?? null} scorecard={null} />
+          <PortfolioChart history={cryptoPortfolio?.history ?? []} current={cryptoPortfolio?.current ?? null} scorecard={null} />
         </div>
 
         {/* ===== Pozycje (oba portfele, obok siebie) ===== */}
         <div className="grid">
-          <PortfolioHoldings current={portfolio?.current ?? null} costBasis={portfolio?.cost_basis ?? {}} title="Pozycje — Alpaca" />
-          <PortfolioHoldings current={etoroPortfolio?.current ?? null} costBasis={etoroPortfolio?.cost_basis ?? {}} title="Pozycje — eToro" />
+          <PortfolioHoldings current={portfolio?.current ?? null} costBasis={portfolio?.cost_basis ?? {}} title="Pozycje — Akcje USA" />
+          <PortfolioHoldings current={cryptoPortfolio?.current ?? null} costBasis={cryptoPortfolio?.cost_basis ?? {}} title="Pozycje — Krypto" />
         </div>
 
         {/* ===== Historia transakcji (oba portfele, obok siebie) ===== */}
         <div className="grid">
-          <TradesTable trades={trades} title="Transakcje — Alpaca" />
-          <TradesTable trades={etoroTrades} title="Transakcje — eToro" />
+          <TradesTable trades={trades} title="Transakcje — Akcje USA" />
+          <TradesTable trades={cryptoTrades} title="Transakcje — Krypto" />
         </div>
 
         {/* ===== Log decyzji Claude — na samym dole (oba portfele) ===== */}

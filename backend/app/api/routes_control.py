@@ -11,7 +11,6 @@ from app.db import get_db
 from app.serialization import serialize
 from app.services import risk_manager
 from app.services.alpaca_client import AlpacaAPIError, AlpacaClient
-from app.services.etoro_client import EToroAPIError, EToroClient
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.email_reporter import send_daily_report
 from app.services.market_context import MarketContextClient
@@ -34,8 +33,8 @@ def resume(venue: str = "alpaca", db: Session = Depends(get_db)):
 
 
 def _broker_for(venue: str, settings: Settings):
-    if venue == "etoro":
-        return EToroClient(settings), settings.etoro_whitelist_symbols, True
+    if venue == "crypto":
+        return AlpacaClient(settings, asset_class="crypto"), settings.crypto_whitelist_symbols, True
     return AlpacaClient(settings), settings.whitelist_symbols, False
 
 
@@ -44,7 +43,7 @@ class ManualTradeRequest(BaseModel):
     side: Literal["BUY", "SELL"]
     usdt_amount: float | None = None
     quantity: float | None = None
-    venue: Literal["alpaca", "etoro"] = "alpaca"
+    venue: Literal["alpaca", "crypto"] = "alpaca"
 
     @model_validator(mode="after")
     def check_amount(self):
@@ -59,11 +58,11 @@ def manual_trade(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):
-    if req.venue == "etoro":
-        if not settings.etoro_enabled:
-            raise HTTPException(status_code=400, detail="Portfel eToro jest wyłączony (ETORO_ENABLED=false)")
-        broker = EToroClient(settings)
-        whitelist = settings.etoro_whitelist_symbols
+    if req.venue == "crypto":
+        if not settings.crypto_enabled:
+            raise HTTPException(status_code=400, detail="Portfel krypto jest wyłączony (CRYPTO_ENABLED=false)")
+        broker = AlpacaClient(settings, asset_class="crypto")
+        whitelist = settings.crypto_whitelist_symbols
     else:
         broker = AlpacaClient(settings)
         whitelist = settings.whitelist_symbols
@@ -79,7 +78,7 @@ def manual_trade(
             venue=req.venue,
             whitelist=whitelist,
         )
-    except (ValueError, AlpacaAPIError, EToroAPIError) as exc:
+    except (ValueError, AlpacaAPIError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return serialize(trade)
 
@@ -89,9 +88,9 @@ def run_cycle_now(venue: str = "alpaca", db: Session = Depends(get_db), settings
     """Forces one full Claude analysis immediately (bypassing the price/schedule
     trigger gate) instead of waiting for the scheduler's next poll -- this is
     the dashboard's "Wymuś analizę" button, so it must always produce a
-    decision rather than returning 'no trigger'. Per venue (Alpaca/eToro)."""
-    if venue == "etoro" and not settings.etoro_enabled:
-        raise HTTPException(status_code=400, detail="Portfel eToro jest wyłączony (ETORO_ENABLED=false)")
+    decision rather than returning 'no trigger'. Per venue (equities/crypto)."""
+    if venue == "crypto" and not settings.crypto_enabled:
+        raise HTTPException(status_code=400, detail="Portfel krypto jest wyłączony (CRYPTO_ENABLED=false)")
     broker, whitelist, always_open = _broker_for(venue, settings)
     news = NewsClient(settings)
     advisor = ClaudeAdvisor(settings)
@@ -114,8 +113,8 @@ def refresh_portfolio(venue: str = "alpaca", db: Session = Depends(get_db), sett
     proves the API key works and populates the dashboard (saldo, ceny, pozycje)
     on demand, at zero Claude cost and zero trading risk, even while the automat
     is stopped before START."""
-    if venue == "etoro" and not settings.etoro_enabled:
-        raise HTTPException(status_code=400, detail="Portfel eToro jest wyłączony (ETORO_ENABLED=false)")
+    if venue == "crypto" and not settings.crypto_enabled:
+        raise HTTPException(status_code=400, detail="Portfel krypto jest wyłączony (CRYPTO_ENABLED=false)")
     broker, whitelist, _ = _broker_for(venue, settings)
     try:
         portfolio = compute_portfolio(db, settings, broker, venue=venue, whitelist=whitelist)

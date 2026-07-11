@@ -106,31 +106,6 @@ const TICKER_INFO: Record<string, TickerInfo> = {
     description:
       "ETF rozwiniętych rynków poza USA (Europa, Japonia, Australia). Pozwala botowi złapać trend, gdy to rynki zagraniczne, a nie amerykańskie, są liderem.",
   },
-  XRP: {
-    name: "XRP (Ripple)",
-    description:
-      "Kryptowaluta skupiona na płatnościach transgranicznych. Płynna, mocno reaguje na newsy regulacyjne (sprawy sądowe SEC). Spot, 24/7.",
-  },
-  ADA: {
-    name: "Cardano",
-    description:
-      "Blockchain warstwy 1 (proof-of-stake). Wysokobetowy altcoin — potrafi ruszyć się mocniej niż BTC/ETH. Spot, 24/7; rozmiar przycina skalowanie wg zmienności.",
-  },
-  DOGE: {
-    name: "Dogecoin",
-    description:
-      "Kryptowaluta „memowa”, bardzo zmienna i napędzana sentymentem/social media (Elon). Wysokie ryzyko i amplituda — spot, 24/7, rozmiar mocno przycinany przez skalowanie wg zmienności.",
-  },
-  LTC: {
-    name: "Litecoin",
-    description:
-      "Jedna z najstarszych kryptowalut, „srebro do bitcoinowego złota”. Płynna, zwykle podąża za BTC z podobną lub nieco większą amplitudą. Spot, 24/7.",
-  },
-  BCH: {
-    name: "Bitcoin Cash",
-    description:
-      "Fork bitcoina nastawiony na tańsze płatności. Płynny altcoin, koreluje z BTC. Spot, 24/7; rozmiar przycina skalowanie wg zmienności.",
-  },
   SH: {
     name: "ProShares Short S&P 500 (inverse)",
     description:
@@ -141,36 +116,46 @@ const TICKER_INFO: Record<string, TickerInfo> = {
     description:
       "ETF ODWROTNY do Nasdaq-100 — rośnie, gdy tech spada (1x, bez lewara). Odpowiednik SH, ale wycelowany w sektor technologiczny. Sposób na grę pod korektę tech bez shortowania z nieograniczoną stratą.",
   },
-  // --- Portfel nocny eToro: krypto (spot) + forex ---
-  BTC: {
+  // --- Portfel krypto (24/7, spot, to samo konto Alpaca) ---
+  BTCUSD: {
     name: "Bitcoin",
     description:
-      "Największa i najpłynniejsza kryptowaluta, handlowana 24/7 (także w weekend) — rdzeń portfela nocnego. Zmienna, ale spot (bez dźwigni), więc strata ograniczona jak przy każdej długiej pozycji. Reaguje mocno na newsy o ETF-ach, regulacjach i przepływach on-chain.",
+      "Największa i najpłynniejsza kryptowaluta, handlowana 24/7 (także w weekend) — rdzeń portfela krypto. Zmienna, ale spot (bez dźwigni), więc strata ograniczona jak przy każdej długiej pozycji. Reaguje mocno na newsy o ETF-ach, regulacjach i przepływach on-chain.",
   },
-  ETH: {
+  ETHUSD: {
     name: "Ethereum",
     description:
       "Druga co do wielkości kryptowaluta, baza dla DeFi i większości tokenów. Trochę bardziej zmienna niż BTC, często podąża za nim z większą amplitudą. Spot, 24/7.",
   },
-  SOL: {
-    name: "Solana",
+  LTCUSD: {
+    name: "Litecoin",
     description:
-      "Szybki, wysokobetowy blockchain warstwy 1 — potrafi ruszyć się mocniej niż BTC/ETH w obie strony. Płynny, ale bardziej ryzykowny; rozmiar pozycji przycina skalowanie wg zmienności.",
+      "Jedna z najstarszych kryptowalut, „srebro do bitcoinowego złota”. Płynna, zwykle podąża za BTC z podobną lub nieco większą amplitudą. Spot, 24/7.",
   },
-  EURUSD: {
-    name: "EUR/USD (forex)",
+  BCHUSD: {
+    name: "Bitcoin Cash",
     description:
-      "Najpłynniejsza para walutowa świata, handel 24/5. Napędzana decyzjami banków centralnych (EBC/Fed) i danymi makro. Na eToro to instrument CFD — ruchy zwykle mniejsze niż krypto.",
+      "Fork bitcoina nastawiony na tańsze płatności. Płynny altcoin, koreluje z BTC. Spot, 24/7; rozmiar przycina skalowanie wg zmienności.",
   },
-  GBPUSD: {
-    name: "GBP/USD (forex)",
+  DOGEUSD: {
+    name: "Dogecoin",
     description:
-      "Funt do dolara — płynna para 24/5, bardziej zmienna niż EUR/USD, wrażliwa na dane z UK i USA oraz nastroje risk-on/risk-off.",
+      "Kryptowaluta „memowa”, bardzo zmienna i napędzana sentymentem/social media (Elon). Wysokie ryzyko i amplituda — spot, 24/7, rozmiar mocno przycinany przez skalowanie wg zmienności.",
   },
-  USDJPY: {
-    name: "USD/JPY (forex)",
+  LINKUSD: {
+    name: "Chainlink",
     description:
-      "Dolar do jena — bardzo płynna para 24/5, klasyczny barometr apetytu na ryzyko (jen to waluta „bezpiecznej przystani”). Silnie reaguje na różnice stóp procentowych USA/Japonia.",
+      "Sieć oracle łącząca blockchain z danymi ze świata rzeczywistego — infrastrukturalny token DeFi. Wysokobetowy altcoin, podąża za sentymentem krypto z większą amplitudą niż BTC. Spot, 24/7.",
+  },
+  AVAXUSD: {
+    name: "Avalanche",
+    description:
+      "Szybki blockchain warstwy 1, konkurent Ethereum dla DeFi i aplikacji. Wysokobetowy altcoin — potrafi ruszyć się mocniej niż BTC/ETH w obie strony. Spot, 24/7.",
+  },
+  ADAUSD: {
+    name: "Cardano",
+    description:
+      "Blockchain warstwy 1 (proof-of-stake). Wysokobetowy altcoin — potrafi ruszyć się mocniej niż BTC/ETH. Spot, 24/7; rozmiar przycina skalowanie wg zmienności.",
   },
 };
 

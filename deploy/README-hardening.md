@@ -75,7 +75,8 @@ z ostrzeżeniem o self-signed przy wariancie B).
 Klucze, które wklejałeś w czacie, traktuj jak **spalone** — wygeneruj nowe i
 podmień w `~/gie-d/.env` na serwerze (nigdy w repo):
 
-- **eToro** — Agent Portfolio → wygeneruj nowy `x-api-key` i `x-user-key`.
+- **eToro** — apka już go nie używa (zastąpiony kryptem na Alpaca), ale klucz
+  był wklejony w czacie, więc i tak wejdź do Agent Portfolio i go unieważnij.
 - **Alpaca** — dashboard → regenerate API key.
 - **Anthropic** — console.anthropic.com → nowy klucz, stary skasuj.
 

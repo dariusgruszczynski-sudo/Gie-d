@@ -62,7 +62,7 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "mode": "testnet" if settings.alpaca_paper else "live",
         "quote_currency": settings.quote_currency,
         "is_paused": state.is_paused,
-        "etoro_paused": state.etoro_paused,
+        "crypto_paused": state.crypto_paused,
         "is_halted": state.is_halted,
         "halted_reason": state.halted_reason,
         "day_pnl_pct": day_pnl_pct,
@@ -72,13 +72,12 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "max_position_pct": settings.max_position_pct,
         "whitelist": settings.whitelist_symbols,
         "poll_interval_minutes": settings.poll_interval_minutes,
-        # eToro (24-7 crypto/forex) venue -- lets the dashboard show/hide the
-        # second portfolio panel and its whitelist.
-        "etoro_enabled": settings.etoro_enabled,
-        "etoro_whitelist": settings.etoro_whitelist_symbols,
-        "etoro_mode": ("paper" if settings.etoro_paper else "live") if settings.etoro_enabled else None,
+        # Crypto (24-7, same Alpaca account) venue -- lets the dashboard
+        # show/hide the second portfolio panel and its whitelist.
+        "crypto_enabled": settings.crypto_enabled,
+        "crypto_whitelist": settings.crypto_whitelist_symbols,
         "market_regime": _load_regime(state.market_regime_json),
-        "etoro_market_regime": _load_regime(state.etoro_market_regime_json) if settings.etoro_enabled else None,
+        "crypto_market_regime": _load_regime(state.crypto_market_regime_json) if settings.crypto_enabled else None,
         **_serialize_session_info(settings),
         **budget_tracker.get_budget_status(db, settings),
     }
@@ -122,7 +121,7 @@ def get_portfolio(
     ).scalar_one_or_none()
     inception = serialize(inception_row) if inception_row else None
 
-    whitelist = settings.etoro_whitelist_symbols if venue == "etoro" else settings.whitelist_symbols
+    whitelist = settings.crypto_whitelist_symbols if venue == "crypto" else settings.whitelist_symbols
 
     # Average entry price per currently-held base asset ("BTC" -> 61234.5), so
     # the dashboard can show per-position unrealized P&L. Keyed by base asset to

@@ -113,7 +113,7 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
 
 
 def _venue_paused(state: SystemState, venue: str) -> bool:
-    return state.etoro_paused if venue == "etoro" else state.is_paused
+    return state.crypto_paused if venue == "crypto" else state.is_paused
 
 
 def can_trade_automated(db: Session, venue: str = "alpaca") -> ValidationResult:
@@ -166,8 +166,8 @@ def validate_trade(
 
 def pause(db: Session, venue: str = "alpaca") -> SystemState:
     state = get_state(db)
-    if venue == "etoro":
-        state.etoro_paused = True
+    if venue == "crypto":
+        state.crypto_paused = True
     else:
         state.is_paused = True
     db.commit()
@@ -178,8 +178,8 @@ def pause(db: Session, venue: str = "alpaca") -> SystemState:
 
 def resume(db: Session, venue: str = "alpaca") -> SystemState:
     state = get_state(db)
-    if venue == "etoro":
-        state.etoro_paused = False
+    if venue == "crypto":
+        state.crypto_paused = False
     else:
         state.is_paused = False
         # The loss-limit halt is account-wide; clear it on the main (Alpaca)

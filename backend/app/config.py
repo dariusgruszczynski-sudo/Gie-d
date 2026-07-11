@@ -25,27 +25,20 @@ class Settings(BaseSettings):
     alpaca_paper: bool = False
     quote_currency: str = "USD"
 
-    # --- eToro: drugi broker dla handlu nocnego/24-7 (krypto spot) ---
-    # eToro autoryzuje parą nagłówków: x-api-key (klucz publiczny) +
-    # x-user-key (klucz prywatny/portfela Agent Portfolio). Demo (sandbox) ma
-    # identyczne API pod ścieżką /demo/ -- domyślnie ON, żeby zweryfikować
-    # integrację na wirtualnych pieniądzach przed przełączeniem na żywe.
-    etoro_enabled: bool = False
-    etoro_api_key: str = ""
-    etoro_user_key: str = ""
-    etoro_paper: bool = True
-    # Minimum notional (USD) for an eToro order. eToro rejects trades below its
-    # per-instrument minimum (~$10 for most crypto), so with a thinly funded
-    # account a % -sized BUY rounds below that and fires a doomed REAL order
-    # every cycle. Guard it client-side: skip with a clear reason instead of
-    # spamming the live API with rejected orders. Set to 0 to disable the guard.
-    etoro_min_order_usd: float = 10.0
-    # Krypto handluje 24/7 (także w weekend) -- to pokrywa noce, gdy rynek US
-    # jest zamknięty. Spot, bez dźwigni, ta sama mechanika co portfel Alpaca.
-    # Krypto majors (24/7, także weekend) + główne pary forex (24/5). Wszystkie
-    # mają zmapowane świece Yahoo i resolver ID w etoro_client, więc filtr
-    # konfluencji działa. Pokrywa noce i weekendy, gdy rynek US jest zamknięty.
-    etoro_whitelist: str = "BTC,ETH,SOL,XRP,ADA,DOGE,LTC,BCH,EURUSD,GBPUSD,USDJPY"
+    # --- Crypto: DRUGI, 24/7 lot handlu na TYM SAMYM koncie Alpaca ---
+    # Alpaca (nie osobny broker) wykonuje realne zlecenia krypto -- ta sama
+    # para kluczy jak akcje US, ta sama sesja paper/live (ALPACA_PAPER). To
+    # zastąpiło eToro (przyjmowało zlecenia bez wykonania -- patrz historia
+    # commitów) jednym, sprawdzonym API dla obu faz handlu.
+    crypto_enabled: bool = True
+    # Minimum notional (USD) dla zlecenia krypto -- guard po stronie klienta,
+    # żeby cienko dofinansowane konto nie strzelało wciąż odrzucanym REAL
+    # zleceniem poniżej minimum giełdy. 0 wyłącza guard.
+    crypto_min_order_usd: float = 1.0
+    # Krypto handluje 24/7 (także w weekend) -- to pokrywa noce i weekendy, gdy
+    # rynek US jest zamknięty. Spot, bez dźwigni, ta sama mechanika co portfel
+    # akcji. Lista zweryfikowana jako aktualnie wspierana przez Alpaca (2026-07).
+    crypto_whitelist: str = "BTCUSD,ETHUSD,LTCUSD,BCHUSD,DOGEUSD,LINKUSD,AVAXUSD,ADAUSD"
 
     daily_loss_limit_pct: float = 20.0
     weekly_loss_limit_pct: float = 70.0
@@ -157,18 +150,17 @@ class Settings(BaseSettings):
     regime_gate_enabled: bool = True
     regime_vix_risk_off: float = 25.0
     defensive_symbols: str = "GLD,TLT,SH,PSQ"
-    # --- eToro (crypto/forex) has its OWN risk regime -----------------------
-    # The equity regime (SPY trend + VIX) is meaningless for a 24/7 crypto/forex
-    # book, so the eToro venue derives its own read: BTC as the crypto-beta proxy
-    # (its 50/200 trend) plus the breadth of the crypto majors (how many are in a
-    # downtrend). In eToro risk-off the gate blocks new CRYPTO longs (there are no
-    # inverse crypto instruments on a spot whitelist -> cash is the defensive
-    # position) but still allows the safe-haven FX pairs below, which strengthen
-    # exactly when risk comes off. Set etoro_regime_gate_enabled=False to keep the
-    # signal as context but drop the hard block.
-    etoro_regime_gate_enabled: bool = True
-    etoro_regime_benchmark: str = "BTC"
-    etoro_defensive_symbols: str = "USDJPY,USDCHF,USDCAD"
+    # --- Crypto has its OWN risk regime --------------------------------------
+    # The equity regime (SPY trend + VIX) is meaningless for a 24/7 crypto book,
+    # so the crypto venue derives its own read: BTC as the crypto-beta proxy
+    # (its 50/200 trend) plus the breadth of the crypto majors (how many are in
+    # a downtrend). In risk-off the gate blocks new CRYPTO longs -- there's no
+    # inverse/defensive instrument on a spot-only crypto whitelist, so cash is
+    # the defensive position (forces HOLD). Set crypto_regime_gate_enabled=False
+    # to keep the signal as context but drop the hard block.
+    crypto_regime_gate_enabled: bool = True
+    crypto_regime_benchmark: str = "BTCUSD"
+    crypto_defensive_symbols: str = ""
     # --- Auto-blacklist po serii stop-lossów (Pakiet 4) ---------------------
     # If a ticker stop-losses auto_blacklist_stop_count times within
     # auto_blacklist_window_hours, quarantine it: block re-buying for
@@ -264,8 +256,8 @@ class Settings(BaseSettings):
         return [s.strip().upper() for s in self.trading_whitelist.split(",") if s.strip()]
 
     @property
-    def etoro_whitelist_symbols(self) -> list[str]:
-        return [s.strip().upper() for s in self.etoro_whitelist.split(",") if s.strip()]
+    def crypto_whitelist_symbols(self) -> list[str]:
+        return [s.strip().upper() for s in self.crypto_whitelist.split(",") if s.strip()]
 
     @property
     def high_spread_symbol_list(self) -> list[str]:
@@ -279,11 +271,11 @@ class Settings(BaseSettings):
         return [s.strip().upper() for s in self.defensive_symbols.split(",") if s.strip()]
 
     @property
-    def etoro_defensive_symbol_list(self) -> list[str]:
-        """Safe-haven FX pairs the eToro venue may still BUY in a crypto risk-off
-        regime (USD-strength / haven pairs that firm up when risk comes off).
-        Crypto longs are HOLD-only while risk-off -> cash / haven-FX."""
-        return [s.strip().upper() for s in self.etoro_defensive_symbols.split(",") if s.strip()]
+    def crypto_defensive_symbol_list(self) -> list[str]:
+        """Names the crypto venue may still BUY in a risk-off regime. Empty by
+        default -- a spot-only crypto book has no genuine defensive instrument,
+        so risk-off forces HOLD (cash) rather than buying anything."""
+        return [s.strip().upper() for s in self.crypto_defensive_symbols.split(",") if s.strip()]
 
     @property
     def dashboard_credentials(self) -> dict[str, str]:

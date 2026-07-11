@@ -1408,7 +1408,7 @@ button {
   }
 }
 
-/* ---- Dual-portfolio (Alpaca day / eToro night) ---- */
+/* ---- Dual-portfolio (Alpaca equities day / crypto 24-7) ---- */
 .portfolios-bar {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -1425,7 +1425,7 @@ button {
 .portfolio-card-alpaca {
   border-left-color: var(--accent);
 }
-.portfolio-card-etoro {
+.portfolio-card-crypto {
   border-left-color: var(--amber);
 }
 .portfolio-card-total {
@@ -1478,21 +1478,10 @@ button {
 .venue-dot-alpaca {
   background: var(--accent);
 }
-.venue-dot-etoro {
+.venue-dot-crypto {
   background: var(--amber);
 }
-.venue-mode-tag {
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  padding: 2px 6px;
-  border-radius: 5px;
-  background: rgba(245, 181, 68, 0.15);
-  color: var(--amber);
-  border: 1px solid rgba(245, 181, 68, 0.3);
-}
-.venue-section-etoro {
+.venue-section-crypto {
   border: 1px solid rgba(245, 181, 68, 0.25);
   border-radius: 14px;
   padding: 16px;
@@ -1510,7 +1499,7 @@ button {
   font-size: 1.15rem;
 }
 
-/* ---- Stacked per-venue ticker bars (Alpaca over eToro) ---- */
+/* ---- Stacked per-venue ticker bars (equities over crypto) ---- */
 .tickers-stack {
   position: sticky;
   top: 0;
@@ -1560,7 +1549,7 @@ button {
 .venue-controls-alpaca {
   border-left: 3px solid var(--accent);
 }
-.venue-controls-etoro {
+.venue-controls-crypto {
   border-left: 3px solid var(--amber);
 }
 .venue-controls-head {
