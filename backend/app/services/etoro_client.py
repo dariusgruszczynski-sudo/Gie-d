@@ -31,7 +31,7 @@ ETORO_BASE = "https://public-api.etoro.com"
 CRYPTO_TYPE_ID = 10
 FOREX_TYPE_ID = 1
 # Best-effort order endpoint (see module docstring). Overridable once verified.
-ORDER_PATH = "/api/v1/trading/execution/orders"
+ORDER_PATH = "/api/v2/trading/execution/orders"
 
 # Our whitelist ticker -> eToro instrument display name, resolved to a numeric
 # instrumentID via the catalogue. KNOWN_IDS short-circuits the ones already
@@ -200,12 +200,22 @@ class EToroClient:
                 f"${min_usd:.2f} — pomijam (za mały kredyt, zasil konto eToro)"
             )
 
+        # eToro v2 uses ONE symmetric endpoint for both directions, keyed by
+        # instrumentId + USD amount (NOT positionId), confirmed empirically:
+        #   open a long : action=open,  transaction=Buy
+        #   close a long: action=close, transaction=Sell
+        # (validated via scripts/etoro_order_probe.py -- the v1 path 404'd.)
         body = {
+            "action": "open" if is_buy else "close",
+            "transaction": "Buy" if is_buy else "Sell",
             "instrumentId": iid,
-            "isBuy": is_buy,
-            "amount": round(amount_usd, 2),
+            "orderType": "mkt",
             "leverage": 1,
+            "amount": round(amount_usd, 2),
+            "orderCurrency": "usd",
         }
         result = self._request("POST", ORDER_PATH, json=body)
-        order_id = str(result.get("orderId") or result.get("id") or result.get("positionId") or "")
+        order_id = str(
+            result.get("orderId") or result.get("id") or result.get("positionId") or ""
+        )
         return OrderResult(order_id, symbol, side.upper(), units, price, amount_usd)

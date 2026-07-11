@@ -91,8 +91,12 @@ def test_place_order_builds_notional_body(etoro_settings, monkeypatch):
     monkeypatch.setattr(client, "_request", fake_request)
     result = client.place_order_for_session("BTC", "BUY", usdt_amount=50.0)
 
+    assert captured["path"] == "/api/v2/trading/execution/orders"
     assert captured["body"]["instrumentId"] == 100000
-    assert captured["body"]["isBuy"] is True
+    assert captured["body"]["action"] == "open"
+    assert captured["body"]["transaction"] == "Buy"
+    assert captured["body"]["orderType"] == "mkt"
+    assert captured["body"]["orderCurrency"] == "usd"
     assert captured["body"]["amount"] == 50.0
     assert captured["body"]["leverage"] == 1
     assert result.order_id == "abc123"
@@ -130,4 +134,6 @@ def test_place_order_allows_sell_below_min_notional(etoro_settings, monkeypatch)
     monkeypatch.setattr(client, "_request", fake_request)
     result = client.place_order_for_session("BTC", "SELL", quantity=0.03)  # $3 notional
     assert result.order_id == "sell1"
-    assert captured["body"]["isBuy"] is False
+    # SELL closes a long via the same endpoint: action=close, transaction=Sell.
+    assert captured["body"]["action"] == "close"
+    assert captured["body"]["transaction"] == "Sell"
