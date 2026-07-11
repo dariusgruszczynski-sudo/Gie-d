@@ -1570,6 +1570,119 @@ button {
   color: var(--text);
 }
 
+/* ---- Positions board (what you own, per leg) ---- */
+.pos-board-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.pos-board-head h2 {
+  margin: 0;
+}
+.pos-board-summary {
+  display: flex;
+  gap: 18px;
+}
+.pos-board-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.pos-board-stat-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pos-board-stat b {
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+}
+.pos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.pos-card {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.pos-card-us {
+  border-left-color: var(--venue-us);
+}
+.pos-card-crypto {
+  border-left-color: var(--venue-crypto);
+}
+.pos-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.pos-asset {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.pos-leg-tag {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+.pos-pnl-pct {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.pos-pnl-pct.up,
+.pos-metric b.up {
+  color: var(--green);
+}
+.pos-pnl-pct.down,
+.pos-metric b.down {
+  color: var(--red);
+}
+.pos-pnl-pct.muted {
+  color: var(--muted);
+}
+.pos-card-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+}
+.pos-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.pos-metric span {
+  font-size: 0.66rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pos-metric b {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ---- Stacked per-engine ticker bars (equities over crypto) ---- */
 .tickers-stack {
   position: sticky;

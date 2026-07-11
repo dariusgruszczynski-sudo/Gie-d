@@ -10,7 +10,7 @@ import { InvestmentThesis } from "./components/InvestmentThesis";
 import { ManualTradePanel } from "./components/ManualTradePanel";
 import { MarketStrip } from "./components/MarketStrip";
 import { PortfolioChart } from "./components/PortfolioChart";
-import { PortfolioHoldings } from "./components/PortfolioHoldings";
+import { PositionsBoard } from "./components/PositionsBoard";
 import { PriceTicker } from "./components/PriceTicker";
 import { RegimeBadge } from "./components/RegimeBadge";
 import { StatusBanner } from "./components/StatusBanner";
@@ -156,6 +156,9 @@ export default function App() {
 
         {status && <StatusBanner status={status} />}
 
+        {/* ===== Pozycje: co, w której nodze, ile, za ile, ile zysku ===== */}
+        {status && <PositionsBoard alpaca={portfolio} crypto={cryptoPortfolio} />}
+
         {/* ===== Panele kontrolne (per portfel) ===== */}
         {status && (
           <div className="grid">
@@ -209,24 +212,6 @@ export default function App() {
 
         {/* ===== Wykres wartości CAŁEGO konta (jedno konto, nie dwa) ===== */}
         <PortfolioChart history={portfolio?.history ?? []} current={portfolio?.current ?? null} scorecard={portfolio?.scorecard ?? null} />
-
-        {/* ===== Pozycje per silnik (gotówka jest wspólna -> nie dublujemy jej) ===== */}
-        <div className="grid">
-          <PortfolioHoldings
-            current={portfolio?.current ?? null}
-            costBasis={portfolio?.cost_basis ?? {}}
-            title="Pozycje — Silnik Akcje US"
-            showCash={false}
-            accountTotal={status?.account?.total_value ?? 0}
-          />
-          <PortfolioHoldings
-            current={cryptoPortfolio?.current ?? null}
-            costBasis={cryptoPortfolio?.cost_basis ?? {}}
-            title="Pozycje — Silnik Krypto"
-            showCash={false}
-            accountTotal={status?.account?.total_value ?? 0}
-          />
-        </div>
 
         {/* ===== Historia transakcji per silnik ===== */}
         <div className="grid">
