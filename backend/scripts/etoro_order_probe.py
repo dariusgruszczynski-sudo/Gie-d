@@ -54,6 +54,24 @@ CANDIDATES = [
     ("/api/v1/trading/execution/orders", SHAPE_SIMPLE),  # current path (baseline 404)
 ]
 
+# OPEN is confirmed (/api/v2/trading/execution/orders, action=open, transaction=Buy).
+# The remaining unknown is CLOSE (our SELL / stop-loss), which on eToro's
+# position model needs a positionId, not units. Probe close-route candidates
+# with a BOGUS positionId (999999999) -> a route that exists answers "position
+# not found" / a validation error (NOT 404 RouteNotFound), and closes NOTHING
+# because no such position exists.
+BAD_POSITION = 999999999
+CLOSE_CANDIDATES = [
+    # Same unified endpoint, action=close (mirrors action=open).
+    ("POST", "/api/v2/trading/execution/orders",
+     {"action": "close", "transaction": "Sell", "positionId": BAD_POSITION, "orderType": "mkt", "amount": 0}),
+    ("POST", "/api/v2/trading/execution/close-orders", {"positionId": BAD_POSITION}),
+    ("POST", "/api/v2/trading/execution/market-close-orders/by-position", {"positionId": BAD_POSITION}),
+    ("POST", "/api/v2/trading/execution/close-position", {"positionId": BAD_POSITION}),
+    ("DELETE", f"/api/v2/trading/positions/{BAD_POSITION}", None),
+    ("DELETE", f"/api/v2/trading/execution/orders/{BAD_POSITION}", None),
+]
+
 
 def main() -> None:
     s = get_settings()
@@ -71,6 +89,7 @@ def main() -> None:
     print("Szukam adresu, który zwraca 400/422/403 (istnieje) zamiast 404 (brak).")
     print("=" * 72)
     with httpx.Client(base_url=BASE, timeout=20.0) as http:
+        print("\n--- OTWIERANIE (open) ---")
         for path, body in CANDIDATES:
             h = dict(headers, **{"x-request-id": str(uuid.uuid4())})
             shape = "doc" if "action" in body else "simple"
@@ -81,9 +100,20 @@ def main() -> None:
                 print(f"      {r.text[:400]}")
             except Exception as e:  # noqa: BLE001
                 print(f"\n[ERR] POST {path}  (body={shape}): {type(e).__name__}: {e}")
+
+        print("\n--- ZAMYKANIE (close, positionId={}) ---".format(BAD_POSITION))
+        for method, path, body in CLOSE_CANDIDATES:
+            h = dict(headers, **{"x-request-id": str(uuid.uuid4())})
+            try:
+                r = http.request(method, path, headers=h, json=body)
+                mark = "  <-- ISTNIEJE" if r.status_code != 404 else ""
+                print(f"\n[{r.status_code}] {method} {path}{mark}")
+                print(f"      {r.text[:400]}")
+            except Exception as e:  # noqa: BLE001
+                print(f"\n[ERR] {method} {path}: {type(e).__name__}: {e}")
     print("\n" + "=" * 72)
     print("GOTOWE — wklej całość. Adres z kodem != 404 to nasz endpoint;")
-    print("treść błędu 400/422 pokaże, jakich pól body oczekuje.")
+    print("treść błędu (nie 'RouteNotFound') pokaże schemat / że pozycji nie ma.")
     print("=" * 72)
 
 
