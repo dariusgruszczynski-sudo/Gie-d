@@ -11,7 +11,7 @@ from app.services.email_reporter import send_daily_report
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.strategy_profiles import effective_settings
-from app.services.trading_engine import run_cycle
+from app.services.trading_engine import compute_portfolio, run_cycle
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +83,35 @@ def _self_review_job() -> None:
         run_self_review(db, settings)
     except Exception:
         logger.exception("Weekly self-review failed")
+    finally:
+        db.close()
+
+
+def prime_portfolio_snapshots() -> None:
+    """Take ONE read-only portfolio snapshot per venue at boot so the dashboard
+    shows the account immediately instead of 'oczekiwanie na dane' until the
+    first scheduled poll (up to poll_interval minutes, and especially right
+    after a history reset). Best-effort: places/cancels/reads NO order beyond
+    the balance/price reads compute_portfolio already does, and never blocks or
+    breaks startup if the broker is briefly unreachable."""
+    settings = get_settings()
+    db = SessionLocal()
+    try:
+        try:
+            compute_portfolio(
+                db, settings, AlpacaClient(settings),
+                venue="alpaca", whitelist=settings.whitelist_symbols,
+            )
+        except Exception:
+            logger.warning("Startup snapshot (equities) failed, will populate on first poll", exc_info=True)
+        if settings.crypto_enabled:
+            try:
+                compute_portfolio(
+                    db, settings, AlpacaClient(settings, asset_class="crypto"),
+                    venue="crypto", whitelist=settings.crypto_whitelist_symbols,
+                )
+            except Exception:
+                logger.warning("Startup snapshot (crypto) failed, will populate on first poll", exc_info=True)
     finally:
         db.close()
 

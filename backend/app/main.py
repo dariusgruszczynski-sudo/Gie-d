@@ -12,7 +12,7 @@ from app.api.routes_dashboard import router as dashboard_router
 from app.auth import SessionAuthMiddleware
 from app.config import get_settings
 from app.db import init_db
-from app.services.scheduler import start_scheduler, stop_scheduler
+from app.services.scheduler import prime_portfolio_snapshots, start_scheduler, stop_scheduler
 from app.session_secret import get_session_secret, init_session_secret
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -24,6 +24,9 @@ FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "static")
 async def lifespan(app: FastAPI):
     init_db()
     init_session_secret()
+    # One read-only snapshot per venue so the dashboard shows the account right
+    # away (no "oczekiwanie na dane" until the first poll / after a reset).
+    prime_portfolio_snapshots()
     start_scheduler()
     yield
     stop_scheduler()
