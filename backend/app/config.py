@@ -14,6 +14,16 @@ class Settings(BaseSettings):
     claude_model: str = "claude-opus-4-8"
     claude_model_fast: str = "claude-sonnet-5"
     claude_escalation_confidence_threshold: float = 0.65
+    # LEAN-AI (mały kapitał): domyślnie WYŁĄCZAMY eskalację do droższego modelu
+    # (Opus). Każdy cykl to jedno tanie wywołanie modelu szybkiego -- to obcina
+    # koszt AI, który przy małym koncie jest głównym progiem rentowności. Włącz
+    # (=true) dopiero, gdy konto jest na tyle duże, że koszt Opusa to <2-3%/mies.
+    claude_escalation_enabled: bool = False
+    # Twardy bezpiecznik budżetu: gdy szacowany wydatek Claude w tym miesiącu
+    # przekroczy claude_monthly_budget_usd, automat WSTRZYMUJE nowe wywołania
+    # (nie pyta Claude, nie handluje automatycznie), zamiast palić budżet w
+    # nieskończoność. Ręczne transakcje i mechaniczne wyjścia działają dalej.
+    claude_pause_trading_at_budget: bool = True
 
     alpaca_api_key: str = ""
     alpaca_api_secret: str = ""
@@ -69,14 +79,29 @@ class Settings(BaseSettings):
     crypto_stop_loss_vol_mult: float = 6.0
     crypto_stop_loss_min_pct: float = 3.5
     crypto_stop_loss_max_pct: float = 18.0
-    crypto_volatility_reference_pct: float = 2.5
+    # Referencja zmienności dla ŚWIEC DZIENNYCH (dzienne zwroty krypto ~4-6%,
+    # znacznie większe niż godzinowe) -- inaczej vol-scaling ściąłby każdą monetę
+    # do minimum. 5.0 ≈ typowa dzienna zmienność krypto.
+    crypto_volatility_reference_pct: float = 5.0
     # Kontrola kosztu Claude na rynku 24/7: nieco wyższy próg ruchu + rzadszy
     # heartbeat niż domyślne, żeby całodobowy handel nie spalił budżetu na szumie.
     crypto_price_move_trigger_pct: float = 3.5
     crypto_full_analysis_every_minutes: int = 90
 
+    # --- Podział kapitału między dwa silniki (JEDNO konto Alpaca) ------------
+    # Oba silniki grają jedną, wspólną gotówką. Bez podziału agresywne krypto
+    # 24/7 zjadłoby gotówkę, zanim rano ruszy silnik US. Każdy silnik może
+    # zaangażować najwyżej swój PRZYDZIAŁ wartości konta (equity) w pozycje;
+    # sizing BUY jest przycinany do wolnego miejsca w tym przydziale. 50/50 =
+    # równy podział. Suma nie musi dać 100 (mogą się nakładać jako górne limity).
+    alpaca_allocation_pct: float = 50.0
+    crypto_allocation_pct: float = 50.0
+
     daily_loss_limit_pct: float = 20.0
-    weekly_loss_limit_pct: float = 70.0
+    # Zacieśnione z 70% -> 25%: tygodniowy 70% to praktycznie brak ochrony małego
+    # konta. 25% to realny bezpiecznik: seria złych dni zatrzyma automat, zanim
+    # zrobi poważną wyrwę w kapitale.
+    weekly_loss_limit_pct: float = 25.0
     max_position_pct: float = 25.0
     # Mechanical exit rules applied to every held position on every poll,
     # without asking Claude: auto-SELL the whole position when it gains
@@ -246,12 +271,20 @@ class Settings(BaseSettings):
     # Volatility-aware position sizing: Claude's requested size_pct is scaled
     # DOWN for tickers more volatile than this reference (so a wild name like
     # MSTR can't dominate P&L), never scaled up. Expressed as a per-bar
-    # (1h) return standard deviation in %. ~1.0 is roughly a broad-index bar.
-    # Set 0 to disable vol-scaling entirely.
-    volatility_reference_pct: float = 1.0
+    # per-bar return standard deviation in %. On ŚWIECACH DZIENNYCH ~1.5 is
+    # roughly a broad-index day. Set 0 to disable vol-scaling entirely.
+    volatility_reference_pct: float = 1.5
     # Never let vol-scaling shrink a position below this fraction of what
     # Claude asked for -- otherwise a very volatile name gets sized to dust.
     volatility_min_scale: float = 0.35
+
+    # Timeframe świec, z których liczone są sygnały wejścia (trend SMA50/200,
+    # MACD, RSI) i skala zmienności stopa. "1d" = ŚWIECE DZIENNE -- to dokładnie
+    # ten timeframe, na którym backtest potwierdził przewagę (SMA50/200 dzienne
+    # to klasyczne średnie). Handel na "1h" był szybszy, ale NIEzwalidowany na
+    # tym timeframie i mocniej zaszumiony. "1d" = mniej transakcji, mniej tarcia,
+    # mniej tokenów, dowiedziona przewaga.
+    signal_timeframe: str = "1d"
 
     poll_interval_minutes: int = 15
     # Raised from 2.0 -> 3.0 (Tier 2): a lower bar woke Claude on routine noise

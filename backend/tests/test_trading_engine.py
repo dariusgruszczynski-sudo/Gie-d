@@ -662,8 +662,8 @@ def test_market_data_sent_to_claude_is_slimmed(db_session, settings):
 
     for payload in advisor.last_kwargs["market_data"].values():
         assert "klines_1h_24" not in payload
-        assert len(payload["recent_bars_1h"]) <= 8
-        assert "change_24h_pct" in payload
+        assert len(payload["recent_bars"]) <= 8
+        assert "change_period_pct" in payload
 
 
 def test_performance_context_gives_claude_its_track_record(db_session, settings):
@@ -1158,6 +1158,64 @@ def test_auto_blacklist_after_stop_streak_extends_cooldown(db_session, settings)
     _stop_once(broker)  # 2nd stop within window -> quarantine (~48h)
     assert _cooldown_minutes_left() > 60 * 40
 
+
+# ============================================================================
+# Capital allocation between the two engines (one shared Alpaca account)
+# ============================================================================
+def test_venue_allocation_room_caps_engine_to_its_share(db_session, settings):
+    """Each engine may only deploy up to its share of the WHOLE account (shared
+    cash + both engines' positions), minus what it already holds."""
+    from app.models import PortfolioSnapshot
+
+    s = settings.model_copy(update={"alpaca_allocation_pct": 50.0, "crypto_allocation_pct": 50.0})
+    # The OTHER (equities) engine holds $50 of positions on top of $100 shared cash.
+    db_session.add(PortfolioSnapshot(total_value_usdt=150.0, usdt_balance=100.0, venue="alpaca"))
+    db_session.commit()
+
+    # Crypto engine currently holds nothing (its snapshot: cash 100, total 100).
+    crypto_portfolio = {"usdt_balance": 100.0, "total_value_usdt": 100.0}
+    # account = 100 cash + 0 crypto + 50 equity = 150; crypto target = 75; room = 75.
+    room = trading_engine.venue_allocation_room(db_session, s, crypto_portfolio, "crypto")
+    assert room == pytest.approx(75.0)
+
+    # If crypto already holds $80 (total 180), it's OVER its 50% target -> less room.
+    crypto_full = {"usdt_balance": 100.0, "total_value_usdt": 180.0}
+    # account = 100 + 80 + 50 = 230; target = 115; room = min(100, 115-80) = 35.
+    room2 = trading_engine.venue_allocation_room(db_session, s, crypto_full, "crypto")
+    assert room2 == pytest.approx(35.0)
+
+
+def test_budget_hard_stop_skips_cycle_without_calling_claude(db_session, settings):
+    """Once the month's estimated Claude spend hits the budget, a scheduled
+    cycle must NOT call Claude (lean-AI safety) -- it records a HOLD explaining
+    the budget is spent."""
+    from app.services import budget_tracker
+
+    s = settings.model_copy(update={"claude_pause_trading_at_budget": True, "claude_monthly_budget_usd": 1.0})
+    budget_tracker.record_usage_cost(db_session, 2.0, 100, 50)  # over the $1 budget
+
+    broker = FakeAlpaca()
+    advisor = FakeAdvisor(TradingDecision("HOLD", None, 0, 0.8, "x"))
+    decision = trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor, force=False)
+
+    assert decision is not None
+    assert advisor.last_kwargs is None  # Claude never called
+    assert "Budżet Claude wyczerpany" in (decision.rejection_reason or "")
+
+
+def test_force_run_ignores_budget_stop(db_session, settings):
+    """A manual "Wymuś analizę" (force) still runs even over budget -- the user
+    explicitly accepts the cost."""
+    from app.services import budget_tracker
+
+    s = settings.model_copy(update={"claude_pause_trading_at_budget": True, "claude_monthly_budget_usd": 1.0})
+    budget_tracker.record_usage_cost(db_session, 2.0, 100, 50)
+
+    broker = FakeAlpaca()
+    advisor = FakeAdvisor(TradingDecision("HOLD", None, 0, 0.8, "x"))
+    trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor, force=True)
+
+    assert advisor.last_kwargs is not None  # Claude WAS called on a forced run
 
 
 # ============================================================================

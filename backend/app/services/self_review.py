@@ -34,8 +34,10 @@ def get_lessons(db: Session) -> list[dict]:
         return []
 
 
-def _default_generate(settings: Settings, prompt: str) -> tuple[str, float]:
-    """One plain-text fast-model call; returns (text, cost_usd)."""
+def _default_generate(settings: Settings, prompt: str) -> tuple[str, float, int, int]:
+    """One plain-text fast-model call; returns (text, cost_usd, in_tokens,
+    out_tokens). The token counts are the REAL usage from the response so the
+    live token meter reflects ALL Claude usage, self-review included."""
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     response = client.messages.create(
         model=settings.claude_model_fast,
@@ -43,10 +45,9 @@ def _default_generate(settings: Settings, prompt: str) -> tuple[str, float]:
         messages=[{"role": "user", "content": prompt}],
     )
     text = "".join(block.text for block in response.content if block.type == "text")
-    cost = budget_tracker.estimate_cost_usd(
-        settings.claude_model_fast, response.usage.input_tokens, response.usage.output_tokens
-    )
-    return text, cost
+    in_tok, out_tok = response.usage.input_tokens, response.usage.output_tokens
+    cost = budget_tracker.estimate_cost_usd(settings.claude_model_fast, in_tok, out_tok)
+    return text, cost, in_tok, out_tok
 
 
 def _parse_lessons(text: str) -> list[str]:
@@ -61,7 +62,7 @@ def _parse_lessons(text: str) -> list[str]:
 def run_self_review(
     db: Session,
     settings: Settings,
-    generate: Callable[[Settings, str], tuple[str, float]] | None = None,
+    generate: Callable[[Settings, str], tuple[str, float, int, int]] | None = None,
 ) -> list[dict]:
     """Runs the weekly review and returns the updated lessons list. Never
     raises -- a failed review just leaves the previous lessons in place."""
@@ -104,8 +105,8 @@ def run_self_review(
     )
 
     try:
-        text, cost = (generate or _default_generate)(settings, prompt)
-        budget_tracker.record_usage_cost(db, cost)
+        text, cost, in_tok, out_tok = (generate or _default_generate)(settings, prompt)
+        budget_tracker.record_usage_cost(db, cost, in_tok, out_tok)
     except Exception:
         logger.warning("Self-review Claude call failed, keeping previous lessons", exc_info=True)
         return previous

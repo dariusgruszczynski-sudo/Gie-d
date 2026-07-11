@@ -446,6 +446,37 @@ def compute_market_regime(
     return {"regime": regime, "score": score, "reasons": reasons}
 
 
+def _other_venue(venue: str) -> str:
+    return "alpaca" if venue == "crypto" else "crypto"
+
+
+def venue_allocation_room(db: Session, settings: Settings, portfolio: dict, venue: str) -> float:
+    """USD this engine may still deploy into NEW positions without exceeding its
+    share of the whole account. Both engines share ONE Alpaca cash pool; without
+    this the aggressive 24/7 crypto engine could spend all the cash the equities
+    engine needs (and vice-versa). account_total = shared cash + this engine's
+    positions + the other engine's positions (from its latest snapshot); the
+    engine's cap is account_total * allocation_pct, minus what it already holds.
+    Returns min(free cash, remaining room). An allocation of 0 blocks new buys;
+    100 effectively disables the cap (room ~= free cash)."""
+    alloc_pct = settings.crypto_allocation_pct if venue == "crypto" else settings.alpaca_allocation_pct
+    if alloc_pct <= 0:
+        return 0.0
+    cash = portfolio["usdt_balance"]
+    this_pos = max(0.0, portfolio["total_value_usdt"] - cash)
+    other = db.execute(
+        select(PortfolioSnapshot)
+        .where(PortfolioSnapshot.venue == _other_venue(venue))
+        .order_by(PortfolioSnapshot.timestamp.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    other_pos = max(0.0, other.total_value_usdt - other.usdt_balance) if other else 0.0
+    account_total = cash + this_pos + other_pos
+    target = account_total * alloc_pct / 100.0
+    room = max(0.0, target - this_pos)
+    return min(cash, room)
+
+
 def risk_based_size_cap(settings: Settings, portfolio: dict, stop_dist_pct: float) -> float:
     """Cap on a BUY's size (% of free cash) so that hitting its stop costs at
     most risk_per_trade_pct of the WHOLE account. Returns 100.0 (no cap) when
@@ -618,7 +649,7 @@ def check_take_profit_stop_loss(
         # held symbol and derive a stop that sits outside its normal noise.
         vol_pct = None
         try:
-            closes = [float(r[4]) for r in broker.get_klines(symbol, "1h", 30)]
+            closes = [float(r[4]) for r in broker.get_klines(symbol, settings.signal_timeframe, 30)]
             vol_pct = compute_volatility_pct(closes)
         except Exception:
             logger.warning("Volatility fetch failed for %s, using fixed stop", symbol, exc_info=True)
@@ -929,25 +960,40 @@ def run_cycle(
 
     trade_check = risk_manager.can_trade_automated(db, venue)
 
+    # Hard budget stop (lean-AI safety): once the month's estimated Claude spend
+    # hits the budget, scheduled cycles stop calling Claude entirely -- so a
+    # small account can't have its whole month's AI budget burned in a runaway
+    # loop. A manual "Wymuś analizę" (force) still runs (the user accepts the
+    # cost); mechanical exits and manual trades are unaffected.
+    budget_over_reason: str | None = None
+    if settings.claude_pause_trading_at_budget:
+        bs = budget_tracker.get_budget_status(db, settings)
+        if bs["claude_monthly_budget_usd"] > 0 and bs["claude_spend_usd_this_month"] >= bs["claude_monthly_budget_usd"]:
+            budget_over_reason = (
+                f"Budżet Claude wyczerpany (${bs['claude_spend_usd_this_month']:.2f} / "
+                f"${bs['claude_monthly_budget_usd']:.2f}) — automat wstrzymany do końca miesiąca "
+                "lub podniesienia budżetu (CLAUDE_MONTHLY_BUDGET_USD)"
+            )
+
     # On a *scheduled* cycle, skip the (paid) Claude call entirely when
-    # automated trading is halted or paused -- the decision could only ever be
-    # rejected, so calling Claude would burn budget for nothing, potentially
-    # on every triggered cycle for days. A manual "Wymuś analizę" (force=True)
-    # still runs so the user can see Claude's read on demand; it just won't
-    # execute a trade while stopped (the trade_check gate below still applies).
-    if not force and not trade_check.approved:
+    # automated trading is halted/paused OR the AI budget is spent -- the
+    # decision could only ever be rejected (or shouldn't burn more budget), so
+    # calling Claude would waste money. A manual "Wymuś analizę" (force=True)
+    # still runs so the user can see Claude's read on demand.
+    skip_reason = trade_check.reason if not trade_check.approved else budget_over_reason
+    if not force and skip_reason is not None:
         decision = Decision(
             symbol=None,
             action=TradeAction.HOLD,
             size_pct=0.0,
             confidence=0.0,
-            reasoning=f"Cykl pominięty bez pytania Claude (oszczędność budżetu): {trade_check.reason}",
+            reasoning=f"Cykl pominięty bez pytania Claude (oszczędność budżetu): {skip_reason}",
             market_data_snapshot="{}",
             news_snapshot="[]",
             market_context_snapshot="{}",
             triggered_by=trigger_reason,
             executed=False,
-            rejection_reason=trade_check.reason,
+            rejection_reason=skip_reason,
             venue=venue,
         )
         db.add(decision)
@@ -959,27 +1005,28 @@ def run_cycle(
     for symbol in symbols:
         if symbol not in portfolio["prices"]:
             continue  # broker couldn't price this symbol this cycle -- see compute_portfolio
+        tf = settings.signal_timeframe
         try:
-            klines_24 = broker.get_klines(symbol, "1h", 24)
-            indicator_closes = [float(row[4]) for row in broker.get_klines(symbol, "1h", 200)]
+            recent_bars = broker.get_klines(symbol, tf, 24)
+            indicator_closes = [float(row[4]) for row in broker.get_klines(symbol, tf, 200)]
         except Exception:
             logger.warning("Failed to fetch klines for %s, excluding it from this cycle", symbol, exc_info=True)
             continue
-        # Token diet: with 11 whitelisted tickers, shipping 24 raw hourly bars
-        # each (~260 JSON rows) dominated the prompt and the API bill. The
-        # indicators are computed locally from the full 200-bar history anyway
-        # -- Claude only needs the recent tape plus a 24h summary, not the
-        # whole raw series.
-        closes_24 = [float(row[4]) for row in klines_24 if row]
-        change_24h_pct = (
-            round((closes_24[-1] - closes_24[0]) / closes_24[0] * 100, 2)
-            if len(closes_24) >= 2 and closes_24[0] > 0
+        # Token diet: the indicators are computed locally from the full 200-bar
+        # history; Claude only needs the recent tape plus a period summary, not
+        # the whole raw series. On the default daily timeframe SMA50/200 are the
+        # classic 50/200-DAY moving averages -- the signal the backtest validated.
+        recent_closes = [float(row[4]) for row in recent_bars if row]
+        change_period_pct = (
+            round((recent_closes[-1] - recent_closes[0]) / recent_closes[0] * 100, 2)
+            if len(recent_closes) >= 2 and recent_closes[0] > 0
             else None
         )
         market_data[symbol] = {
             "price": portfolio["prices"][symbol],
-            "change_24h_pct": change_24h_pct,
-            "recent_bars_1h": klines_24[-8:],
+            "timeframe": tf,
+            "change_period_pct": change_period_pct,
+            "recent_bars": recent_bars[-8:],
             "technical": compute_technical_indicators(indicator_closes),
         }
     # Only offer Claude symbols it actually has data for this cycle -- a symbol
@@ -1164,6 +1211,23 @@ def run_cycle(
     # Post-stop-loss cooldown: refuse to re-buy a coin we just cut, even if
     # Claude wants back in -- this is the anti-churn guard for a small account.
     if decision_data.action == "BUY":
+        # Capital allocation: this engine may only deploy up to its share of the
+        # whole account (shared Alpaca cash). Compute the remaining room and both
+        # (a) reject the BUY if the engine is already at its allocation, and
+        # (b) cap the order notional to it (see _execute_trade, via the dict).
+        alloc_room = venue_allocation_room(db, settings, portfolio, venue)
+        portfolio["allocation_room"] = alloc_room
+        alloc_pct = settings.crypto_allocation_pct if venue == "crypto" else settings.alpaca_allocation_pct
+        if alloc_room < MIN_SELL_NOTIONAL_USD:
+            decision.rejection_reason = (
+                f"Silnik osiągnął swój przydział kapitału ({alloc_pct:.0f}% konta) — "
+                "nowe wejście wstrzymane, żeby nie zająć puli drugiego silnika"
+            )
+            db.add(decision)
+            db.commit()
+            db.refresh(decision)
+            return decision
+
         # Conviction floor: a weak-edge BUY is not worth the spread -- reject it
         # outright rather than churn the account (cash is a valid position).
         if settings.min_buy_confidence > 0 and decision_data.confidence < settings.min_buy_confidence:
@@ -1348,6 +1412,12 @@ def _execute_trade(
 ) -> Trade:
     if action == "BUY":
         usdt_amount = portfolio["usdt_balance"] * (size_pct / 100)
+        # Never let one engine's order exceed its capital-allocation room (its
+        # share of the shared account). allocation_room is set on the portfolio
+        # dict by run_cycle's BUY gate; absent (manual trades) -> no extra cap.
+        room = portfolio.get("allocation_room")
+        if room is not None:
+            usdt_amount = min(usdt_amount, room)
         result = broker.place_order_for_session(symbol, "BUY", usdt_amount=usdt_amount, session=session)
     elif action == "SELL":
         base_balance = portfolio["balances"].get(_base_asset(symbol, settings.quote_currency), 0.0)

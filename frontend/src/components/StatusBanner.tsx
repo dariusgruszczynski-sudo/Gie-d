@@ -122,14 +122,6 @@ export function StatusBanner({ status }: { status: StatusResponse }) {
           </strong>
         </div>
 
-        <div className="stat-tile">
-          <div className="stat-tile-top">
-            <TileIcon name="coins" />
-            <span className="stat-tile-label">Whitelist</span>
-          </div>
-          <strong className="stat-tile-whitelist">{status.whitelist.join(" · ")}</strong>
-        </div>
-
         <div className="stat-tile stat-tile-budget">
           <BudgetGauge pctUsed={status.claude_budget_pct_used} alert={status.claude_budget_alert} />
           <div>

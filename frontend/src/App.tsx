@@ -8,7 +8,6 @@ import { DecisionsLog } from "./components/DecisionsLog";
 import { EmberBackground } from "./components/EmberBackground";
 import { InvestmentThesis } from "./components/InvestmentThesis";
 import { ManualTradePanel } from "./components/ManualTradePanel";
-import { MarketLog } from "./components/MarketLog";
 import { MarketStrip } from "./components/MarketStrip";
 import { PortfolioChart } from "./components/PortfolioChart";
 import { PortfolioHoldings } from "./components/PortfolioHoldings";
@@ -205,11 +204,8 @@ export default function App() {
           </div>
         )}
 
-        {/* ===== W co inwestuję (oba portfele) ===== */}
-        <div className="grid">
-          {status && <InvestmentThesis whitelist={status.whitelist} />}
-          {status && <InvestmentThesis whitelist={status.crypto_whitelist} />}
-        </div>
+        {/* ===== W co inwestuję (oba silniki, jedna lista) ===== */}
+        {status && <InvestmentThesis whitelist={[...status.whitelist, ...status.crypto_whitelist]} />}
 
         {/* ===== Wykres wartości CAŁEGO konta (jedno konto, nie dwa) ===== */}
         <PortfolioChart history={portfolio?.history ?? []} current={portfolio?.current ?? null} scorecard={portfolio?.scorecard ?? null} />
@@ -238,12 +234,10 @@ export default function App() {
           <TradesTable trades={cryptoTrades} title="Transakcje — Silnik Krypto" />
         </div>
 
-        {/* ===== Log decyzji Claude — na samym dole (oba portfele) ===== */}
+        {/* ===== Log decyzji Claude — na samym dole (oba silniki) ===== */}
         <div style={{ marginBottom: 16 }}>
           <DecisionsLog decisions={decisions} />
         </div>
-
-        <MarketLog history={portfolio?.history ?? []} whitelist={status?.whitelist ?? []} />
       </div>
     </>
   );

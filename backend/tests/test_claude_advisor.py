@@ -57,8 +57,9 @@ def test_uncertain_buy_from_fast_model_escalates_to_opus(settings, monkeypatch):
     """This is the literal ask: "w przypadku wątpliwości zlecaj Opusowi
     decyzję" -- a low-confidence BUY/SELL from the fast model must trigger a
     second, final call to the (slower/pricier) escalation model, whose
-    decision -- not the fast model's -- is what actually gets returned."""
-    advisor = _advisor(settings)
+    decision -- not the fast model's -- is what actually gets returned.
+    Escalation is opt-in (lean-AI defaults it off), so enable it here."""
+    advisor = _advisor(settings.model_copy(update={"claude_escalation_enabled": True}))
     calls = []
 
     def fake_call_model(model, tool, user_content, system):

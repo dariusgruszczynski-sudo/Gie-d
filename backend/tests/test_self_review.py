@@ -14,7 +14,7 @@ def test_self_review_stores_parsed_lessons_and_marks_date(db_session, settings):
 
     def fake_generate(s, prompt):
         assert "TRANSAKCJE" in prompt and "SPY" in prompt
-        return "- MSTR breakouty konczyly sie stop-lossem, unikac\n- Wejscia na GLD przy rosnacym VIX dzialaly\n", 0.01
+        return "- MSTR breakouty konczyly sie stop-lossem, unikac\n- Wejscia na GLD przy rosnacym VIX dzialaly\n", 0.01, 120, 60
 
     lessons = self_review.run_self_review(db_session, settings, generate=fake_generate)
 
@@ -45,7 +45,7 @@ def test_self_review_skips_without_trades(db_session, settings):
 
     def fake_generate(s, prompt):
         called["n"] += 1
-        return "- cokolwiek", 0.01
+        return "- cokolwiek", 0.01, 10, 5
 
     lessons = self_review.run_self_review(db_session, settings, generate=fake_generate)
 
@@ -60,7 +60,7 @@ def test_lessons_capped_at_max(db_session, settings):
     db_session.commit()
 
     def fake_generate(s, prompt):
-        return "- Nowa swieza lekcja z tego tygodnia o rotacji", 0.01
+        return "- Nowa swieza lekcja z tego tygodnia o rotacji", 0.01, 30, 15
 
     lessons = self_review.run_self_review(db_session, settings, generate=fake_generate)
 

@@ -207,7 +207,14 @@ class ClaudeAdvisor:
 
         action = data["action"]
         confidence = float(data.get("confidence", 0))
-        is_uncertain_trade = action in ("BUY", "SELL") and confidence < self._settings.claude_escalation_confidence_threshold
+        # LEAN-AI: escalation to the pricier model only happens when explicitly
+        # enabled. On a small account the extra Opus call per uncertain trade is
+        # a cost the edge can't justify -- one cheap fast-model call per cycle.
+        is_uncertain_trade = (
+            self._settings.claude_escalation_enabled
+            and action in ("BUY", "SELL")
+            and confidence < self._settings.claude_escalation_confidence_threshold
+        )
 
         if is_uncertain_trade:
             escalation_content = (
