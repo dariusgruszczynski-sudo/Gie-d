@@ -1086,6 +1086,7 @@ def run_cycle(
         market_context=global_context,
         performance_context=performance_context,
         trigger_reason=trigger_reason.value,
+        venue=venue,
     )
     _mark_analysis_done_today(db, venue=venue)
     budget_tracker.record_usage_cost(

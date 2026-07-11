@@ -47,6 +47,22 @@ RSS_FEEDS: list[tuple[str, str]] = [
     ("ETF.com", "https://www.etf.com/rss"),
     ("Investopedia", "https://www.investopedia.com/feedbuilder/feed/getfeed?feedName=rss_headline"),
     ("StockTitan", "https://www.stocktitan.net/rss"),
+    # World / macro / index coverage -- broad global + economic headlines so the
+    # brains see the big picture (central banks, geopolitics, indices), not only
+    # US single-stock news. Keyless; each degrades independently on failure.
+    ("BBC Business", "https://feeds.bbci.co.uk/news/business/rss.xml"),
+    ("Guardian Business", "https://www.theguardian.com/business/rss"),
+    ("NPR Economy", "https://feeds.npr.org/1017/rss.xml"),
+    ("CNBC Top News", "https://www.cnbc.com/id/100003114/device/rss/rss.html"),
+    ("CNBC Finance", "https://www.cnbc.com/id/10000664/device/rss/rss.html"),
+    ("MarketWatch Real-time", "https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines"),
+    ("MarketWatch Market Pulse", "https://feeds.content.dowjones.io/public/rss/mw_marketpulse"),
+    ("Federal Reserve", "https://www.federalreserve.gov/feeds/press_all.xml"),
+    ("FT Home", "https://www.ft.com/rss/home"),
+    ("The Economist Finance", "https://www.economist.com/finance-and-economics/rss.xml"),
+    ("Investing.com Stock Market", "https://www.investing.com/rss/news_25.rss"),
+    ("Fortune", "https://fortune.com/feed/"),
+    ("Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml"),
     # Sector coverage relevant to a tech-heavy whitelist (AAPL, NVDA, QQQ)
     ("TechCrunch", "https://techcrunch.com/feed/"),
     ("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index"),
@@ -135,9 +151,11 @@ def _get_rss(source: str, url: str, limit: int, params: dict | None = None) -> l
 # full name + "crypto"; equities keep "TICKER stock". Keyed by our whitelist
 # convention ("BTCUSD", with the quote-currency suffix).
 _CRYPTO_NAMES = {
-    "BTCUSD": "Bitcoin", "ETHUSD": "Ethereum", "LTCUSD": "Litecoin",
-    "BCHUSD": "Bitcoin Cash", "DOGEUSD": "Dogecoin", "LINKUSD": "Chainlink",
-    "AVAXUSD": "Avalanche", "ADAUSD": "Cardano",
+    "BTCUSD": "Bitcoin", "ETHUSD": "Ethereum", "SOLUSD": "Solana",
+    "LTCUSD": "Litecoin", "BCHUSD": "Bitcoin Cash", "DOGEUSD": "Dogecoin",
+    "LINKUSD": "Chainlink", "AVAXUSD": "Avalanche", "ADAUSD": "Cardano",
+    "DOTUSD": "Polkadot", "UNIUSD": "Uniswap", "AAVEUSD": "Aave",
+    "XRPUSD": "XRP", "SHIBUSD": "Shiba Inu",
 }
 
 

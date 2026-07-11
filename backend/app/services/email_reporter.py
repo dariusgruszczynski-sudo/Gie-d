@@ -23,18 +23,18 @@ from app.services import budget_tracker, risk_manager
 
 logger = logging.getLogger(__name__)
 
-# Palette matched to the dashboard's "fintech terminal" theme (indigo accent).
-# Names GOLD/GOLD_BRIGHT kept and repointed at the accent so the rest of the
-# template re-themes without edits.
-GOLD = "#6d7cff"
-GOLD_BRIGHT = "#9d7bff"
-BG = "#0a0c14"
-PANEL = "#111524"
-BORDER = "#212842"
-TEXT = "#e8ebf5"
-MUTED = "#8b93ac"
-GREEN = "#26d07c"
-RED = "#ff5468"
+# Palette matched to the dashboard's v2 "deep space terminal" theme (sky/cyan
+# accent). Names GOLD/GOLD_BRIGHT kept and repointed at the accent so the rest
+# of the template re-themes without edits.
+GOLD = "#38bdf8"
+GOLD_BRIGHT = "#7dd3fc"
+BG = "#070b12"
+PANEL = "#0f1724"
+BORDER = "#1e2c40"
+TEXT = "#e7eef8"
+MUTED = "#8291a8"
+GREEN = "#34d399"
+RED = "#f87171"
 
 
 def _render_chart_png(history: list[PortfolioSnapshot]) -> bytes:
@@ -117,8 +117,8 @@ def _scorecard_html(card: dict | None) -> str:
 
 def _venue_tag(venue: str) -> str:
     is_crypto = venue == "crypto"
-    color = "#f5b544" if is_crypto else GOLD
-    label = "Krypto" if is_crypto else "Alpaca"
+    color = "#fb923c" if is_crypto else GOLD
+    label = "Krypto" if is_crypto else "Akcje US"
     return (
         f'<span style="font-size:10px;font-weight:700;color:{color};border:1px solid {color};'
         f'border-radius:4px;padding:1px 5px;">{label}</span>'

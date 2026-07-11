@@ -145,7 +145,8 @@ export default function App() {
           <div>
             <h1>Giel<span className="brand-accent">Darek</span></h1>
             <p className="subtitle">
-              Decyzje: Claude (Sonnet + Opus) · Wykonanie: Alpaca (akcje USA + krypto 24/7) · Narzędzie prywatne, nie jest to porada inwestycyjna.
+              Dwa mózgi Claude (Sonnet→Opus): akcje USA średnio agresywnie · krypto 24/7 agresywnie ·
+              wykonanie Alpaca · narzędzie prywatne, nie jest to porada inwestycyjna.
             </p>
           </div>
         </div>

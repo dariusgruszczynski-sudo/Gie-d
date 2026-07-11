@@ -1,22 +1,28 @@
 :root {
   color-scheme: dark;
-  --bg: #0a0c14;
-  --bg-2: #0d101b;
-  --panel: #111524;
-  --panel-2: #161b2c;
-  --border: #212842;
-  --text: #e8ebf5;
-  --muted: #8b93ac;
-  --accent: #6d7cff;
-  --accent-2: #9d7bff;
-  --accent-dark: #4a56cc;
+  /* v2 theme — "deep space terminal": cooler near-black, sky/cyan primary
+     (brand + US equities venue), orange for the crypto venue. Distinct from
+     both the green (gains) and red (loss) semantic colors. */
+  --bg: #070b12;
+  --bg-2: #0a1019;
+  --panel: #0f1724;
+  --panel-2: #15202f;
+  --border: #1e2c40;
+  --text: #e7eef8;
+  --muted: #8291a8;
+  --accent: #38bdf8;        /* sky-400 — primary / brand / US venue */
+  --accent-2: #22d3ee;      /* cyan-400 */
+  --accent-dark: #0ea5e9;
   /* Legacy tokens repointed at the new accent so existing rules re-theme. */
-  --gold: #6d7cff;
-  --gold-bright: #8f9bff;
-  --green: #26d07c;
-  --red: #ff5468;
-  --amber: #f5b544;
-  --ink: #0a0c14;
+  --gold: #38bdf8;
+  --gold-bright: #7dd3fc;
+  --green: #34d399;
+  --red: #f87171;
+  --amber: #fb923c;         /* orange-400 — crypto venue accent */
+  --ink: #070b12;
+  /* Semantic venue colors (used by the unified two-lane layout). */
+  --venue-us: #38bdf8;
+  --venue-crypto: #fb923c;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
@@ -32,12 +38,13 @@ body {
   color: var(--text);
   min-height: 100vh;
   background:
-    radial-gradient(ellipse 1000px 560px at 8% -10%, rgba(109, 124, 255, 0.16), transparent 60%),
-    radial-gradient(ellipse 900px 520px at 108% 4%, rgba(157, 123, 255, 0.12), transparent 55%),
-    radial-gradient(ellipse 760px 520px at 50% 108%, rgba(38, 208, 124, 0.05), transparent 60%),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.014) 0px, rgba(255, 255, 255, 0.014) 1px, transparent 1px, transparent 54px),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.012) 0px, rgba(255, 255, 255, 0.012) 1px, transparent 1px, transparent 54px),
-    linear-gradient(180deg, #0b0e18 0%, var(--bg) 55%);
+    radial-gradient(ellipse 1000px 560px at 6% -10%, rgba(56, 189, 248, 0.15), transparent 60%),
+    radial-gradient(ellipse 900px 520px at 110% 2%, rgba(34, 211, 238, 0.10), transparent 55%),
+    radial-gradient(ellipse 820px 540px at 96% 106%, rgba(251, 146, 60, 0.07), transparent 60%),
+    radial-gradient(ellipse 760px 520px at 30% 112%, rgba(52, 211, 153, 0.045), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.013) 0px, rgba(255, 255, 255, 0.013) 1px, transparent 1px, transparent 54px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.011) 0px, rgba(255, 255, 255, 0.011) 1px, transparent 1px, transparent 54px),
+    linear-gradient(180deg, #080d16 0%, var(--bg) 55%);
   background-attachment: fixed;
   overflow-x: hidden;
 }
@@ -99,7 +106,7 @@ body {
   gap: 16px;
   padding: 9px 20px;
   flex-shrink: 0;
-  background: rgba(109, 124, 255, 0.06);
+  background: rgba(56, 189, 248, 0.06);
   border-right: 1px solid var(--border);
 }
 
@@ -153,7 +160,7 @@ body {
   padding: 9px 26px;
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
-  border-right: 1px solid rgba(109, 124, 255, 0.15);
+  border-right: 1px solid rgba(56, 189, 248, 0.15);
   white-space: nowrap;
 }
 
@@ -241,7 +248,7 @@ body {
 
 .logo-mark {
   flex-shrink: 0;
-  filter: drop-shadow(0 6px 16px rgba(109, 124, 255, 0.35));
+  filter: drop-shadow(0 6px 16px rgba(56, 189, 248, 0.35));
 }
 
 h1 {
@@ -283,7 +290,7 @@ h1 {
 
 .banner.paused {
   border-color: var(--amber);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(109, 124, 255, 0.15);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(56, 189, 248, 0.15);
 }
 
 .stat-tiles {
@@ -299,8 +306,8 @@ h1 {
   min-width: 120px;
   padding: 10px 16px;
   border-radius: 10px;
-  background: rgba(109, 124, 255, 0.04);
-  border: 1px solid rgba(109, 124, 255, 0.08);
+  background: rgba(56, 189, 248, 0.04);
+  border: 1px solid rgba(56, 189, 248, 0.08);
 }
 
 .stat-tile-budget {
@@ -399,7 +406,7 @@ h1 {
 }
 
 .banner-callout.amber {
-  background: rgba(109, 124, 255, 0.1);
+  background: rgba(56, 189, 248, 0.1);
   color: var(--amber);
 }
 
@@ -483,7 +490,7 @@ h1 {
 
 .panel:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(109, 124, 255, 0.12);
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(56, 189, 248, 0.12);
 }
 
 .panel h2 {
@@ -817,7 +824,7 @@ tbody tr {
 }
 
 tbody tr:hover {
-  background: rgba(109, 124, 255, 0.05);
+  background: rgba(56, 189, 248, 0.05);
 }
 
 .table-wrap {
@@ -989,7 +996,7 @@ button {
 .btn-primary {
   background: linear-gradient(135deg, var(--accent-2), var(--accent) 55%, var(--accent-dark));
   color: #ffffff;
-  box-shadow: 0 4px 16px rgba(109, 124, 255, 0.3);
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.3);
 }
 
 .btn-primary:hover:not(:disabled),
@@ -1127,7 +1134,7 @@ button {
 }
 
 .splash-hold::before {
-  background: radial-gradient(ellipse at center, rgba(109, 124, 255, 0.26), rgba(4, 4, 4, 0.95) 70%);
+  background: radial-gradient(ellipse at center, rgba(56, 189, 248, 0.26), rgba(4, 4, 4, 0.95) 70%);
 }
 
 .decision-splash-inner {
@@ -1156,7 +1163,7 @@ button {
 
 .splash-hold h2 {
   color: var(--gold-bright);
-  text-shadow: 0 0 32px rgba(109, 124, 255, 0.55);
+  text-shadow: 0 0 32px rgba(56, 189, 248, 0.55);
 }
 
 .decision-splash-symbol {
@@ -1219,8 +1226,8 @@ button {
   align-items: center;
   justify-content: center;
   background:
-    radial-gradient(ellipse 1100px 550px at 12% -8%, rgba(109, 124, 255, 0.1), transparent 60%),
-    radial-gradient(ellipse 900px 500px at 105% 0%, rgba(109, 124, 255, 0.07), transparent 55%),
+    radial-gradient(ellipse 1100px 550px at 12% -8%, rgba(56, 189, 248, 0.1), transparent 60%),
+    radial-gradient(ellipse 900px 500px at 105% 0%, rgba(56, 189, 248, 0.07), transparent 55%),
     var(--bg);
 }
 
@@ -1232,7 +1239,7 @@ button {
   border-radius: 16px;
   background: linear-gradient(165deg, rgba(22, 20, 16, 0.95), rgba(10, 9, 6, 0.98));
   border: 1px solid var(--border);
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(109, 124, 255, 0.08);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(56, 189, 248, 0.08);
   max-width: 340px;
   width: calc(100% - 32px);
 }
@@ -1242,7 +1249,7 @@ button {
   font-size: 1.35rem;
   letter-spacing: 0.06em;
   margin: 12px 0 2px;
-  background: linear-gradient(90deg, #4a56cc, var(--gold-bright), #4a56cc);
+  background: linear-gradient(90deg, #0ea5e9, var(--gold-bright), #0ea5e9);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -1285,7 +1292,7 @@ button {
   position: fixed;
   inset: 0;
   z-index: 300;
-  background: radial-gradient(ellipse 700px 520px at 50% 42%, rgba(109, 124, 255, 0.14), transparent 65%),
+  background: radial-gradient(ellipse 700px 520px at 50% 42%, rgba(56, 189, 248, 0.14), transparent 65%),
     linear-gradient(180deg, #0b0e18, #070910 70%);
   display: flex;
   flex-direction: column;
@@ -1305,7 +1312,7 @@ button {
   width: 300px;
   height: 300px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(109, 124, 255, 0.28), transparent 62%);
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.28), transparent 62%);
   filter: blur(14px);
   animation: bl-glow 2.2s ease-in-out infinite;
 }
@@ -1316,7 +1323,7 @@ button {
 }
 
 .brand-loader-mark .logo-mark {
-  filter: drop-shadow(0 10px 34px rgba(109, 124, 255, 0.55));
+  filter: drop-shadow(0 10px 34px rgba(56, 189, 248, 0.55));
 }
 
 .brand-loader-word {
@@ -1482,11 +1489,11 @@ button {
   background: var(--amber);
 }
 .venue-section-crypto {
-  border: 1px solid rgba(245, 181, 68, 0.25);
+  border: 1px solid rgba(251, 146, 60, 0.25);
   border-radius: 14px;
   padding: 16px;
   margin-bottom: 16px;
-  background: rgba(245, 181, 68, 0.03);
+  background: rgba(251, 146, 60, 0.03);
 }
 .venue-section-header {
   display: flex;

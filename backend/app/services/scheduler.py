@@ -10,6 +10,7 @@ from app.services.claude_advisor import ClaudeAdvisor
 from app.services.email_reporter import send_daily_report
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
+from app.services.strategy_profiles import effective_settings
 from app.services.trading_engine import run_cycle
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,8 @@ def _job() -> None:
         news = NewsClient(settings)
         advisor = ClaudeAdvisor(settings)
         market_ctx = MarketContextClient()
-        decision = run_cycle(db, settings, broker, news, advisor, market_ctx)
+        # Equities brain: base settings == the medium-aggressive profile.
+        decision = run_cycle(db, effective_settings(settings, "alpaca"), broker, news, advisor, market_ctx)
         if decision is not None:
             logger.info("Cycle produced decision: %s %s", decision.action, decision.symbol)
     except Exception:
@@ -48,8 +50,9 @@ def _crypto_job() -> None:
         news = NewsClient(settings)
         advisor = ClaudeAdvisor(settings)
         market_ctx = MarketContextClient()
+        # Crypto brain: aggressive 24/7 profile (crypto_* overrides folded in).
         decision = run_cycle(
-            db, settings, broker, news, advisor, market_ctx,
+            db, effective_settings(settings, "crypto"), broker, news, advisor, market_ctx,
             venue="crypto", whitelist=settings.crypto_whitelist_symbols, always_open=True,
         )
         if decision is not None:

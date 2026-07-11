@@ -74,8 +74,8 @@ export function EmberBackground() {
 
       for (const o of orbs) {
         const gradient = ctx!.createRadialGradient(o.x, o.y, 0, o.x, o.y, o.r);
-        gradient.addColorStop(0, `rgba(109, 124, 255, ${o.opacity})`);
-        gradient.addColorStop(1, "rgba(109, 124, 255, 0)");
+        gradient.addColorStop(0, `rgba(56, 189, 248, ${o.opacity})`);
+        gradient.addColorStop(1, "rgba(56, 189, 248, 0)");
         ctx!.fillStyle = gradient;
         ctx!.beginPath();
         ctx!.arc(o.x, o.y, o.r, 0, Math.PI * 2);
@@ -85,8 +85,8 @@ export function EmberBackground() {
       for (const e of embers) {
         const flicker = 0.7 + 0.3 * Math.sin(e.phase);
         const gradient = ctx!.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.r * 5);
-        gradient.addColorStop(0, `rgba(160, 150, 255, ${e.opacity * flicker})`);
-        gradient.addColorStop(1, "rgba(160, 150, 255, 0)");
+        gradient.addColorStop(0, `rgba(125, 211, 252, ${e.opacity * flicker})`);
+        gradient.addColorStop(1, "rgba(125, 211, 252, 0)");
         ctx!.fillStyle = gradient;
         ctx!.beginPath();
         ctx!.arc(e.x, e.y, e.r * 5, 0, Math.PI * 2);

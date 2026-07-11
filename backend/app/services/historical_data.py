@@ -31,12 +31,19 @@ SECONDS_PER_YEAR = 365.25 * 86400
 CRYPTO_YAHOO_SYMBOL = {
     "BTCUSD": "BTC-USD",
     "ETHUSD": "ETH-USD",
+    "SOLUSD": "SOL-USD",
     "LTCUSD": "LTC-USD",
     "BCHUSD": "BCH-USD",
     "DOGEUSD": "DOGE-USD",
     "LINKUSD": "LINK-USD",
     "AVAXUSD": "AVAX-USD",
     "ADAUSD": "ADA-USD",
+    "DOTUSD": "DOT-USD",
+    # Uniswap trades as UNI7083-USD on Yahoo (plain "UNI" was already taken).
+    "UNIUSD": "UNI7083-USD",
+    "AAVEUSD": "AAVE-USD",
+    "XRPUSD": "XRP-USD",
+    "SHIBUSD": "SHIB-USD",
 }
 
 

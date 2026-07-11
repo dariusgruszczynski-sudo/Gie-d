@@ -21,7 +21,7 @@ def test_hold_from_fast_model_never_escalates(settings, monkeypatch):
     advisor = _advisor(settings)
     calls = []
 
-    def fake_call_model(model, tool, user_content):
+    def fake_call_model(model, tool, user_content, system):
         calls.append(model)
         return {"action": "HOLD", "symbol": None, "size_pct": 0, "confidence": 0.9, "reasoning": "spokój"}, 0.01, 100, 50
 
@@ -39,7 +39,7 @@ def test_confident_buy_from_fast_model_is_trusted_without_escalation(settings, m
     advisor = _advisor(settings)
     calls = []
 
-    def fake_call_model(model, tool, user_content):
+    def fake_call_model(model, tool, user_content, system):
         calls.append(model)
         return {"action": "BUY", "symbol": "SPY", "size_pct": 10, "confidence": 0.9, "reasoning": "silny sygnał"}, 0.02, 200, 80
 
@@ -61,7 +61,7 @@ def test_uncertain_buy_from_fast_model_escalates_to_opus(settings, monkeypatch):
     advisor = _advisor(settings)
     calls = []
 
-    def fake_call_model(model, tool, user_content):
+    def fake_call_model(model, tool, user_content, system):
         calls.append(model)
         if model == settings.claude_model_fast:
             return {"action": "BUY", "symbol": "SPY", "size_pct": 10, "confidence": 0.4, "reasoning": "niepewne"}, 0.02, 200, 80
@@ -85,7 +85,7 @@ def test_uncertain_hold_never_escalates(settings, monkeypatch):
     advisor = _advisor(settings)
     calls = []
 
-    def fake_call_model(model, tool, user_content):
+    def fake_call_model(model, tool, user_content, system):
         calls.append(model)
         return {"action": "HOLD", "symbol": None, "size_pct": 0, "confidence": 0.2, "reasoning": "brak przekonania"}, 0.01, 100, 50
 
@@ -94,3 +94,25 @@ def test_uncertain_hold_never_escalates(settings, monkeypatch):
     advisor.decide(**_decide_kwargs())
 
     assert calls == [settings.claude_model_fast]
+
+
+def test_two_brains_pick_venue_specific_persona(settings, monkeypatch):
+    """The crypto venue must get the aggressive crypto persona, the equities
+    venue the medium-aggressive equities persona -- that's the whole "2 mózgi"
+    split. We capture the system prompt handed to _call_model."""
+    from app.services import claude_advisor
+
+    advisor = _advisor(settings)
+    captured = {}
+
+    def fake_call_model(model, tool, user_content, system):
+        captured["system"] = system
+        return {"action": "HOLD", "symbol": None, "size_pct": 0, "confidence": 0.9, "reasoning": "ok"}, 0.01, 10, 5
+
+    monkeypatch.setattr(advisor, "_call_model", fake_call_model)
+
+    advisor.decide(**_decide_kwargs(), venue="crypto")
+    assert captured["system"] == claude_advisor.CRYPTO_PERSONA
+
+    advisor.decide(**_decide_kwargs(), venue="alpaca")
+    assert captured["system"] == claude_advisor.EQUITIES_PERSONA

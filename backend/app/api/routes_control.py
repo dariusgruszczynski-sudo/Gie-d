@@ -15,6 +15,7 @@ from app.services.claude_advisor import ClaudeAdvisor
 from app.services.email_reporter import send_daily_report
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
+from app.services.strategy_profiles import effective_settings
 from app.services.trading_engine import compute_portfolio, execute_manual_trade, run_cycle
 
 router = APIRouter(prefix="/api/control", tags=["control"])
@@ -97,7 +98,7 @@ def run_cycle_now(venue: str = "alpaca", db: Session = Depends(get_db), settings
     market_ctx = MarketContextClient()
     try:
         decision = run_cycle(
-            db, settings, broker, news, advisor, market_ctx, force=True,
+            db, effective_settings(settings, venue), broker, news, advisor, market_ctx, force=True,
             venue=venue, whitelist=whitelist, always_open=always_open,
         )
     except Exception as exc:

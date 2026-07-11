@@ -38,7 +38,42 @@ class Settings(BaseSettings):
     # Krypto handluje 24/7 (także w weekend) -- to pokrywa noce i weekendy, gdy
     # rynek US jest zamknięty. Spot, bez dźwigni, ta sama mechanika co portfel
     # akcji. Lista zweryfikowana jako aktualnie wspierana przez Alpaca (2026-07).
-    crypto_whitelist: str = "BTCUSD,ETHUSD,LTCUSD,BCHUSD,DOGEUSD,LINKUSD,AVAXUSD,ADAUSD"
+    crypto_whitelist: str = (
+        "BTCUSD,ETHUSD,SOLUSD,LTCUSD,BCHUSD,DOGEUSD,LINKUSD,AVAXUSD,"
+        "ADAUSD,DOTUSD,UNIUSD,AAVEUSD,XRPUSD,SHIBUSD"
+    )
+
+    # --- DWA MÓZGI: osobne profile agresji per venue -------------------------
+    # Bazowe knoby niżej to profil AKCJI US ("średnio agresywnie"). Krypto
+    # dostaje WŁASNY, AGRESYWNIEJSZY profil (rynek 24/7, wyższa zmienność, więcej
+    # okazji) -- te crypto_* wartości nadpisują bazowe TYLKO dla venue "crypto"
+    # (patrz strategy_profiles.effective_settings). Zmień tu, żeby wykręcić
+    # agresję krypto bez ruszania profilu akcji.
+    crypto_risk_per_trade_pct: float = 2.0            # vs 1.25 na akcjach
+    crypto_max_concurrent_positions: int = 6
+    crypto_min_buy_confidence: float = 0.52           # niżej = więcej wejść
+    crypto_max_new_positions_per_day: int = 8
+    crypto_min_hold_minutes: int = 15                 # szybsza rotacja
+    crypto_max_position_pct: float = 30.0
+    # "Po trochu do celu": bierz częściowy zysk WCZEŚNIEJ i zostaw resztę na
+    # trailingu -- księguj mniejsze wygrane w transzach zamiast czekać na
+    # idealne wyjście. partial_r=1.0 (arm już przy 1× dystansu stopa),
+    # reward_risk 2.5 (zwycięzców puść dalej pod trailingiem).
+    crypto_reward_risk_ratio: float = 2.5
+    crypto_trailing_stop_frac: float = 0.5
+    crypto_partial_take_profit_frac: float = 0.40
+    crypto_partial_take_profit_r: float = 1.0
+    # Krypto jest zmienniejsze -> szersze stopy (żeby nie być wytrząśniętym na
+    # normalnym szumie) i wyższa referencja zmienności (żeby sizing nie ścinał
+    # pozycji do zera na dzikich altach).
+    crypto_stop_loss_vol_mult: float = 6.0
+    crypto_stop_loss_min_pct: float = 3.5
+    crypto_stop_loss_max_pct: float = 18.0
+    crypto_volatility_reference_pct: float = 2.5
+    # Kontrola kosztu Claude na rynku 24/7: nieco wyższy próg ruchu + rzadszy
+    # heartbeat niż domyślne, żeby całodobowy handel nie spalił budżetu na szumie.
+    crypto_price_move_trigger_pct: float = 3.5
+    crypto_full_analysis_every_minutes: int = 90
 
     daily_loss_limit_pct: float = 20.0
     weekly_loss_limit_pct: float = 70.0
@@ -96,10 +131,11 @@ class Settings(BaseSettings):
     # --- Anty-churn (Pakiet 2) ----------------------------------------------
     # Hard conviction floor: an automated BUY below this confidence is rejected
     # outright -- cash is a valid position, don't trade a weak edge. 0 disables.
-    min_buy_confidence: float = 0.60
+    # Equities profile = "medium aggressive" (crypto overrides lower, see above).
+    min_buy_confidence: float = 0.57
     # Cap on NEW automated BUY entries per venue per calendar day -- stops a
     # small account churning on many low-edge entries. 0 disables.
-    max_new_positions_per_day: int = 3
+    max_new_positions_per_day: int = 5
     # Minimum holding time (minutes) before a NON-stop mechanical exit (trailing
     # / take-profit / partial) may fire. The hard stop-loss is ALWAYS allowed.
     # Kills in-and-out round trips that only pay the spread. 0 disables.
@@ -129,7 +165,7 @@ class Settings(BaseSettings):
     # Cap on concurrently-held positions per venue. The whitelist is heavily
     # correlated (tech beta), so many open names are really ONE bet -- this
     # bounds that concentration. 0 disables.
-    max_concurrent_positions: int = 4
+    max_concurrent_positions: int = 6
     # Wide-spread / thinner names (inverse ETFs, small caps, sector/bond ETFs):
     # every round trip pays more spread, so their edge must be larger. Haircut
     # their BUY size by high_spread_size_scale (1.0 = no haircut).
@@ -141,7 +177,7 @@ class Settings(BaseSettings):
     # risk). Composed as a CAP with Claude's request and max_position_pct (only
     # ever shrinks), so a wide-stop name automatically gets a smaller slice.
     # 0 disables (falls back to the volatility-scaled sizing only).
-    risk_per_trade_pct: float = 1.0
+    risk_per_trade_pct: float = 1.25
     # Market-regime gate: in a risk-off regime (benchmark below its long trend +
     # elevated VIX / falling tape) only defensive/inverse names may be bought;
     # everything else is forced to HOLD. The regime is ALWAYS passed to Claude
@@ -194,7 +230,15 @@ class Settings(BaseSettings):
     #    filter rotate into WHATEVER sector is leading instead of only tech.
     #  - International: EEM (emerging), EFA (developed ex-US) -- decorrelate
     #    from the US tape. Plus DIA (Dow), SLV (silver). All liquid + fractional.
-    trading_whitelist: str = "SPY,QQQ,DIA,AAPL,NVDA,MSTR,TSLA,GLD,SLV,TLT,XLE,XLF,XLK,XLV,XLU,XLI,XLP,EEM,EFA,IWM,SH,PSQ"
+    #  - Mega-cap tech breadth (added): MSFT, AMZN, GOOGL, META, AMD, AVGO,
+    #    NFLX -- the biggest, most liquid single names so the trend filter has a
+    #    deeper bench to rotate into, not just AAPL/NVDA. COIN added as a listed
+    #    crypto-proxy equity (moves with BTC during the US session, a daytime
+    #    hedge/echo of the 24/7 crypto book).
+    trading_whitelist: str = (
+        "SPY,QQQ,DIA,AAPL,MSFT,NVDA,AMZN,GOOGL,META,AMD,AVGO,MSTR,TSLA,NFLX,COIN,"
+        "GLD,SLV,TLT,XLE,XLF,XLK,XLV,XLU,XLI,XLP,EEM,EFA,IWM,SH,PSQ"
+    )
     # Benchmark the whole strategy against simply buying and holding this
     # ticker -- if the bot can't beat holding SPY, it isn't earning its
     # complexity. Drives the dashboard scorecard and is fed back to Claude.

@@ -157,6 +157,77 @@ const TICKER_INFO: Record<string, TickerInfo> = {
     description:
       "Blockchain warstwy 1 (proof-of-stake). Wysokobetowy altcoin — potrafi ruszyć się mocniej niż BTC/ETH. Spot, 24/7; rozmiar przycina skalowanie wg zmienności.",
   },
+  SOLUSD: {
+    name: "Solana",
+    description:
+      "Szybki, wysokobetowy blockchain warstwy 1 — potrafi ruszyć się mocniej niż BTC/ETH w obie strony. Płynny, ale bardziej ryzykowny; rozmiar pozycji przycina skalowanie wg zmienności. Spot, 24/7.",
+  },
+  DOTUSD: {
+    name: "Polkadot",
+    description:
+      "Protokół łączący wiele blockchainów („internet blockchainów”). Wysokobetowy altcoin infrastrukturalny, podąża za sentymentem krypto z większą amplitudą niż BTC. Spot, 24/7.",
+  },
+  UNIUSD: {
+    name: "Uniswap",
+    description:
+      "Token największej zdecentralizowanej giełdy (DEX) na Ethereum — barometr aktywności DeFi. Zmienny altcoin, mocno reaguje na newsy regulacyjne o DeFi. Spot, 24/7.",
+  },
+  AAVEUSD: {
+    name: "Aave",
+    description:
+      "Token wiodącego protokołu pożyczkowego DeFi. Wysokobetowy altcoin „blue chip DeFi”, koreluje z ETH i ogólnym apetytem na ryzyko w krypto. Spot, 24/7.",
+  },
+  XRPUSD: {
+    name: "XRP (Ripple)",
+    description:
+      "Kryptowaluta skupiona na płatnościach transgranicznych. Płynna, mocno reaguje na newsy regulacyjne (sprawy sądowe SEC). Spot, 24/7.",
+  },
+  SHIBUSD: {
+    name: "Shiba Inu",
+    description:
+      "Kryptowaluta „memowa”, skrajnie zmienna i napędzana sentymentem/social media. Najbardziej ryzykowna, spekulacyjna pozycja krypto — rozmiar bardzo mocno przycinany przez skalowanie wg zmienności. Spot, 24/7.",
+  },
+  // --- Portfel akcji US: mega-capy tech + crypto-proxy (dodane) ---
+  MSFT: {
+    name: "Microsoft Corp.",
+    description:
+      "Jeden z największych, najstabilniejszych „blue chipów” tech (chmura Azure, Office, AI/OpenAI). Bardzo płynny, spokojniejszy niż NVDA/TSLA — rdzeń koszyka tech.",
+  },
+  AMZN: {
+    name: "Amazon.com Inc.",
+    description:
+      "Gigant e-commerce i chmury (AWS). Płynny mega-cap, reaguje na wyniki kwartalne i dane o konsumencie. Ekspozycja na handel detaliczny + chmurę w jednej nazwie.",
+  },
+  GOOGL: {
+    name: "Alphabet (Google)",
+    description:
+      "Dominujący gracz w wyszukiwarce, reklamie i AI (Gemini). Płynny mega-cap tech, spokojniejszy profil niż półprzewodniki, wrażliwy na newsy o AI i regulacjach.",
+  },
+  META: {
+    name: "Meta Platforms",
+    description:
+      "Właściciel Facebooka, Instagrama i WhatsAppa — reklama cyfrowa + inwestycje w AI/VR. Zmienniejszy niż MSFT, mocno reaguje na wyniki i wydatki na AI.",
+  },
+  AMD: {
+    name: "Advanced Micro Devices",
+    description:
+      "Producent procesorów i układów AI, główny konkurent Nvidii. Wysokobetowy — mocno napędzany cyklem AI/półprzewodników, zmienny jak NVDA. Rozmiar przycinany wg zmienności.",
+  },
+  AVGO: {
+    name: "Broadcom Inc.",
+    description:
+      "Gigant półprzewodników i oprogramowania infrastrukturalnego, kluczowy dostawca układów AI/sieciowych. Płynny, wysokobetowy beneficjent trendu AI.",
+  },
+  NFLX: {
+    name: "Netflix Inc.",
+    description:
+      "Lider streamingu. Zmienny mega-cap, wyraźnie reaguje na dane o subskrybentach i wyniki kwartalne. Inny cykl niż półprzewodniki — dywersyfikacja w ramach tech.",
+  },
+  COIN: {
+    name: "Coinbase Global",
+    description:
+      "Największa notowana giełda krypto w USA — akcja poruszająca się razem z kursem BTC/krypto. Dzienny „odpowiednik” portfela krypto: pozwala grać sentyment krypto także w sesji US. Wysokobetowa, rozmiar przycinany wg zmienności.",
+  },
 };
 
 function fallbackInfo(ticker: string): TickerInfo {
