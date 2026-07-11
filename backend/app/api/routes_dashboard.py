@@ -78,6 +78,10 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "crypto_whitelist": settings.crypto_whitelist_symbols,
         "market_regime": _load_regime(state.market_regime_json),
         "crypto_market_regime": _load_regime(state.crypto_market_regime_json) if settings.crypto_enabled else None,
+        # ONE Alpaca account shared by both engines (cash counted once). Lets the
+        # dashboard show a single account total instead of two double-counted
+        # per-engine "portfolio" values.
+        "account": _account_view(db),
         **_serialize_session_info(settings),
         **budget_tracker.get_budget_status(db, settings),
     }
@@ -89,6 +93,39 @@ def _load_regime(regime_json: str | None) -> dict | None:
         return data or None
     except json.JSONDecodeError:
         return None
+
+
+def _latest_snapshot(db: Session, venue: str) -> PortfolioSnapshot | None:
+    return db.execute(
+        select(PortfolioSnapshot)
+        .where(PortfolioSnapshot.venue == venue)
+        .order_by(PortfolioSnapshot.timestamp.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+
+
+def _account_view(db: Session) -> dict | None:
+    """The ONE Alpaca account, not two portfolios: both engines share a single
+    cash balance and hold positions in the same account. Each per-venue snapshot
+    records the SAME account cash plus only that engine's positions, so naively
+    summing the two snapshots' totals double-counts the cash. Reconstruct the
+    true account here: cash counted ONCE + each engine's position value
+    (snapshot total minus that shared cash)."""
+    a = _latest_snapshot(db, "alpaca")
+    c = _latest_snapshot(db, "crypto")
+    if a is None and c is None:
+        return None
+    # Cash is identical in both snapshots; take it from the freshest one.
+    freshest = max((s for s in (a, c) if s is not None), key=lambda s: s.timestamp)
+    cash = freshest.usdt_balance
+    equity_positions_value = (a.total_value_usdt - a.usdt_balance) if a else 0.0
+    crypto_positions_value = (c.total_value_usdt - c.usdt_balance) if c else 0.0
+    return {
+        "cash": round(cash, 2),
+        "equity_positions_value": round(equity_positions_value, 2),
+        "crypto_positions_value": round(crypto_positions_value, 2),
+        "total_value": round(cash + equity_positions_value + crypto_positions_value, 2),
+    }
 
 
 @router.get("/portfolio")

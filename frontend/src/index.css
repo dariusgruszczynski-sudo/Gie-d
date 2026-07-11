@@ -1506,7 +1506,71 @@ button {
   font-size: 1.15rem;
 }
 
-/* ---- Stacked per-venue ticker bars (equities over crypto) ---- */
+/* ---- One-account bar (shared by both engines) ---- */
+.account-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  background: linear-gradient(180deg, #081019 0%, #0a1220 100%);
+  border-bottom: 1px solid var(--border);
+}
+.account-bar-pending {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.account-bar-main {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.account-bar-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.account-bar-total {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--gold-bright);
+}
+.account-bar-day {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.account-bar-day.up {
+  color: var(--green);
+}
+.account-bar-day.down {
+  color: var(--red);
+}
+.account-bar-split {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.account-bar-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+.account-bar-chip-label {
+  color: var(--muted);
+}
+.account-bar-chip-val {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ---- Stacked per-engine ticker bars (equities over crypto) ---- */
 .tickers-stack {
   position: sticky;
   top: 0;

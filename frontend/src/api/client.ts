@@ -11,6 +11,15 @@ export interface MarketRegime {
   reasons: string[];
 }
 
+// The single Alpaca account both engines share. Cash is counted ONCE; each
+// engine contributes only its own positions' market value.
+export interface AccountView {
+  cash: number;
+  equity_positions_value: number;
+  crypto_positions_value: number;
+  total_value: number;
+}
+
 export interface StatusResponse {
   mode: "testnet" | "live";
   quote_currency: string;
@@ -31,6 +40,8 @@ export interface StatusResponse {
   session_bounds: SessionBounds | null;
   market_regime: MarketRegime | null;
   crypto_market_regime: MarketRegime | null;
+  // The ONE Alpaca account shared by both engines (cash counted once).
+  account: AccountView | null;
   claude_monthly_budget_usd: number;
   claude_spend_usd_this_month: number;
   claude_budget_pct_used: number;

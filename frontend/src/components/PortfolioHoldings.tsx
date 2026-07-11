@@ -13,10 +13,17 @@ interface HoldingRow {
   pnlUsd: number | null;
 }
 
-function buildHoldings(current: PortfolioSnapshot, costBasis: Record<string, number>): HoldingRow[] {
+function buildHoldings(
+  current: PortfolioSnapshot,
+  costBasis: Record<string, number>,
+  showCash: boolean,
+  denominator: number,
+): HoldingRow[] {
   const balances: Record<string, number> = JSON.parse(current.balances_json || "{}");
   const prices: Record<string, number> = JSON.parse(current.prices_json || "{}");
-  const total = current.total_value_usdt || 0;
+  // % is against the WHOLE account (shared cash counted once at the account
+  // level), so a position's weight is honest across both engines.
+  const total = denominator > 0 ? denominator : current.total_value_usdt || 0;
 
   const rows: HoldingRow[] = Object.entries(balances)
     .filter(([, qty]) => qty > 0)
@@ -40,7 +47,10 @@ function buildHoldings(current: PortfolioSnapshot, costBasis: Record<string, num
 
   rows.sort((a, b) => b.valueUsd - a.valueUsd);
 
-  if (current.usdt_balance > 0) {
+  // Cash is a single ACCOUNT-level pool, not an engine's holding -- it's shown
+  // once in the account bar, so per-engine tables omit it to avoid the
+  // double-count the "two portfolios" view had.
+  if (showCash && current.usdt_balance > 0) {
     rows.push({
       asset: "USD",
       quantity: current.usdt_balance,
@@ -65,19 +75,24 @@ export function PortfolioHoldings({
   costBasis,
   title = "Twoje pozycje",
   defaultCollapsed = false,
+  showCash = true,
+  accountTotal = 0,
 }: {
   current: PortfolioSnapshot | null;
   costBasis: Record<string, number>;
   title?: string;
   defaultCollapsed?: boolean;
+  showCash?: boolean;
+  accountTotal?: number;
 }) {
   const [open, setOpen] = useState(!defaultCollapsed);
+  const rows = current ? buildHoldings(current, costBasis, showCash, accountTotal) : [];
   return (
     <div className="panel">
       <CollapsibleH2 title={title} open={open} onToggle={() => setOpen((o) => !o)} />
       {open && (
       <div className="table-wrap">
-        {current && current.total_value_usdt > 0 ? (
+        {rows.length > 0 ? (
           <table>
             <thead>
               <tr>
@@ -87,11 +102,11 @@ export function PortfolioHoldings({
                 <th>Wejście</th>
                 <th>Zysk/strata</th>
                 <th>Wartość</th>
-                <th>% portfela</th>
+                <th>% konta</th>
               </tr>
             </thead>
             <tbody>
-              {buildHoldings(current, costBasis).map((row) => (
+              {rows.map((row) => (
                 <tr key={row.asset}>
                   <td>{row.asset}</td>
                   <td>{row.quantity.toLocaleString("pl-PL", { maximumFractionDigits: 6 })}</td>
@@ -115,7 +130,7 @@ export function PortfolioHoldings({
             </tbody>
           </table>
         ) : (
-          <p className="subtitle">Brak jeszcze danych o portfelu — pierwszy cykl automatu je utworzy.</p>
+          <p className="subtitle">Ten silnik nie trzyma teraz żadnej pozycji — cała wolna gotówka jest wspólna dla konta.</p>
         )}
       </div>
       )}

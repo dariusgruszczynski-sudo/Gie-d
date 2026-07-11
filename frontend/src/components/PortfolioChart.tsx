@@ -81,7 +81,7 @@ export function PortfolioChart({
   return (
     <div className="panel">
       <div className="panel-header-row">
-        <h2>Wartość portfela (USD)</h2>
+        <h2>Wartość konta Alpaca (USD)</h2>
         <div className="chart-range-tabs">
           {RANGES.map((r) => (
             <button

@@ -2,9 +2,32 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from app.api import routes_dashboard
-from app.api.routes_dashboard import get_portfolio, get_status
+from app.api.routes_dashboard import _account_view, get_portfolio, get_status
 from app.models import PortfolioSnapshot
 from app.services import market_hours
+
+
+def test_account_view_counts_shared_cash_once(db_session):
+    """One Alpaca account, two engines: both per-engine snapshots record the
+    SAME account cash. The account view must count that cash ONCE plus each
+    engine's position value -- not sum the two snapshot totals (which would
+    double-count the cash, the "two portfolios" bug)."""
+    now = datetime.now(timezone.utc)
+    # cash=100 in both; equities holds 50 of positions, crypto holds 30.
+    db_session.add(PortfolioSnapshot(timestamp=now, total_value_usdt=150.0, usdt_balance=100.0, venue="alpaca"))
+    db_session.add(PortfolioSnapshot(timestamp=now, total_value_usdt=130.0, usdt_balance=100.0, venue="crypto"))
+    db_session.commit()
+
+    acc = _account_view(db_session)
+    assert acc["cash"] == 100.0
+    assert acc["equity_positions_value"] == 50.0
+    assert acc["crypto_positions_value"] == 30.0
+    # 100 + 50 + 30 = 180, NOT 150 + 130 = 280 (cash counted once).
+    assert acc["total_value"] == 180.0
+
+
+def test_account_view_none_when_no_snapshots(db_session):
+    assert _account_view(db_session) is None
 
 
 def test_portfolio_venue_filter_separates_portfolios(db_session, settings):

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, Decision, PortfolioResponse, StatusResponse, Trade } from "./api/client";
-import { AccountSummary } from "./components/AccountSummary";
+import { AccountBar } from "./components/AccountBar";
 import { BrandLogo } from "./components/BrandLogo";
 import { ControlToolbar } from "./components/ControlToolbar";
 import { DecisionSplash } from "./components/DecisionSplash";
@@ -115,25 +115,27 @@ export default function App() {
       <EmberBackground />
       {status && (
         <div className="tickers-stack">
+          {/* ONE Alpaca account (cash counted once), then the two engines that
+              trade it -- not two separate portfolios. */}
+          <AccountBar account={status.account} dayPnlPct={status.day_pnl_pct} />
           <div className="ticker-labeled">
             <span className="ticker-venue-label">
-              <span className="venue-dot venue-dot-alpaca" /> Portfel dzienny · Akcje USA (Alpaca)
+              <span className="venue-dot venue-dot-alpaca" /> Silnik · Akcje US (sesja dzienna)
+              {status.market_regime && <RegimeBadge regime={status.market_regime} prefix="Rynek" />}
             </span>
             <div className="ticker">
-              <AccountSummary current={portfolio?.current ?? null} inception={portfolio?.inception ?? null} />
               <PriceTicker history={portfolio?.history ?? []} whitelist={status.whitelist} />
             </div>
           </div>
           <div className="ticker-labeled">
             <span className="ticker-venue-label">
-              <span className="venue-dot venue-dot-crypto" /> Portfel krypto · 24/7 (Alpaca)
+              <span className="venue-dot venue-dot-crypto" /> Silnik · Krypto (24/7)
               {status.crypto_enabled && status.crypto_market_regime && (
                 <RegimeBadge regime={status.crypto_market_regime} prefix="Krypto" />
               )}
               {!status.crypto_enabled && <span className="venue-off-tag">wyłączony</span>}
             </span>
             <div className="ticker">
-              <AccountSummary current={cryptoPortfolio?.current ?? null} inception={cryptoPortfolio?.inception ?? null} />
               <PriceTicker history={cryptoPortfolio?.history ?? []} whitelist={status.crypto_whitelist} />
             </div>
           </div>
@@ -160,7 +162,7 @@ export default function App() {
           <div className="grid">
             <VenueControls
               venue="alpaca"
-              label="Sterowanie — Akcje USA"
+              label="Silnik — Akcje US"
               paused={status.is_paused}
               halted={status.is_halted}
               enabled
@@ -168,7 +170,7 @@ export default function App() {
             />
             <VenueControls
               venue="crypto"
-              label="Sterowanie — Krypto 24/7"
+              label="Silnik — Krypto 24/7"
               paused={status.crypto_paused}
               enabled={status.crypto_enabled}
               onChanged={refresh}
@@ -191,9 +193,9 @@ export default function App() {
 
         {status && (
           <div className="grid">
-            <ManualTradePanel whitelist={status.whitelist} onChanged={refresh} venue="alpaca" title="Ręczna transakcja — Akcje USA" />
+            <ManualTradePanel whitelist={status.whitelist} onChanged={refresh} venue="alpaca" title="Ręczna transakcja — Silnik Akcje US" />
             {status.crypto_enabled ? (
-              <ManualTradePanel whitelist={status.crypto_whitelist} onChanged={refresh} venue="crypto" title="Ręczna transakcja — Krypto 24/7" />
+              <ManualTradePanel whitelist={status.crypto_whitelist} onChanged={refresh} venue="crypto" title="Ręczna transakcja — Silnik Krypto" />
             ) : (
               <div className="panel">
                 <h2>Ręczna transakcja — Krypto</h2>
@@ -209,22 +211,31 @@ export default function App() {
           {status && <InvestmentThesis whitelist={status.crypto_whitelist} />}
         </div>
 
-        {/* ===== Wykresy wartości (oba portfele) ===== */}
+        {/* ===== Wykres wartości CAŁEGO konta (jedno konto, nie dwa) ===== */}
+        <PortfolioChart history={portfolio?.history ?? []} current={portfolio?.current ?? null} scorecard={portfolio?.scorecard ?? null} />
+
+        {/* ===== Pozycje per silnik (gotówka jest wspólna -> nie dublujemy jej) ===== */}
         <div className="grid">
-          <PortfolioChart history={portfolio?.history ?? []} current={portfolio?.current ?? null} scorecard={portfolio?.scorecard ?? null} />
-          <PortfolioChart history={cryptoPortfolio?.history ?? []} current={cryptoPortfolio?.current ?? null} scorecard={null} />
+          <PortfolioHoldings
+            current={portfolio?.current ?? null}
+            costBasis={portfolio?.cost_basis ?? {}}
+            title="Pozycje — Silnik Akcje US"
+            showCash={false}
+            accountTotal={status?.account?.total_value ?? 0}
+          />
+          <PortfolioHoldings
+            current={cryptoPortfolio?.current ?? null}
+            costBasis={cryptoPortfolio?.cost_basis ?? {}}
+            title="Pozycje — Silnik Krypto"
+            showCash={false}
+            accountTotal={status?.account?.total_value ?? 0}
+          />
         </div>
 
-        {/* ===== Pozycje (oba portfele, obok siebie) ===== */}
+        {/* ===== Historia transakcji per silnik ===== */}
         <div className="grid">
-          <PortfolioHoldings current={portfolio?.current ?? null} costBasis={portfolio?.cost_basis ?? {}} title="Pozycje — Akcje USA" />
-          <PortfolioHoldings current={cryptoPortfolio?.current ?? null} costBasis={cryptoPortfolio?.cost_basis ?? {}} title="Pozycje — Krypto" />
-        </div>
-
-        {/* ===== Historia transakcji (oba portfele, obok siebie) ===== */}
-        <div className="grid">
-          <TradesTable trades={trades} title="Transakcje — Akcje USA" />
-          <TradesTable trades={cryptoTrades} title="Transakcje — Krypto" />
+          <TradesTable trades={trades} title="Transakcje — Silnik Akcje US" />
+          <TradesTable trades={cryptoTrades} title="Transakcje — Silnik Krypto" />
         </div>
 
         {/* ===== Log decyzji Claude — na samym dole (oba portfele) ===== */}
