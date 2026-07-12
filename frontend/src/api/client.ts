@@ -36,6 +36,8 @@ export interface StatusResponse {
   week_pnl_pct: number | null;
   daily_loss_limit_pct: number;
   weekly_loss_limit_pct: number;
+  max_drawdown_halt_pct: number;
+  peak_account_value: number;
   max_position_pct: number;
   whitelist: string[];
   poll_interval_minutes: number;
@@ -49,6 +51,13 @@ export interface StatusResponse {
   account: AccountView | null;
   // Read-only share link enabled on the server (token stays server-side).
   share_enabled: boolean;
+  // Honest bottom line: realized P&L across BOTH engines (one account) and
+  // that same figure minus what Claude has actually cost this month.
+  realized_pnl_usd: number;
+  net_result_usd: number;
+  // Every live tuning knob per venue, resolved through the same
+  // effective_settings() the engine itself runs with -- exact, not a guess.
+  profiles: { alpaca: EngineProfile; crypto: EngineProfile };
   claude_monthly_budget_usd: number;
   claude_spend_usd_this_month: number;
   claude_budget_pct_used: number;
@@ -56,6 +65,27 @@ export interface StatusResponse {
   claude_input_tokens_this_month: number;
   claude_output_tokens_this_month: number;
   claude_total_tokens_this_month: number;
+}
+
+export interface EngineProfile {
+  signal_timeframe: string;
+  poll_interval_minutes: number;
+  risk_per_trade_pct: number;
+  min_buy_confidence: number;
+  max_new_positions_per_day: number;
+  max_concurrent_positions: number;
+  min_hold_minutes: number;
+  max_position_pct: number;
+  stop_loss_min_pct: number;
+  stop_loss_max_pct: number;
+  reward_risk_ratio: number;
+  trailing_stop_frac: number;
+  partial_take_profit_frac: number;
+  partial_take_profit_r: number;
+  price_move_trigger_pct: number;
+  full_analysis_every_minutes: number;
+  volatility_reference_pct: number;
+  allocation_pct: number;
 }
 
 export interface PortfolioSnapshot {
@@ -150,6 +180,23 @@ export function withShare(path: string): string {
   return `${path}${sep}share=${encodeURIComponent(shareToken)}`;
 }
 
+export interface ClaudeEdgeSide {
+  closed_trades: number;
+  wins: number;
+  losses: number;
+  win_rate_pct: number | null;
+  avg_return_pct?: number | null;
+  notional_realized_usd?: number;
+  realized_usd?: number;
+}
+
+export interface ClaudeEdge {
+  venue: string;
+  cycles_analyzed: number;
+  mechanical_only: ClaudeEdgeSide;
+  with_claude: ClaudeEdgeSide;
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     headers: { "Content-Type": "application/json" },
@@ -195,6 +242,8 @@ export const api = {
     venue?: "alpaca" | "crypto";
   }) => apiFetch<Trade>("/api/control/manual-trade", { method: "POST", body: JSON.stringify(body) }),
   shareLink: () => apiFetch<{ enabled: boolean; token: string }>("/api/control/share-link"),
+  claudeEdge: (venue: string = "alpaca") =>
+    apiFetch<ClaudeEdge>(withShare(`/api/claude-edge?venue=${venue}`)),
   pushConfig: () => apiFetch<{ enabled: boolean; vapid_public_key: string }>("/api/push/config"),
   pushSubscribe: (sub: PushSubscriptionJSON) =>
     apiFetch<{ message: string }>("/api/push/subscribe", { method: "POST", body: JSON.stringify(sub) }),

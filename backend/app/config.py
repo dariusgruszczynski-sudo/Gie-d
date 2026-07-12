@@ -113,6 +113,11 @@ class Settings(BaseSettings):
     # konta. 25% to realny bezpiecznik: seria złych dni zatrzyma automat, zanim
     # zrobi poważną wyrwę w kapitale.
     weekly_loss_limit_pct: float = 25.0
+    # Ostatni bezpiecznik: spadek konta o tyle % OD SZCZYTU (ever-observed, nie
+    # od początku dnia/tygodnia) zatrzymuje handel. Łapie powolny, wieloDNIOWY
+    # krwotok, który nigdy nie przekracza dziennego/tygodniowego limitu w
+    # pojedynczym dniu, ale sumuje się w realną stratę kapitału.
+    max_drawdown_halt_pct: float = 20.0
     max_position_pct: float = 25.0
     # Mechanical exit rules applied to every held position on every poll,
     # without asking Claude: auto-SELL the whole position when it gains
@@ -228,7 +233,7 @@ class Settings(BaseSettings):
 
     regime_gate_enabled: bool = True
     regime_vix_risk_off: float = 25.0
-    defensive_symbols: str = "GLD,TLT,SH,PSQ"
+    defensive_symbols: str = "GLD,TLT,SH"
     # --- Crypto has its OWN risk regime --------------------------------------
     # The equity regime (SPY trend + VIX) is meaningless for a 24/7 crypto book,
     # so the crypto venue derives its own read: BTC as the crypto-beta proxy
@@ -252,36 +257,21 @@ class Settings(BaseSettings):
     # Uses the same SMTP config as the daily report; silently skipped if SMTP
     # isn't configured. Set False to keep only the daily report.
     trade_alerts_enabled: bool = True
-    # A DIVERSIFIED, tradable universe -- not just correlated tech beta, so the
-    # bot can actually rotate to what's working and hedge instead of making one
-    # big leveraged "tech goes up" bet:
-    #  - Core tech/beta: SPY, QQQ, AAPL, NVDA (deep liquidity, fractional-OK)
-    #  - MSTR: the deliberately volatile high-beta pick (leveraged BTC proxy)
-    #  - Uncorrelated / defensive: GLD (gold), TLT (long bonds), XLE (energy),
-    #    IWM (small caps) -- these often zig when tech zags
-    #  - Inverse ETFs: SH (inverse S&P), PSQ (inverse Nasdaq) -- let the bot
-    #    PROFIT in a downtrend by going long an inverse ETF instead of just
-    #    sitting in cash. Deliberately the 1x (not 3x-leveraged) inverses, so
-    #    downside is bounded like any long position -- no unlimited-loss short
-    #    mechanics, which would be reckless on a small account.
-    #  - TSLA: second high-beta single name -- huge news flow (pairs well with
-    #    the news trigger), deep liquidity, fractional-OK. Deliberately NOT a
-    #    3x-leveraged ETF: those move ~2% within an hour, which with the
-    #    global 2% stop-loss would just churn the account through stop-outs.
-    #  - Sector rotation (added): XLF (financials), XLK (tech), XLV (health),
-    #    XLU (utilities), XLI (industrials), XLP (staples) -- lets the trend
-    #    filter rotate into WHATEVER sector is leading instead of only tech.
-    #  - International: EEM (emerging), EFA (developed ex-US) -- decorrelate
-    #    from the US tape. Plus DIA (Dow), SLV (silver). All liquid + fractional.
-    #  - Mega-cap tech breadth (added): MSFT, AMZN, GOOGL, META, AMD, AVGO,
-    #    NFLX -- the biggest, most liquid single names so the trend filter has a
-    #    deeper bench to rotate into, not just AAPL/NVDA. COIN added as a listed
-    #    crypto-proxy equity (moves with BTC during the US session, a daytime
-    #    hedge/echo of the 24/7 crypto book).
-    trading_whitelist: str = (
-        "SPY,QQQ,DIA,AAPL,MSFT,NVDA,AMZN,GOOGL,META,AMD,AVGO,MSTR,TSLA,NFLX,COIN,"
-        "GLD,SLV,TLT,XLE,XLF,XLK,XLV,XLU,XLI,XLP,EEM,EFA,IWM,SH,PSQ"
-    )
+    # CURATED, FOCUSED universe (trimmed from a 30-ticker list): a wide roster
+    # spread attention and Claude's context thin without adding real edge --
+    # fewer, deeper-liquidity names is easier to trade well AND cheaper (less
+    # market data + fewer tokens per cycle). Kept:
+    #  - Core index/beta: SPY, QQQ (deepest liquidity, tightest spreads)
+    #  - Mega-cap trend leaders: AAPL, MSFT, NVDA, AMZN, GOOGL, META, TSLA --
+    #    the most liquid single names with the cleanest trends, so the mechanical
+    #    filter has a real bench to rotate into without correlated noise.
+    #  - Defensive/inverse (kept in sync with defensive_symbols below): GLD
+    #    (gold), TLT (long bonds), SH (inverse S&P, 1x -- not 3x-leveraged, so
+    #    downside stays bounded like any long position).
+    # Roster changes are safe: check_take_profit_stop_loss() force-closes any
+    # held position whose symbol is no longer on this list, so trimming/adding
+    # names never orphans a position.
+    trading_whitelist: str = "SPY,QQQ,AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,GLD,TLT,SH"
     # Benchmark the whole strategy against simply buying and holding this
     # ticker -- if the bot can't beat holding SPY, it isn't earning its
     # complexity. Drives the dashboard scorecard and is fed back to Claude.
@@ -340,7 +330,9 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from_email: str = ""
     report_recipient_email: str = "0grucha0@gmail.com"
-    report_hour: int = 6
+    # Godzina codziennego podsumowania PUSH (nie maila -- patrz push_notifier.
+    # send_daily_summary_push / scheduler._report_job).
+    report_hour: int = 8
     report_minute: int = 0
     report_timezone: str = "Europe/Warsaw"
 

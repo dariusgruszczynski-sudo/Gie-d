@@ -15,7 +15,8 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
-from app.models import PushSubscription
+from app.models import PortfolioSnapshot, PushSubscription
+from app.services import budget_tracker, risk_manager, scorecard
 
 logger = logging.getLogger(__name__)
 
@@ -133,3 +134,64 @@ def send_trade_push(db: Session, settings: Settings, trade, account_total: float
         )
     except Exception as exc:  # pragma: no cover - powiadomienie nie może wywalić handlu
         logger.warning("send_trade_push failed: %s", exc)
+
+
+def _latest_snapshot(db: Session, venue: str) -> PortfolioSnapshot | None:
+    return db.execute(
+        select(PortfolioSnapshot).where(PortfolioSnapshot.venue == venue).order_by(PortfolioSnapshot.timestamp.desc()).limit(1)
+    ).scalar_one_or_none()
+
+
+def _held_position_count(snapshot: PortfolioSnapshot | None) -> int:
+    if snapshot is None:
+        return 0
+    try:
+        balances: dict = json.loads(snapshot.balances_json or "{}")
+    except (TypeError, ValueError):
+        return 0
+    return sum(1 for qty in balances.values() if qty and qty > 0)
+
+
+def send_daily_summary_push(db: Session, settings: Settings) -> bool:
+    """Baner podsumowujący stan konta jako powiadomienie push -- zastępuje
+    mailowy raport dzienny. Wywoływane automatycznie raz o report_hour (domyślnie
+    8:00) i na żądanie (przycisk 'Wyślij podsumowanie' w Centrum sterowania).
+    Best-effort: cicho pomija się, gdy push nie jest skonfigurowany albo nie ma
+    jeszcze żadnego snapshotu. Zwraca True, jeśli coś realnie wysłano."""
+    if not push_configured(settings):
+        return False
+
+    a = _latest_snapshot(db, "alpaca")
+    c = _latest_snapshot(db, "crypto")
+    if a is None and c is None:
+        return False
+
+    freshest = max((s for s in (a, c) if s is not None), key=lambda s: s.timestamp)
+    cash = freshest.usdt_balance
+    equity_value = (a.total_value_usdt - a.usdt_balance) if a else 0.0
+    crypto_value = (c.total_value_usdt - c.usdt_balance) if c else 0.0
+    total = cash + equity_value + crypto_value
+
+    state = risk_manager.get_state(db)
+    day_pnl_pct = (
+        (total - state.day_start_value) / state.day_start_value * 100 if state.day_start_value > 0 else None
+    )
+    day_txt = f"{'+' if day_pnl_pct >= 0 else ''}{day_pnl_pct:.2f}% dziś" if day_pnl_pct is not None else "brak danych dziś"
+
+    positions_us = _held_position_count(a)
+    positions_crypto = _held_position_count(c)
+
+    realized = scorecard.total_realized_pnl(db)
+    budget = budget_tracker.get_budget_status(db, settings)
+    # Lifetime spend, not this month's -- realized P&L is cumulative since
+    # inception, so the cost side of "net wynik" must be too (see routes_
+    # dashboard._net_result_view for the same fix and rationale).
+    net = round(realized - state.claude_spend_usd_lifetime, 2)
+
+    title = f"📊 GielDarek — konto: {_fmt_usd(total)}"
+    body = (
+        f"{day_txt} · Akcje US: {positions_us} poz. · Krypto: {positions_crypto} poz. · "
+        f"netto (po koszcie Claude): {_fmt_usd(net)} · budżet Claude: {budget['claude_budget_pct_used']:.0f}%"
+    )
+    sent = send_to_all(db, settings, title=title, body=body, tag="daily-summary", url="/")
+    return sent > 0

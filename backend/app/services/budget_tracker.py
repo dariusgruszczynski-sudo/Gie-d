@@ -45,6 +45,9 @@ def record_usage_cost(db: Session, cost_usd: float, input_tokens: int = 0, outpu
     state.claude_spend_usd_this_month += cost_usd
     state.claude_input_tokens_this_month += int(input_tokens)
     state.claude_output_tokens_this_month += int(output_tokens)
+    # Never resets (unlike the monthly counter above) -- feeds the "net wynik"
+    # figure, which compares against realized P&L since account inception.
+    state.claude_spend_usd_lifetime += cost_usd
     db.commit()
 
 

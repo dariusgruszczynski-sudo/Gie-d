@@ -112,13 +112,20 @@ export function StatusBanner({ status }: { status: StatusResponse }) {
           </strong>
         </div>
 
+        <div className="stat-tile" title="Zrealizowany zysk/strata (oba silniki) minus realny koszt Claude w tym miesiącu -- uczciwy wynik, nie brutto.">
+          <span className="stat-tile-label">Wynik netto (po koszcie Claude)</span>
+          <strong className={pnlClass(status.net_result_usd)}>
+            {status.net_result_usd >= 0 ? "+" : ""}${status.net_result_usd.toFixed(2)}
+          </strong>
+        </div>
+
         <div className="stat-tile">
           <div className="stat-tile-top">
             <TileIcon name="lock" />
-            <span className="stat-tile-label">Limit dzienny / tygodniowy</span>
+            <span className="stat-tile-label">Limit dzienny / tygodniowy / szczyt</span>
           </div>
           <strong>
-            -{status.daily_loss_limit_pct}% / -{status.weekly_loss_limit_pct}%
+            -{status.daily_loss_limit_pct}% / -{status.weekly_loss_limit_pct}% / -{status.max_drawdown_halt_pct}%
           </strong>
         </div>
 

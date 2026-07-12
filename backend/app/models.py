@@ -180,6 +180,11 @@ class SystemState(Base):
     crypto_analysis_state_json: Mapped[str] = mapped_column(Text, default="{}")
     claude_budget_month_key: Mapped[str] = mapped_column(String(7), default="")
     claude_spend_usd_this_month: Mapped[float] = mapped_column(Float, default=0.0)
+    # NEVER resets (unlike the monthly counter above) -- lifetime Claude spend,
+    # so "wynik netto" can compare it against realized_pnl_usd (also lifetime,
+    # since inception). Comparing lifetime P&L against only THIS month's spend
+    # would understate cost more and more every month that passes.
+    claude_spend_usd_lifetime: Mapped[float] = mapped_column(Float, default=0.0)
     # Live token meter: running input/output token totals for the current month,
     # reset alongside the spend counter on a month rollover. Lets the dashboard
     # show real token throughput, not just the estimated dollar figure.
@@ -207,3 +212,9 @@ class SystemState(Base):
     # The crypto venue's own risk regime (BTC trend + crypto breadth), cached by
     # the crypto cycle so the dashboard can show a separate crypto chip.
     crypto_market_regime_json: Mapped[str] = mapped_column(Text, default="{}")
+    # Highest ever-observed total account value -- distinct from day/week
+    # start (which reset on a rolling window). Drives the max-drawdown-from-
+    # peak halt: unlike day/week loss, this catches a slow bleed that never
+    # crosses either daily or weekly limit on any single day. 0 = not yet
+    # initialized (set on the first update_portfolio_value call).
+    peak_account_value: Mapped[float] = mapped_column(Float, default=0.0)

@@ -1,8 +1,10 @@
 import json
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from app.api import routes_dashboard
-from app.api.routes_dashboard import _account_view, get_portfolio, get_status
+from app.api.routes_dashboard import _account_view, get_claude_edge, get_portfolio, get_status
 from app.models import PortfolioSnapshot
 from app.services import market_hours
 
@@ -28,6 +30,79 @@ def test_account_view_counts_shared_cash_once(db_session):
 
 def test_account_view_none_when_no_snapshots(db_session):
     assert _account_view(db_session) is None
+
+
+def test_status_net_result_is_realized_pnl_minus_claude_spend(db_session, settings):
+    """The honest bottom line: realized P&L across BOTH engines minus what
+    Claude has actually cost this month -- not brutto P&L."""
+    from app.models import Trade, TradeMode
+    from app.services import budget_tracker
+
+    now = datetime.now(timezone.utc)
+    db_session.add(Trade(
+        timestamp=now, symbol="SPY", side="BUY", quantity=1, price=100.0, usdt_value=100.0,
+        mode=TradeMode.LIVE, venue="alpaca",
+    ))
+    db_session.add(Trade(
+        timestamp=now, symbol="SPY", side="SELL", quantity=1, price=110.0, usdt_value=110.0,
+        mode=TradeMode.LIVE, venue="alpaca",
+    ))
+    db_session.commit()
+    budget_tracker.record_usage_cost(db_session, 4.0, 100, 100)
+
+    body = get_status(db=db_session, settings=settings)
+
+    assert body["realized_pnl_usd"] == 10.0
+    assert body["net_result_usd"] == 6.0
+
+
+def test_status_net_result_uses_lifetime_spend_not_just_this_month(db_session, settings):
+    """realized_pnl_usd is cumulative since inception, so the Claude-cost side
+    of net_result_usd must be too -- comparing lifetime P&L against only this
+    month's spend would understate cost (and overstate "net") more and more as
+    months pass."""
+    from app.models import SystemState, Trade, TradeMode
+    from app.services import budget_tracker
+
+    now = datetime.now(timezone.utc)
+    db_session.add(Trade(
+        timestamp=now, symbol="SPY", side="BUY", quantity=1, price=100.0, usdt_value=100.0,
+        mode=TradeMode.LIVE, venue="alpaca",
+    ))
+    db_session.add(Trade(
+        timestamp=now, symbol="SPY", side="SELL", quantity=1, price=110.0, usdt_value=110.0,
+        mode=TradeMode.LIVE, venue="alpaca",
+    ))
+    db_session.commit()
+    # Spend from previous months (already rolled over -> this_month is 0, but
+    # lifetime keeps accumulating) plus a bit this month.
+    budget_tracker.record_usage_cost(db_session, 20.0, 500, 500)
+    state = db_session.get(SystemState, 1)
+    state.claude_spend_usd_this_month = 3.0  # simulate a month rollover already happened
+    db_session.commit()
+
+    body = get_status(db=db_session, settings=settings)
+
+    assert body["realized_pnl_usd"] == 10.0
+    assert body["claude_spend_usd_this_month"] == 3.0
+    # net must reflect the full $20 lifetime spend, not just this month's $3.
+    assert body["net_result_usd"] == -10.0
+
+
+def test_status_includes_per_engine_profiles(db_session, settings):
+    body = get_status(db=db_session, settings=settings)
+
+    assert body["profiles"]["alpaca"]["signal_timeframe"] == settings.signal_timeframe
+    assert body["profiles"]["crypto"]["signal_timeframe"] == settings.crypto_signal_timeframe
+    assert body["profiles"]["crypto"]["poll_interval_minutes"] == settings.crypto_poll_interval_minutes
+
+
+def test_claude_edge_endpoint_returns_both_sides(db_session, settings):
+    body = get_claude_edge(venue="alpaca", db=db_session, settings=settings)
+
+    assert body["venue"] == "alpaca"
+    assert "mechanical_only" in body
+    assert "with_claude" in body
 
 
 def test_portfolio_venue_filter_separates_portfolios(db_session, settings):
@@ -78,6 +153,41 @@ def test_portfolio_inception_is_none_when_no_snapshots_exist(db_session, setting
     body = get_portfolio(limit=200, db=db_session, settings=settings)
     assert body["current"] is None
     assert body["inception"] is None
+
+
+def test_day_pnl_uses_combined_account_not_whichever_venue_polled_last(db_session, settings):
+    """day_pnl_pct/week_pnl_pct must compare the combined account (cash once +
+    both engines' positions) against the day/week baseline -- NOT whichever
+    single venue's snapshot happens to be most recent. Crypto polls far more
+    often than equities, so picking "the latest snapshot" naively almost always
+    picks the crypto-only total, which is a completely different (usually much
+    smaller) scope than an equities-baselined day_start_value -- a scope
+    mismatch that shows a large, entirely fake loss."""
+    from app.services import risk_manager
+
+    # Equities holds a real position on top of shared cash: cash 1000, $2000 in
+    # stock -> total 3000. This was the day's opening baseline.
+    morning = datetime.now(timezone.utc) - timedelta(hours=6)
+    db_session.add(PortfolioSnapshot(timestamp=morning, total_value_usdt=3000.0, usdt_balance=1000.0, venue="alpaca"))
+    db_session.commit()
+    state = risk_manager.get_state(db_session)
+    state.day_start_date = datetime.now(timezone.utc).date().isoformat()
+    state.day_start_value = 3000.0
+    db_session.commit()
+
+    # Crypto polls again a moment ago (much more recently than equities), same
+    # shared cash, holding nothing -> its OWN snapshot total is just 1000.
+    # Naively using "the latest snapshot across either venue" here would read
+    # 1000 and compare it to the 3000 baseline -> a fake -66% "loss".
+    just_now = datetime.now(timezone.utc)
+    db_session.add(PortfolioSnapshot(timestamp=just_now, total_value_usdt=1000.0, usdt_balance=1000.0, venue="crypto"))
+    db_session.commit()
+
+    body = get_status(db=db_session, settings=settings)
+
+    # True combined account is still 1000 cash + 2000 equity + 0 crypto = 3000
+    # -> unchanged from the morning baseline, day_pnl_pct must be ~0, not -66%.
+    assert body["day_pnl_pct"] == pytest.approx(0.0)
 
 
 def test_status_includes_market_session_and_bounds(db_session, settings, monkeypatch):

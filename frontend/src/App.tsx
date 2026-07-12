@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, Decision, isReadOnly, PortfolioResponse, StatusResponse, Trade, withShare } from "./api/client";
+import { BrandLoader } from "./components/BrandLoader";
 import { BrandLogo } from "./components/BrandLogo";
 import { DecisionSplash } from "./components/DecisionSplash";
 import { EmberBackground } from "./components/EmberBackground";
+import { MarketTemperature } from "./components/MarketTemperature";
 import { StrategyBar } from "./components/StrategyBar";
 import { TabNav } from "./components/TabNav";
 import { ControlPage } from "./pages/ControlPage";
@@ -34,6 +36,7 @@ export default function App() {
   const [splashDecision, setSplashDecision] = useState<Decision | null>(null);
   const [muted, setMuted] = useState<boolean>(isSoundMuted);
   const [tab, setTab] = useState<TabKey>(readInitialTab);
+  const [shuttingDown, setShuttingDown] = useState(false);
   const seenDecisionIds = useRef<Set<number> | null>(null);
   const seenTradeIds = useRef<Set<number> | null>(null);
   // Tolerate transient blips (a RESTART, a dropped poll) -- only surface the
@@ -148,8 +151,17 @@ export default function App() {
         refresh,
         muted,
         toggleMuted,
+        shutdown: () => setShuttingDown(true),
       }
     : null;
+
+  if (shuttingDown) {
+    // Same splash as the post-login boot animation, but its onComplete does a
+    // REAL page reload (fetches the current bundle) instead of an in-memory
+    // state flip -- so a later deploy is picked up immediately, not just on
+    // next natural refresh.
+    return <BrandLoader onComplete={() => window.location.reload()} />;
+  }
 
   return (
     <>
@@ -172,6 +184,7 @@ export default function App() {
               Dwa mózgi Claude (Sonnet→Opus): akcje USA średnio agresywnie · krypto 24/7 agresywnie · wykonanie Alpaca ·
               narzędzie prywatne, nie jest to porada inwestycyjna.
             </p>
+            {status && <MarketTemperature us={status.market_regime} crypto={status.crypto_market_regime} />}
           </div>
         </div>
 

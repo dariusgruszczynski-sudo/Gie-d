@@ -470,18 +470,13 @@ def _other_venue(venue: str) -> str:
     return "alpaca" if venue == "crypto" else "crypto"
 
 
-def venue_allocation_room(db: Session, settings: Settings, portfolio: dict, venue: str) -> float:
-    """USD this engine may still deploy into NEW positions without exceeding its
-    share of the whole account. Both engines share ONE Alpaca cash pool; without
-    this the aggressive 24/7 crypto engine could spend all the cash the equities
-    engine needs (and vice-versa). account_total = shared cash + this engine's
-    positions + the other engine's positions (from its latest snapshot); the
-    engine's cap is account_total * allocation_pct, minus what it already holds.
-    Returns min(free cash, remaining room). An allocation of 0 blocks new buys;
-    100 effectively disables the cap (room ~= free cash)."""
-    alloc_pct = settings.crypto_allocation_pct if venue == "crypto" else settings.alpaca_allocation_pct
-    if alloc_pct <= 0:
-        return 0.0
+def account_total_value(db: Session, portfolio: dict, venue: str) -> float:
+    """Whole-account total: shared cash (counted once) + THIS venue's own live
+    positions + the OTHER venue's positions from its most recently stored
+    snapshot. Both engines share one Alpaca account, so any per-cycle figure
+    that claims to represent "the account" -- allocation room, day/week/peak-
+    drawdown risk baselines -- must be built from this, not from a single
+    venue's own total_value_usdt (which only ever sees its own slice)."""
     cash = portfolio["usdt_balance"]
     this_pos = max(0.0, portfolio["total_value_usdt"] - cash)
     other = db.execute(
@@ -491,7 +486,23 @@ def venue_allocation_room(db: Session, settings: Settings, portfolio: dict, venu
         .limit(1)
     ).scalar_one_or_none()
     other_pos = max(0.0, other.total_value_usdt - other.usdt_balance) if other else 0.0
-    account_total = cash + this_pos + other_pos
+    return cash + this_pos + other_pos
+
+
+def venue_allocation_room(db: Session, settings: Settings, portfolio: dict, venue: str) -> float:
+    """USD this engine may still deploy into NEW positions without exceeding its
+    share of the whole account. Both engines share ONE Alpaca cash pool; without
+    this the aggressive 24/7 crypto engine could spend all the cash the equities
+    engine needs (and vice-versa). The engine's cap is account_total *
+    allocation_pct, minus what it already holds. Returns min(free cash,
+    remaining room). An allocation of 0 blocks new buys; 100 effectively
+    disables the cap (room ~= free cash)."""
+    alloc_pct = settings.crypto_allocation_pct if venue == "crypto" else settings.alpaca_allocation_pct
+    if alloc_pct <= 0:
+        return 0.0
+    cash = portfolio["usdt_balance"]
+    this_pos = max(0.0, portfolio["total_value_usdt"] - cash)
+    account_total = account_total_value(db, portfolio, venue)
     target = account_total * alloc_pct / 100.0
     room = max(0.0, target - this_pos)
     return min(cash, room)
@@ -633,7 +644,14 @@ def check_take_profit_stop_loss(
     if not tradable or not risk_manager.can_trade_automated(db, venue).approved:
         return []
 
-    symbols = whitelist if whitelist is not None else settings.whitelist_symbols
+    configured = whitelist if whitelist is not None else settings.whitelist_symbols
+    # A symbol removed from the whitelist since it was bought must NOT silently
+    # drop out of this loop -- that would orphan the position (no more stop/
+    # trailing/take-profit checks, ever). Evaluate every symbol the account
+    # currently has a price for (compute_portfolio prices every held position,
+    # whitelisted or not), and force-close anything no longer on the whitelist.
+    held_off_whitelist = [s for s in portfolio["prices"] if s not in configured]
+    symbols = list(configured) + held_off_whitelist
     state = risk_manager.get_state(db)
     peaks_col = _state_col("peaks", venue)
     partial_col = _state_col("partial", venue)
@@ -665,29 +683,37 @@ def check_take_profit_stop_loss(
         peak = max(peaks.get(symbol, basis), price)
         already_partial = bool(partials.get(symbol))
 
-        # Volatility-scaled stop distance: fetch a short 1h history for this
-        # held symbol and derive a stop that sits outside its normal noise.
-        vol_pct = None
-        try:
-            closes = [float(r[4]) for r in broker.get_klines(symbol, settings.signal_timeframe, 30)]
-            vol_pct = compute_volatility_pct(closes)
-        except Exception:
-            logger.warning("Volatility fetch failed for %s, using fixed stop", symbol, exc_info=True)
-        stop_pct = dynamic_stop_loss_pct(settings, vol_pct)
+        if symbol not in configured:
+            # No longer a name we want exposure to -- close the WHOLE position
+            # unconditionally (P&L, trend, min-hold don't matter here; this is a
+            # deliberate roster change, not a normal exit signal).
+            reason = f"{base}: usunięty z listy handlowej -- zamykam całą pozycję."
+            sell_pct, kind = 100.0, "delisted"
+        else:
+            # Volatility-scaled stop distance: fetch a short history for this
+            # held symbol and derive a stop that sits outside its normal noise.
+            vol_pct = None
+            try:
+                closes = [float(r[4]) for r in broker.get_klines(symbol, settings.signal_timeframe, 30)]
+                vol_pct = compute_volatility_pct(closes)
+            except Exception:
+                logger.warning("Volatility fetch failed for %s, using fixed stop", symbol, exc_info=True)
+            stop_pct = dynamic_stop_loss_pct(settings, vol_pct)
 
-        reason, sell_pct, kind = _decide_mechanical_exit(
-            settings, base, basis, price, peak, stop_pct=stop_pct, partial_taken=already_partial
-        )
-        if kind is None:
-            new_peaks[symbol] = peak  # still holding, remember the peak
-            if already_partial:
-                new_partials[symbol] = True
-            continue
+            reason, sell_pct, kind = _decide_mechanical_exit(
+                settings, base, basis, price, peak, stop_pct=stop_pct, partial_taken=already_partial
+            )
+            if kind is None:
+                new_peaks[symbol] = peak  # still holding, remember the peak
+                if already_partial:
+                    new_partials[symbol] = True
+                continue
 
         # Minimum holding period: a just-opened position may only be exited by
-        # the HARD stop-loss -- trailing / take-profit / partial are suppressed
-        # so the bot doesn't round-trip on the spread minutes after entering.
-        if kind != "stop" and _within_min_hold(db, symbol, settings, venue=venue):
+        # the HARD stop-loss (or a forced delisting close) -- trailing /
+        # take-profit / partial are suppressed so the bot doesn't round-trip on
+        # the spread minutes after entering.
+        if kind not in ("stop", "delisted") and _within_min_hold(db, symbol, settings, venue=venue):
             new_peaks[symbol] = peak
             if already_partial:
                 new_partials[symbol] = True
@@ -923,15 +949,18 @@ def run_cycle(
     `venue`/`whitelist`/`always_open` select the portfolio: the default Alpaca
     equities (day, US stocks/ETFs, market-hours gated) path is behaviour-
     identical; the crypto venue (same account, 24/7 book) passes
-    always_open=True and skips the account-wide day/week risk + SPY
-    benchmark, which stay equities-driven."""
+    always_open=True and skips the SPY buy-and-hold benchmark (equities-only
+    concept). The account-wide day/week/peak-drawdown risk halt DOES see both
+    engines: it's fed the combined account total (this venue's live figure +
+    the other venue's latest snapshot) from WHICHEVER venue's cycle just ran,
+    so a crypto-only drawdown trips the same account-wide halt an equities
+    drawdown would -- not just whichever venue happens to poll."""
     symbols = whitelist if whitelist is not None else settings.whitelist_symbols
     portfolio = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
+    account_total = account_total_value(db, portfolio, venue)
+    state = risk_manager.update_portfolio_value(db, settings, account_total)
     if venue == "alpaca":
-        state = risk_manager.update_portfolio_value(db, settings, portfolio["total_value_usdt"])
         scorecard.update_benchmark_baseline(db, settings, portfolio)
-    else:
-        state = risk_manager.get_state(db)
 
     if always_open:
         session_info = None
@@ -1106,10 +1135,13 @@ def run_cycle(
         sym: {"days_until_earnings": days} for sym, days in earnings_days.items()
     }
 
+    # state.day_start_value is now baselined on the COMBINED account total (see
+    # account_total_value above) -- compare against that same combined figure,
+    # not this venue's own total_value_usdt, or the two would be apples/oranges.
     day_loss_budget_left_pct = max(
         0.0,
         settings.daily_loss_limit_pct
-        - ((state.day_start_value - portfolio["total_value_usdt"]) / state.day_start_value * 100
+        - ((state.day_start_value - account_total) / state.day_start_value * 100
            if state.day_start_value > 0 else 0),
     )
     risk_context = {

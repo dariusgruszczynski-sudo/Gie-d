@@ -12,8 +12,9 @@ from app.config import Settings, get_settings
 from app.db import SessionLocal, get_db
 from app.models import Decision, PortfolioSnapshot, SystemState, Trade
 from app.serialization import serialize
-from app.services import budget_tracker, market_hours, risk_manager, scorecard
+from app.services import budget_tracker, market_hours, risk_manager, scorecard, shadow_analysis
 from app.services.alpaca_client import AlpacaClient
+from app.services.strategy_profiles import effective_settings
 from app.services.trading_engine import average_cost_basis
 
 logger = logging.getLogger(__name__)
@@ -44,19 +45,22 @@ def _serialize_session_info(settings: Settings) -> dict:
 @router.get("/status")
 def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     state = risk_manager.get_state(db)
-    latest_snapshot = db.execute(
-        select(PortfolioSnapshot).order_by(PortfolioSnapshot.timestamp.desc()).limit(1)
-    ).scalar_one_or_none()
+    # Day/week P&L must compare against the TRUE combined account (cash once +
+    # both engines' positions) -- NOT the single most-recently-written snapshot
+    # across either venue. Crypto polls far more often than equities, so that
+    # naive "latest snapshot" was almost always the crypto-only total, compared
+    # against a day_start_value baselined on the (much larger) equities total:
+    # a purely cosmetic scope mismatch that showed a large, entirely fake loss.
+    account = _account_view(db)
 
     day_pnl_pct = None
     week_pnl_pct = None
-    if latest_snapshot:
+    if account is not None:
+        current_total = account["total_value"]
         if state.day_start_value > 0:
-            day_pnl_pct = (latest_snapshot.total_value_usdt - state.day_start_value) / state.day_start_value * 100
+            day_pnl_pct = (current_total - state.day_start_value) / state.day_start_value * 100
         if state.week_start_value > 0:
-            week_pnl_pct = (
-                (latest_snapshot.total_value_usdt - state.week_start_value) / state.week_start_value * 100
-            )
+            week_pnl_pct = (current_total - state.week_start_value) / state.week_start_value * 100
 
     return {
         "mode": "testnet" if settings.alpaca_paper else "live",
@@ -69,6 +73,8 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "week_pnl_pct": week_pnl_pct,
         "daily_loss_limit_pct": settings.daily_loss_limit_pct,
         "weekly_loss_limit_pct": settings.weekly_loss_limit_pct,
+        "max_drawdown_halt_pct": settings.max_drawdown_halt_pct,
+        "peak_account_value": state.peak_account_value,
         "max_position_pct": settings.max_position_pct,
         "whitelist": settings.whitelist_symbols,
         "poll_interval_minutes": settings.poll_interval_minutes,
@@ -81,11 +87,61 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         # ONE Alpaca account shared by both engines (cash counted once). Lets the
         # dashboard show a single account total instead of two double-counted
         # per-engine "portfolio" values.
-        "account": _account_view(db),
+        "account": account,
         # Read-only share link enabled? (token itself never leaves the server.)
         "share_enabled": bool(settings.share_token),
+        # Exact per-engine tuning (Centrum Sterowania): every live knob, not
+        # just the headline daily/weekly limits above.
+        "profiles": {
+            "alpaca": _engine_profile_view(settings, "alpaca"),
+            "crypto": _engine_profile_view(settings, "crypto"),
+        },
         **_serialize_session_info(settings),
-        **budget_tracker.get_budget_status(db, settings),
+        **_net_result_view(db, settings),
+    }
+
+
+def _engine_profile_view(settings: Settings, venue: str) -> dict:
+    """Every live tuning knob for one venue, resolved through the SAME
+    effective_settings() the trading engine itself uses -- this is exactly
+    what the engine is running with right now, not a guess."""
+    s = effective_settings(settings, venue)
+    return {
+        "signal_timeframe": s.signal_timeframe,
+        "poll_interval_minutes": s.poll_interval_minutes,
+        "risk_per_trade_pct": s.risk_per_trade_pct,
+        "min_buy_confidence": s.min_buy_confidence,
+        "max_new_positions_per_day": s.max_new_positions_per_day,
+        "max_concurrent_positions": s.max_concurrent_positions,
+        "min_hold_minutes": s.min_hold_minutes,
+        "max_position_pct": s.max_position_pct,
+        "stop_loss_min_pct": s.stop_loss_min_pct,
+        "stop_loss_max_pct": s.stop_loss_max_pct,
+        "reward_risk_ratio": s.reward_risk_ratio,
+        "trailing_stop_frac": s.trailing_stop_frac,
+        "partial_take_profit_frac": s.partial_take_profit_frac,
+        "partial_take_profit_r": s.partial_take_profit_r,
+        "price_move_trigger_pct": s.price_move_trigger_pct,
+        "full_analysis_every_minutes": s.full_analysis_every_minutes,
+        "volatility_reference_pct": s.volatility_reference_pct,
+        "allocation_pct": s.crypto_allocation_pct if venue == "crypto" else s.alpaca_allocation_pct,
+    }
+
+
+def _net_result_view(db: Session, settings: Settings) -> dict:
+    """The honest bottom line: realized P&L across BOTH engines (one shared
+    account, since inception) minus what Claude has actually cost OVER THE SAME
+    LIFETIME -- not just this month's spend, which would understate the true
+    cost more and more as months pass (P&L is cumulative, so the cost side must
+    be too) -- so "are we ahead" answers with real money, not brutto P&L that
+    ignores the AI bill."""
+    budget = budget_tracker.get_budget_status(db, settings)
+    realized = scorecard.total_realized_pnl(db)
+    lifetime_spend = risk_manager.get_state(db).claude_spend_usd_lifetime
+    return {
+        "realized_pnl_usd": realized,
+        "net_result_usd": round(realized - lifetime_spend, 2),
+        **budget,
     }
 
 
@@ -237,6 +293,15 @@ async def events():
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.get("/claude-edge")
+def get_claude_edge(venue: str = "alpaca", db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """On-demand, read-only: would the mechanical filter alone have done as
+    well as Claude-directed trading? Recomputed from stored decision history,
+    never touches the live trading path. Cheap enough to run per request at
+    this account's current history size; not polled automatically."""
+    return shadow_analysis.compute_claude_edge(db, settings, venue=venue)
 
 
 @router.get("/trades")

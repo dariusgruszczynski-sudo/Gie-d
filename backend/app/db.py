@@ -94,6 +94,19 @@ def init_db() -> None:
     _add_column_if_missing("system_state", "crypto_paused", "BOOLEAN", "1")
     _add_column_if_missing("system_state", "market_regime_json", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "crypto_market_regime_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "peak_account_value", "FLOAT", "0.0")
+    _add_column_if_missing("system_state", "claude_spend_usd_lifetime", "FLOAT", "0.0")
+    # One-time backfill for deployments upgrading from before the lifetime
+    # counter existed: seed it from this month's already-tracked spend instead
+    # of a misleadingly-clean 0 (still misses months before this one, but
+    # closer than nothing). Idempotent -- a no-op once real usage has grown it.
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE system_state SET claude_spend_usd_lifetime = claude_spend_usd_this_month "
+                "WHERE claude_spend_usd_lifetime = 0 AND claude_spend_usd_this_month > 0"
+            )
+        )
     # Dead columns from the pre-generic-whitelist schema (superseded by
     # balances_json/prices_json/last_check_prices_json) -- NOT NULL with no
     # DB-level default, so they broke every insert once the ORM stopped

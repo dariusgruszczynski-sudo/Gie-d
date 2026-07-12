@@ -489,6 +489,31 @@ def test_stop_loss_auto_sells_when_price_drops(db_session, settings):
     assert "Stop-loss" in exits[0].decision.reasoning
 
 
+def test_delisted_symbol_force_closed_even_at_a_loss(db_session, settings):
+    """A symbol removed from the whitelist after being bought must not be
+    orphaned -- the position is force-closed in full, even at a loss and even
+    within the min-hold window, rather than silently dropping out of every
+    future exit check."""
+    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0, "TSLA": 250.0}, balances={"USD": 1000.0})
+    full = settings.model_copy(update={"trading_whitelist": "SPY,QQQ,TSLA"})
+    trading_engine.execute_manual_trade(db_session, full, broker, symbol="TSLA", side="BUY", usdt_amount=100.0)
+    broker.prices["TSLA"] = 245.0  # down slightly -- inside normal stop/trailing thresholds
+
+    # TSLA removed from the whitelist going forward.
+    trimmed = settings.model_copy(update={"trading_whitelist": "SPY,QQQ"})
+    portfolio = trading_engine.compute_portfolio(db_session, trimmed, broker)
+    assert "TSLA" in portfolio["prices"]  # still valued even though off-whitelist
+
+    exits = trading_engine.check_take_profit_stop_loss(
+        db_session, trimmed, broker, portfolio, whitelist=trimmed.whitelist_symbols
+    )
+
+    assert len(exits) == 1
+    assert exits[0].symbol == "TSLA"
+    assert exits[0].side == "SELL"
+    assert "usunięty z listy" in exits[0].decision.reasoning
+
+
 def test_no_exit_within_thresholds(db_session, settings):
     broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
     trading_engine.execute_manual_trade(db_session, settings, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
@@ -1254,6 +1279,55 @@ def test_venue_allocation_room_caps_engine_to_its_share(db_session, settings):
     # account = 100 + 80 + 50 = 230; target = 115; room = min(100, 115-80) = 35.
     room2 = trading_engine.venue_allocation_room(db_session, s, crypto_full, "crypto")
     assert room2 == pytest.approx(35.0)
+
+
+def test_account_total_value_combines_both_venues(db_session, settings):
+    from app.models import PortfolioSnapshot
+
+    db_session.add(PortfolioSnapshot(total_value_usdt=150.0, usdt_balance=100.0, venue="alpaca"))
+    db_session.commit()
+
+    crypto_portfolio = {"usdt_balance": 100.0, "total_value_usdt": 180.0}
+    # cash 100 + crypto positions 80 + equity positions 50 = 230.
+    assert trading_engine.account_total_value(db_session, crypto_portfolio, "crypto") == pytest.approx(230.0)
+
+
+def test_account_total_value_ignores_missing_other_venue(db_session, settings):
+    crypto_portfolio = {"usdt_balance": 100.0, "total_value_usdt": 180.0}
+    # No alpaca snapshot exists yet -> falls back to just this venue's total.
+    assert trading_engine.account_total_value(db_session, crypto_portfolio, "crypto") == pytest.approx(180.0)
+
+
+def test_crypto_only_drawdown_trips_account_wide_halt(db_session, settings):
+    """The max-drawdown/day-loss halt must see the WHOLE account, not just
+    whichever venue happens to poll -- a severe crypto-only drawdown has to
+    trip the same account-wide halt an equities drawdown would, since is_halted
+    blocks BOTH engines."""
+    from app.services import risk_manager
+
+    lenient = settings.model_copy(update={
+        "crypto_enabled": True, "crypto_whitelist": "BTCUSD",
+        "daily_loss_limit_pct": 10.0, "weekly_loss_limit_pct": 90.0, "max_drawdown_halt_pct": 90.0,
+    })
+
+    # Equities side: healthy, $500 total, unchanged all day.
+    equities_broker = FakeAlpaca(prices={"SPY": 100.0}, balances={"USD": 500.0})
+    trading_engine.run_cycle(
+        db_session, lenient.model_copy(update={"trading_whitelist": "SPY"}), equities_broker,
+        FakeNews(), FakeAdvisor(TradingDecision("HOLD", None, 0, 0.5, "hold")), force=True,
+    )
+    assert risk_manager.get_state(db_session).is_halted is False
+
+    # Crypto side crashes hard (-40%) on its own -- must trip the account-wide
+    # halt even though the equities side never moved.
+    crypto_broker = FakeAlpaca(prices={"BTCUSD": 30000.0}, balances={"USD": 300.0})
+    trading_engine.run_cycle(
+        db_session, lenient, crypto_broker, FakeNews(),
+        FakeAdvisor(TradingDecision("HOLD", None, 0, 0.5, "hold")),
+        force=True, venue="crypto", whitelist=["BTCUSD"], always_open=True,
+    )
+
+    assert risk_manager.get_state(db_session).is_halted is True
 
 
 def test_budget_hard_stop_skips_cycle_without_calling_claude(db_session, settings):

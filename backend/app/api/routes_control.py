@@ -12,7 +12,7 @@ from app.serialization import serialize
 from app.services import risk_manager
 from app.services.alpaca_client import AlpacaAPIError, AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
-from app.services.email_reporter import send_daily_report
+from app.services import push_notifier
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.strategy_profiles import effective_settings
@@ -142,18 +142,22 @@ def refresh_portfolio(venue: str = "alpaca", db: Session = Depends(get_db), sett
 
 @router.post("/send-report-now")
 def send_report_now(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
-    """Sends the daily email report immediately -- useful for testing SMTP
-    config without waiting for the scheduled hour."""
-    if not settings.smtp_username or not settings.smtp_password:
+    """Wysyła podsumowanie stanu konta jako powiadomienie push NATYCHMIAST --
+    ten sam baner, który leci automatycznie raz dziennie o report_hour.
+    Zastępuje mailowy raport dzienny (mail nadal działa dla pojedynczych
+    transakcji, jeśli SMTP jest skonfigurowane -- patrz send_trade_alert)."""
+    if not push_notifier.push_configured(settings):
         raise HTTPException(
             status_code=400,
-            detail="SMTP nie jest skonfigurowane (SMTP_USERNAME/SMTP_PASSWORD puste w .env)",
+            detail="Push nie jest skonfigurowany (brak kluczy VAPID w .env) -- zobacz Centrum sterowania.",
         )
     try:
-        send_daily_report(db, settings)
+        sent = push_notifier.send_daily_summary_push(db, settings)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
-    return {"message": f"Raport wysłany na {settings.report_recipient_email}"}
+    if not sent:
+        raise HTTPException(status_code=404, detail="Brak zapisanych urządzeń albo brak jeszcze danych o koncie.")
+    return {"message": "Podsumowanie wysłane na zapisane urządzenia."}
 
 
 def _exit_after_response() -> None:

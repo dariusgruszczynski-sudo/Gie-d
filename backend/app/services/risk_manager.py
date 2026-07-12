@@ -91,6 +91,17 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
         else 0
     )
 
+    # All-time peak (not the rolling day/week baseline) -- catches a slow,
+    # multi-day bleed that never breaches the daily/weekly limit on any single
+    # day but adds up to a real capital hole.
+    if state.peak_account_value <= 0 or total_value_usdt > state.peak_account_value:
+        state.peak_account_value = total_value_usdt
+    drawdown_pct = (
+        (state.peak_account_value - total_value_usdt) / state.peak_account_value * 100
+        if state.peak_account_value > 0
+        else 0
+    )
+
     if not state.is_halted:
         if day_loss_pct >= settings.daily_loss_limit_pct:
             state.is_halted = True
@@ -106,6 +117,13 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
                 f"(limit {settings.weekly_loss_limit_pct}%)"
             )
             _log_event(db, "weekly_stop_triggered", state.halted_reason)
+        elif settings.max_drawdown_halt_pct > 0 and drawdown_pct >= settings.max_drawdown_halt_pct:
+            state.is_halted = True
+            state.halted_reason = (
+                f"Spadek od szczytu konta przekroczony: -{drawdown_pct:.1f}% "
+                f"(limit {settings.max_drawdown_halt_pct}%, szczyt ${state.peak_account_value:,.2f})"
+            )
+            _log_event(db, "drawdown_stop_triggered", state.halted_reason)
 
     db.commit()
     db.refresh(state)
@@ -191,6 +209,10 @@ def resume(db: Session, venue: str = "alpaca") -> SystemState:
         state.halted_reason = None
         state.day_start_date = ""
         state.week_start_date = ""
+        # Re-baseline the all-time peak too, on the SAME logic as day/week --
+        # otherwise a drawdown halt tripped by a real loss would instantly
+        # re-trip on the very next cycle since the old (pre-loss) peak stands.
+        state.peak_account_value = 0.0
     db.commit()
     _log_event(db, "manual_resume", f"Automat ({venue}) wznowiony ręcznie z dashboardu")
     db.refresh(state)

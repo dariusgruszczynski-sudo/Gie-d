@@ -14,4 +14,7 @@ export interface PageData {
   refresh: () => void;
   muted: boolean;
   toggleMuted: () => void;
+  // Shows the loading splash, then does a REAL page reload -- picks up any
+  // frontend update immediately instead of just replaying an animation.
+  shutdown: () => void;
 }

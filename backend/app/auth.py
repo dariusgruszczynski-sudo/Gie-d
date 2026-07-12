@@ -34,6 +34,7 @@ _SHARE_READONLY_PREFIXES = (
     "/api/trades",
     "/api/decisions",
     "/api/events",
+    "/api/claude-edge",
 )
 
 

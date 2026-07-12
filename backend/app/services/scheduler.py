@@ -7,9 +7,9 @@ from app.config import get_settings
 from app.db import SessionLocal
 from app.services.alpaca_client import AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
-from app.services.email_reporter import send_daily_report
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
+from app.services.push_notifier import send_daily_summary_push
 from app.services.strategy_profiles import effective_settings
 from app.services.trading_engine import compute_portfolio, run_cycle
 
@@ -64,12 +64,21 @@ def _crypto_job() -> None:
 
 
 def _report_job() -> None:
+    """Codzienne podsumowanie stanu konta jako powiadomienie PUSH (nie mail) --
+    ten sam baner dostępny na żądanie w Centrum sterowania. Best-effort, ale
+    LOGUJE gdy nic nie poszło (brak kluczy VAPID, brak zapisanych urządzeń) --
+    w przeciwieństwie do maila to jest cichy kanał, więc bez logu nikt by się
+    nie dowiedział, że codzienne podsumowanie w ogóle przestało przychodzić."""
     settings = get_settings()
     db = SessionLocal()
     try:
-        send_daily_report(db, settings)
+        sent = send_daily_summary_push(db, settings)
+        if not sent:
+            logger.info(
+                "Daily summary push not sent (push not configured, or no subscribed device yet)"
+            )
     except Exception:
-        logger.exception("Daily report email failed")
+        logger.exception("Daily summary push failed")
     finally:
         db.close()
 

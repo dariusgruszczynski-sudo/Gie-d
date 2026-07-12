@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, StatusResponse } from "../api/client";
 
-type IconName = "pause" | "play" | "bolt" | "mail" | "restart" | "logout" | "refresh" | "sound" | "muted";
+type IconName = "pause" | "play" | "bolt" | "bell" | "restart" | "logout" | "refresh" | "sound" | "muted" | "power";
 
 function Icon({ name }: { name: IconName }) {
   switch (name) {
@@ -24,11 +24,29 @@ function Icon({ name }: { name: IconName }) {
           <path d="M13 2 L4 14 H11 L9 22 L20 8 H13 Z" fill="currentColor" />
         </svg>
       );
-    case "mail":
+    case "power":
       return (
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" />
-          <path d="M4 6 L12 13 L20 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M12 3v8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <path
+            d="M6.5 6.5a8 8 0 1 0 11 0"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    case "bell":
+      return (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M6 9a6 6 0 1 1 12 0c0 4 1.5 5.5 2 6H4c.5-.5 2-2 2-6Z"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinejoin="round"
+          />
+          <path d="M10 19a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
         </svg>
       );
     case "restart":
@@ -89,11 +107,13 @@ export function ControlToolbar({
   onChanged,
   muted,
   onToggleMuted,
+  onShutdown,
 }: {
   status: StatusResponse;
   onChanged: () => void;
   muted: boolean;
   onToggleMuted: () => void;
+  onShutdown?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ text: string; kind: "ok" | "error" } | null>(null);
@@ -140,8 +160,8 @@ export function ControlToolbar({
           <span className="toolbar-section-label">Globalne</span>
           <div className="toolbar-row">
             <button className="btn-secondary" disabled={busy} onClick={() => run(api.sendReportNow, false)}>
-              <Icon name="mail" />
-              Wyślij raport
+              <Icon name="bell" />
+              Wyślij podsumowanie
             </button>
           </div>
         </div>
@@ -163,6 +183,16 @@ export function ControlToolbar({
               <Icon name="restart" />
               Restart
             </button>
+            {onShutdown && (
+              <button
+                className="btn-ghost"
+                onClick={onShutdown}
+                title="Tylko widok: pokazuje ekran ładowania i przeładowuje apkę od zera (pobiera najnowszą wersję). Handel automatyczny NIE zatrzymuje się — to nie jest STOP."
+              >
+                <Icon name="power" />
+                Wyłącz (odśwież widok)
+              </button>
+            )}
           </div>
         </div>
       </div>

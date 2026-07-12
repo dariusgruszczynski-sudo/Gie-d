@@ -69,6 +69,13 @@ def update_benchmark_baseline(db: Session, settings: Settings, portfolio: dict) 
     return state
 
 
+def total_realized_pnl(db: Session) -> float:
+    """Realized P&L across BOTH engines (one shared account, one bottom line)
+    -- used for the account-wide "net result after Claude cost" figure."""
+    realized, _wins, _losses = _walk_realized(db)
+    return round(realized, 2)
+
+
 def compute_scorecard(db: Session, settings: Settings, portfolio: dict) -> dict:
     """Portfolio vs benchmark buy-and-hold, plus realized P&L and win rate.
     All fields degrade to None when there isn't a baseline / price yet, so the
