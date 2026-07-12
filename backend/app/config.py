@@ -324,6 +324,17 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./data/trading.db"
 
+    # --- Powiadomienia PUSH (telefon / Apple Watch przez PWA) ----------------
+    # Web Push wymaga pary kluczy VAPID (wygeneruj raz: docker compose exec -T
+    # app python scripts/gen_vapid.py, wklej do .env). Puste = push wyłączony (apka działa
+    # normalnie, tylko bez powiadomień). vapid_subject to kontakt "mailto:" lub
+    # URL wymagany przez spec Web Push. Powiadomienie leci przy KAŻDEJ realnej
+    # transakcji (kupno/sprzedaż): co, ile, po ile, stan konta.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = "mailto:darius.gruszczynski@gmail.com"
+    push_enabled: bool = True
+
     # Empty = no login required (backward-compatible default for existing
     # deployments). Format: "user1:pass1,user2:pass2".
     dashboard_users: str = ""

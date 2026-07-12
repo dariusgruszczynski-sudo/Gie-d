@@ -1,24 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, Decision, PortfolioResponse, StatusResponse, Trade } from "./api/client";
-import { AccountBar } from "./components/AccountBar";
 import { BrandLogo } from "./components/BrandLogo";
-import { ControlToolbar } from "./components/ControlToolbar";
 import { DecisionSplash } from "./components/DecisionSplash";
-import { DecisionsLog } from "./components/DecisionsLog";
 import { EmberBackground } from "./components/EmberBackground";
-import { InvestmentThesis } from "./components/InvestmentThesis";
-import { ManualTradePanel } from "./components/ManualTradePanel";
-import { MarketStrip } from "./components/MarketStrip";
-import { PortfolioChart } from "./components/PortfolioChart";
-import { PositionsBoard } from "./components/PositionsBoard";
-import { PriceTicker } from "./components/PriceTicker";
-import { RegimeBadge } from "./components/RegimeBadge";
-import { StatusBanner } from "./components/StatusBanner";
-import { TradesTable } from "./components/TradesTable";
-import { VenueControls } from "./components/VenueControls";
+import { TabNav } from "./components/TabNav";
+import { ControlPage } from "./pages/ControlPage";
+import { EnginePage } from "./pages/EnginePage";
+import { OverviewPage } from "./pages/OverviewPage";
+import { PageData, TabKey } from "./pages/types";
 import { isSoundMuted, playTradeSound, setSoundMuted } from "./tradeSound";
 
 const REFRESH_MS = 15000;
+const TAB_KEY = "gield.tab";
+
+function readInitialTab(): TabKey {
+  const fromHash = window.location.hash.replace("#", "");
+  const valid: TabKey[] = ["overview", "us", "crypto", "control"];
+  if (valid.includes(fromHash as TabKey)) return fromHash as TabKey;
+  const stored = localStorage.getItem(TAB_KEY);
+  return valid.includes(stored as TabKey) ? (stored as TabKey) : "overview";
+}
 
 export default function App() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
@@ -30,6 +31,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [splashDecision, setSplashDecision] = useState<Decision | null>(null);
   const [muted, setMuted] = useState<boolean>(isSoundMuted);
+  const [tab, setTab] = useState<TabKey>(readInitialTab);
   const seenDecisionIds = useRef<Set<number> | null>(null);
   const seenTradeIds = useRef<Set<number> | null>(null);
 
@@ -39,6 +41,13 @@ export default function App() {
       setSoundMuted(next);
       return next;
     });
+  }, []);
+
+  const changeTab = useCallback((t: TabKey) => {
+    setTab(t);
+    localStorage.setItem(TAB_KEY, t);
+    window.location.hash = t;
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
   const refresh = useCallback(async () => {
@@ -108,122 +117,64 @@ export default function App() {
     return () => es.close();
   }, [refresh]);
 
+  const data: PageData | null = status
+    ? {
+        status,
+        portfolio,
+        cryptoPortfolio,
+        trades,
+        cryptoTrades,
+        decisions,
+        refresh,
+        muted,
+        toggleMuted,
+      }
+    : null;
+
   return (
     <>
       {splashDecision && <DecisionSplash decision={splashDecision} onDismiss={() => setSplashDecision(null)} />}
       <EmberBackground />
-      {status && (
-        <div className="tickers-stack">
-          {/* ONE Alpaca account (cash counted once), then the two engines that
-              trade it -- not two separate portfolios. */}
-          <AccountBar account={status.account} dayPnlPct={status.day_pnl_pct} />
-          <div className="ticker-labeled">
-            <span className="ticker-venue-label">
-              <span className="venue-dot venue-dot-alpaca" /> Silnik · Akcje US (sesja dzienna)
-              {status.market_regime && <RegimeBadge regime={status.market_regime} prefix="Rynek" />}
-            </span>
-            <div className="ticker">
-              <PriceTicker history={portfolio?.history ?? []} whitelist={status.whitelist} />
-            </div>
-          </div>
-          <div className="ticker-labeled">
-            <span className="ticker-venue-label">
-              <span className="venue-dot venue-dot-crypto" /> Silnik · Krypto (24/7)
-              {status.crypto_enabled && status.crypto_market_regime && (
-                <RegimeBadge regime={status.crypto_market_regime} prefix="Krypto" />
-              )}
-              {!status.crypto_enabled && <span className="venue-off-tag">wyłączony</span>}
-            </span>
-            <div className="ticker">
-              <PriceTicker history={cryptoPortfolio?.history ?? []} whitelist={status.crypto_whitelist} />
-            </div>
-          </div>
-        </div>
-      )}
+
       <div className="app">
         <div className="app-header">
           <BrandLogo size={48} />
           <div>
-            <h1>Giel<span className="brand-accent">Darek</span></h1>
+            <h1>
+              Giel<span className="brand-accent">Darek</span>
+            </h1>
             <p className="subtitle">
-              Dwa mózgi Claude (Sonnet→Opus): akcje USA średnio agresywnie · krypto 24/7 agresywnie ·
-              wykonanie Alpaca · narzędzie prywatne, nie jest to porada inwestycyjna.
+              Dwa mózgi Claude (Sonnet→Opus): akcje USA średnio agresywnie · krypto 24/7 agresywnie · wykonanie Alpaca ·
+              narzędzie prywatne, nie jest to porada inwestycyjna.
             </p>
           </div>
         </div>
 
+        {status && <TabNav active={tab} onChange={changeTab} cryptoEnabled={status.crypto_enabled} />}
+
         {error && <p className="error-text">Błąd komunikacji z API: {error}</p>}
 
-        {status && <StatusBanner status={status} />}
+        {!status && <StatusPlaceholder />}
 
-        {/* ===== Pozycje: co, w której nodze, ile, za ile, ile zysku ===== */}
-        {status && <PositionsBoard alpaca={portfolio} crypto={cryptoPortfolio} />}
-
-        {/* ===== Panele kontrolne (per portfel) ===== */}
-        {status && (
-          <div className="grid">
-            <VenueControls
-              venue="alpaca"
-              label="Silnik — Akcje US"
-              paused={status.is_paused}
-              halted={status.is_halted}
-              enabled
-              onChanged={refresh}
-            />
-            <VenueControls
-              venue="crypto"
-              label="Silnik — Krypto 24/7"
-              paused={status.crypto_paused}
-              enabled={status.crypto_enabled}
-              onChanged={refresh}
-            />
+        {data && (
+          <div className="tab-page">
+            {tab === "overview" && <OverviewPage data={data} />}
+            {tab === "us" && <EnginePage data={data} venue="alpaca" />}
+            {tab === "crypto" && <EnginePage data={data} venue="crypto" />}
+            {tab === "control" && <ControlPage data={data} />}
           </div>
         )}
-
-        {status && <ControlToolbar status={status} onChanged={refresh} muted={muted} onToggleMuted={toggleMuted} />}
-
-        {status && (
-          <MarketStrip
-            session={status.market_session}
-            bounds={status.session_bounds}
-            lastCycleAt={portfolio?.current?.timestamp ?? null}
-            pollIntervalMinutes={status.poll_interval_minutes}
-            scorecard={portfolio?.scorecard ?? null}
-            regime={status.market_regime}
-          />
-        )}
-
-        {status && (
-          <div className="grid">
-            <ManualTradePanel whitelist={status.whitelist} onChanged={refresh} venue="alpaca" title="Ręczna transakcja — Silnik Akcje US" />
-            {status.crypto_enabled ? (
-              <ManualTradePanel whitelist={status.crypto_whitelist} onChanged={refresh} venue="crypto" title="Ręczna transakcja — Silnik Krypto" />
-            ) : (
-              <div className="panel">
-                <h2>Ręczna transakcja — Krypto</h2>
-                <p className="subtitle venue-off-note">Portfel krypto wyłączony — włącz go (CRYPTO_ENABLED) i zasil konto, żeby handlować 24/7.</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ===== W co inwestuję (oba silniki, jedna lista) ===== */}
-        {status && <InvestmentThesis whitelist={[...status.whitelist, ...status.crypto_whitelist]} />}
-
-        {/* ===== Wykres wartości CAŁEGO konta (jedno konto, nie dwa) ===== */}
-        <PortfolioChart history={portfolio?.history ?? []} current={portfolio?.current ?? null} scorecard={portfolio?.scorecard ?? null} />
-
-        {/* ===== Historia transakcji per silnik ===== */}
-        <div className="grid">
-          <TradesTable trades={trades} title="Transakcje — Silnik Akcje US" />
-          <TradesTable trades={cryptoTrades} title="Transakcje — Silnik Krypto" />
-        </div>
-
-        {/* ===== Log decyzji Claude — na samym dole (oba silniki) ===== */}
-        <div style={{ marginBottom: 16 }}>
-          <DecisionsLog decisions={decisions} />
-        </div>
       </div>
     </>
+  );
+}
+
+function StatusPlaceholder() {
+  return (
+    <div className="panel" style={{ marginTop: 16 }}>
+      <p className="subtitle" style={{ margin: 0 }}>
+        Łączenie z automatem — oczekiwanie na dane…
+      </p>
+    </div>
   );
 }

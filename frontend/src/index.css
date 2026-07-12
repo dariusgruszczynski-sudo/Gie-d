@@ -1961,3 +1961,169 @@ button {
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--red) 40%, transparent); }
   50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--red) 0%, transparent); }
 }
+
+/* ============================================================
+   Nawigacja zakładek (multi-page dashboard)
+   ============================================================ */
+.tabnav {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  gap: 4px;
+  padding: 8px 4px;
+  margin: 4px 0 20px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabnav::-webkit-scrollbar { display: none; }
+.tabnav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.tabnav-btn:hover {
+  color: var(--text);
+  background: var(--panel);
+}
+.tabnav-btn-active {
+  color: var(--text);
+  background: var(--panel-2);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: inset 0 -2px 0 0 var(--accent);
+}
+.tabnav-label-short { display: none; }
+.tabnav-off {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+@media (max-width: 620px) {
+  .tabnav-label-full { display: none; }
+  .tabnav-label-short { display: inline; }
+  .tabnav-btn { padding: 10px 12px; }
+}
+
+.tab-page > * { margin-bottom: 16px; }
+.tab-page > *:last-child { margin-bottom: 0; }
+.engine-ticker { margin-bottom: 16px; }
+
+/* ============================================================
+   Centrum sterowania — profile silników + budżet
+   ============================================================ */
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+@media (max-width: 640px) {
+  .profile-grid { grid-template-columns: 1fr; }
+}
+.profile-col-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.profile-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px dashed color-mix(in srgb, var(--border) 60%, transparent);
+}
+.profile-row:last-child { border-bottom: none; }
+.profile-row span { color: var(--muted); font-size: 0.88rem; }
+.profile-row b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+.budget-panel-body {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.budget-panel-figs { flex: 1; }
+
+/* ============================================================
+   Powiadomienia push
+   ============================================================ */
+.notif-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.notif-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+.notif-state {
+  margin-left: auto;
+  align-self: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.notif-state-on {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 45%, var(--border));
+  background: color-mix(in srgb, var(--green) 12%, transparent);
+}
+.notif-state-denied, .notif-state-unsupported { color: var(--red); border-color: color-mix(in srgb, var(--red) 40%, var(--border)); }
+.notif-note { margin: 12px 0 0; }
+.notif-code {
+  display: block;
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  color: var(--accent-2);
+  overflow-x: auto;
+}
+.notif-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.notif-fineprint {
+  margin: 14px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models import Decision, PortfolioSnapshot, Trade, TradeAction, TradeMode, TriggerType
-from app.services import budget_tracker, earnings_calendar, email_reporter, market_hours, risk_manager, scorecard, signals
+from app.services import budget_tracker, earnings_calendar, email_reporter, market_hours, push_notifier, risk_manager, scorecard, signals
 from app.services.alpaca_client import AlpacaAPIError, AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.market_context import MarketContextClient
@@ -1447,6 +1447,7 @@ def _execute_trade(
     db.refresh(trade)
     logger.info("Executed %s %s qty=%s price=%s", result.side, result.symbol, result.quantity, result.price)
     email_reporter.send_trade_alert(settings, trade, reason=decision.reasoning if decision else "")
+    push_notifier.send_trade_push(db, settings, trade, account_total=portfolio.get("total_value_usdt"))
     return trade
 
 
@@ -1512,4 +1513,5 @@ def execute_manual_trade(
     db.commit()
     db.refresh(trade)
     email_reporter.send_trade_alert(settings, trade, reason=decision.reasoning)
+    push_notifier.send_trade_push(db, settings, trade)
     return trade

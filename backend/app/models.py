@@ -103,6 +103,24 @@ class RiskEvent(Base):
     details: Mapped[str] = mapped_column(Text, default="")
 
 
+class PushSubscription(Base):
+    """A browser/PWA Web Push endpoint the user opted into. One row per device
+    that pressed "Włącz powiadomienia" -- phone, watch-mirroring iPhone, laptop.
+    Keyed by the endpoint URL (unique per device+browser) so re-subscribing the
+    same device updates in place instead of duplicating. Push is best-effort:
+    a 404/410 from the push service means the sub is dead and gets pruned."""
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    endpoint: Mapped[str] = mapped_column(Text, unique=True)
+    p256dh: Mapped[str] = mapped_column(Text)
+    auth: Mapped[str] = mapped_column(Text)
+    # Free-text label so the user can tell devices apart in the UI later.
+    user_agent: Mapped[str] = mapped_column(String(255), default="")
+
+
 class SystemState(Base):
     """Singleton row (id=1) holding global mutable trading state."""
 

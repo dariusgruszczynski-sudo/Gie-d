@@ -122,6 +122,8 @@ export interface Decision {
   triggered_by: string;
   executed: boolean;
   rejection_reason: string | null;
+  // "alpaca" (US equities) or "crypto" -- which engine made the call.
+  venue?: string;
   // JSON-encoded snapshots of what Claude saw for this decision -- parse with
   // JSON.parse for per-symbol technical indicators / market sentiment.
   market_data_snapshot: string;
@@ -168,4 +170,10 @@ export const api = {
     quantity?: number;
     venue?: "alpaca" | "crypto";
   }) => apiFetch<Trade>("/api/control/manual-trade", { method: "POST", body: JSON.stringify(body) }),
+  pushConfig: () => apiFetch<{ enabled: boolean; vapid_public_key: string }>("/api/push/config"),
+  pushSubscribe: (sub: PushSubscriptionJSON) =>
+    apiFetch<{ message: string }>("/api/push/subscribe", { method: "POST", body: JSON.stringify(sub) }),
+  pushUnsubscribe: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+    apiFetch<{ message: string }>("/api/push/unsubscribe", { method: "POST", body: JSON.stringify(sub) }),
+  pushTest: () => apiFetch<{ message: string }>("/api/push/test", { method: "POST" }),
 };
