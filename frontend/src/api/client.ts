@@ -144,7 +144,11 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   status: () => apiFetch<StatusResponse>("/api/status"),
-  portfolio: (venue: string = "alpaca") => apiFetch<PortfolioResponse>(`/api/portfolio?limit=2000&venue=${venue}`),
+  // 600 per-cycle snapshots (~kilka dni handlu) to plenty for the chart while
+  // keeping every 15s/SSE refresh light -- 2000 uncompressed rows on each poll
+  // was a big chunk of the "apka działa wolno". P&L "od początku" stays correct
+  // regardless: the backend anchors it on the inception snapshot, not this window.
+  portfolio: (venue: string = "alpaca") => apiFetch<PortfolioResponse>(`/api/portfolio?limit=600&venue=${venue}`),
   trades: (venue?: string) => apiFetch<Trade[]>(venue ? `/api/trades?venue=${venue}` : "/api/trades"),
   decisions: (venue?: string) => apiFetch<Decision[]>(venue ? `/api/decisions?venue=${venue}` : "/api/decisions"),
   logout: () => apiFetch<{ message: string }>("/api/auth/logout", { method: "POST" }),

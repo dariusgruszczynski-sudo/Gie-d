@@ -98,9 +98,25 @@ def compute_portfolio(db: Session, settings: Settings, broker, *, venue: str = "
     whole cycle -- otherwise one bad symbol silently kills every scheduled
     cycle and manual "run now" indefinitely. `venue`/`whitelist` select which
     broker/portfolio this snapshot is for (defaults preserve the Alpaca path)."""
-    symbols = whitelist if whitelist is not None else settings.whitelist_symbols
+    symbols = list(whitelist if whitelist is not None else settings.whitelist_symbols)
     balances = broker.get_account_balances()
     usdt_balance = balances.get(settings.quote_currency, 0.0)
+
+    # Value + surface EVERYTHING the account actually holds for this venue, even
+    # if a position isn't on the trading whitelist -- otherwise a held ticker
+    # outside the list silently vanishes from the dashboard AND is left out of
+    # the account total, understating what you really have. We still only ever
+    # TRADE the whitelist; this is display/valuation only. Both engines share
+    # one Alpaca positions list, so split by venue: crypto positions are the
+    # ones on the crypto whitelist, everything else belongs to the equities lot.
+    crypto_syms = set(settings.crypto_whitelist_symbols)
+    for held, qty in balances.items():
+        if held == settings.quote_currency or qty <= 0:
+            continue
+        held_is_crypto = held in crypto_syms
+        belongs = held_is_crypto if venue == "crypto" else not held_is_crypto
+        if belongs and held not in symbols:
+            symbols.append(held)
 
     prices: dict[str, float] = {}
     coin_balances: dict[str, float] = {}
@@ -115,7 +131,11 @@ def compute_portfolio(db: Session, settings: Settings, broker, *, venue: str = "
             failed_symbols.append(symbol)
             continue
         base = _base_asset(symbol, settings.quote_currency)
-        qty = balances.get(base, 0.0)
+        # Crypto positions come back from Alpaca keyed by the FULL symbol
+        # ("BTCUSD"), equities by the plain ticker (== base). Try the full
+        # symbol first so a held crypto qty isn't silently read as 0 (which
+        # would hide the position and zero out its value on the dashboard).
+        qty = balances.get(symbol, balances.get(base, 0.0))
         prices[symbol] = price
         coin_balances[base] = qty
         total_value += qty * price

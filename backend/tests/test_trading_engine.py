@@ -323,6 +323,45 @@ def test_compute_portfolio_records_failed_symbols(db_session, settings):
     assert json.loads(snapshot.failed_symbols_json) == ["NVDA"]
 
 
+def test_compute_portfolio_records_held_crypto_qty(db_session, settings):
+    """Alpaca keys a held crypto position by the FULL symbol ("BTCUSD"), not the
+    base ("BTC"). compute_portfolio must find that qty so the coin isn't recorded
+    as 0 (which would hide it and zero its value on the dashboard)."""
+    from app.models import PortfolioSnapshot
+
+    crypto_settings = settings.model_copy(update={"crypto_whitelist": "BTCUSD,ETHUSD"})
+    broker = FakeAlpaca(
+        prices={"BTCUSD": 50000.0, "ETHUSD": 3000.0},
+        balances={"USD": 500.0, "BTCUSD": 0.01, "ETHUSD": 0.0},
+    )
+
+    portfolio = trading_engine.compute_portfolio(
+        db_session, crypto_settings, broker, venue="crypto", whitelist=["BTCUSD", "ETHUSD"]
+    )
+
+    # 0.01 BTC @ 50k = 500 of position value on top of 500 cash.
+    assert portfolio["balances"]["BTC"] == 0.01
+    assert portfolio["total_value_usdt"] == 1000.0
+    snapshot = db_session.query(PortfolioSnapshot).order_by(PortfolioSnapshot.id.desc()).first()
+    assert json.loads(snapshot.balances_json)["BTC"] == 0.01
+
+
+def test_compute_portfolio_values_held_position_off_whitelist(db_session, settings):
+    """A held ticker that isn't on the trading whitelist must still be valued and
+    surfaced -- otherwise it vanishes from the dashboard and the account total is
+    understated. It's display/valuation only; trading stays whitelist-gated."""
+    two_ticker = settings.model_copy(update={"trading_whitelist": "SPY,QQQ"})
+    broker = FakeAlpaca(
+        prices={"SPY": 500.0, "QQQ": 400.0, "TSLA": 250.0},
+        balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0, "TSLA": 2.0},  # holds TSLA, not whitelisted
+    )
+
+    portfolio = trading_engine.compute_portfolio(db_session, two_ticker, broker)
+
+    assert portfolio["balances"]["TSLA"] == 2.0
+    assert portfolio["total_value_usdt"] == 1000.0 + 2.0 * 250.0
+
+
 def test_whitelist_rejects_symbol_not_in_four_ticker_list(db_session, settings):
     four_ticker_settings = settings.model_copy(update={"trading_whitelist": "SPY,QQQ,AAPL,NVDA"})
     broker = FakeAlpaca(
