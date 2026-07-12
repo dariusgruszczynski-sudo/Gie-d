@@ -16,6 +16,11 @@ export function RegimeBadge({ regime, prefix = "Rynek" }: { regime: MarketRegime
     <span className={`regime-badge ${meta.className}`} title={title}>
       <span className="regime-badge-icon">{meta.icon}</span>
       {prefix}: {meta.label}
+      {regime.aggression_label && (
+        <span className="regime-aggression" title="Agresja dobrana automatycznie przez silnik do reżimu rynku">
+          · agresja {regime.aggression_label}
+        </span>
+      )}
     </span>
   );
 }

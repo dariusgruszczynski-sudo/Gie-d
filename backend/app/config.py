@@ -219,6 +219,13 @@ class Settings(BaseSettings):
     # everything else is forced to HOLD. The regime is ALWAYS passed to Claude
     # as context regardless. Set regime_gate_enabled=False to keep the context
     # signal but drop the hard block.
+    # Adaptacyjne ryzyko: oba silniki SAME skalują agresję wg reżimu rynku
+    # (patrz adaptive_risk.py) -- agresywnie w trendzie sprzyjającym, ostrożnie
+    # w defensywie. Gdy włączone, zastępuje sztywną bramkę risk-off płynnym
+    # zjazdem parametrów (silnik dalej handluje, tylko konserwatywnie), więc
+    # regime_gate_enabled / crypto_regime_gate_enabled są wtedy pomijane.
+    adaptive_risk_enabled: bool = True
+
     regime_gate_enabled: bool = True
     regime_vix_risk_off: float = 25.0
     defensive_symbols: str = "GLD,TLT,SH,PSQ"

@@ -48,6 +48,7 @@ export default function App() {
     localStorage.setItem(TAB_KEY, t);
     window.location.hash = t;
     window.scrollTo({ top: 0, behavior: "smooth" });
+    navigator.vibrate?.(8); // subtle haptic tick on phones
   }, []);
 
   const refresh = useCallback(async () => {
@@ -94,6 +95,8 @@ export default function App() {
         if (freshTrades.length > 0) {
           const side = freshTrades[0].side.toUpperCase() === "SELL" ? "SELL" : "BUY";
           playTradeSound(side); // no-ops itself if muted
+          // Haptic burst on a real trade -- BUY double-tap, SELL single long.
+          navigator.vibrate?.(side === "SELL" ? [60] : [20, 40, 20]);
         }
       }
     } catch (e) {
@@ -157,7 +160,9 @@ export default function App() {
         {!status && <StatusPlaceholder />}
 
         {data && (
-          <div className="tab-page">
+          // key={tab} re-mounts on switch so the entrance animation replays --
+          // gives each tab a smooth slide/fade in, native-app feel.
+          <div className="tab-page" key={tab}>
             {tab === "overview" && <OverviewPage data={data} />}
             {tab === "us" && <EnginePage data={data} venue="alpaca" />}
             {tab === "crypto" && <EnginePage data={data} venue="crypto" />}

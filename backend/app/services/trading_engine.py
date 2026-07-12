@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models import Decision, PortfolioSnapshot, Trade, TradeAction, TradeMode, TriggerType
-from app.services import budget_tracker, earnings_calendar, email_reporter, market_hours, push_notifier, risk_manager, scorecard, signals
+from app.services import adaptive_risk, budget_tracker, earnings_calendar, email_reporter, market_hours, push_notifier, risk_manager, scorecard, signals
 from app.services.alpaca_client import AlpacaAPIError, AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.market_context import MarketContextClient
@@ -1067,6 +1067,13 @@ def run_cycle(
     # from SPY trend + VIX + tape; crypto from BTC trend + crypto breadth.
     # Always given to Claude; gates BUYs while risk-off (see the gate below).
     regime = compute_market_regime(market_data, global_context, settings, venue=venue)
+    # Adaptacyjne ryzyko: silnik SAM dobiera agresję do reżimu (agresywnie w
+    # trendzie sprzyjającym, ostrożnie w defensywie). Skaluje knoby wejścia w
+    # `settings` na resztę tego cyklu i dokłada odczyt agresji do chipa reżimu.
+    if settings.adaptive_risk_enabled:
+        settings, aggression = adaptive_risk.adaptive_settings(settings, regime)
+        regime["aggression"] = round(aggression, 2)
+        regime["aggression_label"] = adaptive_risk.aggression_label(aggression)
     # Cache per venue so /api/status can show each venue's regime chip.
     if venue == "crypto":
         state.crypto_market_regime_json = json.dumps(regime)
@@ -1075,11 +1082,13 @@ def run_cycle(
     db.commit()
     # Venue-appropriate regime gate: equities gate on the equity regime + equity
     # defensive names; crypto on its own regime (spot-only -> no defensive set).
+    # With adaptive risk ON, the graded scaling REPLACES the hard risk-off block
+    # (the engine trades conservatively instead of not at all), so skip the gate.
     if venue == "crypto":
-        regime_gate_on = settings.crypto_regime_gate_enabled
+        regime_gate_on = settings.crypto_regime_gate_enabled and not settings.adaptive_risk_enabled
         defensive_list = settings.crypto_defensive_symbol_list
     else:
-        regime_gate_on = settings.regime_gate_enabled
+        regime_gate_on = settings.regime_gate_enabled and not settings.adaptive_risk_enabled
         defensive_list = settings.defensive_symbol_list
     performance_context = build_performance_context(db, settings, portfolio, venue=venue, whitelist=symbols)
     # Upcoming earnings per ticker (days until next report). Best-effort --

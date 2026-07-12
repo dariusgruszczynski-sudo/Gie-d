@@ -1999,11 +1999,25 @@ button {
   color: var(--text);
   background: var(--panel);
 }
+.tabnav-btn:active { transform: scale(0.94); }
 .tabnav-btn-active {
   color: var(--text);
   background: var(--panel-2);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-  box-shadow: inset 0 -2px 0 0 var(--accent);
+  box-shadow: inset 0 -2px 0 0 var(--accent), 0 0 18px -6px var(--accent);
+}
+.tabnav-ico {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.tabnav-dot {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
 }
 .tabnav-label-short { display: none; }
 .tabnav-off {
@@ -2016,15 +2030,69 @@ button {
   border-radius: 6px;
   padding: 1px 5px;
 }
-@media (max-width: 620px) {
+
+/* Phones: turn the row into a fixed, thumb-reachable app-style bottom tab bar
+   with icon-over-label, safe-area aware. Content gets bottom padding so nothing
+   hides behind it (see .app below). */
+@media (max-width: 640px) {
+  .tabnav {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+    gap: 2px;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    border-bottom: none;
+    border-top: 1px solid var(--border);
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 -8px 24px -12px rgba(0, 0, 0, 0.7);
+    overflow: visible;
+  }
+  .tabnav-btn {
+    flex: 1;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 4px;
+    font-size: 0.66rem;
+    font-weight: 600;
+    border-radius: 12px;
+  }
+  .tabnav-btn-active {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border-color: transparent;
+    box-shadow: none;
+  }
+  .tabnav-btn-active .tabnav-ico { color: var(--accent); transform: translateY(-1px); }
+  .tabnav-ico { transition: transform 0.18s ease; }
   .tabnav-label-full { display: none; }
   .tabnav-label-short { display: inline; }
-  .tabnav-btn { padding: 10px 12px; }
+  .tabnav-off { display: none; }
+  .app { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
 }
 
+/* Smooth entrance when switching tabs (App keys .tab-page by tab). */
+.tab-page {
+  animation: tab-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes tab-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.995); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-page { animation: none; }
+}
 .tab-page > * { margin-bottom: 16px; }
 .tab-page > *:last-child { margin-bottom: 0; }
 .engine-ticker { margin-bottom: 16px; }
+
+.regime-aggression {
+  margin-left: 4px;
+  opacity: 0.85;
+  font-weight: 600;
+}
 
 /* ============================================================
    Centrum sterowania — profile silników + budżet

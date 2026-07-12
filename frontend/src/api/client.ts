@@ -9,6 +9,11 @@ export interface MarketRegime {
   regime: "risk_on" | "neutral" | "risk_off";
   score: number;
   reasons: string[];
+  // Self-tuning aggression the engine picked for this regime (adaptive risk):
+  // ~1.3 aggressive, 1.0 neutral, ~0.4 defensive. Optional (absent when
+  // adaptive risk is off).
+  aggression?: number;
+  aggression_label?: string;
 }
 
 // The single Alpaca account both engines share. Cash is counted ONCE; each

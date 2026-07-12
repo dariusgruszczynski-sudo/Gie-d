@@ -1095,7 +1095,11 @@ def test_compute_market_regime_classifies_risk_off_on_and_neutral(settings):
 
 
 def test_regime_gate_blocks_non_defensive_buy_but_allows_defensive(db_session, settings, monkeypatch):
-    s = settings.model_copy(update={"regime_gate_enabled": True, "trading_whitelist": "SPY,QQQ,GLD"})
+    # The binary gate is a distinct mode from adaptive risk -- disable adaptive
+    # here so this test exercises the hard gate it's about.
+    s = settings.model_copy(update={
+        "regime_gate_enabled": True, "adaptive_risk_enabled": False, "trading_whitelist": "SPY,QQQ,GLD",
+    })
     monkeypatch.setattr(
         trading_engine, "compute_market_regime",
         lambda *a, **k: {"regime": "risk_off", "score": -2, "reasons": ["test risk-off"]},
@@ -1117,6 +1121,34 @@ def test_regime_gate_blocks_non_defensive_buy_but_allows_defensive(db_session, s
         db_session, s, broker2, FakeNews(), FakeAdvisor(TradingDecision("BUY", "GLD", 10, 0.9, "złoto broni")), force=True
     )
     assert allowed.executed is True
+
+
+def test_adaptive_risk_scales_aggression_with_regime(settings):
+    """Both brains self-tune: risk-on -> bigger risk + lower confidence bar +
+    more entries; risk-off -> smaller risk + higher bar + fewer entries. Exit
+    geometry (stops/trailing) is deliberately NOT touched."""
+    from app.services import adaptive_risk
+
+    base = settings.model_copy(update={
+        "risk_per_trade_pct": 1.0, "min_buy_confidence": 0.57,
+        "max_new_positions_per_day": 5, "stop_loss_pct": 4.0,
+    })
+
+    risk_on, f_on = adaptive_risk.adaptive_settings(base, {"regime": "risk_on", "score": 2})
+    risk_off, f_off = adaptive_risk.adaptive_settings(base, {"regime": "risk_off", "score": -3})
+    neutral, f_neu = adaptive_risk.adaptive_settings(base, {"regime": "neutral", "score": 0})
+
+    assert f_on > 1.0 > f_off and f_neu == 1.0
+    # Aggressive regime: bigger bets, lower entry bar, more entries.
+    assert risk_on.risk_per_trade_pct > base.risk_per_trade_pct
+    assert risk_on.min_buy_confidence < base.min_buy_confidence
+    assert risk_on.max_new_positions_per_day >= base.max_new_positions_per_day
+    # Defensive regime: smaller bets, higher entry bar, fewer entries.
+    assert risk_off.risk_per_trade_pct < base.risk_per_trade_pct
+    assert risk_off.min_buy_confidence > base.min_buy_confidence
+    assert risk_off.max_new_positions_per_day < base.max_new_positions_per_day
+    # Exit geometry untouched in every regime.
+    assert risk_on.stop_loss_pct == base.stop_loss_pct == risk_off.stop_loss_pct
 
 
 def test_crypto_regime_from_btc_trend_and_crypto_breadth_ignores_equity_inputs(settings):
@@ -1142,7 +1174,7 @@ def test_crypto_regime_gate_blocks_new_longs_in_risk_off(db_session, settings, m
     """In crypto risk-off the gate blocks new crypto longs -- a spot-only book
     has no defensive instrument, so cash is the only defensive position."""
     s = settings.model_copy(update={
-        "crypto_enabled": True, "crypto_regime_gate_enabled": True,
+        "crypto_enabled": True, "crypto_regime_gate_enabled": True, "adaptive_risk_enabled": False,
         "crypto_whitelist": "BTCUSD,ETHUSD", "crypto_defensive_symbols": "",
     })
     risk_manager.resume(db_session, "crypto")
