@@ -1,28 +1,34 @@
 # Caddy reverse proxy for the GielDarek dashboard.
-# Caddy terminuje HTTPS (automatyczny certyfikat Let's Encrypt) i przekazuje
-# ruch do aplikacji na localhost:8000. Dzięki temu app NIE musi być wystawiona
-# na świat po gołym HTTP -- patrz deploy/docker-compose.localhost.yml, które
-# zmienia port na 127.0.0.1:8000, więc do bota da się dostać TYLKO przez Caddy.
+# Caddy terminuje HTTPS i przekazuje ruch do aplikacji na localhost:8000 -- app
+# NIE musi być wystawiona po gołym HTTP (patrz deploy/docker-compose.localhost.yml,
+# które publikuje port tylko na 127.0.0.1:8000, więc dostęp jest TYLKO przez Caddy).
 #
-# --- Wariant A: masz domenę (zalecane, prawdziwy cert Let's Encrypt) ---
-# Podmień gie-d.example.com na swoją domenę wskazującą (rekord A) na IP serwera.
-#
-# gie-d.example.com {
-#     encode zstd gzip
-#     reverse_proxy 127.0.0.1:8000
-# }
-#
-# --- Wariant B: sam adres IP (bez domeny) ---
-# Let's Encrypt nie wystawia certów na IP, więc Caddy użyje własnego CA
-# (self-signed). Przeglądarka pokaże ostrzeżenie -- to normalne, klikasz
-# "zaawansowane -> kontynuuj". Ruch i tak jest szyfrowany.
-:443 {
-    tls internal
+# --- ZALECANE: prawdziwy, ZAUFANY certyfikat bez kupowania domeny (sslip.io) ---
+# 46.225.229.113.sslip.io to publiczna nazwa DNS wskazująca na Twój IP, więc
+# Let's Encrypt wystawi na nią PRAWDZIWY certyfikat -> zielona kłódka, BEZ
+# ostrzeżenia w przeglądarce, i dashboard da się zainstalować jako PWA ("exe",
+# ikona na pulpicie/telefonie). Nic nie kupujesz, nie ustawiasz DNS. Caddy sam
+# ogarnia cert i przekierowanie HTTP -> HTTPS dla tego hosta.
+# (Jeśli zmienisz IP serwera, podmień je też w tej nazwie.)
+46.225.229.113.sslip.io {
     encode zstd gzip
     reverse_proxy 127.0.0.1:8000
 }
 
-# Przekieruj gołe HTTP -> HTTPS.
-:80 {
-    redir https://{host}{uri} permanent
-}
+# --- Wariant A: masz własną domenę (też daje zaufany cert + PWA) ---
+# Wskaż rekord A domeny na IP serwera i użyj bloku:
+# gie-d.example.com {
+#     encode zstd gzip
+#     reverse_proxy 127.0.0.1:8000
+# }
+
+# --- Wariant B: sam IP, self-signed (SZYFROWANE, ale przeglądarka pokaże
+#     ostrzeżenie, a PWA się NIE zainstaluje -- używaj tylko awaryjnie) ---
+# :443 {
+#     tls internal
+#     encode zstd gzip
+#     reverse_proxy 127.0.0.1:8000
+# }
+# :80 {
+#     redir https://{host}{uri} permanent
+# }

@@ -11,3 +11,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </AuthGate>
   </React.StrictMode>,
 );
+
+// Register the service worker so the dashboard is installable as an app.
+// Requires HTTPS (trusted cert) -- see deploy/README-hardening.md.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      /* SW is a progressive enhancement; ignore registration failures. */
+    });
+  });
+}

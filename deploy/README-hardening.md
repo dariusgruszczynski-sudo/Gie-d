@@ -67,8 +67,28 @@ docker compose -f docker-compose.yml -f deploy/docker-compose.localhost.yml up -
 ufw delete allow 8000/tcp      # port 8000 nie musi już być otwarty na świat
 ```
 
-Od teraz wchodzisz na `https://TWOJA-DOMENA` (albo `https://46.225.229.113`
-z ostrzeżeniem o self-signed przy wariancie B).
+Od teraz wchodzisz na **`https://46.225.229.113.sslip.io`** — prawdziwy,
+zaufany certyfikat (zielona kłódka, bez ostrzeżenia), bo domyślny Caddyfile
+używa `sslip.io` (publiczna nazwa DNS wskazująca na Twój IP, więc Let's Encrypt
+wystawia na nią cert). Nic nie kupujesz. Jeśli masz własną domenę — użyj
+wariantu A w `/etc/caddy/Caddyfile`.
+
+## 2b. Zainstaluj jako apkę ("exe" / ikona na pulpicie i telefonie)
+
+Dashboard jest **PWA** — na trafionym HTTPS (jak wyżej) instaluje się jak
+natywna aplikacja i otwiera w osobnym oknie, bez paska przeglądarki.
+
+- **iPhone/iPad (Safari):** wejdź na `https://46.225.229.113.sslip.io` →
+  przycisk *Udostępnij* → **„Dodaj do ekranu początkowego"**. Ikona GielDarek
+  ląduje na ekranie jak zwykła apka.
+- **Android (Chrome):** menu ⋮ → **„Zainstaluj aplikację"** (albo baner
+  „Dodaj do ekranu głównego").
+- **Mac/Windows (Chrome/Edge):** ikona instalacji ⊕ w pasku adresu (po prawej)
+  → **„Zainstaluj"**. Powstaje ikona w Docku/menu Start, apka odpala w swoim
+  oknie jak exe.
+
+Aktualizacje wchodzą same przy kolejnym `docker compose up -d --build app` —
+przy odpaleniu online apka pobiera najnowszą wersję.
 
 ## 3. Rotacja kluczy API (WAŻNE)
 
