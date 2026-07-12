@@ -32,9 +32,11 @@ Bez tego widget nie ma z czego czytać.
      nie musi siedzieć w samym skrypcie.
 
 ## Co pokazuje
-- **Mały** widget: łączny stan konta + dzienny % + wynik netto.
-- **Średni** widget: dodatkowo wiersze obu silników (Akcje US / Krypto) ze
-  stanem (aktywny / wstrzymany / STOP) i temperaturą rynku (hossa/bessa).
+- **Mały** widget: łączny stan konta + dzienny % + wynik netto + luźna gotówka.
+- **Średni** widget: dodatkowo mini-wykres skuteczności (krzywa wartości konta)
+  i lista trzymanych pozycji (ticker/moneta + wartość + P&L, kropka koloru
+  silnika: niebieski = Akcje US, złoty = Krypto).
+- **Duży** widget: to samo, ale więcej pozycji na liście.
 
 ## Uwagi
 - Token wpisany w „Parameter" jest bezpieczniejszy niż w kodzie skryptu.
