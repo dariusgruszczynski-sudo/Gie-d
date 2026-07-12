@@ -111,12 +111,25 @@ def test_widget_endpoint_returns_compact_payload(db_session, settings):
         timestamp=now, total_value_usdt=1020.0, usdt_balance=800.0,
         balances_json=json.dumps({"SPY": 2.0}), prices_json=json.dumps({"SPY": 110.0}), venue="alpaca",
     ))
+    # A MORE RECENT crypto snapshot (crypto polls more often) with only the
+    # shared cash -- day P&L must use the COMBINED account, not this slice.
+    db_session.add(PortfolioSnapshot(
+        timestamp=now + timedelta(seconds=30), total_value_usdt=800.0, usdt_balance=800.0,
+        balances_json=json.dumps({}), prices_json=json.dumps({}), venue="crypto",
+    ))
+    # Day baseline = the combined account (1020), same as it's now recorded.
+    from app.services import risk_manager
+    st = risk_manager.get_state(db_session)
+    st.day_start_value = 1020.0
+    st.day_start_date = now.date().isoformat()
     db_session.commit()
 
     body = get_widget(db=db_session, settings=settings)
 
     assert body["cash"] == 800.0
     assert body["total"] == 1020.0  # 800 cash + 2*110 position
+    # Flat vs baseline -> ~0%, NOT a fake -22% from the crypto-only 800 slice.
+    assert body["day_pnl_pct"] == 0.0
     assert isinstance(body["spark"], list) and len(body["spark"]) >= 1
     assert body["positions"][0]["asset"] == "SPY"
     assert body["positions"][0]["pnl_pct"] == 10.0  # entry 100 -> 110

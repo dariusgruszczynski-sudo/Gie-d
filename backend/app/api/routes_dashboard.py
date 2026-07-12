@@ -340,12 +340,14 @@ def get_widget(db: Session = Depends(get_db), settings: Settings = Depends(get_s
     account = _account_view(db)
     net = _net_result_view(db, settings)
 
+    # Day P&L vs the TRUE combined account total (cash once + both engines'
+    # positions), NOT the latest single-venue snapshot -- crypto polls far more
+    # often, so "latest snapshot" is usually the crypto-only slice, which
+    # against a combined day_start_value shows a large fake loss. Same fix as
+    # get_status.
     day_pnl_pct = None
-    latest = db.execute(
-        select(PortfolioSnapshot).order_by(PortfolioSnapshot.timestamp.desc()).limit(1)
-    ).scalar_one_or_none()
-    if latest and state.day_start_value > 0:
-        day_pnl_pct = round((latest.total_value_usdt - state.day_start_value) / state.day_start_value * 100, 2)
+    if account is not None and state.day_start_value > 0:
+        day_pnl_pct = round((account["total_value"] - state.day_start_value) / state.day_start_value * 100, 2)
 
     positions = _widget_positions(db, settings, "alpaca")
     if settings.crypto_enabled:
