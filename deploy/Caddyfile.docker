@@ -1,0 +1,11 @@
+# Caddyfile for the DOCKERISED Caddy (deploy/docker-compose.caddy.yml).
+# Same as deploy/Caddyfile but proxies to the app over the Docker network
+# (service name "app") instead of 127.0.0.1 -- so no host install is needed.
+#
+# Trusted Let's Encrypt cert via sslip.io (public DNS name -> your IP). Green
+# padlock, no warning, PWA-installable. Change the IP here if the server IP
+# changes. For your own domain, replace the hostname with it (rekord A -> IP).
+46.225.229.113.sslip.io {
+    encode zstd gzip
+    reverse_proxy app:8000
+}

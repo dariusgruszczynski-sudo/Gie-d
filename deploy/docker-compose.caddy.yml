@@ -1,0 +1,27 @@
+# Adds a dockerised Caddy reverse proxy (HTTPS) in front of the app -- no host
+# install needed. Caddy terminates TLS on 80/443, auto-provisions a trusted
+# Let's Encrypt cert for the sslip.io hostname (see deploy/Caddyfile.docker),
+# and proxies to the app over the compose network.
+#
+# Uruchomienie (z katalogu ~/gie-d):
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.caddy.yml up -d
+#
+# Wymaga WOLNYCH portów 80 i 443 na hoście (zatrzymaj to, co je teraz trzyma).
+# Certyfikat trwały jest w wolumenie caddy_data (przeżywa restart).
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile.docker:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  caddy_data:
+  caddy_config:
