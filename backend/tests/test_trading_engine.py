@@ -514,6 +514,53 @@ def test_delisted_symbol_force_closed_even_at_a_loss(db_session, settings):
     assert "usunięty z listy" in exits[0].decision.reasoning
 
 
+def test_adopted_position_gets_trailing_protection(db_session, settings):
+    """A position with NO buy trade of ours (pre-existing / bought manually) has
+    no cost basis, but must still be protected -- a trailing stop from the
+    highest observed price triggers a full close when price falls far enough."""
+    from app.services import risk_manager
+
+    broker = FakeAlpaca(prices={"SPY": 110.0, "QQQ": 400.0}, balances={"USD": 100.0, "SPY": 1.0})
+    state = risk_manager.get_state(db_session)
+    state.position_peaks_json = json.dumps({"SPY": 130.0})  # observed high well above 110
+    db_session.commit()
+
+    portfolio = trading_engine.compute_portfolio(db_session, settings, broker)
+    exits = trading_engine.check_take_profit_stop_loss(db_session, settings, broker, portfolio)
+
+    assert len(exits) == 1
+    assert exits[0].symbol == "SPY"
+    assert exits[0].side == "SELL"
+    assert "bez znanego wejścia" in exits[0].decision.reasoning
+
+
+def test_adopted_position_held_within_trailing(db_session, settings):
+    from app.services import risk_manager
+
+    broker = FakeAlpaca(prices={"SPY": 129.5, "QQQ": 400.0}, balances={"USD": 100.0, "SPY": 1.0})
+    state = risk_manager.get_state(db_session)
+    state.position_peaks_json = json.dumps({"SPY": 130.0})  # only ~0.4% off the peak
+    db_session.commit()
+
+    portfolio = trading_engine.compute_portfolio(db_session, settings, broker)
+    assert trading_engine.check_take_profit_stop_loss(db_session, settings, broker, portfolio) == []
+
+
+def test_adopted_position_skipped_when_protection_off(db_session, settings):
+    """protect_adopted_positions=False restores the old behaviour: a position
+    without a known entry is left entirely alone by the mechanical exit."""
+    from app.services import risk_manager
+
+    s = settings.model_copy(update={"protect_adopted_positions": False})
+    broker = FakeAlpaca(prices={"SPY": 110.0, "QQQ": 400.0}, balances={"USD": 100.0, "SPY": 1.0})
+    state = risk_manager.get_state(db_session)
+    state.position_peaks_json = json.dumps({"SPY": 130.0})
+    db_session.commit()
+
+    portfolio = trading_engine.compute_portfolio(db_session, s, broker)
+    assert trading_engine.check_take_profit_stop_loss(db_session, s, broker, portfolio) == []
+
+
 def test_no_exit_within_thresholds(db_session, settings):
     broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
     trading_engine.execute_manual_trade(db_session, settings, broker, symbol="SPY", side="BUY", usdt_amount=100.0)

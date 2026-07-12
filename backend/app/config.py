@@ -151,6 +151,13 @@ class Settings(BaseSettings):
     take_profit_pct: float = 3.0
     trailing_stop_enabled: bool = True
     trailing_stop_pct: float = 1.5
+    # Pozycje, których automat NIE otworzył sam (były na koncie wcześniej albo
+    # kupione ręcznie) nie mają zapisanej ceny wejścia -> dotąd mechaniczny stop
+    # je pomijał (żadnej ochrony). Gdy włączone, taka "adoptowana" pozycja i tak
+    # dostaje TRAILING-STOP liczony od najwyższej ceny zaobserwowanej od momentu
+    # adopcji (zawsze uzbrojony -- nie ma znanego wejścia, od którego czekać na
+    # +R; brak twardego stopa-od-wejścia i częściowej realizacji dla niej).
+    protect_adopted_positions: bool = True
     # --- Geometria zysk/ryzyko (Pakiet 1) -----------------------------------
     # After the ATR stop change the reward side stayed fixed (+3% arm, 1.5%
     # trail) while stops widened to 2.5-12% -- an INVERTED risk/reward that cut

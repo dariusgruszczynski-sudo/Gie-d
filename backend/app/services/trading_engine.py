@@ -709,16 +709,27 @@ def check_take_profit_stop_loss(
             continue
         base = _base_asset(symbol, settings.quote_currency)
         qty = portfolio["balances"].get(base, 0.0)
-        basis = average_cost_basis(db, symbol, venue=venue) if qty > 0 else None
-        if qty <= 0 or basis is None or basis <= 0:
+        if qty <= 0:
             continue  # not held -> drop any stale peak / partial mark
+        basis = average_cost_basis(db, symbol, venue=venue)
+        # A position the bot didn't open itself (pre-existing on the account, or
+        # bought manually) has no recorded entry price. The old code skipped it
+        # entirely -> NO mechanical stop at all. With protect_adopted_positions
+        # on we still guard it (trailing-only, below); off = original behaviour.
+        adopted = basis is None or basis <= 0
+        if adopted and not settings.protect_adopted_positions:
+            continue
 
         price = portfolio["prices"][symbol]
         if qty * price < MIN_SELL_NOTIONAL_USD:
             # Unsellable dust (below Alpaca's min order) -- not a real position.
             # Drop its peak and stop trying to exit it every poll.
             continue
-        peak = max(peaks.get(symbol, basis), price)
+        # For an adopted position there's no entry to anchor the peak on, so the
+        # first price we see becomes the reference; a normal position anchors on
+        # its cost basis.
+        anchor = peaks.get(symbol, price) if adopted else basis
+        peak = max(peaks.get(symbol, anchor), price)
         already_partial = bool(partials.get(symbol))
 
         if symbol not in configured:
@@ -727,6 +738,28 @@ def check_take_profit_stop_loss(
             # deliberate roster change, not a normal exit signal).
             reason = f"{base}: usunięty z listy handlowej -- zamykam całą pozycję."
             sell_pct, kind = 100.0, "delisted"
+        elif adopted:
+            # Trailing-only protection from the highest price observed since we
+            # adopted it -- ALWAYS armed (no known entry to wait for a +R, and no
+            # hard-stop-from-entry / partial we could compute). Vol-scaled so the
+            # trail sits outside the instrument's normal noise.
+            vol_pct = None
+            try:
+                closes = [float(r[4]) for r in broker.get_klines(symbol, settings.signal_timeframe, 30)]
+                vol_pct = compute_volatility_pct(closes)
+            except Exception:
+                logger.warning("Volatility fetch failed for %s, using fixed stop", symbol, exc_info=True)
+            trailing = dynamic_stop_loss_pct(settings, vol_pct) * settings.trailing_stop_frac
+            if settings.trailing_stop_enabled and trailing > 0 and price <= peak * (1 - trailing / 100):
+                drop = (price - peak) / peak * 100
+                reason = (
+                    f"Trailing-stop pozycji bez znanego wejścia: {base} spadł {drop:.1f}% "
+                    f"od szczytu {peak:.2f} (obserwacja od adopcji)"
+                )
+                sell_pct, kind = 100.0, "adopted_trailing"
+            else:
+                new_peaks[symbol] = peak  # still holding -> remember the peak
+                continue
         else:
             # Volatility-scaled stop distance: fetch a short history for this
             # held symbol and derive a stop that sits outside its normal noise.
@@ -748,10 +781,11 @@ def check_take_profit_stop_loss(
                 continue
 
         # Minimum holding period: a just-opened position may only be exited by
-        # the HARD stop-loss (or a forced delisting close) -- trailing /
-        # take-profit / partial are suppressed so the bot doesn't round-trip on
-        # the spread minutes after entering.
-        if kind not in ("stop", "delisted") and _within_min_hold(db, symbol, settings, venue=venue):
+        # the HARD stop-loss (or a forced delisting / adopted-position close) --
+        # trailing / take-profit / partial are suppressed so the bot doesn't
+        # round-trip on the spread minutes after entering. (An adopted position
+        # has no BUY of ours anyway, so min-hold is meaningless for it.)
+        if kind not in ("stop", "delisted", "adopted_trailing") and _within_min_hold(db, symbol, settings, venue=venue):
             new_peaks[symbol] = peak
             if already_partial:
                 new_partials[symbol] = True
