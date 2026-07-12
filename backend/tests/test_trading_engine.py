@@ -1281,6 +1281,27 @@ def test_venue_allocation_room_caps_engine_to_its_share(db_session, settings):
     assert room2 == pytest.approx(35.0)
 
 
+def test_compute_and_cache_regime_refreshes_without_trading(db_session, settings):
+    """The market read must be cacheable independently of a trading cycle (so
+    the dashboard stays current while stopped/closed) -- and it must never place
+    an order while doing so."""
+    from app.services import risk_manager
+
+    class FakeMC:
+        def get_market_context(self):
+            return {}
+
+    broker = FakeAlpaca(prices={"SPY": 500.0}, balances={"USD": 1000.0})
+    regime = trading_engine.compute_and_cache_regime(
+        db_session, settings, broker, FakeMC(), venue="alpaca", whitelist=["SPY"]
+    )
+
+    assert "regime" in regime
+    state = risk_manager.get_state(db_session)
+    assert json.loads(state.market_regime_json)["regime"] == regime["regime"]
+    assert broker.orders == []  # read-only: no order ever placed
+
+
 def test_account_total_value_combines_both_venues(db_session, settings):
     from app.models import PortfolioSnapshot
 

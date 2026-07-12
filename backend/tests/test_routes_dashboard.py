@@ -97,6 +97,31 @@ def test_status_includes_per_engine_profiles(db_session, settings):
     assert body["profiles"]["crypto"]["poll_interval_minutes"] == settings.crypto_poll_interval_minutes
 
 
+def test_widget_endpoint_returns_compact_payload(db_session, settings):
+    from app.api.routes_dashboard import get_widget
+    from app.models import Trade, TradeMode
+
+    now = datetime.now(timezone.utc)
+    # A held position + a couple of value snapshots for the sparkline.
+    db_session.add(Trade(
+        timestamp=now, symbol="SPY", side="BUY", quantity=2, price=100.0, usdt_value=200.0,
+        mode=TradeMode.LIVE, venue="alpaca",
+    ))
+    db_session.add(PortfolioSnapshot(
+        timestamp=now, total_value_usdt=1020.0, usdt_balance=800.0,
+        balances_json=json.dumps({"SPY": 2.0}), prices_json=json.dumps({"SPY": 110.0}), venue="alpaca",
+    ))
+    db_session.commit()
+
+    body = get_widget(db=db_session, settings=settings)
+
+    assert body["cash"] == 800.0
+    assert body["total"] == 1020.0  # 800 cash + 2*110 position
+    assert isinstance(body["spark"], list) and len(body["spark"]) >= 1
+    assert body["positions"][0]["asset"] == "SPY"
+    assert body["positions"][0]["pnl_pct"] == 10.0  # entry 100 -> 110
+
+
 def test_claude_edge_endpoint_returns_both_sides(db_session, settings):
     body = get_claude_edge(venue="alpaca", db=db_session, settings=settings)
 

@@ -38,6 +38,23 @@ Bez tego widget nie ma z czego czytać.
   silnika: niebieski = Akcje US, złoty = Krypto).
 - **Duży** widget: to samo, ale więcej pozycji na liście.
 
+## Nie pokazuje danych? (diagnostyka)
+Widget czyta jeden endpoint: `GET /api/widget?share=<token>`. Jeśli nic nie widać:
+- **„Brak SHARE_TOKEN"** na widgecie → nie wpisałeś tokenu (w skrypcie lub w polu
+  Parameter jako `adres|token`).
+- **„Błąd połączenia: 401"** → serwer nie ma `SHARE_TOKEN` w `.env` (albo token
+  się nie zgadza). Ustaw go i zrestartuj apkę:
+  ```bash
+  cd ~/gie-d
+  grep -q '^SHARE_TOKEN=' .env || python3 -c "import secrets; print('SHARE_TOKEN='+secrets.token_urlsafe(24))" >> .env
+  docker compose up -d --force-recreate app
+  grep '^SHARE_TOKEN=' .env    # skopiuj wartość do pola Parameter widgetu
+  ```
+- **„Błąd połączenia"** (inny) → sprawdź adres BASE_URL i czy `https://…` otwiera
+  się w Safari.
+- iOS odświeża widgety własnym rytmem (~5–15 min) — żeby wymusić od razu:
+  przytrzymaj widget → Edytuj → wyjdź, albo dodaj go ponownie.
+
 ## Uwagi
 - Token wpisany w „Parameter" jest bezpieczniejszy niż w kodzie skryptu.
 - Żeby unieważnić dostęp widgetu: zmień `SHARE_TOKEN` w `.env` i zrestartuj apkę.

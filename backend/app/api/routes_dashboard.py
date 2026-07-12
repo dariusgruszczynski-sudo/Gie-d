@@ -295,6 +295,88 @@ async def events():
     )
 
 
+def _widget_positions(db: Session, settings: Settings, venue: str) -> list[dict]:
+    """Held positions for one venue, from its latest snapshot -- what's held,
+    its value and unrealized P&L. Same reconstruction the dashboard's
+    PositionsBoard does, but server-side and compact (for the iPhone widget)."""
+    snap = _latest_snapshot(db, venue)
+    if snap is None:
+        return []
+    try:
+        balances = json.loads(snap.balances_json or "{}")
+        prices = json.loads(snap.prices_json or "{}")
+    except (TypeError, ValueError):
+        return []
+    leg = "crypto" if venue == "crypto" else "us"
+    out: list[dict] = []
+    for asset, qty_raw in balances.items():
+        qty = float(qty_raw)
+        if qty <= 0:
+            continue
+        # equities: prices keyed by ticker (== base); crypto: by full "BTCUSD".
+        full = asset if asset in prices else asset + settings.quote_currency
+        price = prices.get(asset)
+        if price is None:
+            price = prices.get(asset + settings.quote_currency)
+        if price is None:
+            continue
+        value = qty * price
+        if value < 1:
+            continue
+        basis = average_cost_basis(db, full, venue=venue)
+        pnl_pct = round((price - basis) / basis * 100, 2) if basis and basis > 0 else None
+        out.append({"asset": asset, "leg": leg, "value": round(value, 2), "pnl_pct": pnl_pct})
+    return out
+
+
+@router.get("/widget")
+def get_widget(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """ONE compact, fast payload for the iPhone (Scriptable) widget: account
+    total + cash, day %, net result, held positions across both engines, and a
+    downsampled equity curve. Purpose-built so the widget makes a single small
+    request (the full /api/portfolio series was too heavy to load reliably in
+    the widget sandbox)."""
+    state = risk_manager.get_state(db)
+    account = _account_view(db)
+    net = _net_result_view(db, settings)
+
+    day_pnl_pct = None
+    latest = db.execute(
+        select(PortfolioSnapshot).order_by(PortfolioSnapshot.timestamp.desc()).limit(1)
+    ).scalar_one_or_none()
+    if latest and state.day_start_value > 0:
+        day_pnl_pct = round((latest.total_value_usdt - state.day_start_value) / state.day_start_value * 100, 2)
+
+    positions = _widget_positions(db, settings, "alpaca")
+    if settings.crypto_enabled:
+        positions += _widget_positions(db, settings, "crypto")
+    positions.sort(key=lambda p: p["value"], reverse=True)
+
+    # Downsampled account-value curve (equities-venue history == the account
+    # when crypto is off; a fair trend proxy otherwise). ~30 points, oldest→newest.
+    rows = db.execute(
+        select(PortfolioSnapshot.total_value_usdt)
+        .where(PortfolioSnapshot.venue == "alpaca", PortfolioSnapshot.total_value_usdt > 0)
+        .order_by(PortfolioSnapshot.timestamp.desc())
+        .limit(400)
+    ).scalars().all()
+    series = list(reversed(rows))
+    if len(series) > 30:
+        step = len(series) / 30.0
+        series = [series[min(len(series) - 1, int(i * step))] for i in range(30)]
+    spark = [round(v, 2) for v in series]
+
+    return {
+        "mode": "testnet" if settings.alpaca_paper else "live",
+        "total": account["total_value"] if account else None,
+        "cash": account["cash"] if account else None,
+        "day_pnl_pct": day_pnl_pct,
+        "net_result_usd": net["net_result_usd"],
+        "positions": positions,
+        "spark": spark,
+    }
+
+
 @router.get("/claude-edge")
 def get_claude_edge(venue: str = "alpaca", db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     """On-demand, read-only: would the mechanical filter alone have done as

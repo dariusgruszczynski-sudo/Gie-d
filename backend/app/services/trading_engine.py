@@ -466,6 +466,44 @@ def compute_market_regime(
     return {"regime": regime, "score": score, "reasons": reasons}
 
 
+def compute_and_cache_regime(db: Session, settings: Settings, broker, market_ctx, *, venue: str, whitelist: list[str]) -> dict:
+    """Refresh + cache ONE venue's market regime independently of the trading
+    cycle, so the dashboard's "temperatura rynku" / aggression read stays
+    CURRENT even while the engine is stopped, the market is closed, or no
+    trigger fired (run_cycle only refreshes the regime after its gates, so the
+    banner would otherwise go stale). Read-only: fetches klines + the macro
+    context and writes the cached regime column -- it never places, gates, or
+    even considers an order. Best-effort by design; the caller wraps it.
+
+    Only fetches the klines the regime actually needs: the equities read uses
+    just the benchmark's 50/200 trend + VIX + today's S&P move, so the caller
+    passes [benchmark_symbol]; the crypto read needs breadth across the majors,
+    so it passes the crypto whitelist."""
+    market_data: dict = {}
+    for symbol in whitelist:
+        try:
+            closes = [float(row[4]) for row in broker.get_klines(symbol, settings.signal_timeframe, 200)]
+        except Exception:
+            logger.warning("Regime refresh: klines failed for %s, skipping", symbol, exc_info=True)
+            continue
+        market_data[symbol] = {"technical": compute_technical_indicators(closes)}
+
+    global_context = market_ctx.get_market_context() if market_ctx is not None else {}
+    regime = compute_market_regime(market_data, global_context, settings, venue=venue)
+    if settings.adaptive_risk_enabled:
+        _, aggression = adaptive_risk.adaptive_settings(settings, regime)
+        regime["aggression"] = round(aggression, 2)
+        regime["aggression_label"] = adaptive_risk.aggression_label(aggression)
+
+    state = risk_manager.get_state(db)
+    if venue == "crypto":
+        state.crypto_market_regime_json = json.dumps(regime)
+    else:
+        state.market_regime_json = json.dumps(regime)
+    db.commit()
+    return regime
+
+
 def _other_venue(venue: str) -> str:
     return "alpaca" if venue == "crypto" else "crypto"
 

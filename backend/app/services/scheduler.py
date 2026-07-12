@@ -11,7 +11,7 @@ from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.push_notifier import send_daily_summary_push
 from app.services.strategy_profiles import effective_settings
-from app.services.trading_engine import compute_portfolio, run_cycle
+from app.services.trading_engine import compute_and_cache_regime, compute_portfolio, run_cycle
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,38 @@ def _crypto_job() -> None:
             logger.info("Crypto cycle produced decision: %s %s", decision.action, decision.symbol)
     except Exception:
         logger.exception("Crypto trading cycle failed")
+    finally:
+        db.close()
+
+
+def _regime_job() -> None:
+    """Keeps the dashboard's market read ("temperatura rynku" + adaptive
+    aggression) CURRENT independently of trading: refreshes + caches both
+    venues' regimes every interval even while the engine is stopped, the market
+    is closed, or nothing triggered. Read-only (klines + macro context only);
+    never places or gates an order. Best-effort -- a hiccup just leaves the last
+    cached read in place."""
+    settings = get_settings()
+    db = SessionLocal()
+    try:
+        market_ctx = MarketContextClient()
+        try:
+            compute_and_cache_regime(
+                db, effective_settings(settings, "alpaca"), AlpacaClient(settings), market_ctx,
+                venue="alpaca", whitelist=[settings.benchmark_symbol],
+            )
+        except Exception:
+            logger.warning("Regime refresh (alpaca) failed", exc_info=True)
+        if settings.crypto_enabled:
+            try:
+                compute_and_cache_regime(
+                    db, effective_settings(settings, "crypto"), AlpacaClient(settings, asset_class="crypto"),
+                    market_ctx, venue="crypto", whitelist=settings.crypto_whitelist_symbols,
+                )
+            except Exception:
+                logger.warning("Regime refresh (crypto) failed", exc_info=True)
+    except Exception:
+        logger.exception("Regime refresh job failed")
     finally:
         db.close()
 
@@ -123,6 +155,12 @@ def prime_portfolio_snapshots() -> None:
                 logger.warning("Startup snapshot (crypto) failed, will populate on first poll", exc_info=True)
     finally:
         db.close()
+    # Prime the market read too, so "temperatura rynku" isn't blank until the
+    # first 15-min regime refresh fires.
+    try:
+        _regime_job()
+    except Exception:
+        logger.warning("Startup regime prime failed, will populate on first refresh", exc_info=True)
 
 
 def start_scheduler() -> BackgroundScheduler:
@@ -145,6 +183,13 @@ def start_scheduler() -> BackgroundScheduler:
         "interval",
         minutes=settings.crypto_poll_interval_minutes,
         id="crypto_trading_cycle",
+    )
+    # Keep the market read fresh even when nothing is trading (see _regime_job).
+    scheduler.add_job(
+        _regime_job,
+        "interval",
+        minutes=15,
+        id="regime_refresh",
     )
     scheduler.add_job(
         _report_job,
