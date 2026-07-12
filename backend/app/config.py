@@ -62,31 +62,42 @@ class Settings(BaseSettings):
     crypto_risk_per_trade_pct: float = 2.0            # vs 1.25 na akcjach
     crypto_max_concurrent_positions: int = 6
     crypto_min_buy_confidence: float = 0.52           # niżej = więcej wejść
-    crypto_max_new_positions_per_day: int = 8
-    crypto_min_hold_minutes: int = 15                 # szybsza rotacja
+    crypto_max_new_positions_per_day: int = 12        # dużo małych wejść w ciągu doby
+    crypto_min_hold_minutes: int = 5                  # szybkie wejście/wyjście na swingach
     crypto_max_position_pct: float = 30.0
-    # "Po trochu do celu": bierz częściowy zysk WCZEŚNIEJ i zostaw resztę na
-    # trailingu -- księguj mniejsze wygrane w transzach zamiast czekać na
-    # idealne wyjście. partial_r=1.0 (arm już przy 1× dystansu stopa),
-    # reward_risk 2.5 (zwycięzców puść dalej pod trailingiem).
-    crypto_reward_risk_ratio: float = 2.5
+    # FILOZOFIA KRYPTO: łap NAWET MAŁE wahnięcia i księguj MAŁE zyski, ale CZĘSTO
+    # -- bez maksymalizowania na chama (żeby nie oddawać zysku czekając na ideał).
+    # Interwał 15m (klasyczny day-trading krypto), realizacja wcześnie i w transzach:
+    #   partial_r=0.7 (bierz część zysku już przy 0.7× dystansu stopa),
+    #   partial_frac=0.5 (połowa pozycji schodzi na tej pierwszej transzy),
+    #   reward_risk=1.5 (uzbrój trailing szybko -- nie wyciskaj ostatniego grosza),
+    #   trailing_frac=0.5 (ciasny trailing = częściej zaksięgowany zysk).
+    crypto_reward_risk_ratio: float = 1.5
     crypto_trailing_stop_frac: float = 0.5
-    crypto_partial_take_profit_frac: float = 0.40
-    crypto_partial_take_profit_r: float = 1.0
-    # Krypto jest zmienniejsze -> szersze stopy (żeby nie być wytrząśniętym na
-    # normalnym szumie) i wyższa referencja zmienności (żeby sizing nie ścinał
-    # pozycji do zera na dzikich altach).
-    crypto_stop_loss_vol_mult: float = 6.0
-    crypto_stop_loss_min_pct: float = 3.5
-    crypto_stop_loss_max_pct: float = 18.0
-    # Referencja zmienności dla ŚWIEC DZIENNYCH (dzienne zwroty krypto ~4-6%,
-    # znacznie większe niż godzinowe) -- inaczej vol-scaling ściąłby każdą monetę
-    # do minimum. 5.0 ≈ typowa dzienna zmienność krypto.
-    crypto_volatility_reference_pct: float = 5.0
-    # Kontrola kosztu Claude na rynku 24/7: nieco wyższy próg ruchu + rzadszy
-    # heartbeat niż domyślne, żeby całodobowy handel nie spalił budżetu na szumie.
-    crypto_price_move_trigger_pct: float = 3.5
-    crypto_full_analysis_every_minutes: int = 90
+    crypto_partial_take_profit_frac: float = 0.50
+    crypto_partial_take_profit_r: float = 0.7
+    # Stopy dostrojone do ŚWIEC 15m (nie dziennych): zwrot na jednej świecy 15m
+    # to ~0.5-1.5%, nie 4-6% jak dziennie -> ciaśniejszy zakres stopa i niższa
+    # referencja zmienności, żeby małe swingi miały sensowny stosunek zysku do
+    # ryzyka, ale bez wytrząsania na mikroszumie.
+    crypto_stop_loss_vol_mult: float = 4.0
+    crypto_stop_loss_min_pct: float = 1.5
+    crypto_stop_loss_max_pct: float = 8.0
+    crypto_volatility_reference_pct: float = 1.5
+    # Reaguj CZĘSTO na małe ruchy: niski próg wybudzenia (1.5% skumulowanego
+    # ruchu) + częsty heartbeat (co 30 min patrzy na rynek nawet w ciszy).
+    # Twardy bezpiecznik budżetu (claude_pause_trading_at_budget) chroni przed
+    # spaleniem kasy na wywołaniach, gdyby rynek był bardzo ruchliwy.
+    crypto_price_move_trigger_pct: float = 1.5
+    crypto_full_analysis_every_minutes: int = 30
+    # Krypto sprawdza ceny CZĘSTO (rynek 24/7, małe swingi) -- co 5 minut, podczas
+    # gdy akcje US mogą być rzadziej (patrz poll_interval_minutes). Analiza Claude
+    # i tak pada tylko przy wybudzeniu (ruch >= próg / heartbeat), nie na każdym
+    # sprawdzeniu ceny.
+    crypto_poll_interval_minutes: int = 5
+    # Krypto na SZYBSZYM interwale niż akcje: 15m łapie wewnątrzdobowe swingi
+    # (standard day-tradingu krypto), zamiast dziennego trendu jak akcje US.
+    crypto_signal_timeframe: str = "15m"
 
     # --- Podział kapitału między dwa silniki (JEDNO konto Alpaca) ------------
     # Oba silniki grają jedną, wspólną gotówką. Bez podziału agresywne krypto
@@ -286,7 +297,11 @@ class Settings(BaseSettings):
     # mniej tokenów, dowiedziona przewaga.
     signal_timeframe: str = "1d"
 
-    poll_interval_minutes: int = 15
+    # Akcje US: agresja siedzi w knobach ryzyka/pewności, NIE w częstotliwości --
+    # na sygnale dziennym (1d) nie ma po co zaglądać co chwilę. Sprawdzamy co 30
+    # min (świeca dzienna i tak nie zmienia trendu między pollami), co odciąża
+    # apkę i budżet Claude. Krypto ma własny, szybszy poll (crypto_poll_interval).
+    poll_interval_minutes: int = 30
     # Raised from 2.0 -> 3.0 (Tier 2): a lower bar woke Claude on routine noise
     # and drove low-edge, cost-bleeding trades. A wider trigger = fewer, better
     # analyses (the expectancy model showed cost meaningfully lifts break-even).

@@ -34,6 +34,10 @@ _CRYPTO_OVERRIDES = {
     "crypto_volatility_reference_pct": "volatility_reference_pct",
     "crypto_price_move_trigger_pct": "price_move_trigger_pct",
     "crypto_full_analysis_every_minutes": "full_analysis_every_minutes",
+    # Crypto runs a faster bar (15m swings) and its own check cadence, folded in
+    # only for the crypto cycle -- the equities profile keeps 1d / its own poll.
+    "crypto_signal_timeframe": "signal_timeframe",
+    "crypto_poll_interval_minutes": "poll_interval_minutes",
 }
 
 

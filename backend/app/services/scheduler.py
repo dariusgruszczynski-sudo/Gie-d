@@ -134,7 +134,7 @@ def start_scheduler() -> BackgroundScheduler:
     scheduler.add_job(
         _crypto_job,
         "interval",
-        minutes=settings.poll_interval_minutes,
+        minutes=settings.crypto_poll_interval_minutes,
         id="crypto_trading_cycle",
     )
     scheduler.add_job(
