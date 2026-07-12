@@ -29,11 +29,16 @@ export default function App() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
   const [splashDecision, setSplashDecision] = useState<Decision | null>(null);
   const [muted, setMuted] = useState<boolean>(isSoundMuted);
   const [tab, setTab] = useState<TabKey>(readInitialTab);
   const seenDecisionIds = useRef<Set<number> | null>(null);
   const seenTradeIds = useRef<Set<number> | null>(null);
+  // Tolerate transient blips (a RESTART, a dropped poll) -- only surface the
+  // error banner after several consecutive failures, so a 2-5s restart window
+  // doesn't flash a scary "502" that clears itself on the next poll.
+  const failCount = useRef(0);
 
   const toggleMuted = useCallback(() => {
     setMuted((m) => {
@@ -63,7 +68,9 @@ export default function App() {
       setPortfolio(p);
       setTrades(t);
       setDecisions(d);
+      failCount.current = 0;
       setError(null);
+      setReconnecting(false);
 
       // The 24-7 crypto portfolio is fetched only when the venue is enabled,
       // so a single-lot setup pays no extra requests.
@@ -100,7 +107,16 @@ export default function App() {
         }
       }
     } catch (e) {
-      setError(String(e));
+      // Restart / momentary drop: first couple of failures are almost always a
+      // brief window (the app bouncing), so show a soft "reconnecting" note and
+      // only escalate to a hard error once it's clearly persistent.
+      failCount.current += 1;
+      if (failCount.current >= 3) {
+        setError(String(e));
+        setReconnecting(false);
+      } else {
+        setReconnecting(true);
+      }
     }
   }, []);
 
@@ -155,7 +171,11 @@ export default function App() {
 
         {status && <TabNav active={tab} onChange={changeTab} cryptoEnabled={status.crypto_enabled} />}
 
-        {error && <p className="error-text">Błąd komunikacji z API: {error}</p>}
+        {error ? (
+          <p className="error-text">Błąd komunikacji z API: {error}</p>
+        ) : (
+          reconnecting && <p className="reconnecting-note">Ponawiam połączenie… (aplikacja może właśnie się restartować)</p>
+        )}
 
         {!status && <StatusPlaceholder />}
 
