@@ -24,6 +24,25 @@ SESSION_TTL_SECONDS = 60 * 60 * 24 * 7  # 1 week
 
 _EXEMPT_PATHS = {"/api/auth/login"}
 
+# Read-only share link: a request carrying a valid ?share=<token> may GET only
+# these dashboard endpoints (no controls, no auth, no trading). Everything else
+# -- every POST, /api/control/*, /api/push/*, /api/auth/* -- stays blocked, so a
+# shared link can watch but never touch.
+_SHARE_READONLY_PREFIXES = (
+    "/api/status",
+    "/api/portfolio",
+    "/api/trades",
+    "/api/decisions",
+    "/api/events",
+)
+
+
+def _extract_query_param(query_string: bytes, name: str) -> str | None:
+    from urllib.parse import parse_qs
+
+    values = parse_qs(query_string.decode("latin-1")).get(name)
+    return values[0] if values else None
+
 
 def _sign(username: str, expiry: int, secret: str) -> str:
     message = f"{username}:{expiry}".encode()
@@ -66,10 +85,12 @@ def _extract_cookie(cookie_header: str, name: str) -> str | None:
 
 
 class SessionAuthMiddleware:
-    def __init__(self, app, credentials: dict[str, str], get_secret):
+    def __init__(self, app, credentials: dict[str, str], get_secret, get_share_token=None):
         self.app = app
         self.credentials = credentials
         self.get_secret = get_secret
+        # Callable returning the current read-only share token ("" = disabled).
+        self.get_share_token = get_share_token or (lambda: "")
 
     async def __call__(self, scope, receive, send):
         path = scope.get("path", "")
@@ -85,6 +106,19 @@ class SessionAuthMiddleware:
         if username is not None:
             await self.app(scope, receive, send)
             return
+
+        # Read-only share link: valid token + GET + an allowed dashboard path.
+        share_token = self.get_share_token()
+        if share_token:
+            provided = _extract_query_param(scope.get("query_string", b""), "share")
+            if (
+                provided
+                and hmac.compare_digest(provided, share_token)
+                and scope.get("method", "GET") == "GET"
+                and any(path.startswith(p) for p in _SHARE_READONLY_PREFIXES)
+            ):
+                await self.app(scope, receive, send)
+                return
 
         response = Response(
             status_code=401,

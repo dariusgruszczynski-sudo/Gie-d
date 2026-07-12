@@ -1,28 +1,29 @@
 :root {
   color-scheme: dark;
-  /* v2 theme — "deep space terminal": cooler near-black, sky/cyan primary
-     (brand + US equities venue), orange for the crypto venue. Distinct from
-     both the green (gains) and red (loss) semantic colors. */
-  --bg: #070b12;
-  --bg-2: #0a1019;
-  --panel: #0f1724;
-  --panel-2: #15202f;
-  --border: #1e2c40;
-  --text: #e7eef8;
-  --muted: #8291a8;
-  --accent: #38bdf8;        /* sky-400 — primary / brand / US venue */
-  --accent-2: #22d3ee;      /* cyan-400 */
-  --accent-dark: #0ea5e9;
+  /* v3 theme — "institutional terminal": restrained neutral-slate surfaces, a
+     confident (not neon) indigo accent, and trading-desk green/red for P&L.
+     Crypto keeps a distinct refined gold. Tuned for a professional, calm feel
+     rather than a flashy one. */
+  --bg: #0a0e15;
+  --bg-2: #0e141d;
+  --panel: #121a25;
+  --panel-2: #18212e;
+  --border: #232e3d;
+  --text: #e6ecf3;
+  --muted: #8894a6;
+  --accent: #4c82f0;        /* refined indigo-blue — brand / US venue */
+  --accent-2: #6ea8fe;
+  --accent-dark: #3a6fd8;
   /* Legacy tokens repointed at the new accent so existing rules re-theme. */
-  --gold: #38bdf8;
-  --gold-bright: #7dd3fc;
-  --green: #34d399;
-  --red: #f87171;
-  --amber: #fb923c;         /* orange-400 — crypto venue accent */
-  --ink: #070b12;
+  --gold: #4c82f0;
+  --gold-bright: #8fb4fb;
+  --green: #2ebd85;         /* trading-terminal green (gains) */
+  --red: #f0616d;           /* trading-terminal red (loss) */
+  --amber: #d9a441;         /* refined gold — crypto venue accent */
+  --ink: #0a0e15;
   /* Semantic venue colors (used by the unified two-lane layout). */
-  --venue-us: #38bdf8;
-  --venue-crypto: #fb923c;
+  --venue-us: #4c82f0;
+  --venue-crypto: #d9a441;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
@@ -38,13 +39,12 @@ body {
   color: var(--text);
   min-height: 100vh;
   background:
-    radial-gradient(ellipse 1000px 560px at 6% -10%, rgba(56, 189, 248, 0.15), transparent 60%),
-    radial-gradient(ellipse 900px 520px at 110% 2%, rgba(34, 211, 238, 0.10), transparent 55%),
-    radial-gradient(ellipse 820px 540px at 96% 106%, rgba(251, 146, 60, 0.07), transparent 60%),
-    radial-gradient(ellipse 760px 520px at 30% 112%, rgba(52, 211, 153, 0.045), transparent 60%),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.013) 0px, rgba(255, 255, 255, 0.013) 1px, transparent 1px, transparent 54px),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.011) 0px, rgba(255, 255, 255, 0.011) 1px, transparent 1px, transparent 54px),
-    linear-gradient(180deg, #080d16 0%, var(--bg) 55%);
+    radial-gradient(ellipse 1000px 560px at 6% -10%, rgba(76, 130, 240, 0.08), transparent 60%),
+    radial-gradient(ellipse 900px 520px at 110% 2%, rgba(76, 130, 240, 0.05), transparent 55%),
+    radial-gradient(ellipse 820px 540px at 96% 106%, rgba(217, 164, 65, 0.035), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.010) 0px, rgba(255, 255, 255, 0.010) 1px, transparent 1px, transparent 56px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.008) 0px, rgba(255, 255, 255, 0.008) 1px, transparent 1px, transparent 56px),
+    linear-gradient(180deg, #0b1019 0%, var(--bg) 55%);
   background-attachment: fixed;
   overflow-x: hidden;
 }
@@ -56,6 +56,8 @@ body {
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  /* Ambient, not flashy -- kept faint so it reads as texture, not decoration. */
+  opacity: 0.55;
 }
 
 .app {
@@ -2112,6 +2114,124 @@ button {
   margin-left: 4px;
   opacity: 0.85;
   font-weight: 600;
+}
+
+/* ============================================================
+   Pasek strategii (górny) — co robi każdy mózg, po ludzku
+   ============================================================ */
+.strat-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+@media (max-width: 640px) {
+  .strat-bar { grid-template-columns: 1fr; }
+}
+.strat-leg {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  border-left: 3px solid var(--border);
+}
+.strat-leg-alpaca { border-left-color: var(--venue-us); }
+.strat-leg-crypto { border-left-color: var(--venue-crypto); }
+.strat-leg-dim { opacity: 0.62; }
+.strat-leg-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.strat-leg-name {
+  font-weight: 700;
+  font-size: 0.92rem;
+  letter-spacing: 0.01em;
+}
+.strat-state {
+  margin-left: auto;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.strat-state-live {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 45%, var(--border));
+  background: color-mix(in srgb, var(--green) 12%, transparent);
+}
+.strat-state-paused {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--border));
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+}
+.strat-state-halt {
+  color: var(--red);
+  border-color: color-mix(in srgb, var(--red) 45%, var(--border));
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+}
+.strat-leg-desc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.84rem;
+  color: var(--text);
+}
+.strat-stance { font-weight: 600; color: var(--accent-2); }
+.strat-signal { color: var(--muted); }
+.strat-sep { color: var(--muted); opacity: 0.6; }
+.strat-muted { color: var(--muted); font-style: italic; }
+
+/* ============================================================
+   Widok tylko do odczytu (share link)
+   ============================================================ */
+.readonly-ribbon {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 14px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent-2);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+.readonly-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+.share-link-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.share-link-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+.share-link-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
 }
 
 /* ============================================================

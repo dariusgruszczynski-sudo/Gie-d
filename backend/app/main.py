@@ -41,7 +41,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(SessionAuthMiddleware, credentials=get_settings().dashboard_credentials, get_secret=get_session_secret)
+app.add_middleware(
+    SessionAuthMiddleware,
+    credentials=get_settings().dashboard_credentials,
+    get_secret=get_session_secret,
+    get_share_token=lambda: get_settings().share_token,
+)
 
 app.include_router(auth_router)
 app.include_router(dashboard_router)

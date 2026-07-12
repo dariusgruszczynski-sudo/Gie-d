@@ -47,6 +47,8 @@ export interface StatusResponse {
   crypto_market_regime: MarketRegime | null;
   // The ONE Alpaca account shared by both engines (cash counted once).
   account: AccountView | null;
+  // Read-only share link enabled on the server (token stays server-side).
+  share_enabled: boolean;
   claude_monthly_budget_usd: number;
   claude_spend_usd_this_month: number;
   claude_budget_pct_used: number;
@@ -135,6 +137,19 @@ export interface Decision {
   market_context_snapshot: string;
 }
 
+// Read-only share mode: a "?share=<token>" in the URL grants view-only access
+// (no login, no controls). Every GET must carry the token so the server lets it
+// through; nothing else is exposed.
+export const shareToken =
+  typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("share") || "" : "";
+export const isReadOnly = !!shareToken;
+
+export function withShare(path: string): string {
+  if (!shareToken) return path;
+  const sep = path.includes("?") ? "&" : "?";
+  return `${path}${sep}share=${encodeURIComponent(shareToken)}`;
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     headers: { "Content-Type": "application/json" },
@@ -148,14 +163,14 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  status: () => apiFetch<StatusResponse>("/api/status"),
+  status: () => apiFetch<StatusResponse>(withShare("/api/status")),
   // 600 per-cycle snapshots (~kilka dni handlu) to plenty for the chart while
   // keeping every 15s/SSE refresh light -- 2000 uncompressed rows on each poll
   // was a big chunk of the "apka działa wolno". P&L "od początku" stays correct
   // regardless: the backend anchors it on the inception snapshot, not this window.
-  portfolio: (venue: string = "alpaca") => apiFetch<PortfolioResponse>(`/api/portfolio?limit=600&venue=${venue}`),
-  trades: (venue?: string) => apiFetch<Trade[]>(venue ? `/api/trades?venue=${venue}` : "/api/trades"),
-  decisions: (venue?: string) => apiFetch<Decision[]>(venue ? `/api/decisions?venue=${venue}` : "/api/decisions"),
+  portfolio: (venue: string = "alpaca") => apiFetch<PortfolioResponse>(withShare(`/api/portfolio?limit=600&venue=${venue}`)),
+  trades: (venue?: string) => apiFetch<Trade[]>(withShare(venue ? `/api/trades?venue=${venue}` : "/api/trades")),
+  decisions: (venue?: string) => apiFetch<Decision[]>(withShare(venue ? `/api/decisions?venue=${venue}` : "/api/decisions")),
   logout: () => apiFetch<{ message: string }>("/api/auth/logout", { method: "POST" }),
   pause: (venue: string = "alpaca") => apiFetch<unknown>(`/api/control/pause?venue=${venue}`, { method: "POST" }),
   resume: (venue: string = "alpaca") => apiFetch<unknown>(`/api/control/resume?venue=${venue}`, { method: "POST" }),
@@ -179,6 +194,7 @@ export const api = {
     quantity?: number;
     venue?: "alpaca" | "crypto";
   }) => apiFetch<Trade>("/api/control/manual-trade", { method: "POST", body: JSON.stringify(body) }),
+  shareLink: () => apiFetch<{ enabled: boolean; token: string }>("/api/control/share-link"),
   pushConfig: () => apiFetch<{ enabled: boolean; vapid_public_key: string }>("/api/push/config"),
   pushSubscribe: (sub: PushSubscriptionJSON) =>
     apiFetch<{ message: string }>("/api/push/subscribe", { method: "POST", body: JSON.stringify(sub) }),

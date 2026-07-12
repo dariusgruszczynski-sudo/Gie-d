@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, Decision, PortfolioResponse, StatusResponse, Trade } from "./api/client";
+import { api, Decision, isReadOnly, PortfolioResponse, StatusResponse, Trade, withShare } from "./api/client";
 import { BrandLogo } from "./components/BrandLogo";
 import { DecisionSplash } from "./components/DecisionSplash";
 import { EmberBackground } from "./components/EmberBackground";
+import { StrategyBar } from "./components/StrategyBar";
 import { TabNav } from "./components/TabNav";
 import { ControlPage } from "./pages/ControlPage";
 import { EnginePage } from "./pages/EnginePage";
@@ -131,7 +132,7 @@ export default function App() {
     // Live push: backend emits a tick whenever a new decision/trade/snapshot
     // lands or the pause/halt state flips -- refresh immediately instead of
     // waiting out the polling interval. Browser auto-reconnects on errors.
-    const es = new EventSource("/api/events");
+    const es = new EventSource(withShare("/api/events"));
     es.onmessage = () => refresh();
     return () => es.close();
   }, [refresh]);
@@ -156,6 +157,11 @@ export default function App() {
       <EmberBackground />
 
       <div className="app">
+        {isReadOnly && (
+          <div className="readonly-ribbon">
+            <span className="readonly-dot" /> Widok tylko do odczytu — podgląd na żywo, bez sterowania.
+          </div>
+        )}
         <div className="app-header">
           <BrandLogo size={48} />
           <div>
@@ -170,6 +176,8 @@ export default function App() {
         </div>
 
         {status && <TabNav active={tab} onChange={changeTab} cryptoEnabled={status.crypto_enabled} />}
+
+        {data && <StrategyBar status={data.status} />}
 
         {error ? (
           <p className="error-text">Błąd komunikacji z API: {error}</p>

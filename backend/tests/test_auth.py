@@ -62,7 +62,7 @@ def test_dashboard_credentials_empty_by_default():
     assert Settings().dashboard_credentials == {}
 
 
-def _build_test_app(credentials: dict[str, str], secret: str = SECRET) -> Starlette:
+def _build_test_app(credentials: dict[str, str], secret: str = SECRET, share_token: str = "") -> Starlette:
     async def homepage(request):
         return PlainTextResponse("static shell ok")
 
@@ -72,14 +72,23 @@ def _build_test_app(credentials: dict[str, str], secret: str = SECRET) -> Starle
     async def login_endpoint(request):
         return PlainTextResponse("login ok")
 
+    async def control_endpoint(request):
+        return PlainTextResponse("control ok")
+
     app = Starlette(
         routes=[
             Route("/", homepage),
             Route("/api/status", api_endpoint),
             Route("/api/auth/login", login_endpoint),
+            Route("/api/control/pause", control_endpoint, methods=["POST"]),
         ]
     )
-    app.add_middleware(SessionAuthMiddleware, credentials=credentials, get_secret=lambda: secret)
+    app.add_middleware(
+        SessionAuthMiddleware,
+        credentials=credentials,
+        get_secret=lambda: secret,
+        get_share_token=lambda: share_token,
+    )
     return app
 
 
@@ -125,3 +134,31 @@ def test_middleware_never_gates_login_endpoint():
     client = TestClient(_build_test_app({"Darek": "secret"}))
     resp = client.get("/api/auth/login")
     assert resp.status_code == 200
+
+
+# ---- Read-only share link --------------------------------------------------
+
+
+def test_share_token_allows_readonly_get():
+    client = TestClient(_build_test_app({"Darek": "secret"}, share_token="s3cret-share"))
+    resp = client.get("/api/status?share=s3cret-share")
+    assert resp.status_code == 200
+    assert resp.text == "api ok"
+
+
+def test_share_token_blocks_control_post():
+    """A share viewer can watch but never touch -- POST /api/control is blocked
+    even with a valid share token."""
+    client = TestClient(_build_test_app({"Darek": "secret"}, share_token="s3cret-share"))
+    resp = client.post("/api/control/pause?share=s3cret-share")
+    assert resp.status_code == 401
+
+
+def test_wrong_share_token_rejected():
+    client = TestClient(_build_test_app({"Darek": "secret"}, share_token="s3cret-share"))
+    assert client.get("/api/status?share=nope").status_code == 401
+
+
+def test_share_disabled_when_no_token_configured():
+    client = TestClient(_build_test_app({"Darek": "secret"}, share_token=""))
+    assert client.get("/api/status?share=anything").status_code == 401

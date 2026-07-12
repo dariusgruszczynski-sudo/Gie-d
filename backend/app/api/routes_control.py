@@ -21,6 +21,15 @@ from app.services.trading_engine import compute_portfolio, execute_manual_trade,
 router = APIRouter(prefix="/api/control", tags=["control"])
 
 
+@router.get("/share-link")
+def share_link(settings: Settings = Depends(get_settings)):
+    """Read-only share token for the owner to build a view-only link. Lives under
+    /api/control (auth-gated) so a read-only share viewer can NEVER reach it --
+    the token is only ever handed to an authenticated owner. The frontend builds
+    the final URL from the browser's own origin (robust behind the proxy)."""
+    return {"enabled": bool(settings.share_token), "token": settings.share_token}
+
+
 @router.post("/pause")
 def pause(venue: str = "alpaca", db: Session = Depends(get_db)):
     state = risk_manager.pause(db, venue)

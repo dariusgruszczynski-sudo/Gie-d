@@ -82,6 +82,8 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         # dashboard show a single account total instead of two double-counted
         # per-engine "portfolio" values.
         "account": _account_view(db),
+        # Read-only share link enabled? (token itself never leaves the server.)
+        "share_enabled": bool(settings.share_token),
         **_serialize_session_info(settings),
         **budget_tracker.get_budget_status(db, settings),
     }

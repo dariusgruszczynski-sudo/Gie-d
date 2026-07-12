@@ -7,6 +7,7 @@ import { PriceTicker } from "../components/PriceTicker";
 import { RegimeBadge } from "../components/RegimeBadge";
 import { TradesTable } from "../components/TradesTable";
 import { VenueControls } from "../components/VenueControls";
+import { isReadOnly } from "../api/client";
 import { PageData } from "./types";
 
 /** One engine's full dashboard: ticker, regime, START/STOP, its own positions,
@@ -49,14 +50,16 @@ export function EnginePage({ data, venue }: { data: PageData; venue: "alpaca" | 
         </div>
       </div>
 
-      <VenueControls
-        venue={venue}
-        label={label}
-        paused={isCrypto ? status.crypto_paused : status.is_paused}
-        halted={isCrypto ? undefined : status.is_halted}
-        enabled={isCrypto ? status.crypto_enabled : true}
-        onChanged={refresh}
-      />
+      {!isReadOnly && (
+        <VenueControls
+          venue={venue}
+          label={label}
+          paused={isCrypto ? status.crypto_paused : status.is_paused}
+          halted={isCrypto ? undefined : status.is_halted}
+          enabled={isCrypto ? status.crypto_enabled : true}
+          onChanged={refresh}
+        />
+      )}
 
       <PositionsBoard alpaca={isCrypto ? null : portfolio} crypto={isCrypto ? portfolio : null} />
 
@@ -72,12 +75,14 @@ export function EnginePage({ data, venue }: { data: PageData; venue: "alpaca" | 
       )}
 
       <div className="grid">
-        <ManualTradePanel
-          whitelist={whitelist}
-          onChanged={refresh}
-          venue={venue}
-          title={`Ręczna transakcja — ${isCrypto ? "Krypto" : "Akcje US"}`}
-        />
+        {!isReadOnly && (
+          <ManualTradePanel
+            whitelist={whitelist}
+            onChanged={refresh}
+            venue={venue}
+            title={`Ręczna transakcja — ${isCrypto ? "Krypto" : "Akcje US"}`}
+          />
+        )}
         <TradesTable trades={trades} title={`Transakcje — ${isCrypto ? "Krypto" : "Akcje US"}`} />
       </div>
 

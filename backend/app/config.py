@@ -361,6 +361,13 @@ class Settings(BaseSettings):
     # deployments). Format: "user1:pass1,user2:pass2".
     dashboard_users: str = ""
 
+    # Read-only share link: gdy ustawisz sekret, każdy z linkiem
+    # https://.../?share=<SEKRET> zobaczy dashboard TYLKO DO ODCZYTU (bez
+    # logowania, bez żadnych przycisków/handlu -- serwer przepuszcza tylko GET
+    # na dane, blokuje wszystkie akcje). Puste = udostępnianie wyłączone.
+    # Wygeneruj długi losowy: python -c "import secrets; print(secrets.token_urlsafe(24))"
+    share_token: str = ""
+
     @property
     def whitelist_symbols(self) -> list[str]:
         return [s.strip().upper() for s in self.trading_whitelist.split(",") if s.strip()]

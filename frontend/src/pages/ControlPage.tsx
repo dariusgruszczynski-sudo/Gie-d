@@ -1,8 +1,9 @@
 import { BudgetGauge } from "../components/BudgetGauge";
 import { ControlToolbar } from "../components/ControlToolbar";
 import { NotificationSettings } from "../components/NotificationSettings";
+import { ShareLinkPanel } from "../components/ShareLinkPanel";
 import { VenueControls } from "../components/VenueControls";
-import { StatusResponse } from "../api/client";
+import { isReadOnly, StatusResponse } from "../api/client";
 import { PageData } from "./types";
 
 function ProfileRow({ label, value }: { label: string; value: string }) {
@@ -86,27 +87,42 @@ export function ControlPage({ data }: { data: PageData }) {
   const { status, refresh, muted, toggleMuted } = data;
   return (
     <>
-      <div className="grid">
-        <VenueControls
-          venue="alpaca"
-          label="Silnik — Akcje US"
-          paused={status.is_paused}
-          halted={status.is_halted}
-          enabled
-          onChanged={refresh}
-        />
-        <VenueControls
-          venue="crypto"
-          label="Silnik — Krypto 24/7"
-          paused={status.crypto_paused}
-          enabled={status.crypto_enabled}
-          onChanged={refresh}
-        />
-      </div>
+      {isReadOnly && (
+        <div className="panel">
+          <p className="subtitle" style={{ margin: 0 }}>
+            Widok tylko do odczytu — sterowanie silnikami, powiadomienia i ręczne transakcje są ukryte. Poniżej podgląd
+            nastaw i budżetu.
+          </p>
+        </div>
+      )}
 
-      <ControlToolbar status={status} onChanged={refresh} muted={muted} onToggleMuted={toggleMuted} />
+      {!isReadOnly && (
+        <>
+          <div className="grid">
+            <VenueControls
+              venue="alpaca"
+              label="Silnik — Akcje US"
+              paused={status.is_paused}
+              halted={status.is_halted}
+              enabled
+              onChanged={refresh}
+            />
+            <VenueControls
+              venue="crypto"
+              label="Silnik — Krypto 24/7"
+              paused={status.crypto_paused}
+              enabled={status.crypto_enabled}
+              onChanged={refresh}
+            />
+          </div>
 
-      <NotificationSettings />
+          <ControlToolbar status={status} onChanged={refresh} muted={muted} onToggleMuted={toggleMuted} />
+
+          <NotificationSettings />
+
+          <ShareLinkPanel />
+        </>
+      )}
 
       <EngineProfiles status={status} />
 
