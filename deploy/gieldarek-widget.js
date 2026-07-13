@@ -64,7 +64,12 @@ const base = () => BASE_URL.replace(/\/$/, "");
 async function fetchWidget() {
   const req = new Request(`${base()}/api/widget?share=${encodeURIComponent(SHARE_TOKEN)}`);
   req.timeoutInterval = 20;
-  return await req.loadJSON();
+  // NB: Scriptable's loadJSON() does NOT throw on HTTP 401/4xx -- it returns the
+  // parsed error body (e.g. {"detail":"Wymagane logowanie"}). So we must inspect
+  // the status code ourselves, or a bad token silently renders an empty widget.
+  const data = await req.loadJSON();
+  const status = req.response ? req.response.statusCode : 200;
+  return { data, status };
 }
 
 function drawSparkline(spark, w, h) {
@@ -150,7 +155,16 @@ async function buildWidget() {
 
   let d;
   try {
-    d = await fetchWidget();
+    const res = await fetchWidget();
+    if (res.status >= 400 || !res.data || res.data.detail || res.data.total === undefined) {
+      const why =
+        res.status === 401 || (res.data && res.data.detail)
+          ? "Zły / brak SHARE_TOKEN — sprawdź token w Parameter i na serwerze (.env)."
+          : `Serwer zwrócił ${res.status}.`;
+      errorCard(w, `Brak dostępu (${res.status})`, why);
+      return w;
+    }
+    d = res.data;
   } catch (e) {
     errorCard(w, "Błąd połączenia", String((e && e.message) || e));
     return w;
