@@ -138,3 +138,41 @@ def test_ticker_query_is_asset_class_aware():
     assert news_client._ticker_query("ethusd") == "Ethereum crypto"
     # A plain equity ticker keeps the stock query.
     assert news_client._ticker_query("NVDA") == "NVDA stock"
+
+
+def test_finnhub_items_parses_and_labels_source():
+    raw = [
+        {"headline": "Fed holds rates", "datetime": 1767225600, "source": "Reuters"},
+        {"headline": "", "datetime": 1767225600, "source": "Ignored"},  # empty title dropped
+    ]
+    out = news_client._finnhub_items(raw, limit=8, label="general")
+    assert len(out) == 1
+    assert out[0]["title"] == "Fed holds rates"
+    assert out[0]["source"] == "Finnhub · Reuters (general)"
+    assert out[0]["published_at"].startswith("2026-")  # unix ts -> ISO
+
+
+def test_finnhub_items_degrades_on_non_list():
+    # A Finnhub error path returns [] (or an error dict) -- never explodes.
+    assert news_client._finnhub_items([], limit=8, label="") == []
+    assert news_client._finnhub_items({"error": "bad key"}, limit=8, label="") == []
+
+
+def test_get_ticker_all_merges_finnhub_only_for_equities(monkeypatch):
+    monkeypatch.setattr(
+        news_client, "_get_ticker_headlines",
+        lambda ticker, limit: [{"title": f"GN-{ticker}", "published_at": "", "source": "Google News"}],
+    )
+    monkeypatch.setattr(
+        news_client, "_get_finnhub_company",
+        lambda ticker, key: [{"title": f"FH-{ticker}", "published_at": "", "source": "Finnhub"}],
+    )
+    # Equity -> Google News + Finnhub company news.
+    eq = news_client._get_ticker_all("NVDA", 3, finnhub_key="k")
+    assert {h["title"] for h in eq} == {"GN-NVDA", "FH-NVDA"}
+    # Crypto pair -> Finnhub company-news skipped (doesn't cover crypto).
+    cr = news_client._get_ticker_all("BTCUSD", 3, finnhub_key="k")
+    assert {h["title"] for h in cr} == {"GN-BTCUSD"}
+    # No key -> RSS/Google News only.
+    nokey = news_client._get_ticker_all("NVDA", 3, finnhub_key="")
+    assert {h["title"] for h in nokey} == {"GN-NVDA"}

@@ -9,6 +9,7 @@ crowd out the rest (e.g. per-ticker headlines or SEC filings) once capped."""
 import logging
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime, timedelta, timezone
 from itertools import zip_longest
 
 import httpx
@@ -200,6 +201,70 @@ def _get_ticker_headlines(ticker: str, limit: int) -> list[dict]:
     )
 
 
+# --- Finnhub (optional, keyed, reliable primary source) ---------------------
+# https://finnhub.io -- a JSON news API that (unlike the free RSS feeds) is not
+# User-Agent/IP-blocked on datacenter hosts, so it guarantees coverage even when
+# CNBC/Barron's/Reddit reject the server. Enabled only when finnhub_api_key is
+# set; every call degrades independently to [] on any error, like every other
+# source here.
+FINNHUB_BASE = "https://finnhub.io/api/v1"
+FINNHUB_GENERAL_LIMIT = 8
+FINNHUB_COMPANY_LIMIT = 3
+
+
+def _finnhub_get(path: str, key: str, params: dict) -> list | dict:
+    try:
+        resp = httpx.get(f"{FINNHUB_BASE}{path}", params={**params, "token": key}, timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as exc:
+        logger.warning("Finnhub %s failed (%s), skipping it", path, type(exc).__name__)
+        return []
+
+
+def _finnhub_items(raw: list | dict, limit: int, label: str) -> list[dict]:
+    items: list[dict] = []
+    for it in (raw if isinstance(raw, list) else [])[:limit]:
+        title = (it.get("headline") or "").strip()
+        if not title:
+            continue
+        published_at = ""
+        ts = it.get("datetime")
+        if ts:
+            try:
+                published_at = datetime.fromtimestamp(int(ts), tz=timezone.utc).isoformat()
+            except (ValueError, OSError, OverflowError):
+                published_at = ""
+        outlet = it.get("source") or "Finnhub"
+        suffix = f" ({label})" if label else ""
+        items.append({"title": title, "published_at": published_at, "source": f"Finnhub · {outlet}{suffix}"})
+    return items
+
+
+def _get_finnhub_general(key: str, category: str = "general") -> list[dict]:
+    return _finnhub_items(_finnhub_get("/news", key, {"category": category}), FINNHUB_GENERAL_LIMIT, category)
+
+
+def _get_finnhub_company(ticker: str, key: str) -> list[dict]:
+    today = date.today()
+    raw = _finnhub_get(
+        "/company-news",
+        key,
+        {"symbol": ticker.upper(), "from": (today - timedelta(days=3)).isoformat(), "to": today.isoformat()},
+    )
+    return _finnhub_items(raw, FINNHUB_COMPANY_LIMIT, ticker)
+
+
+def _get_ticker_all(ticker: str, limit: int, finnhub_key: str = "") -> list[dict]:
+    """Per-ticker headlines from Google News, plus Finnhub company-news when a
+    key is set (equities only -- Finnhub company-news doesn't cover crypto
+    pairs). Merged so both a keyless and a keyed deployment work."""
+    items = _get_ticker_headlines(ticker, limit)
+    if finnhub_key and ticker.upper() not in _CRYPTO_NAMES:
+        items += _get_finnhub_company(ticker, finnhub_key)
+    return items
+
+
 def _get_reddit(subreddit: str, limit: int) -> list[dict]:
     try:
         resp = httpx.get(
@@ -238,6 +303,12 @@ class NewsClient:
     def __init__(self, settings: Settings):
         self._settings = settings
 
+    @property
+    def _finnhub_key(self) -> str:
+        # Safe even when settings is None (used in tests) -- returns "" so the
+        # keyed source is simply skipped and behaviour matches an RSS-only run.
+        return getattr(self._settings, "finnhub_api_key", "") or ""
+
     def get_new_ticker_headlines(
         self, tickers: list[str], seen: dict[str, list[str]]
     ) -> tuple[list[dict], dict[str, list[str]]]:
@@ -249,8 +320,9 @@ class NewsClient:
         new_headlines: list[dict] = []
         updated_seen: dict[str, list[str]] = {}
 
+        key = self._finnhub_key
         with ThreadPoolExecutor(max_workers=max(len(tickers), 1)) as pool:
-            futures = {ticker: pool.submit(_get_ticker_headlines, ticker, PER_TICKER_LIMIT) for ticker in tickers}
+            futures = {ticker: pool.submit(_get_ticker_all, ticker, PER_TICKER_LIMIT, key) for ticker in tickers}
             for ticker, future in futures.items():
                 try:
                     headlines = future.result()
@@ -267,11 +339,19 @@ class NewsClient:
         return new_headlines, updated_seen
 
     def get_headlines(self, tickers: list[str], limit: int = 40) -> list[dict]:
-        worker_count = len(RSS_FEEDS) + len(tickers) + len(REDDIT_SUBREDDITS)
+        key = self._finnhub_key
+        crypto_enabled = bool(getattr(self._settings, "crypto_enabled", False))
+        worker_count = len(RSS_FEEDS) + len(tickers) + len(REDDIT_SUBREDDITS) + 2
         with ThreadPoolExecutor(max_workers=worker_count) as pool:
             futures = [pool.submit(_get_rss, name, url, PER_SOURCE_LIMIT) for name, url in RSS_FEEDS]
-            futures += [pool.submit(_get_ticker_headlines, ticker, PER_TICKER_LIMIT) for ticker in tickers]
+            futures += [pool.submit(_get_ticker_all, ticker, PER_TICKER_LIMIT, key) for ticker in tickers]
             futures += [pool.submit(_get_reddit, sub, PER_SUBREDDIT_LIMIT) for sub in REDDIT_SUBREDDITS]
+            # Keyed primary source (only when configured): broad market news, plus
+            # a crypto-category pull for the 24/7 venue.
+            if key:
+                futures.append(pool.submit(_get_finnhub_general, key, "general"))
+                if crypto_enabled:
+                    futures.append(pool.submit(_get_finnhub_general, key, "crypto"))
 
             per_source: list[list[dict]] = []
             for future in futures:

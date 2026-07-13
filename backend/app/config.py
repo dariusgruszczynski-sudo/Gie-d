@@ -337,6 +337,13 @@ class Settings(BaseSettings):
     claude_monthly_budget_usd: float = 50.0
     claude_budget_alert_threshold_pct: float = 80.0
 
+    # Finnhub API key (free tier: https://finnhub.io) -- an OPTIONAL, reliable,
+    # keyed primary news source. Unlike the free RSS feeds it isn't UA/IP-blocked
+    # on datacenter hosts, so it guarantees Claude sees market + per-ticker
+    # company news even when outlets like CNBC/Barron's/Reddit reject the server.
+    # Empty -> the news layer runs on RSS only, exactly as before (graceful).
+    finnhub_api_key: str = ""
+
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
     smtp_username: str = ""
