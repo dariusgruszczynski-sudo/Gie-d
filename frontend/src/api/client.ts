@@ -253,4 +253,28 @@ export const api = {
   pushUnsubscribe: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
     apiFetch<{ message: string }>("/api/push/unsubscribe", { method: "POST", body: JSON.stringify(sub) }),
   pushTest: () => apiFetch<{ message: string }>("/api/push/test", { method: "POST" }),
+  health: () => apiFetch<HealthReport>("/api/health"),
+  healthReset: (action: string) =>
+    apiFetch<{ action: string; message: string }>("/api/health/reset", {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    }),
 };
+
+export type HealthStatus = "ok" | "warn" | "down" | "off";
+
+export interface HealthCheck {
+  key: string;
+  label: string;
+  group: string;
+  status: HealthStatus;
+  detail: string;
+  action: string | null;
+}
+
+export interface HealthReport {
+  overall: HealthStatus;
+  counts: Record<HealthStatus, number>;
+  checks: HealthCheck[];
+  checked_at: string;
+}

@@ -9,6 +9,7 @@ import { StrategyBar } from "./components/StrategyBar";
 import { TabNav } from "./components/TabNav";
 import { ControlPage } from "./pages/ControlPage";
 import { EnginePage } from "./pages/EnginePage";
+import { HealthCheckPage } from "./pages/HealthCheckPage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { PageData, TabKey } from "./pages/types";
 import { isSoundMuted, playTradeSound, setSoundMuted } from "./tradeSound";
@@ -18,7 +19,7 @@ const TAB_KEY = "gield.tab";
 
 function readInitialTab(): TabKey {
   const fromHash = window.location.hash.replace("#", "");
-  const valid: TabKey[] = ["overview", "us", "crypto", "control"];
+  const valid: TabKey[] = ["overview", "us", "crypto", "control", "health"];
   if (valid.includes(fromHash as TabKey)) return fromHash as TabKey;
   const stored = localStorage.getItem(TAB_KEY);
   return valid.includes(stored as TabKey) ? (stored as TabKey) : "overview";
@@ -208,6 +209,7 @@ export default function App() {
             {tab === "us" && <EnginePage data={data} venue="alpaca" />}
             {tab === "crypto" && <EnginePage data={data} venue="crypto" />}
             {tab === "control" && <ControlPage data={data} />}
+            {tab === "health" && <HealthCheckPage />}
           </div>
         )}
       </div>

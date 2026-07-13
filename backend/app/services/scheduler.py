@@ -219,3 +219,24 @@ def stop_scheduler() -> None:
     if _scheduler is not None:
         _scheduler.shutdown(wait=False)
         _scheduler = None
+
+
+def scheduler_status() -> dict:
+    """Live view of the background scheduler for the Health-check panel: is it
+    running, and when does each job next fire. Returns running=False if it was
+    never started or got shut down (a stuck/dead scheduler)."""
+    running = _scheduler is not None and getattr(_scheduler, "running", False)
+    jobs = []
+    if _scheduler is not None:
+        for job in _scheduler.get_jobs():
+            nxt = getattr(job, "next_run_time", None)
+            jobs.append({"id": job.id, "next_run_at": nxt.isoformat() if nxt else None})
+    return {"running": bool(running), "jobs": jobs}
+
+
+def restart_scheduler() -> dict:
+    """Hard-reset the scheduler (stop then start) -- the Health-check 'reset'
+    for a wedged/stopped scheduler, without restarting the whole process."""
+    stop_scheduler()
+    start_scheduler()
+    return scheduler_status()

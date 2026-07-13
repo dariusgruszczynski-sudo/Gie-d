@@ -1,6 +1,6 @@
 import { Decision, PortfolioResponse, StatusResponse, Trade } from "../api/client";
 
-export type TabKey = "overview" | "us" | "crypto" | "control";
+export type TabKey = "overview" | "us" | "crypto" | "control" | "health";
 
 /** All the shared, already-fetched dashboard state, passed down to each page so
  *  data is fetched ONCE in App and every tab renders from the same snapshot. */

@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.routes_auth import router as auth_router
 from app.api.routes_control import router as control_router
 from app.api.routes_dashboard import router as dashboard_router
+from app.api.routes_health import router as health_router
 from app.api.routes_push import router as push_router
 from app.auth import SessionAuthMiddleware
 from app.config import get_settings
@@ -51,6 +52,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(dashboard_router)
 app.include_router(control_router)
+app.include_router(health_router)
 app.include_router(push_router)
 
 if os.path.isdir(FRONTEND_DIST):

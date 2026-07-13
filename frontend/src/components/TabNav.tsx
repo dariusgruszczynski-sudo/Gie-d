@@ -1,6 +1,7 @@
+import { isReadOnly } from "../api/client";
 import { TabKey } from "../pages/types";
 
-type IconName = "home" | "stocks" | "crypto" | "sliders";
+type IconName = "home" | "stocks" | "crypto" | "sliders" | "pulse";
 
 interface TabDef {
   key: TabKey;
@@ -15,6 +16,7 @@ const TABS: TabDef[] = [
   { key: "us", label: "Alpaca · Akcje US", short: "Akcje US", icon: "stocks", dot: "alpaca" },
   { key: "crypto", label: "Alpaca · Krypto", short: "Krypto", icon: "crypto", dot: "crypto" },
   { key: "control", label: "Centrum sterowania", short: "Sterowanie", icon: "sliders" },
+  { key: "health", label: "Health check", short: "Health", icon: "pulse" },
 ];
 
 function TabIcon({ name }: { name: IconName }) {
@@ -49,6 +51,12 @@ function TabIcon({ name }: { name: IconName }) {
           <circle cx="8" cy="18" r="2.2" fill="var(--bg)" stroke="currentColor" strokeWidth="1.7" />
         </svg>
       );
+    case "pulse":
+      return (
+        <svg {...p}>
+          <path d="M3 12h4l2-5 3 10 2-6 2 3h4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
   }
 }
 
@@ -63,9 +71,12 @@ export function TabNav({
   onChange: (t: TabKey) => void;
   cryptoEnabled: boolean;
 }) {
+  // Health check drives auth-gated probes/resets -- hide it from the read-only
+  // share view (the endpoint would 401 there anyway).
+  const tabs = isReadOnly ? TABS.filter((t) => t.key !== "health") : TABS;
   return (
     <nav className="tabnav" aria-label="Sekcje">
-      {TABS.map((t) => {
+      {tabs.map((t) => {
         const dimmed = t.key === "crypto" && !cryptoEnabled;
         return (
           <button
