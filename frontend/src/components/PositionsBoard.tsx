@@ -1,4 +1,5 @@
-import { PortfolioResponse } from "../api/client";
+import { useState } from "react";
+import { api, isReadOnly, PortfolioResponse } from "../api/client";
 
 type Leg = "us" | "crypto";
 
@@ -41,9 +42,32 @@ function extract(portfolio: PortfolioResponse | null, leg: Leg): Pos[] {
   return out;
 }
 
-function PositionCard({ p }: { p: Pos }) {
+function PositionCard({ p, onChanged }: { p: Pos; onChanged?: () => void }) {
   const up = (p.pnlPct ?? 0) >= 0;
   const legLabel = p.leg === "crypto" ? "Krypto" : "Akcje US";
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Full symbol the backend expects: crypto is the pair ("BTCUSD"), equities the
+  // plain ticker. venue follows the leg.
+  const symbol = p.leg === "crypto" ? p.asset + "USD" : p.asset;
+  const venue = p.leg === "crypto" ? "crypto" : "alpaca";
+  const canSell = !isReadOnly && !!onChanged;
+
+  async function sellAll() {
+    if (!window.confirm(`Sprzedać CAŁĄ pozycję ${p.asset} (~${money(p.value)})? To realne zlecenie.`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.sellAll(symbol, venue);
+      onChanged?.();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className={`pos-card pos-card-${p.leg}`}>
       <div className="pos-card-head">
@@ -81,18 +105,30 @@ function PositionCard({ p }: { p: Pos }) {
           </b>
         </div>
       </div>
+      {canSell && (
+        <div className="pos-card-actions">
+          <button className="btn-outline-danger pos-sell-all" disabled={busy} onClick={sellAll}>
+            {busy ? "Sprzedaję…" : "Sprzedaj wszystko"}
+          </button>
+          {error && <span className="pos-sell-err">{error}</span>}
+        </div>
+      )}
     </div>
   );
 }
 
 /** One clean board of every open position across BOTH engines: what you own,
- *  in which leg, how much, at what price, and the live profit/loss. */
+ *  in which leg, how much, at what price, and the live profit/loss. Each card
+ *  can one-click sell the WHOLE position (exact held qty, no 'insufficient
+ *  qty'); hidden in read-only view. */
 export function PositionsBoard({
   alpaca,
   crypto,
+  onChanged,
 }: {
   alpaca: PortfolioResponse | null;
   crypto: PortfolioResponse | null;
+  onChanged?: () => void;
 }) {
   const positions = [...extract(alpaca, "us"), ...extract(crypto, "crypto")].sort((a, b) => b.value - a.value);
   const invested = positions.reduce((s, p) => s + p.value, 0);
@@ -125,7 +161,7 @@ export function PositionsBoard({
       {positions.length > 0 ? (
         <div className="pos-grid">
           {positions.map((p) => (
-            <PositionCard key={`${p.leg}-${p.asset}`} p={p} />
+            <PositionCard key={`${p.leg}-${p.asset}`} p={p} onChanged={onChanged} />
           ))}
         </div>
       ) : (

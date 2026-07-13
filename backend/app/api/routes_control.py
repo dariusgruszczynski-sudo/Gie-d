@@ -48,6 +48,34 @@ def _broker_for(venue: str, settings: Settings):
     return AlpacaClient(settings), settings.whitelist_symbols, False
 
 
+@router.post("/sell-all")
+def sell_all(symbol: str, venue: str = "alpaca", db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """One-click full exit of a held position: sells the EXACT quantity the
+    account currently holds (read live from the broker), so a dollar amount that
+    rounds to more shares than held can't cause an 'insufficient qty' reject.
+    Works for any held symbol -- including adopted / off-whitelist ones."""
+    if venue == "crypto" and not settings.crypto_enabled:
+        raise HTTPException(status_code=400, detail="Silnik krypto jest wyłączony (CRYPTO_ENABLED=false)")
+    broker, whitelist, _ = _broker_for(venue, settings)
+    sym = symbol.upper()
+    try:
+        balances = broker.get_account_balances()
+    except AlpacaAPIError as exc:
+        raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
+    qty = float(balances.get(sym, 0.0) or 0.0)
+    if qty <= 0:
+        raise HTTPException(status_code=404, detail=f"Brak pozycji {sym} do sprzedania.")
+    # Allow selling a held name even if it's off the trading whitelist (adopted).
+    wl = list(dict.fromkeys(list(whitelist or []) + [sym]))
+    try:
+        trade = execute_manual_trade(
+            db, settings, broker, symbol=sym, side="SELL", quantity=qty, venue=venue, whitelist=wl
+        )
+    except (ValueError, AlpacaAPIError) as exc:
+        raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
+    return serialize(trade)
+
+
 class ManualTradeRequest(BaseModel):
     symbol: str
     side: Literal["BUY", "SELL"]

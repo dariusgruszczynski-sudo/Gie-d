@@ -61,7 +61,7 @@ export function EnginePage({ data, venue }: { data: PageData; venue: "alpaca" | 
         />
       )}
 
-      <PositionsBoard alpaca={isCrypto ? null : portfolio} crypto={isCrypto ? portfolio : null} />
+      <PositionsBoard alpaca={isCrypto ? null : portfolio} crypto={isCrypto ? portfolio : null} onChanged={refresh} />
 
       {!isCrypto && (
         <MarketStrip

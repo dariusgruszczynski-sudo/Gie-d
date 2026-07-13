@@ -241,6 +241,8 @@ export const api = {
     quantity?: number;
     venue?: "alpaca" | "crypto";
   }) => apiFetch<Trade>("/api/control/manual-trade", { method: "POST", body: JSON.stringify(body) }),
+  sellAll: (symbol: string, venue: "alpaca" | "crypto" = "alpaca") =>
+    apiFetch<Trade>(`/api/control/sell-all?symbol=${encodeURIComponent(symbol)}&venue=${venue}`, { method: "POST" }),
   shareLink: () => apiFetch<{ enabled: boolean; token: string }>("/api/control/share-link"),
   claudeEdge: (venue: string = "alpaca") =>
     apiFetch<ClaudeEdge>(withShare(`/api/claude-edge?venue=${venue}`)),

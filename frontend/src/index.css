@@ -1635,6 +1635,26 @@ button {
   border-radius: 12px;
   padding: 12px 14px;
 }
+.pos-card-actions {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 60%, transparent);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pos-sell-all {
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.pos-sell-err {
+  color: var(--red);
+  font-size: 0.72rem;
+  width: 100%;
+}
 .pos-card-us {
   border-left-color: var(--venue-us);
 }
