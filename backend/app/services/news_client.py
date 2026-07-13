@@ -19,6 +19,27 @@ logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = 6.0
 
+# Without an explicit User-Agent, httpx sends "python-httpx/..", which a large
+# share of outlets (CNBC, Barron's, Investopedia, ETF.com, Bitcoin Magazine,
+# Nasdaq, ...) reject outright with 403/429. A realistic browser UA + Accept
+# revives the bulk of them -- this was the single reason the feeds looked
+# "empty" on the datacenter-hosted server.
+BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+# SEC EDGAR's access policy REQUIRES an identifying User-Agent (declared name +
+# contact) and 403s both python's default and generic browser UAs -- give it
+# its own compliant header instead.
+SEC_HEADERS = {
+    "User-Agent": "GielDarek Research admin@gieldarek.example",
+    "Accept-Encoding": "gzip, deflate",
+}
+
 # Free, keyless RSS/Atom feeds curated for swing-trading US stocks/ETFs:
 # general market news, sector coverage relevant to a tech-heavy whitelist
 # (AAPL/NVDA/QQQ), and SEC filings for material corporate events. Each
@@ -35,8 +56,9 @@ RSS_FEEDS: list[tuple[str, str]] = [
     ("Business Insider Markets", "https://markets.businessinsider.com/rss/news"),
     ("WSJ Markets", "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"),
     ("Bloomberg Markets", "https://feeds.bloomberg.com/markets/news.rss"),
-    ("Reuters Business", "https://feeds.reuters.com/reuters/businessNews"),
-    ("Forbes Markets", "https://www.forbes.com/markets/feed/"),
+    # Reuters retired its public RSS host (feeds.reuters.com no longer resolves)
+    # and Forbes' /markets/feed/ 404s -- both removed rather than failing every
+    # cycle.
     ("Barron's", "https://www.barrons.com/feed/rssheadlines"),
     ("The Motley Fool", "https://www.fool.com/feeds/index.aspx"),
     ("Zacks", "https://www.zacks.com/rss/rss_news_stock.php"),
@@ -137,12 +159,15 @@ def _parse_feed(source: str, xml_text: str, limit: int) -> list[dict]:
 
 
 def _get_rss(source: str, url: str, limit: int, params: dict | None = None) -> list[dict]:
+    headers = SEC_HEADERS if "sec.gov" in url else BROWSER_HEADERS
     try:
-        resp = httpx.get(url, params=params, timeout=REQUEST_TIMEOUT, follow_redirects=True)
+        resp = httpx.get(url, params=params, headers=headers, timeout=REQUEST_TIMEOUT, follow_redirects=True)
         resp.raise_for_status()
         return _parse_feed(source, resp.text, limit)
-    except Exception:
-        logger.warning("Failed to fetch feed %s, skipping it", source, exc_info=True)
+    except Exception as exc:
+        # Feeds degrade independently; log compactly (no stack trace) so one
+        # server-side block doesn't bury the log in tracebacks every cycle.
+        logger.warning("Failed to fetch feed %s (%s), skipping it", source, type(exc).__name__)
         return []
 
 
@@ -194,8 +219,10 @@ def _get_reddit(subreddit: str, limit: int) -> list[dict]:
             for c in children
             if c.get("data", {}).get("title")
         ]
-    except Exception:
-        logger.warning("Failed to fetch Reddit r/%s, skipping it", subreddit, exc_info=True)
+    except Exception as exc:
+        # Reddit hard-blocks datacenter IPs (403 "Blocked") regardless of UA --
+        # log compactly instead of a full traceback each cycle.
+        logger.warning("Failed to fetch Reddit r/%s (%s), skipping it", subreddit, type(exc).__name__)
         return []
 
 
