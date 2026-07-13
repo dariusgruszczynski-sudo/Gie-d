@@ -136,6 +136,7 @@ export function StatusBanner({ status }: { status: StatusResponse }) {
             <strong className={status.claude_budget_alert ? "pnl-negative" : ""}>
               ${spentAnimated.toFixed(2)} / ${status.claude_monthly_budget_usd.toFixed(2)}
             </strong>
+            <span className="stat-tile-sub">pozostało ~${status.claude_budget_remaining_usd.toFixed(2)}</span>
           </div>
         </div>
 

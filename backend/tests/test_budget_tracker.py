@@ -12,6 +12,18 @@ def test_record_usage_accumulates_tokens_and_cost(db_session, settings):
     assert status["claude_output_tokens_this_month"] == 500
     assert status["claude_total_tokens_this_month"] == 2500
     assert round(status["claude_spend_usd_this_month"], 4) == 0.03
+    # Live "ile zostało w $": budget minus estimated spend, floored at 0.
+    expected_remaining = round(settings.claude_monthly_budget_usd - 0.03, 2)
+    assert status["claude_budget_remaining_usd"] == expected_remaining
+
+
+def test_budget_remaining_floors_at_zero(db_session, settings):
+    """Once estimated spend passes the budget, remaining reads 0 (never
+    negative) -- the pause is a soft cap; real console credit is the true limit."""
+    over = settings.claude_monthly_budget_usd + 5.0
+    budget_tracker.record_usage_cost(db_session, over)
+    status = budget_tracker.get_budget_status(db_session, settings)
+    assert status["claude_budget_remaining_usd"] == 0.0
 
 
 def test_status_exposes_live_token_meter_fields(db_session, settings):

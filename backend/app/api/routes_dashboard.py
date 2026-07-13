@@ -374,6 +374,9 @@ def get_widget(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "cash": account["cash"] if account else None,
         "day_pnl_pct": day_pnl_pct,
         "net_result_usd": net["net_result_usd"],
+        # Live estimated Claude budget remaining ($) -- if the budget is set to
+        # what was loaded on the console, this tracks the real balance directionally.
+        "claude_budget_remaining_usd": net["claude_budget_remaining_usd"],
         "positions": positions,
         "spark": spark,
     }

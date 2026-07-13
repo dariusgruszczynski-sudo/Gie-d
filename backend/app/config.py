@@ -328,7 +328,13 @@ class Settings(BaseSettings):
     # upcoming earnings -- a calendar-lookup failure never blocks trading.
     earnings_blackout_days: int = 2
 
-    claude_monthly_budget_usd: float = 20.0
+    # Set this to match what you've actually loaded on console.anthropic.com so
+    # the dashboard's "pozostało ~$X" reads as a real (estimated) remaining
+    # balance. The hard pause (claude_pause_trading_at_budget) is a REDUNDANT
+    # small-account safety: your real console credit is the true limit -- when it
+    # runs out the API errors and the scheduled cycle skips gracefully (never
+    # crashes), so this cap only guards against a runaway loop, not real spend.
+    claude_monthly_budget_usd: float = 50.0
     claude_budget_alert_threshold_pct: float = 80.0
 
     smtp_host: str = "smtp.gmail.com"

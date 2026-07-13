@@ -61,9 +61,16 @@ def get_budget_status(db: Session, settings: Settings) -> dict:
     out_tokens = state.claude_output_tokens_this_month if is_current else 0
     budget = settings.claude_monthly_budget_usd
     pct_used = (spent / budget * 100) if budget > 0 else 0.0
+    # Live "ile zostało w $" -- budget minus estimated spend, floored at 0. If the
+    # user sets claude_monthly_budget_usd to exactly what they've loaded on
+    # console.anthropic.com, this reads as the estimated remaining balance. It is
+    # still a self-tracked estimate (the API exposes no real balance), so it can
+    # drift from the console figure -- directional, not exact.
+    remaining = max(budget - spent, 0.0) if budget > 0 else 0.0
     return {
         "claude_monthly_budget_usd": budget,
         "claude_spend_usd_this_month": round(spent, 4),
+        "claude_budget_remaining_usd": round(remaining, 2),
         "claude_budget_pct_used": round(pct_used, 1),
         "claude_budget_alert": pct_used >= settings.claude_budget_alert_threshold_pct,
         # Live token meter for the current month (input + output kept separate so

@@ -60,6 +60,7 @@ export interface StatusResponse {
   profiles: { alpaca: EngineProfile; crypto: EngineProfile };
   claude_monthly_budget_usd: number;
   claude_spend_usd_this_month: number;
+  claude_budget_remaining_usd: number;
   claude_budget_pct_used: number;
   claude_budget_alert: boolean;
   claude_input_tokens_this_month: number;
