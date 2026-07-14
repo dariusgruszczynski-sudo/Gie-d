@@ -12,7 +12,7 @@ threadpool endpoint and show a spinner.
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import func, select
 
@@ -269,6 +269,32 @@ def _reset_restart_scheduler(db, settings):
     return f"Scheduler zrestartowany — działa, {len(st['jobs'])} zadań."
 
 
+def _reset_rebaseline_pnl(db, settings):
+    """Re-anchor the day/week P&L baselines (and the all-time peak) to the
+    CURRENT combined account value. Use after an external cash move -- an eToro
+    top-up or a withdrawal isn't trading profit/loss, but it jumps the account
+    total, so without re-baselining "zysk dziś/tydzień" reads a fake gain/loss.
+    Resets both windows to 'from now' because a mid-period deposit leaves no
+    clean earlier baseline."""
+    from app.api.routes_dashboard import _account_view  # lazy: avoid import cycle
+
+    account = _account_view(db)
+    if account is None:
+        return "Brak danych o koncie — najpierw odśwież snapshoty, potem przelicz P&L."
+    total = account["total_value"]
+    state = risk_manager.get_state(db)
+    today = date.today().isoformat()
+    state.day_start_value = total
+    state.day_start_date = today
+    state.week_start_value = total
+    state.week_start_date = today
+    # Re-anchor the drawdown peak too, so a deposit doesn't inflate the peak and
+    # make a later, normal dip look like a halt-worthy drawdown.
+    state.peak_account_value = total
+    db.commit()
+    return f"P&L przeliczony od nowa — baseline dnia/tygodnia i szczyt = ${total:,.2f}. Zysk dziś startuje od zera."
+
+
 RESET_ACTIONS = {
     "reset_budget_meter": _reset_budget_meter,
     "resume_alpaca": _reset_resume_alpaca,
@@ -276,6 +302,7 @@ RESET_ACTIONS = {
     "clear_halt": _reset_clear_halt,
     "refresh_snapshots": _reset_refresh_snapshots,
     "restart_scheduler": _reset_restart_scheduler,
+    "rebaseline_pnl": _reset_rebaseline_pnl,
 }
 
 

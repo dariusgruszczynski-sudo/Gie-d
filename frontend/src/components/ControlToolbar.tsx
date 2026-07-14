@@ -163,6 +163,19 @@ export function ControlToolbar({
               <Icon name="bell" />
               Wyślij podsumowanie
             </button>
+            <button
+              className="btn-secondary"
+              disabled={busy}
+              title="Po dolaniu/wypłacie kasy (np. eToro): przelicza baseline P&L na obecną wartość konta, żeby 'zysk dziś' nie liczył wpłaty jako zysku."
+              onClick={() => {
+                if (window.confirm("Przeliczyć P&L od nowa? Baseline dnia i tygodnia ustawi się na obecną wartość konta (użyj po dolaniu/wypłacie kasy).")) {
+                  run(() => api.healthReset("rebaseline_pnl"));
+                }
+              }}
+            >
+              <Icon name="refresh" />
+              Przelicz P&L
+            </button>
           </div>
         </div>
 

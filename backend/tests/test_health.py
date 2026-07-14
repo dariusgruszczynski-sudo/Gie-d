@@ -43,6 +43,14 @@ def test_reset_resume_alpaca_clears_halt(db_session, settings):
     assert refreshed.is_paused is False
 
 
+def test_rebaseline_pnl_is_registered_and_graceful_without_data(db_session, settings):
+    # No snapshots in a fresh test DB -> _account_view returns None, so the
+    # reset degrades to a message instead of crashing.
+    assert "rebaseline_pnl" in health.RESET_ACTIONS
+    out = health.run_reset("rebaseline_pnl", db_session, settings)
+    assert "P&L" in out["message"] or "Brak danych" in out["message"]
+
+
 def test_every_probe_action_has_a_reset_handler():
     """Guard against a probe emitting an `action` string that no RESET_ACTIONS
     entry handles (a typo would render a dead button)."""
