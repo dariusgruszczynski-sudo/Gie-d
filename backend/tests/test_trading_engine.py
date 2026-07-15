@@ -1223,6 +1223,18 @@ def test_adaptive_risk_scales_aggression_with_regime(settings):
     assert risk_on.stop_loss_pct == base.stop_loss_pct == risk_off.stop_loss_pct
 
 
+def test_adaptive_risk_preserves_unlimited_concurrent_positions(settings):
+    """0 = 'bez limitu' must survive adaptive scaling in EVERY regime -- the old
+    max(1, ...) silently re-imposed a 1-position cap the user had removed."""
+    from app.services import adaptive_risk
+
+    base = settings.model_copy(update={"max_concurrent_positions": 0, "max_new_positions_per_day": 0})
+    for regime in ({"regime": "risk_on", "score": 3}, {"regime": "risk_off", "score": -3}, {"regime": "neutral", "score": 0}):
+        tuned, _ = adaptive_risk.adaptive_settings(base, regime)
+        assert tuned.max_concurrent_positions == 0
+        assert tuned.max_new_positions_per_day == 0
+
+
 def test_crypto_regime_from_btc_trend_and_crypto_breadth_ignores_equity_inputs(settings):
     """The crypto venue derives its OWN regime from BTC + crypto breadth, NOT
     from SPY/VIX."""

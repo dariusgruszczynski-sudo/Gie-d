@@ -51,9 +51,13 @@ def adaptive_settings(settings: Settings, regime: dict) -> tuple[Settings, float
         # Wielkość ryzyka na transakcję rośnie/maleje wprost z agresją.
         "risk_per_trade_pct": round(settings.risk_per_trade_pct * f, 4),
         # Liczba nowych wejść dziennie i limit równoległych pozycji skalują się
-        # z agresją (min. 1 równoległa, żeby silnik nie zamarł całkowicie).
+        # z agresją. 0 znaczy "bez limitu" (bramka wejścia sprawdza `> 0`), więc
+        # zachowaj 0 -- inaczej max(1, 0*f)=1 przywróciłby limit 1 pozycji tam,
+        # gdzie użytkownik świadomie limit skasował.
         "max_new_positions_per_day": max(0, round(settings.max_new_positions_per_day * f)),
-        "max_concurrent_positions": max(1, round(settings.max_concurrent_positions * f)),
+        "max_concurrent_positions": (
+            0 if settings.max_concurrent_positions <= 0 else max(1, round(settings.max_concurrent_positions * f))
+        ),
         "min_buy_confidence": round(conf, 3),
     }
     return settings.model_copy(update=update), f

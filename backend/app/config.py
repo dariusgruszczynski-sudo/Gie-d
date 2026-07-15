@@ -60,10 +60,10 @@ class Settings(BaseSettings):
     # (patrz strategy_profiles.effective_settings). Zmień tu, żeby wykręcić
     # agresję krypto bez ruszania profilu akcji.
     crypto_risk_per_trade_pct: float = 2.0            # vs 1.25 na akcjach
-    crypto_max_concurrent_positions: int = 6
+    crypto_max_concurrent_positions: int = 0          # 0 = bez limitu (skasowany)
     crypto_min_buy_confidence: float = 0.52           # niżej = więcej wejść
-    crypto_max_new_positions_per_day: int = 12        # dużo małych wejść w ciągu doby
-    crypto_min_hold_minutes: int = 5                  # szybkie wejście/wyjście na swingach
+    crypto_max_new_positions_per_day: int = 0         # 0 = bez limitu wejść/dobę
+    crypto_min_hold_minutes: int = 0                  # 0 = bez min. czasu trzymania (bez limitu wyjść)
     crypto_max_position_pct: float = 30.0
     # FILOZOFIA KRYPTO: łap NAWET MAŁE wahnięcia i księguj MAŁE zyski, ale CZĘSTO
     # -- bez maksymalizowania na chama (żeby nie oddawać zysku czekając na ideał).
@@ -182,12 +182,12 @@ class Settings(BaseSettings):
     # Equities profile = "medium aggressive" (crypto overrides lower, see above).
     min_buy_confidence: float = 0.57
     # Cap on NEW automated BUY entries per venue per calendar day -- stops a
-    # small account churning on many low-edge entries. 0 disables.
-    max_new_positions_per_day: int = 5
+    # small account churning on many low-edge entries. 0 disables (bez limitu).
+    max_new_positions_per_day: int = 0
     # Minimum holding time (minutes) before a NON-stop mechanical exit (trailing
     # / take-profit / partial) may fire. The hard stop-loss is ALWAYS allowed.
-    # Kills in-and-out round trips that only pay the spread. 0 disables.
-    min_hold_minutes: int = 30
+    # Kills in-and-out round trips that only pay the spread. 0 disables (bez limitu wyjść).
+    min_hold_minutes: int = 0
     # --- Filtr konfluencji wejść (Tier 1: przewaga wejścia) -----------------
     # Entry edge (win rate) is the FIRST-ORDER driver of profit -- exit geometry
     # is second-order -- so a BUY must clear a transparent confluence of trend +
@@ -212,8 +212,8 @@ class Settings(BaseSettings):
     # --- Ochrona przewagi: koszty / churn / koncentracja (Tier 2) -----------
     # Cap on concurrently-held positions per venue. The whitelist is heavily
     # correlated (tech beta), so many open names are really ONE bet -- this
-    # bounds that concentration. 0 disables.
-    max_concurrent_positions: int = 6
+    # bounds that concentration. 0 disables (bez limitu).
+    max_concurrent_positions: int = 0
     # Wide-spread / thinner names (inverse ETFs, small caps, sector/bond ETFs):
     # every round trip pays more spread, so their edge must be larger. Haircut
     # their BUY size by high_spread_size_scale (1.0 = no haircut).
