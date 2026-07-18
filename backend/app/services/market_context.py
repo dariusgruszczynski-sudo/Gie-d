@@ -20,16 +20,13 @@ YAHOO_HEADERS = {"User-Agent": "Mozilla/5.0 (GielDarek-trading-bot/1.0)"}
 # Broad market/macro barometers -- describe the whole tape, not one stock:
 #  - US indices: S&P 500, Nasdaq, Dow, Russell 2000 (small caps)
 #  - Cross-asset: gold, WTI crude oil, US Dollar index (DXY), 10y Treasury
-#    yield -- the macro backdrop that moves both equities AND crypto (a rising
-#    dollar / yields is a headwind for risk assets; oil is the inflation tell)
-#  - Crypto: BTC and ETH as the 24/7 risk-appetite read the crypto brain leans on
+#    yield -- the macro backdrop that moves risk assets (a rising dollar /
+#    yields is a headwind; oil is the inflation tell)
 INDEX_SYMBOLS = {
     "^GSPC": "sp500", "^IXIC": "nasdaq", "^DJI": "dow", "^RUT": "russell2000",
     "GC=F": "gold", "CL=F": "crude_oil", "DX-Y.NYB": "dollar_index", "^TNX": "us10y_yield",
-    "BTC-USD": "btc", "ETH-USD": "eth",
 }
-# CBOE Volatility Index -- standard proxy for market-wide fear/complacency,
-# the equity-market equivalent of the crypto Fear & Greed index.
+# CBOE Volatility Index -- standard proxy for market-wide fear/complacency.
 VIX_SYMBOL = "^VIX"
 
 

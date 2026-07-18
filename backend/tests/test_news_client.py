@@ -131,13 +131,10 @@ def test_get_new_ticker_headlines_keeps_prior_seen_state_when_fetch_fails(monkey
     assert updated_seen["SPY"] == ["Existing headline"]
 
 
-def test_ticker_query_is_asset_class_aware():
-    """Per-ticker news query must use the right noun per asset class: 'BTCUSD
-    stock' is nonsense and starves the crypto trigger of relevant hits."""
-    assert news_client._ticker_query("BTCUSD") == "Bitcoin crypto"
-    assert news_client._ticker_query("ethusd") == "Ethereum crypto"
-    # A plain equity ticker keeps the stock query.
+def test_ticker_query_is_stock_query():
+    """US-equities/ETF only -- every whitelist symbol queries as 'TICKER stock'."""
     assert news_client._ticker_query("NVDA") == "NVDA stock"
+    assert news_client._ticker_query("XLF") == "XLF stock"
 
 
 def test_finnhub_items_parses_and_labels_source():
@@ -158,7 +155,7 @@ def test_finnhub_items_degrades_on_non_list():
     assert news_client._finnhub_items({"error": "bad key"}, limit=8, label="") == []
 
 
-def test_get_ticker_all_merges_finnhub_only_for_equities(monkeypatch):
+def test_get_ticker_all_merges_finnhub_when_keyed(monkeypatch):
     monkeypatch.setattr(
         news_client, "_get_ticker_headlines",
         lambda ticker, limit: [{"title": f"GN-{ticker}", "published_at": "", "source": "Google News"}],
@@ -167,12 +164,9 @@ def test_get_ticker_all_merges_finnhub_only_for_equities(monkeypatch):
         news_client, "_get_finnhub_company",
         lambda ticker, key: [{"title": f"FH-{ticker}", "published_at": "", "source": "Finnhub"}],
     )
-    # Equity -> Google News + Finnhub company news.
+    # With a key -> Google News + Finnhub company news.
     eq = news_client._get_ticker_all("NVDA", 3, finnhub_key="k")
     assert {h["title"] for h in eq} == {"GN-NVDA", "FH-NVDA"}
-    # Crypto pair -> Finnhub company-news skipped (doesn't cover crypto).
-    cr = news_client._get_ticker_all("BTCUSD", 3, finnhub_key="k")
-    assert {h["title"] for h in cr} == {"GN-BTCUSD"}
     # No key -> RSS/Google News only.
     nokey = news_client._get_ticker_all("NVDA", 3, finnhub_key="")
     assert {h["title"] for h in nokey} == {"GN-NVDA"}

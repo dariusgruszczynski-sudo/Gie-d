@@ -93,19 +93,6 @@ RSS_FEEDS: list[tuple[str, str]] = [
     # generic news coverage often lags or misses entirely
     ("SEC EDGAR 8-K filings", "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&company=&dateb=&owner=include&count=40&output=atom"),
     ("SEC EDGAR Form 4 (insider trades)", "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&company=&dateb=&owner=include&count=40&output=atom"),
-    # Crypto -- the 24/7 crypto venue trades BTC/ETH/..., driven far more by
-    # crypto-native flow (ETF news, on-chain, exchange/regulatory events) than
-    # by the general stock feeds above.
-    ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/"),
-    ("Cointelegraph", "https://cointelegraph.com/rss"),
-    ("Decrypt", "https://decrypt.co/feed"),
-    ("The Block", "https://www.theblock.co/rss.xml"),
-    ("CryptoSlate", "https://cryptoslate.com/feed/"),
-    ("Bitcoin Magazine", "https://bitcoinmagazine.com/.rss/full/"),
-    ("NewsBTC", "https://www.newsbtc.com/feed/"),
-    ("Bitcoinist", "https://bitcoinist.com/feed/"),
-    ("CoinJournal", "https://coinjournal.net/news/feed/"),
-    ("Investing.com Crypto", "https://www.investing.com/rss/news_301.rss"),
 ]
 PER_SOURCE_LIMIT = 3
 # Per-ticker headlines (keyless) so news specific to symbols on the whitelist
@@ -124,10 +111,6 @@ REDDIT_SUBREDDITS = [
     "stocks",
     "investing",
     "wallstreetbets",
-    # Crypto crowd-positioning for the 24/7 venue.
-    "CryptoCurrency",
-    "Bitcoin",
-    "ethereum",
 ]
 PER_SUBREDDIT_LIMIT = 5
 # Reddit blocks the default httpx User-Agent -- needs a descriptive one.
@@ -172,23 +155,9 @@ def _get_rss(source: str, url: str, limit: int, params: dict | None = None) -> l
         return []
 
 
-# Per-ticker news query needs the right noun per asset class: "BTCUSD stock" is
-# nonsense and starves the crypto trigger of relevant hits. Map crypto to its
-# full name + "crypto"; equities keep "TICKER stock". Keyed by our whitelist
-# convention ("BTCUSD", with the quote-currency suffix).
-_CRYPTO_NAMES = {
-    "BTCUSD": "Bitcoin", "ETHUSD": "Ethereum", "SOLUSD": "Solana",
-    "LTCUSD": "Litecoin", "BCHUSD": "Bitcoin Cash", "DOGEUSD": "Dogecoin",
-    "LINKUSD": "Chainlink", "AVAXUSD": "Avalanche", "ADAUSD": "Cardano",
-    "DOTUSD": "Polkadot", "UNIUSD": "Uniswap", "AAVEUSD": "Aave",
-    "XRPUSD": "XRP", "SHIBUSD": "Shiba Inu",
-}
-
-
 def _ticker_query(ticker: str) -> str:
-    t = ticker.upper()
-    if t in _CRYPTO_NAMES:
-        return f"{_CRYPTO_NAMES[t]} crypto"
+    # US-equities/ETF only now (crypto venue removed) -- every whitelist symbol
+    # is a plain ticker.
     return f"{ticker} stock"
 
 
@@ -257,10 +226,9 @@ def _get_finnhub_company(ticker: str, key: str) -> list[dict]:
 
 def _get_ticker_all(ticker: str, limit: int, finnhub_key: str = "") -> list[dict]:
     """Per-ticker headlines from Google News, plus Finnhub company-news when a
-    key is set (equities only -- Finnhub company-news doesn't cover crypto
-    pairs). Merged so both a keyless and a keyed deployment work."""
+    key is set. Merged so both a keyless and a keyed deployment work."""
     items = _get_ticker_headlines(ticker, limit)
-    if finnhub_key and ticker.upper() not in _CRYPTO_NAMES:
+    if finnhub_key:
         items += _get_finnhub_company(ticker, finnhub_key)
     return items
 
@@ -340,18 +308,14 @@ class NewsClient:
 
     def get_headlines(self, tickers: list[str], limit: int = 40) -> list[dict]:
         key = self._finnhub_key
-        crypto_enabled = bool(getattr(self._settings, "crypto_enabled", False))
-        worker_count = len(RSS_FEEDS) + len(tickers) + len(REDDIT_SUBREDDITS) + 2
+        worker_count = len(RSS_FEEDS) + len(tickers) + len(REDDIT_SUBREDDITS) + 1
         with ThreadPoolExecutor(max_workers=worker_count) as pool:
             futures = [pool.submit(_get_rss, name, url, PER_SOURCE_LIMIT) for name, url in RSS_FEEDS]
             futures += [pool.submit(_get_ticker_all, ticker, PER_TICKER_LIMIT, key) for ticker in tickers]
             futures += [pool.submit(_get_reddit, sub, PER_SUBREDDIT_LIMIT) for sub in REDDIT_SUBREDDITS]
-            # Keyed primary source (only when configured): broad market news, plus
-            # a crypto-category pull for the 24/7 venue.
+            # Keyed primary source (only when configured): broad US market news.
             if key:
                 futures.append(pool.submit(_get_finnhub_general, key, "general"))
-                if crypto_enabled:
-                    futures.append(pool.submit(_get_finnhub_general, key, "crypto"))
 
             per_source: list[list[dict]] = []
             for future in futures:
