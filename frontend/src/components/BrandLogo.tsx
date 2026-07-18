@@ -2,27 +2,39 @@ export function BrandLogo({ size = 48 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" className="logo-mark" aria-label="GielDarek" role="img">
       <defs>
-        <linearGradient id="gdBadge" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#7dd3fc" />
-          <stop offset="55%" stopColor="#38bdf8" />
-          <stop offset="100%" stopColor="#22d3ee" />
+        <linearGradient id="gdTile" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#14121f" />
+          <stop offset="100%" stopColor="#08070f" />
+        </linearGradient>
+        <linearGradient id="gdRing" x1="0.1" y1="0.1" x2="0.9" y2="0.95">
+          <stop offset="0%" stopColor="#7c5cff" />
+          <stop offset="100%" stopColor="#f0b429" />
         </linearGradient>
       </defs>
-      <rect x="2" y="2" width="44" height="44" rx="13" fill="url(#gdBadge)" />
-      <rect x="2" y="2" width="44" height="44" rx="13" fill="none" stroke="#ffffff" strokeOpacity="0.16" strokeWidth="1" />
-      <polyline
-        points="12,32 21,24 28,29 37,15"
+      <rect x="2" y="2" width="44" height="44" rx="13" fill="url(#gdTile)" />
+      <rect x="2" y="2" width="44" height="44" rx="13" fill="none" stroke="#ffffff" strokeOpacity="0.1" strokeWidth="1" />
+      {/* Allocation ring (violet -> gold), open at the bottom -- the brand motif. */}
+      <path
+        d="M 11.71 32.60 A 15 15 0 1 1 25.31 38.94"
         fill="none"
-        stroke="#0a0c14"
-        strokeWidth="3.4"
+        stroke="url(#gdRing)"
+        strokeWidth="4.4"
+        strokeLinecap="round"
+      />
+      {/* Upward chart line + arrow inside. */}
+      <polyline
+        points="16.3,30.2 21.6,25.0 26.4,27.8 32.2,19.2"
+        fill="none"
+        stroke="#f5f6fc"
+        strokeWidth="2.6"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
-        d="M37 15 h-6.5 M37 15 v6.5"
+        d="M32.2 19.2 h-4.1 M32.2 19.2 v4.1"
         fill="none"
-        stroke="#0a0c14"
-        strokeWidth="3.4"
+        stroke="#f5f6fc"
+        strokeWidth="2.6"
         strokeLinecap="round"
         strokeLinejoin="round"
       />

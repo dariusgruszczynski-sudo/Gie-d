@@ -323,19 +323,26 @@ async function buildWidget() {
     { value: cashVal, color: cashRingColor },
   ];
 
+  // iOS widget families differ a LOT in height: medium is WIDE but SHORT
+  // (~same height as small), only large is tall. So gate content by size --
+  // medium shows header + hero + one slim stat row and stops; large gets the
+  // full stack (chart + stats card + positions). Overstuffing medium was what
+  // clipped the widget.
+  const large = family === "large";
+
   headerRow(w, d.mode);
-  w.addSpacer(small ? 9 : 11);
+  w.addSpacer(small ? 7 : large ? 11 : 8);
 
   // --- HERO: pierścień alokacji + wartość konta + zmiana dzienna -------------
   const hero = w.addStack();
   hero.centerAlignContent();
 
-  const ringSize = small ? 78 : family === "large" ? 104 : 92;
-  const ringImg = drawRing(ringSegs, ringSize, small ? 12 : 15, "ZAINWEST.", invPct + "%");
+  const ringSize = small ? 74 : large ? 104 : 74;
+  const ringImg = drawRing(ringSegs, ringSize, small ? 11 : large ? 15 : 12, "ZAINWEST.", invPct + "%");
   const ringView = hero.addImage(ringImg);
   ringView.imageSize = new Size(ringSize, ringSize);
 
-  hero.addSpacer(small ? 11 : 14);
+  hero.addSpacer(small ? 10 : 13);
 
   const heroR = hero.addStack();
   heroR.layoutVertically();
@@ -345,7 +352,7 @@ async function buildWidget() {
   heroR.addSpacer(2);
   const total = heroR.addText(fmtUsd(d.total));
   total.textColor = C.text;
-  total.font = Font.boldSystemFont(small ? 22 : 28);
+  total.font = Font.boldSystemFont(small ? 22 : large ? 28 : 24);
   total.minimumScaleFactor = 0.5;
   total.lineLimit = 1;
   heroR.addSpacer(6);
@@ -362,7 +369,7 @@ async function buildWidget() {
   const chgCap = chg.addText("dziś");
   chgCap.font = Font.mediumSystemFont(9);
   chgCap.textColor = C.faint;
-  if (!small) {
+  if (large) {
     heroR.addSpacer(6);
     const netRow = heroR.addStack();
     netRow.centerAlignContent();
@@ -379,23 +386,10 @@ async function buildWidget() {
     return w;
   }
 
-  // --- WYKRES ----------------------------------------------------------------
-  w.addSpacer(11);
-  const img = drawSparkline(d.spark, 320, family === "large" ? 56 : 44);
-  if (img) {
-    const wi = w.addImage(img);
-    wi.imageSize = new Size(320, family === "large" ? 56 : 44);
-    wi.centerAlignImage();
-  } else {
-    const nn = w.addText("zbieram dane do wykresu…");
-    nn.font = Font.systemFont(10);
-    nn.textColor = C.muted;
-  }
-
-  // --- KARTA STATÓW: gotówka / SESJA / POZA SESJĄ / budżet -------------------
-  w.addSpacer(10);
-  const stats = card(w);
-  const statsRow = stats.addStack();
+  // --- SLIM STAT ROW (medium: this is the last block; large: above the chart)
+  w.addSpacer(large ? 12 : 9);
+  const statHost = large ? card(w) : w;
+  const statsRow = statHost.addStack();
   statsRow.centerAlignContent();
   statBlock(statsRow, "Gotówka", fmtUsd(cashVal, 0), C.text, new Color("#8a8ca8", 0.7));
   statsRow.addSpacer();
@@ -404,10 +398,29 @@ async function buildWidget() {
   statBlock(statsRow, "Poza", fmtUsd(pozaVal, 0), C.text, C.crypto);
   if (d.claude_budget_remaining_usd !== undefined && d.claude_budget_remaining_usd !== null) {
     statsRow.addSpacer();
-    statBlock(statsRow, "Budżet AI", "~" + fmtUsd(d.claude_budget_remaining_usd, 0));
+    statBlock(statsRow, "Budżet", "~" + fmtUsd(d.claude_budget_remaining_usd, 0));
   }
 
-  // --- POZYCJE ---------------------------------------------------------------
+  if (!large) {
+    // Medium stops here -- header + hero + stat row fits without clipping.
+    w.addSpacer();
+    return w;
+  }
+
+  // --- WYKRES (tylko large) --------------------------------------------------
+  w.addSpacer(12);
+  const img = drawSparkline(d.spark, 320, 56);
+  if (img) {
+    const wi = w.addImage(img);
+    wi.imageSize = new Size(320, 56);
+    wi.centerAlignImage();
+  } else {
+    const nn = w.addText("zbieram dane do wykresu…");
+    nn.font = Font.systemFont(10);
+    nn.textColor = C.muted;
+  }
+
+  // --- POZYCJE (tylko large) -------------------------------------------------
   w.addSpacer(10);
   const posHdr = w.addText("POZYCJE");
   posHdr.font = Font.mediumSystemFont(8.5);

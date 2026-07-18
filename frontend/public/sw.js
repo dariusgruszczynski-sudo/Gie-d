@@ -7,7 +7,9 @@
  *  - hashed build assets (index-XXXX.js/css) are cache-first (safe: a new
  *    build produces new filenames, so the cache never serves a stale bundle).
  */
-const CACHE = "gield-v1";
+// Bump on asset changes (new icons/theme) so the activate handler purges the
+// old cache and clients re-fetch the fixed-name assets (icons, favicon).
+const CACHE = "gield-v2";
 const SHELL = ["/", "/index.html"];
 
 self.addEventListener("install", (event) => {

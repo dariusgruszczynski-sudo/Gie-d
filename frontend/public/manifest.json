@@ -1,12 +1,12 @@
 {
   "name": "GielDarek — bot inwestycyjny",
   "short_name": "GielDarek",
-  "description": "Dwa silniki Claude: akcje USA i krypto 24/7 na Alpaca.",
+  "description": "Dwa silniki Claude na Alpaca: SESJA (akcje US) i POZA SESJĄ (ETF-y pre/after-market).",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#070b12",
-  "theme_color": "#070b12",
+  "background_color": "#0a0a12",
+  "theme_color": "#0a0a12",
   "orientation": "any",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
