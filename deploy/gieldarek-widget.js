@@ -31,18 +31,18 @@ if (args.widgetParameter) {
 // Aurora palette (matches the app v4 theme): electric-violet accent, fresh
 // emerald/rose for P&L, warm gold for the POZA SESJĄ leg.
 const C = {
-  bg: new Color("#08070f"),
-  bg2: new Color("#14121f"),
+  bg: new Color("#05080f"),
+  bg2: new Color("#0d1421"),
   card: new Color("#ffffff", 0.05),
   cardBorder: new Color("#ffffff", 0.07),
   text: new Color("#ecedf6"),
   muted: new Color("#9698b4"),
   faint: new Color("#63647e"),
-  accent: new Color("#7c5cff"),
-  green: new Color("#2fd6a0"),
-  red: new Color("#fb6f84"),
-  us: new Color("#7c5cff"),
-  crypto: new Color("#f0b429"),
+  accent: new Color("#19e39a"),
+  green: new Color("#19e39a"),
+  red: new Color("#ff5470"),
+  us: new Color("#19e39a"),
+  crypto: new Color("#ffae34"),
 };
 
 // Ręczne formatowanie (bez Intl/toLocaleString — bywa zawodne w Scriptable).
@@ -193,7 +193,7 @@ function drawSparkline(spark, w, h) {
   const max = Math.max.apply(null, vals);
   const range = max - min || 1;
   const up = vals[vals.length - 1] >= vals[0];
-  const col = up ? "#2fd6a0" : "#fb6f84";
+  const col = up ? "#19e39a" : "#ff5470";
   const pad = 4;
 
   const ctx = new DrawContext();
@@ -248,7 +248,7 @@ function headerRow(w, mode) {
   row.addSpacer();
   if (mode) {
     const live = mode === "live";
-    pill(row, live ? "● LIVE" : "PAPER", live ? C.green : C.muted, new Color(live ? "#2fd6a0" : "#9698b4", 0.14), 9);
+    pill(row, live ? "● LIVE" : "PAPER", live ? C.green : C.muted, new Color(live ? "#19e39a" : "#9698b4", 0.14), 9);
   }
 }
 
@@ -362,7 +362,7 @@ async function buildWidget() {
     chg,
     (up ? "▲ " : "▼ ") + fmtPct(d.day_pnl_pct),
     up ? C.green : C.red,
-    new Color(up ? "#2fd6a0" : "#fb6f84", 0.16),
+    new Color(up ? "#19e39a" : "#ff5470", 0.16),
     11.5
   );
   chg.addSpacer(6);
@@ -456,7 +456,7 @@ async function buildWidget() {
         dash.textColor = C.muted;
       } else {
         const pu = p.pnl_pct >= 0;
-        pill(row, fmtPct(p.pnl_pct), pu ? C.green : C.red, new Color(pu ? "#2fd6a0" : "#fb6f84", 0.14), 10.5);
+        pill(row, fmtPct(p.pnl_pct), pu ? C.green : C.red, new Color(pu ? "#19e39a" : "#ff5470", 0.14), 10.5);
       }
     }
     const extra = positions.length - Math.min(positions.length, family === "large" ? 6 : 3);

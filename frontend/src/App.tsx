@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, Decision, isReadOnly, PortfolioResponse, StatusResponse, Trade, withShare } from "./api/client";
 import { BrandLoader } from "./components/BrandLoader";
-import { BrandLogo } from "./components/BrandLogo";
 import { DecisionSplash } from "./components/DecisionSplash";
 import { AuroraBackground } from "./components/AuroraBackground";
 import { MarketTemperature } from "./components/MarketTemperature";
@@ -175,18 +174,13 @@ export default function App() {
             <span className="readonly-dot" /> Widok tylko do odczytu — podgląd na żywo, bez sterowania.
           </div>
         )}
-        <div className="app-header">
-          <BrandLogo size={48} />
-          <div>
-            <h1>
-              Giel<span className="brand-accent">Darek</span>
-            </h1>
-            <p className="subtitle">
-              Automat na akcjach US · dwie nogi: SESJA + POZA SESJĄ · napędzany Claude.
-            </p>
-            {status && <MarketTemperature us={status.market_regime} extended={status.extended_market_regime} />}
+        <header className="topbar">
+          <div className="topbar-lead">
+            <span className="topbar-title">Pulpit dowodzenia</span>
+            <span className="topbar-sub">Dwie nogi · SESJA + POZA SESJĄ · decyzje Claude</span>
           </div>
-        </div>
+          {status && <MarketTemperature us={status.market_regime} extended={status.extended_market_regime} />}
+        </header>
 
         {status && <TabNav active={tab} onChange={changeTab} extendedEnabled={status.extended_enabled} />}
 

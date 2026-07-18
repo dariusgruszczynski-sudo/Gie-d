@@ -3,12 +3,12 @@ export function BrandLogo({ size = 48 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 48 48" className="logo-mark" aria-label="GielDarek" role="img">
       <defs>
         <linearGradient id="gdTile" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#14121f" />
-          <stop offset="100%" stopColor="#08070f" />
+          <stop offset="0%" stopColor="#121c2c" />
+          <stop offset="100%" stopColor="#05080f" />
         </linearGradient>
         <linearGradient id="gdRing" x1="0.1" y1="0.1" x2="0.9" y2="0.95">
-          <stop offset="0%" stopColor="#7c5cff" />
-          <stop offset="100%" stopColor="#f0b429" />
+          <stop offset="0%" stopColor="#19e39a" />
+          <stop offset="100%" stopColor="#ffae34" />
         </linearGradient>
       </defs>
       <rect x="2" y="2" width="44" height="44" rx="13" fill="url(#gdTile)" />
