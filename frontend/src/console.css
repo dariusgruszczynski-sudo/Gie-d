@@ -260,3 +260,126 @@
   .gd-main { margin-left: var(--rail-w-sm); padding: 18px 16px 60px; }
   .gd-lanes { grid-template-columns: 1fr; }
 }
+
+/* =============================================================================
+   MOTION PACK — more live/video flair + iOS safe-area (Dynamic Island)
+   ============================================================================= */
+/* Dynamic Island / notch: push content below the safe area. */
+.gd-main { padding-top: calc(30px + env(safe-area-inset-top)); }
+.gd-rail { padding-top: calc(22px + env(safe-area-inset-top)); }
+@media (max-width: 720px) {
+  .gd-main { padding-top: calc(18px + env(safe-area-inset-top)); }
+  .gd-rail { padding-top: calc(16px + env(safe-area-inset-top)); }
+}
+
+/* Brand mark slowly rotates its conic gradient — alive. */
+.gd-brand-mark { animation: gd-spin 9s linear infinite; }
+@keyframes gd-spin { to { transform: rotate(360deg); } }
+
+/* Ticker tape ---------------------------------------------------------------- */
+.gd-tape {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin-bottom: 20px;
+  background: rgba(255, 255, 255, 0.02);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+.gd-tape-track {
+  display: inline-flex;
+  gap: 26px;
+  padding: 9px 20px;
+  white-space: nowrap;
+  animation: gd-tape 42s linear infinite;
+}
+.gd-tape:hover .gd-tape-track { animation-play-state: paused; }
+@keyframes gd-tape { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.gd-tape-item { display: inline-flex; align-items: center; gap: 7px; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.gd-tape-item .s { font-family: var(--font-display); font-weight: 700; letter-spacing: 0.02em; }
+.gd-tape-item .p { color: var(--dim); }
+
+/* Equity band: the line draws itself in, and the end node breathes. */
+.gd-line { animation: gd-draw 1.7s cubic-bezier(0.6, 0, 0.2, 1) forwards; }
+@keyframes gd-draw { from { stroke-dasharray: 1; stroke-dashoffset: 1; } to { stroke-dasharray: 1; stroke-dashoffset: 0; } }
+.gd-band-area { animation: gd-fade 1.9s ease forwards; opacity: 0; }
+@keyframes gd-fade { to { opacity: 1; } }
+.gd-band-halo { animation: gd-halo 2.4s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+@keyframes gd-halo { 0%,100% { opacity: 0.18; r: 8px; } 50% { opacity: 0.4; r: 12px; } }
+
+/* Hero figure: a slow legible sheen sweeps across the number. */
+.gd-hero-val {
+  background: linear-gradient(100deg, var(--txt) 34%, #d9fff2 50%, var(--txt) 66%);
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gd-sheen 7s linear infinite;
+}
+@keyframes gd-sheen { from { background-position: 200% center; } to { background-position: -60% center; } }
+
+/* Lanes: a light sweep on hover. */
+.gd-lane::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(120deg, transparent 35%, rgba(255, 255, 255, 0.07) 50%, transparent 65%);
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+.gd-lane:hover::after { animation: gd-sweep 0.85s ease; }
+@keyframes gd-sweep { to { transform: translateX(120%); } }
+
+/* Decision stream items slide in, staggered. */
+.gd-dec { animation: gd-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.gd-dec:nth-child(1) { animation-delay: 0.02s; }
+.gd-dec:nth-child(2) { animation-delay: 0.06s; }
+.gd-dec:nth-child(3) { animation-delay: 0.1s; }
+.gd-dec:nth-child(4) { animation-delay: 0.14s; }
+.gd-dec:nth-child(5) { animation-delay: 0.18s; }
+.gd-dec:nth-child(n+6) { animation-delay: 0.22s; }
+
+/* Position rows fade/slide in. */
+.gd-pos-row { animation: gd-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gd-brand-mark, .gd-tape-track, .gd-line, .gd-band-area, .gd-band-halo, .gd-hero-val, .gd-dec, .gd-pos-row { animation: none; }
+  .gd-hero-val { color: var(--txt); -webkit-text-fill-color: var(--txt); }
+}
+
+/* =============================================================================
+   TRANSITIONS + TACTILE PRESS
+   ============================================================================= */
+/* Punchier, cinematic view swap (fade + rise + de-blur). */
+.gd-view { animation: gd-swap-in 0.44s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes gd-swap-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.988); filter: blur(7px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+
+/* Every tappable surface reacts to touch: quick scale-in + a soft press glow. */
+.gd-nav, .gd-btn, .gd-sell, .gd-lane, .gd-tab, .gd-hl-item button { -webkit-tap-highlight-color: transparent; }
+.gd-btn { position: relative; overflow: hidden; }
+.gd-btn:active:not(:disabled),
+.gd-sell:active:not(:disabled) { transform: scale(0.94); }
+.gd-nav:active { transform: scale(0.95); }
+.gd-lane:active { transform: scale(0.99) translateY(-1px); }
+/* Ripple: a burst that expands from the button centre on press. */
+.gd-btn::after {
+  content: "";
+  position: absolute; left: 50%; top: 50%;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: currentColor; opacity: 0;
+  transform: translate(-50%, -50%) scale(1);
+  pointer-events: none;
+}
+.gd-btn:active:not(:disabled)::after { animation: gd-ripple 0.5s ease-out; }
+@keyframes gd-ripple {
+  0% { opacity: 0.28; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(26); }
+}
+.gd-btn.primary:active:not(:disabled) { box-shadow: 0 0 0 4px color-mix(in srgb, var(--mint) 22%, transparent), 0 8px 22px -10px var(--mint); }
+.gd-nav.on:active { box-shadow: inset 3px 0 0 0 var(--mint), 0 0 0 4px color-mix(in srgb, var(--mint) 14%, transparent); }
+@media (prefers-reduced-motion: reduce) {
+  .gd-view { animation: none; }
+  .gd-btn::after { display: none; }
+}

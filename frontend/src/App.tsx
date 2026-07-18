@@ -115,18 +115,20 @@ export default function App() {
           {error && <div className="gd-halt">Błąd API: {error}</div>}
           {!error && reconnecting && <div className="gd-ribbon">Ponawiam połączenie…</div>}
 
-          {!status ? (
-            <div className="gd-view"><p className="gd-empty">Łączę z automatem…</p></div>
-          ) : view === "console" ? (
-            <Console status={status} alpaca={portfolio} extended={extendedPortfolio} decisions={decisions} onLeg={goLeg} onChanged={refresh} />
-          ) : view === "engines" ? (
-            <Engines status={status} alpaca={portfolio} extended={extendedPortfolio} trades={trades} extendedTrades={extendedTrades}
-              decisions={decisions} venue={engineVenue} setVenue={setEngineVenue} onChanged={refresh} />
-          ) : view === "control" ? (
-            <Control status={status} onChanged={refresh} />
-          ) : (
-            <Health />
-          )}
+          <div className="gd-swap" key={view === "engines" ? `engines:${engineVenue}` : view}>
+            {!status ? (
+              <div className="gd-view"><p className="gd-empty">Łączę z automatem…</p></div>
+            ) : view === "console" ? (
+              <Console status={status} alpaca={portfolio} extended={extendedPortfolio} decisions={decisions} onLeg={goLeg} onChanged={refresh} />
+            ) : view === "engines" ? (
+              <Engines status={status} alpaca={portfolio} extended={extendedPortfolio} trades={trades} extendedTrades={extendedTrades}
+                decisions={decisions} venue={engineVenue} setVenue={setEngineVenue} onChanged={refresh} />
+            ) : view === "control" ? (
+              <Control status={status} onChanged={refresh} />
+            ) : (
+              <Health />
+            )}
+          </div>
         </main>
       </div>
     </div>

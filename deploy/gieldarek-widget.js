@@ -1,489 +1,268 @@
-// GielDarek — widget na ekran główny iPhone (przez apkę Scriptable)
+// GielDarek — widget na ekran główny iPhone (Scriptable). Zaprojektowany od zera
+// pod nowy UI "GD Console": atrament + mięta (SESJA) / bursztyn (POZA) / róż.
+// Ciągnie JEDEN lekki endpoint GET /api/widget?share=... (tylko odczyt).
 // =============================================================================
-// Nowoczesny, żywy podgląd portfela: wartość konta, dzienny % (kolorowy pill),
-// wykres skuteczności (krzywa wartości konta z gradientem), luźna gotówka,
-// wynik netto, pozostały budżet Claude i trzymane pozycje z P&L. Ciągnie JEDEN
-// lekki endpoint tylko-do-odczytu (GET /api/widget?share=...) — szybki, nie handluje.
-//
-// --- INSTALACJA (raz) --------------------------------------------------------
-// 1. Zainstaluj darmową apkę "Scriptable" z App Store.
-// 2. Scriptable -> "+" -> wklej CAŁY ten plik -> nazwij np. "GielDarek".
-// 3. Adres i token: zostaw puste tu niżej i podaj je w polu "Parameter" widgetu
-//    w formacie:  https://TWOJ-ADRES|TWOJ_SHARE_TOKEN
-// 4. Ekran główny -> przytrzymaj -> "+" -> Scriptable -> rozmiar (ŚREDNI lub
-//    DUŻY pokazuje wykres, staty i pozycje) -> Dodaj widget.
-// 5. Przytrzymaj widget -> "Edytuj widget" -> Script: GielDarek; w "Parameter"
-//    wpisz  https://46.225.229.113.sslip.io|TWOJ_SHARE_TOKEN
-//
-// WARUNEK: na serwerze musi być ustawiony SHARE_TOKEN w .env (Centrum
-// sterowania -> "Link tylko do odczytu"). Bez tego widget nie ma z czego czytać.
+// INSTALACJA: Scriptable -> "+" -> wklej CAŁY plik -> nazwij "GielDarek".
+// Ekran główny -> przytrzymaj -> "+" -> Scriptable -> rozmiar -> Dodaj.
+// W polu "Parameter" wpisz:  https://46.225.229.113.sslip.io|TWOJ_SHARE_TOKEN
+// (albo wklej token na sztywno w SHARE_TOKEN niżej). ŚREDNI = konto+podział+wykres,
+// DUŻY = do tego pozycje.
 // =============================================================================
 
 let BASE_URL = "https://46.225.229.113.sslip.io";
-let SHARE_TOKEN = ""; // wklej swój SHARE_TOKEN z .env (albo podaj w Parameter)
-
+let SHARE_TOKEN = "";
 if (args.widgetParameter) {
   const parts = String(args.widgetParameter).split("|");
   if (parts[0]) BASE_URL = parts[0].trim();
   if (parts[1]) SHARE_TOKEN = parts[1].trim();
 }
 
-// Aurora palette (matches the app v4 theme): electric-violet accent, fresh
-// emerald/rose for P&L, warm gold for the POZA SESJĄ leg.
+const HEX = {
+  ink: "#05080f", ink2: "#0b1120", text: "#eef3fa", dim: "#7c8aa2", faint: "#4f5c73",
+  mint: "#19e39a", amber: "#ffae34", rose: "#ff5470", cash: "#8a97ab",
+};
 const C = {
-  bg: new Color("#05080f"),
-  bg2: new Color("#0d1421"),
-  card: new Color("#ffffff", 0.05),
-  cardBorder: new Color("#ffffff", 0.07),
-  text: new Color("#ecedf6"),
-  muted: new Color("#9698b4"),
-  faint: new Color("#63647e"),
-  accent: new Color("#19e39a"),
-  green: new Color("#19e39a"),
-  red: new Color("#ff5470"),
-  us: new Color("#19e39a"),
-  crypto: new Color("#ffae34"),
+  ink: new Color(HEX.ink), ink2: new Color(HEX.ink2), text: new Color(HEX.text),
+  dim: new Color(HEX.dim), faint: new Color(HEX.faint),
+  mint: new Color(HEX.mint), amber: new Color(HEX.amber), rose: new Color(HEX.rose),
 };
 
-// Ręczne formatowanie (bez Intl/toLocaleString — bywa zawodne w Scriptable).
 function fmtUsd(v, dp) {
   if (v === null || v === undefined || isNaN(v)) return "—";
   if (dp === undefined) dp = 2;
   const neg = v < 0;
   let n = Math.abs(Number(v)).toFixed(dp);
   const dot = n.indexOf(".");
-  let intPart = dot === -1 ? n : n.slice(0, dot);
+  let intp = dot === -1 ? n : n.slice(0, dot);
   const frac = dot === -1 ? "" : n.slice(dot);
-  intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-  return (neg ? "-$" : "$") + intPart + frac;
+  intp = intp.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return (neg ? "−$" : "$") + intp + frac;
 }
 function fmtPct(v) {
   if (v === null || v === undefined || isNaN(v)) return "—";
   return (v >= 0 ? "+" : "") + Number(v).toFixed(2) + "%";
 }
-function isUp(v) {
-  return v === null || v === undefined || v >= 0;
-}
-function pnlColor(v) {
-  return isUp(v) ? C.green : C.red;
-}
-
-// --- małe komponenty UI ------------------------------------------------------
-function pill(parent, text, fg, bg, size) {
-  const s = parent.addStack();
-  s.setPadding(3, 8, 3, 8);
-  s.cornerRadius = 8;
-  s.backgroundColor = bg;
-  s.centerAlignContent();
-  const t = s.addText(text);
-  t.font = Font.semiboldSystemFont(size || 11);
-  t.textColor = fg;
-  t.lineLimit = 1;
-  return s;
-}
-
-function card(parent) {
-  const s = parent.addStack();
-  s.layoutVertically();
-  s.setPadding(9, 11, 9, 11);
-  s.cornerRadius = 13;
-  s.backgroundColor = C.card;
-  s.borderColor = C.cardBorder;
-  s.borderWidth = 1;
-  return s;
-}
-
-function statBlock(parent, label, value, valueColor, dotColor) {
-  const s = parent.addStack();
-  s.layoutVertically();
-  const lrow = s.addStack();
-  lrow.centerAlignContent();
-  if (dotColor) {
-    const dot = lrow.addText("●");
-    dot.font = Font.boldSystemFont(7);
-    dot.textColor = dotColor;
-    lrow.addSpacer(4);
-  }
-  const l = lrow.addText(label.toUpperCase());
-  l.font = Font.mediumSystemFont(8);
-  l.textColor = C.faint;
-  l.lineLimit = 1;
-  s.addSpacer(2);
-  const v = s.addText(value);
-  v.font = Font.semiboldSystemFont(13);
-  v.textColor = valueColor || C.text;
-  v.lineLimit = 1;
-  v.minimumScaleFactor = 0.6;
-  return s;
-}
-
-// --- pierścień alokacji (jak "activity rings") -------------------------------
-// Segmentowany donut pokazujący podział konta: gotówka / SESJA / POZA SESJĄ.
-// Scriptable nie ma prymitywu łuku, więc kreślimy pierścień gęstą serią kropek,
-// kolorując każdą wg segmentu, w którym leży jej kąt — daje gładki, żywy ring.
-function drawRing(segments, size, thickness, centerTop, centerBig) {
-  const total = segments.reduce((a, s) => a + Math.max(0, s.value), 0) || 1;
-  const ctx = new DrawContext();
-  ctx.size = new Size(size, size);
-  ctx.opaque = false;
-  ctx.respectScreenScale = true;
-
-  const cx = size / 2;
-  const cy = size / 2;
-  const r = (size - thickness) / 2 - 1;
-  const steps = 160;
-  const dot = thickness / 2;
-
-  const bounds = [];
-  let acc = 0;
-  for (const s of segments) {
-    const frac = Math.max(0, s.value) / total;
-    bounds.push({ from: acc, to: acc + frac, color: s.color });
-    acc += frac;
-  }
-  const track = new Color("#ffffff", 0.06);
-  for (let i = 0; i < steps; i++) {
-    const f = i / steps;
-    const ang = -Math.PI / 2 + f * 2 * Math.PI; // start at 12 o'clock
-    const x = cx + r * Math.cos(ang);
-    const y = cy + r * Math.sin(ang);
-    let col = track;
-    for (const b of bounds) {
-      if (f >= b.from - 1e-9 && f < b.to - 1e-9) {
-        col = b.color;
-        break;
-      }
-    }
-    ctx.setFillColor(col);
-    ctx.fillEllipse(new Rect(x - dot, y - dot, dot * 2, dot * 2));
-  }
-
-  // Środek: mała etykieta + duża liczba (np. % zainwestowany).
-  if (centerBig) {
-    ctx.setTextAlignedCenter();
-    if (centerTop) {
-      ctx.setFont(Font.mediumSystemFont(9));
-      ctx.setTextColor(C.faint);
-      ctx.drawTextInRect(centerTop, new Rect(0, cy - 22, size, 12));
-    }
-    ctx.setFont(Font.boldSystemFont(21));
-    ctx.setTextColor(C.text);
-    ctx.drawTextInRect(centerBig, new Rect(0, cy - 12, size, 26));
-  }
-  return ctx.getImage();
-}
+const isUp = (v) => v === null || v === undefined || v >= 0;
 
 const base = () => BASE_URL.replace(/\/$/, "");
 async function fetchWidget() {
   const req = new Request(`${base()}/api/widget?share=${encodeURIComponent(SHARE_TOKEN)}`);
   req.timeoutInterval = 20;
-  // NB: Scriptable's loadJSON() does NOT throw on HTTP 401/4xx -- it returns the
-  // parsed error body (e.g. {"detail":"Wymagane logowanie"}). So we must inspect
-  // the status code ourselves, or a bad token silently renders an empty widget.
   const data = await req.loadJSON();
   const status = req.response ? req.response.statusCode : 200;
   return { data, status };
 }
 
-// --- wykres powierzchniowy (area sparkline) ---------------------------------
-function drawSparkline(spark, w, h) {
+// pill ------------------------------------------------------------------------
+function pill(parent, text, hex, size) {
+  const s = parent.addStack();
+  s.setPadding(3, 8, 3, 8);
+  s.cornerRadius = 9;
+  s.backgroundColor = new Color(hex, 0.16);
+  s.centerAlignContent();
+  const t = s.addText(text);
+  t.font = Font.semiboldSystemFont(size || 11);
+  t.textColor = new Color(hex);
+  t.lineLimit = 1;
+  return s;
+}
+function label(parent, text, size, color) {
+  const t = parent.addText(text.toUpperCase());
+  t.font = Font.mediumSystemFont(size || 8.5);
+  t.textColor = color || C.faint;
+  return t;
+}
+
+// area sparkline --------------------------------------------------------------
+function drawSpark(spark, w, h) {
   const vals = (spark || []).map(Number).filter((v) => v > 0);
   if (vals.length < 2) return null;
   const min = Math.min.apply(null, vals);
   const max = Math.max.apply(null, vals);
   const range = max - min || 1;
   const up = vals[vals.length - 1] >= vals[0];
-  const col = up ? "#19e39a" : "#ff5470";
-  const pad = 4;
-
+  const colHex = up ? HEX.mint : HEX.rose;
+  const col = new Color(colHex);
+  const pad = 3;
   const ctx = new DrawContext();
   ctx.size = new Size(w, h);
   ctx.opaque = false;
   ctx.respectScreenScale = true;
-
-  const pt = (i) =>
-    new Point(pad + (i / (vals.length - 1)) * (w - 2 * pad), h - pad - ((vals[i] - min) / range) * (h - 2 * pad));
-
-  // Wypełnienie gradientowe imitujące głębię — dwie nakładane półprzezroczyste
-  // warstwy (Scriptable nie ma gradientu w Path, więc robimy to warstwami).
-  for (const a of [0.05, 0.11]) {
+  const pt = (i) => new Point(pad + (i / (vals.length - 1)) * (w - 2 * pad), h - pad - ((vals[i] - min) / range) * (h - 2 * pad));
+  for (const a of [0.05, 0.12]) {
     const fill = new Path();
     fill.move(new Point(pad, h - pad));
     for (let i = 0; i < vals.length; i++) fill.addLine(pt(i));
     fill.addLine(new Point(w - pad, h - pad));
     fill.closeSubpath();
-    ctx.setFillColor(new Color(col, a));
+    ctx.setFillColor(new Color(colHex, a));
     ctx.addPath(fill);
     ctx.fillPath();
   }
-
   const path = new Path();
   path.move(pt(0));
   for (let i = 1; i < vals.length; i++) path.addLine(pt(i));
-  ctx.setStrokeColor(new Color(col));
+  ctx.setStrokeColor(col);
   ctx.setLineWidth(2.4);
   ctx.addPath(path);
   ctx.strokePath();
-
-  // Kropka końcowa z poświatą.
   const last = pt(vals.length - 1);
-  ctx.setFillColor(new Color(col, 0.28));
-  ctx.fillEllipse(new Rect(last.x - 5.5, last.y - 5.5, 11, 11));
-  ctx.setFillColor(new Color(col));
-  ctx.fillEllipse(new Rect(last.x - 2.6, last.y - 2.6, 5.2, 5.2));
+  ctx.setFillColor(new Color(colHex, 0.3));
+  ctx.fillEllipse(new Rect(last.x - 5, last.y - 5, 10, 10));
+  ctx.setFillColor(col);
+  ctx.fillEllipse(new Rect(last.x - 2.4, last.y - 2.4, 4.8, 4.8));
   return ctx.getImage();
 }
 
-// --- nagłówek / błędy --------------------------------------------------------
-function headerRow(w, mode) {
+function dotLabelVal(parent, dotColor, name, value) {
+  const s = parent.addStack();
+  s.centerAlignContent();
+  const d = s.addText("●");
+  d.font = Font.boldSystemFont(8);
+  d.textColor = dotColor;
+  s.addSpacer(5);
+  const l = s.addText(name + " ");
+  l.font = Font.mediumSystemFont(10.5);
+  l.textColor = C.dim;
+  const v = s.addText(value);
+  v.font = Font.semiboldSystemFont(10.5);
+  v.textColor = C.text;
+}
+
+function header(w, mode) {
   const row = w.addStack();
   row.centerAlignContent();
-  const dot = row.addText("●");
-  dot.textColor = C.accent;
-  dot.font = Font.boldSystemFont(9);
-  row.addSpacer(5);
-  const title = row.addText("GielDarek");
-  title.textColor = C.text;
-  title.font = Font.boldSystemFont(14);
+  const mark = row.addText("◆");
+  mark.font = Font.boldSystemFont(11);
+  mark.textColor = C.mint;
+  row.addSpacer(6);
+  const t = row.addText("GIELDAREK");
+  t.font = Font.boldSystemFont(12);
+  t.textColor = C.text;
   row.addSpacer();
-  if (mode) {
-    const live = mode === "live";
-    pill(row, live ? "● LIVE" : "PAPER", live ? C.green : C.muted, new Color(live ? "#19e39a" : "#9698b4", 0.14), 9);
-  }
+  if (mode) pill(row, mode === "live" ? "● LIVE" : "PAPER", mode === "live" ? HEX.mint : HEX.dim, 9);
 }
 
 function errorCard(w, title, msg) {
-  headerRow(w, "");
+  header(w, "");
   w.addSpacer(8);
   const e = w.addText(title);
-  e.textColor = C.red;
+  e.textColor = C.rose;
   e.font = Font.semiboldSystemFont(14);
   w.addSpacer(3);
   const m = w.addText(msg);
-  m.textColor = C.muted;
+  m.textColor = C.dim;
   m.font = Font.systemFont(10);
   m.lineLimit = 4;
 }
 
-// --- główny build ------------------------------------------------------------
-async function buildWidget() {
+async function build() {
   const w = new ListWidget();
-  const grad = new LinearGradient();
-  grad.colors = [C.bg2, C.bg];
-  grad.locations = [0, 1];
-  grad.startPoint = new Point(0, 0);
-  grad.endPoint = new Point(0.4, 1);
-  w.backgroundGradient = grad;
+  const g = new LinearGradient();
+  g.colors = [C.ink2, C.ink];
+  g.locations = [0, 1];
+  g.startPoint = new Point(0, 0);
+  g.endPoint = new Point(0.5, 1);
+  w.backgroundGradient = g;
   w.setPadding(14, 15, 13, 15);
   if (SHARE_TOKEN) w.url = `${base()}/?share=${encodeURIComponent(SHARE_TOKEN)}`;
   w.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000);
 
-  const family = config.widgetFamily || "medium";
-  const small = family === "small";
+  const fam = config.widgetFamily || "medium";
+  const small = fam === "small";
+  const large = fam === "large";
 
-  if (!SHARE_TOKEN) {
-    errorCard(w, "Brak SHARE_TOKEN", "Wpisz go w polu Parameter widgetu:  adres|token");
-    return w;
-  }
+  if (!SHARE_TOKEN) { errorCard(w, "Brak tokenu", "Wpisz w Parameter:  adres|token"); return w; }
 
   let d;
   try {
     const res = await fetchWidget();
     if (res.status >= 400 || !res.data || res.data.detail || res.data.total === undefined) {
-      const why =
-        res.status === 401 || (res.data && res.data.detail)
-          ? "Zły / brak SHARE_TOKEN — sprawdź token w Parameter i na serwerze (.env)."
-          : `Serwer zwrócił ${res.status}.`;
-      errorCard(w, `Brak dostępu (${res.status})`, why);
+      errorCard(w, `Brak dostępu (${res.status})`, res.status === 401 ? "Zły/brak SHARE_TOKEN — sprawdź token." : `Serwer zwrócił ${res.status}.`);
       return w;
     }
     d = res.data;
-  } catch (e) {
-    errorCard(w, "Błąd połączenia", String((e && e.message) || e));
-    return w;
-  }
+  } catch (e) { errorCard(w, "Błąd połączenia", String((e && e.message) || e)); return w; }
 
+  const positions = d.positions || [];
+  let sesja = 0, poza = 0;
+  for (const p of positions) { if (p.leg === "extended") poza += p.value || 0; else sesja += p.value || 0; }
   const up = isUp(d.day_pnl_pct);
 
-  // Podział konta na segmenty pierścienia (z pozycji per noga).
-  const positions = d.positions || [];
-  let sesjaVal = 0;
-  let pozaVal = 0;
-  for (const p of positions) {
-    if (p.leg === "extended") pozaVal += p.value || 0;
-    else sesjaVal += p.value || 0;
-  }
-  const cashVal = d.cash || 0;
-  const investedVal = sesjaVal + pozaVal;
-  const invPct = d.total ? Math.round((investedVal / d.total) * 100) : 0;
-  const cashRingColor = new Color("#8a8ca8", 0.45);
-  const ringSegs = [
-    { value: sesjaVal, color: C.us },
-    { value: pozaVal, color: C.crypto },
-    { value: cashVal, color: cashRingColor },
-  ];
+  header(w, d.mode);
+  w.addSpacer(small ? 8 : 10);
 
-  // iOS widget families differ a LOT in height: medium is WIDE but SHORT
-  // (~same height as small), only large is tall. So gate content by size --
-  // medium shows header + hero + one slim stat row and stops; large gets the
-  // full stack (chart + stats card + positions). Overstuffing medium was what
-  // clipped the widget.
-  const large = family === "large";
+  // HERO
+  label(w, "Wartość konta", 8.5);
+  w.addSpacer(2);
+  const val = w.addText(fmtUsd(d.total));
+  val.font = Font.boldSystemFont(small ? 26 : 32);
+  val.textColor = C.text;
+  val.minimumScaleFactor = 0.5;
+  val.lineLimit = 1;
+  w.addSpacer(7);
+  const deltas = w.addStack();
+  deltas.centerAlignContent();
+  pill(deltas, (up ? "▲ " : "▼ ") + fmtPct(d.day_pnl_pct) + " dziś", up ? HEX.mint : HEX.rose, 11);
 
-  headerRow(w, d.mode);
-  w.addSpacer(small ? 7 : large ? 11 : 8);
+  if (small) { w.addSpacer(); return w; }
 
-  // --- HERO: pierścień alokacji + wartość konta + zmiana dzienna -------------
-  const hero = w.addStack();
-  hero.centerAlignContent();
+  // SPLIT — SESJA / POZA / gotówka
+  w.addSpacer(11);
+  const split = w.addStack();
+  split.centerAlignContent();
+  dotLabelVal(split, C.mint, "SESJA", fmtUsd(sesja, 0));
+  split.addSpacer();
+  dotLabelVal(split, C.amber, "POZA", fmtUsd(poza, 0));
+  split.addSpacer();
+  dotLabelVal(split, new Color("#8a97ab"), "GOT.", fmtUsd(d.cash, 0));
 
-  const ringSize = small ? 74 : large ? 104 : 74;
-  const ringImg = drawRing(ringSegs, ringSize, small ? 11 : large ? 15 : 12, "ZAINWEST.", invPct + "%");
-  const ringView = hero.addImage(ringImg);
-  ringView.imageSize = new Size(ringSize, ringSize);
+  // SPARK
+  w.addSpacer(11);
+  const img = drawSpark(d.spark, 320, large ? 50 : 40);
+  if (img) { const wi = w.addImage(img); wi.imageSize = new Size(320, large ? 50 : 40); wi.centerAlignImage(); }
 
-  hero.addSpacer(small ? 10 : 13);
+  if (!large) { w.addSpacer(); return w; }
 
-  const heroR = hero.addStack();
-  heroR.layoutVertically();
-  const capLbl = heroR.addText("WARTOŚĆ KONTA");
-  capLbl.font = Font.mediumSystemFont(8.5);
-  capLbl.textColor = C.faint;
-  heroR.addSpacer(2);
-  const total = heroR.addText(fmtUsd(d.total));
-  total.textColor = C.text;
-  total.font = Font.boldSystemFont(small ? 22 : large ? 28 : 24);
-  total.minimumScaleFactor = 0.5;
-  total.lineLimit = 1;
-  heroR.addSpacer(6);
-  const chg = heroR.addStack();
-  chg.centerAlignContent();
-  pill(
-    chg,
-    (up ? "▲ " : "▼ ") + fmtPct(d.day_pnl_pct),
-    up ? C.green : C.red,
-    new Color(up ? "#19e39a" : "#ff5470", 0.16),
-    11.5
-  );
-  chg.addSpacer(6);
-  const chgCap = chg.addText("dziś");
-  chgCap.font = Font.mediumSystemFont(9);
-  chgCap.textColor = C.faint;
-  if (large) {
-    heroR.addSpacer(6);
-    const netRow = heroR.addStack();
-    netRow.centerAlignContent();
-    const netLbl = netRow.addText("NETTO ");
-    netLbl.font = Font.mediumSystemFont(9);
-    netLbl.textColor = C.faint;
-    const netV = netRow.addText(fmtUsd(d.net_result_usd, 2));
-    netV.font = Font.boldSystemFont(13);
-    netV.textColor = pnlColor(d.net_result_usd);
-  }
-
-  if (small) {
-    w.addSpacer();
-    return w;
-  }
-
-  // --- SLIM STAT ROW (medium: this is the last block; large: above the chart)
-  w.addSpacer(large ? 12 : 9);
-  const statHost = large ? card(w) : w;
-  const statsRow = statHost.addStack();
-  statsRow.centerAlignContent();
-  statBlock(statsRow, "Gotówka", fmtUsd(cashVal, 0), C.text, new Color("#8a8ca8", 0.7));
-  statsRow.addSpacer();
-  statBlock(statsRow, "Sesja", fmtUsd(sesjaVal, 0), C.text, C.us);
-  statsRow.addSpacer();
-  statBlock(statsRow, "Poza", fmtUsd(pozaVal, 0), C.text, C.crypto);
-  if (d.claude_budget_remaining_usd !== undefined && d.claude_budget_remaining_usd !== null) {
-    statsRow.addSpacer();
-    statBlock(statsRow, "Budżet", "~" + fmtUsd(d.claude_budget_remaining_usd, 0));
-  }
-
-  if (!large) {
-    // Medium stops here -- header + hero + stat row fits without clipping.
-    w.addSpacer();
-    return w;
-  }
-
-  // --- WYKRES (tylko large) --------------------------------------------------
-  w.addSpacer(12);
-  const img = drawSparkline(d.spark, 320, 56);
-  if (img) {
-    const wi = w.addImage(img);
-    wi.imageSize = new Size(320, 56);
-    wi.centerAlignImage();
-  } else {
-    const nn = w.addText("zbieram dane do wykresu…");
-    nn.font = Font.systemFont(10);
-    nn.textColor = C.muted;
-  }
-
-  // --- POZYCJE (tylko large) -------------------------------------------------
-  w.addSpacer(10);
-  const posHdr = w.addText("POZYCJE");
-  posHdr.font = Font.mediumSystemFont(8.5);
-  posHdr.textColor = C.faint;
+  // POZYCJE (large)
+  w.addSpacer(11);
+  label(w, "Pozycje", 8.5);
   w.addSpacer(5);
-
   if (positions.length === 0) {
-    const none = w.addText("Brak otwartych pozycji — cała gotówka czeka na wejścia.");
+    const none = w.addText("Brak pozycji — gotówka czeka na wejścia.");
     none.font = Font.systemFont(10.5);
-    none.textColor = C.muted;
-    none.lineLimit = 2;
+    none.textColor = C.dim;
   } else {
-    const maxRows = family === "large" ? 6 : 3;
-    for (const p of positions.slice(0, maxRows)) {
+    for (const p of positions.slice(0, 5)) {
       const row = w.addStack();
       row.centerAlignContent();
       row.setPadding(3, 0, 3, 0);
       const dot = row.addText("●");
-      dot.textColor = p.leg === "extended" ? C.crypto : C.us;
       dot.font = Font.boldSystemFont(9);
+      dot.textColor = p.leg === "extended" ? C.amber : C.mint;
       row.addSpacer(6);
       const sym = row.addText(p.asset);
       sym.font = Font.semiboldSystemFont(12);
       sym.textColor = C.text;
       row.addSpacer();
-      const val = row.addText(fmtUsd(p.value, 0));
-      val.font = Font.systemFont(11);
-      val.textColor = C.muted;
+      const v = row.addText(fmtUsd(p.value, 0));
+      v.font = Font.systemFont(11);
+      v.textColor = C.dim;
       row.addSpacer(8);
       if (p.pnl_pct === null || p.pnl_pct === undefined) {
-        const dash = row.addText("—");
-        dash.font = Font.semiboldSystemFont(10.5);
-        dash.textColor = C.muted;
+        const dash = row.addText("—"); dash.font = Font.semiboldSystemFont(10.5); dash.textColor = C.dim;
       } else {
-        const pu = p.pnl_pct >= 0;
-        pill(row, fmtPct(p.pnl_pct), pu ? C.green : C.red, new Color(pu ? "#19e39a" : "#ff5470", 0.14), 10.5);
+        pill(row, fmtPct(p.pnl_pct), p.pnl_pct >= 0 ? HEX.mint : HEX.rose, 10.5);
       }
     }
-    const extra = positions.length - Math.min(positions.length, family === "large" ? 6 : 3);
-    if (extra > 0) {
-      w.addSpacer(4);
-      const more = w.addText(`+${extra} więcej w apce`);
-      more.font = Font.systemFont(9.5);
-      more.textColor = C.faint;
-    }
+    const extra = positions.length - Math.min(positions.length, 5);
+    if (extra > 0) { w.addSpacer(4); const m = w.addText(`+${extra} więcej w apce`); m.font = Font.systemFont(9.5); m.textColor = C.faint; }
   }
-
-  // --- STOPKA ----------------------------------------------------------------
   w.addSpacer();
-  const now = new Date();
-  const hh = String(now.getHours()).padStart(2, "0");
-  const mm = String(now.getMinutes()).padStart(2, "0");
-  const foot = w.addText(`odświeżono ${hh}:${mm}`);
-  foot.textColor = C.faint;
-  foot.font = Font.systemFont(8);
-  foot.rightAlignText();
   return w;
 }
 
-const widget = await buildWidget();
-if (config.runsInWidget) {
-  Script.setWidget(widget);
-} else {
-  await widget.presentMedium();
-}
+const widget = await build();
+if (config.runsInWidget) Script.setWidget(widget);
+else await widget.presentMedium();
 Script.complete();

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, Decision, isReadOnly, MarketRegime, PortfolioResponse, StatusResponse } from "../api/client";
 import { useCountUp } from "../hooks/useCountUp";
-import { ago, EquityBand, money, money0, pct } from "./kit";
+import { ago, EquityBand, money, money0, pct, TickerTape } from "./kit";
 
 export type Leg = "sesja" | "poza";
 export interface Pos {
@@ -200,8 +200,14 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
   const usLive = !status.is_halted && !status.is_paused;
   const extLive = status.extended_enabled && !status.extended_paused;
 
+  const livePrices: Record<string, number> = {
+    ...JSON.parse(alpaca?.current?.prices_json || "{}"),
+    ...JSON.parse(extended?.current?.prices_json || "{}"),
+  };
+
   return (
     <div className="gd-view">
+      <TickerTape sesja={status.whitelist} poza={status.extended_whitelist} prices={livePrices} />
       <div className="gd-topline">
         <span className="gd-kicker">Konsola · {new Date().toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })}</span>
         <span className={`gd-mode ${status.mode === "live" ? "live" : ""}`}>

@@ -51,11 +51,32 @@ export function EquityBand({ history }: { history: PortfolioSnapshot[] }) {
           <stop offset="100%" stopColor={col} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={area} fill="url(#gdBandFill)" />
-      <path d={line} fill="none" stroke={col} strokeWidth="2.4" vectorEffect="non-scaling-stroke" />
-      <circle cx={lx} cy={ly} r="9" fill={col} opacity="0.22" />
+      <path d={area} fill="url(#gdBandFill)" className="gd-band-area" />
+      <path d={line} fill="none" stroke={col} strokeWidth="2.4" vectorEffect="non-scaling-stroke" pathLength={1} className="gd-line" />
+      <circle cx={lx} cy={ly} r="9" fill={col} opacity="0.22" className="gd-band-halo" />
       <circle cx={lx} cy={ly} r="3.4" fill={col} />
     </svg>
+  );
+}
+
+/** Scrolling ticker tape of the tradable universe (both legs), with live last
+ *  prices when the latest snapshot has them — a continuous "video" band. */
+export function TickerTape({ sesja, poza, prices }: { sesja: string[]; poza: string[]; prices: Record<string, number> }) {
+  const items = [...sesja.map((s) => ({ s, leg: "sesja" as const })), ...poza.map((s) => ({ s, leg: "poza" as const }))];
+  if (items.length === 0) return null;
+  const row = [...items, ...items]; // duplicate for a seamless loop
+  return (
+    <div className="gd-tape">
+      <div className="gd-tape-track">
+        {row.map((it, i) => (
+          <span className="gd-tape-item" key={i}>
+            <span className={`gd-leg-dot ${it.leg}`} />
+            <span className="s">{it.s}</span>
+            {prices[it.s] !== undefined && <span className="p">{money(prices[it.s])}</span>}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
