@@ -1502,3 +1502,33 @@ def test_high_spread_symbol_gets_size_haircut(db_session, settings):
     decision = trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor, force=True)
     assert decision.executed is True
     assert decision.size_pct == 10.0  # 20% haircut by 0.5
+
+
+def test_describe_position_plan_holds_below_targets(settings):
+    """A small gain below the partial/trailing-arm thresholds reads as HOLD with
+    an explanation -- this is exactly the '+3% nie sprzedany' case."""
+    s = settings.model_copy(update={
+        "stop_loss_pct": 2.0, "reward_risk_ratio": 2.0, "partial_take_profit_r": 2.0,
+        "trailing_stop_enabled": True, "partial_take_profit_enabled": True,
+    })
+    # basis 100, price 103 (+3%). partial_at = 2*2 = 4%, tp_arm = 2*2 = 4%. +3% < both.
+    plan = trading_engine.describe_position_plan(s, basis=100.0, price=103.0, peak=103.0)
+    assert plan["action"] == "hold"
+    assert plan["change_pct"] == 3.0
+    assert "Trzymam" in plan["note"]
+
+
+def test_describe_position_plan_adopted_has_no_basis(settings):
+    plan = trading_engine.describe_position_plan(settings, basis=None, price=50.0, peak=52.0)
+    assert plan["adopted"] is True and plan["change_pct"] is None
+    assert "Adoptowana" in plan["note"]
+
+
+def test_describe_position_plan_trailing_protected_when_armed(settings):
+    s = settings.model_copy(update={
+        "stop_loss_pct": 2.0, "reward_risk_ratio": 2.0, "trailing_stop_enabled": True,
+    })
+    # peak 110 vs basis 100 => +10% >= tp_arm(4%) => trailing armed.
+    plan = trading_engine.describe_position_plan(s, basis=100.0, price=108.0, peak=110.0)
+    assert plan["action"] == "trailing_protected"
+    assert "trailingiem" in plan["note"]

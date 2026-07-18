@@ -15,7 +15,7 @@ from app.serialization import serialize
 from app.services import budget_tracker, market_hours, risk_manager, scorecard, shadow_analysis
 from app.services.alpaca_client import AlpacaClient
 from app.services.strategy_profiles import effective_settings
-from app.services.trading_engine import average_cost_basis
+from app.services.trading_engine import _state_col, average_cost_basis, describe_position_plan
 
 logger = logging.getLogger(__name__)
 
@@ -293,6 +293,53 @@ async def events():
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.get("/position-plans")
+def get_position_plans(venue: str = "alpaca", db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """Per-position 'co robię przy tym indeksie': for every held position, the
+    mechanical exit plan in plain language (take-profit / partial / trailing /
+    stop levels + a note), computed from the SAME math the exits run. Read-only,
+    no broker call -- derived from the latest snapshot + stored trailing peaks."""
+    snap = _latest_snapshot(db, venue)
+    if snap is None:
+        return {"venue": venue, "positions": []}
+    try:
+        balances = json.loads(snap.balances_json or "{}")
+        prices = json.loads(snap.prices_json or "{}")
+    except (TypeError, ValueError):
+        return {"venue": venue, "positions": []}
+    state = risk_manager.get_state(db)
+    try:
+        peaks = json.loads(getattr(state, _state_col("peaks", venue)) or "{}")
+    except (TypeError, ValueError):
+        peaks = {}
+
+    out: list[dict] = []
+    for asset, qty_raw in balances.items():
+        qty = float(qty_raw)
+        if qty <= 0:
+            continue
+        full = asset if asset in prices else asset + settings.quote_currency
+        price = prices.get(asset) or prices.get(asset + settings.quote_currency)
+        if price is None:
+            continue
+        value = qty * price
+        if value < 1:
+            continue
+        basis = average_cost_basis(db, full, venue=venue)
+        peak = float(peaks.get(asset) or peaks.get(full) or price)
+        plan = describe_position_plan(settings, basis=basis, price=price, peak=peak)
+        out.append({
+            "asset": asset,
+            "qty": qty,
+            "basis": round(basis, 4) if basis else None,
+            "price": round(price, 4),
+            "value": round(value, 2),
+            **plan,
+        })
+    out.sort(key=lambda p: p["value"], reverse=True)
+    return {"venue": venue, "positions": out}
 
 
 def _widget_positions(db: Session, settings: Settings, venue: str) -> list[dict]:

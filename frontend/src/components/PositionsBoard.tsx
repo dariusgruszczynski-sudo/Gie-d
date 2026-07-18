@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, isReadOnly, PortfolioResponse } from "../api/client";
 
 type Leg = "us" | "extended";
@@ -28,10 +28,8 @@ function extract(portfolio: PortfolioResponse | null, leg: Leg): Pos[] {
   for (const [asset, qtyRaw] of Object.entries(balances)) {
     const qty = Number(qtyRaw);
     if (!(qty > 0)) continue;
-    // balances are keyed by base asset ("BTC"); prices are keyed by the full
-    // trading symbol ("BTCUSD") for extended but by the plain ticker for equities
-    // -- try both so extended prices don't silently come back null.
-    const price = prices[asset] ?? prices[asset + "USD"] ?? null;
+    // Both legs are US equities/ETFs now -- prices are keyed by the plain ticker.
+    const price = prices[asset] ?? null;
     const value = price !== null ? qty * price : 0;
     if (value < 1) continue; // ignore unsellable dust
     const entry = cost[asset] ?? null;
@@ -42,15 +40,14 @@ function extract(portfolio: PortfolioResponse | null, leg: Leg): Pos[] {
   return out;
 }
 
-function PositionCard({ p, onChanged }: { p: Pos; onChanged?: () => void }) {
+function PositionCard({ p, note, onChanged }: { p: Pos; note?: string; onChanged?: () => void }) {
   const up = (p.pnlPct ?? 0) >= 0;
   const legLabel = p.leg === "extended" ? "Poza sesją" : "Akcje US";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Full symbol the backend expects: extended is the pair ("BTCUSD"), equities the
-  // plain ticker. venue follows the leg.
-  const symbol = p.leg === "extended" ? p.asset + "USD" : p.asset;
+  // Both legs trade plain US tickers; venue follows the leg.
+  const symbol = p.asset;
   const venue = p.leg === "extended" ? "extended" : "alpaca";
   const canSell = !isReadOnly && !!onChanged;
 
@@ -105,6 +102,12 @@ function PositionCard({ p, onChanged }: { p: Pos; onChanged?: () => void }) {
           </b>
         </div>
       </div>
+      {note && (
+        <div className="pos-plan">
+          <span className="pos-plan-label">Co robię</span>
+          <span className="pos-plan-note">{note}</span>
+        </div>
+      )}
       {canSell && (
         <div className="pos-card-actions">
           <button className="btn-outline-danger pos-sell-all" disabled={busy} onClick={sellAll}>
@@ -136,6 +139,36 @@ export function PositionsBoard({
   const hasPnl = positions.some((p) => p.pnlUsd !== null);
   const up = pnl >= 0;
 
+  // Per-position "co robię" notes: the mechanical exit plan per held symbol,
+  // keyed by `${leg}:${asset}`. Fetched read-only; refreshes when holdings change.
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const hasAlpaca = !!alpaca?.current;
+  const hasExtended = !!extended?.current;
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const map: Record<string, string> = {};
+      const legs: Array<["us" | "extended", string]> = [];
+      if (hasAlpaca) legs.push(["us", "alpaca"]);
+      if (hasExtended) legs.push(["extended", "extended"]);
+      await Promise.all(
+        legs.map(async ([leg, venue]) => {
+          try {
+            const res = await api.positionPlans(venue);
+            res.positions.forEach((pp) => (map[`${leg}:${pp.asset}`] = pp.note));
+          } catch {
+            /* plan is best-effort context; ignore failures */
+          }
+        }),
+      );
+      if (!cancelled) setNotes(map);
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasAlpaca, hasExtended, invested]);
+
   return (
     <div className="panel pos-board">
       <div className="pos-board-head">
@@ -161,7 +194,7 @@ export function PositionsBoard({
       {positions.length > 0 ? (
         <div className="pos-grid">
           {positions.map((p) => (
-            <PositionCard key={`${p.leg}-${p.asset}`} p={p} onChanged={onChanged} />
+            <PositionCard key={`${p.leg}-${p.asset}`} p={p} note={notes[`${p.leg}:${p.asset}`]} onChanged={onChanged} />
           ))}
         </div>
       ) : (

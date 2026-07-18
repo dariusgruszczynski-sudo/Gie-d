@@ -253,6 +253,8 @@ export const api = {
   pushUnsubscribe: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
     apiFetch<{ message: string }>("/api/push/unsubscribe", { method: "POST", body: JSON.stringify(sub) }),
   pushTest: () => apiFetch<{ message: string }>("/api/push/test", { method: "POST" }),
+  positionPlans: (venue: string = "alpaca") =>
+    apiFetch<PositionPlansResponse>(withShare(`/api/position-plans?venue=${venue}`)),
   health: () => apiFetch<HealthReport>("/api/health"),
   healthReset: (action: string) =>
     apiFetch<{ action: string; message: string }>("/api/health/reset", {
@@ -260,6 +262,27 @@ export const api = {
       body: JSON.stringify({ action }),
     }),
 };
+
+export interface PositionPlan {
+  asset: string;
+  qty: number;
+  basis: number | null;
+  price: number;
+  value: number;
+  adopted: boolean;
+  change_pct: number | null;
+  stop_pct: number;
+  take_profit_arm_pct: number;
+  partial_at_pct: number;
+  trailing_dist_pct: number;
+  action: "hold" | "near_stop" | "partial_ready" | "trailing_protected" | "adopted";
+  note: string;
+}
+
+export interface PositionPlansResponse {
+  venue: string;
+  positions: PositionPlan[];
+}
 
 export type HealthStatus = "ok" | "warn" | "down" | "off";
 

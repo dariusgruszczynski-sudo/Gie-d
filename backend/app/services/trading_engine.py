@@ -566,6 +566,65 @@ def _reward_levels(settings: Settings, stop_pct: float) -> tuple[float, float, f
     return tp_arm, trailing, partial_r
 
 
+def describe_position_plan(settings: Settings, *, basis: float | None, price: float, peak: float) -> dict:
+    """Plain-language 'co robię przy tym indeksie' for ONE held position, using
+    the SAME reward/stop math the mechanical exits actually run (so the note
+    matches what the engine will really do). Read-only -- computes nothing that
+    places an order. Uses the base (non-vol-scaled) stop as an indicative level,
+    since the snapshot doesn't carry per-symbol volatility."""
+    stop = settings.stop_loss_pct
+    tp_arm, trailing, partial_r = _reward_levels(settings, stop)
+    partial_pct = settings.partial_take_profit_frac * 100
+
+    if basis is None or basis <= 0:
+        return {
+            "adopted": True,
+            "change_pct": None,
+            "stop_pct": round(stop, 2),
+            "take_profit_arm_pct": round(tp_arm, 2),
+            "partial_at_pct": round(partial_r, 2),
+            "trailing_dist_pct": round(trailing, 2),
+            "action": "adopted",
+            "note": "Adoptowana (brak ceny wejścia) — chronię tylko trailingiem od szczytu; brak sztywnego take-profit.",
+        }
+
+    change_pct = (price - basis) / basis * 100
+    armed = tp_arm <= 0 or peak >= basis * (1 + tp_arm / 100)
+
+    if change_pct <= -stop:
+        action = "near_stop"
+        note = f"Strata {change_pct:+.1f}% — przy −{stop:.1f}% od wejścia zamykam (stop-loss)."
+    elif settings.trailing_stop_enabled and armed:
+        action = "trailing_protected"
+        note = (
+            f"Zysk {change_pct:+.1f}% chroniony trailingiem: sprzedam, gdy spadnie {trailing:.1f}% "
+            f"od szczytu (${peak:.2f})."
+        )
+    elif settings.partial_take_profit_enabled and change_pct >= partial_r:
+        action = "partial_ready"
+        note = (
+            f"+{change_pct:.1f}% — realizuję {partial_pct:.0f}% pozycji przy +{partial_r:.1f}%, "
+            f"reszta biegnie z trailingiem."
+        )
+    else:
+        action = "hold"
+        note = (
+            f"Trzymam — czekam. Częściowa realizacja przy +{partial_r:.1f}%, trailing uzbroi się przy "
+            f"+{tp_arm:.1f}% (teraz {change_pct:+.1f}%)."
+        )
+
+    return {
+        "adopted": False,
+        "change_pct": round(change_pct, 2),
+        "stop_pct": round(stop, 2),
+        "take_profit_arm_pct": round(tp_arm, 2),
+        "partial_at_pct": round(partial_r, 2),
+        "trailing_dist_pct": round(trailing, 2),
+        "action": action,
+        "note": note,
+    }
+
+
 def _decide_mechanical_exit(
     settings: Settings,
     base: str,

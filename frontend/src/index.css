@@ -2536,3 +2536,25 @@ button {
 }
 .hc-reset-btn:hover:not(:disabled) { background: var(--accent); color: #fff; }
 .hc-reset-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* ---- Per-position "co robię" plan note ---------------------------------- */
+.pos-plan {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pos-plan-label {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  font-weight: 700;
+}
+.pos-plan-note {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.35;
+}

@@ -36,6 +36,7 @@ _SHARE_READONLY_PREFIXES = (
     "/api/events",
     "/api/claude-edge",
     "/api/widget",
+    "/api/position-plans",
 )
 
 
