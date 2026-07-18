@@ -225,3 +225,69 @@ def test_place_order_for_session_quantity_uses_plain_qty_order(settings, monkeyp
 
     assert result == "qty-result"
     assert called["args"] == ("SPY", "SELL", 1.5)
+
+
+# ---- extended-hours (POZA SESJĄ) whole-share LIMIT path ----
+
+
+def test_extended_buy_places_whole_share_marketable_limit(settings, monkeypatch):
+    """A pre-/after-market BUY converts a notional budget into WHOLE shares at a
+    limit priced slightly through the last trade, with extended_hours=True."""
+    client = AlpacaClient(settings)
+    monkeypatch.setattr(client, "get_price", lambda symbol: 40.0)
+    captured = {}
+
+    def fake_request(http_client, method, path, **kwargs):
+        assert path == "/v2/orders"
+        captured["body"] = kwargs["json"]
+        return {"id": "e-1", "side": "buy", "status": "filled", "filled_qty": "2", "filled_avg_price": "40.10"}
+
+    monkeypatch.setattr(client, "_request", fake_request)
+    result = client.place_order_for_session("XLF", "BUY", usdt_amount=100.0, session="post")
+
+    body = captured["body"]
+    assert body["type"] == "limit" and body["extended_hours"] is True
+    assert body["time_in_force"] == "day"
+    # 100 / 40.16 (40*1.004) = 2 whole shares; fractional budget is dropped.
+    assert body["qty"] == "2.000000000"
+    assert float(body["limit_price"]) > 40.0  # marketable (through the last trade)
+    assert result.symbol == "XLF" and result.quantity == 2
+
+
+def test_extended_buy_below_one_share_is_rejected(settings, monkeypatch):
+    """Can't buy a whole share with the budget -> rejected (no fractional AH)."""
+    client = AlpacaClient(settings)
+    monkeypatch.setattr(client, "get_price", lambda symbol: 90.0)
+    try:
+        client.place_order_for_session("XLE", "BUY", usdt_amount=50.0, session="pre")
+        assert False, "expected AlpacaAPIError"
+    except AlpacaAPIError as exc:
+        assert "CAŁE akcje" in str(exc)
+
+
+def test_extended_limit_order_cancels_when_unfilled(settings, monkeypatch):
+    """A thin book that never fills -> the order is cancelled and an error is
+    raised, so no phantom trade is booked."""
+    client = AlpacaClient(settings)
+    monkeypatch.setattr(client, "get_price", lambda symbol: 30.0)
+    import app.services.alpaca_client as ac
+    monkeypatch.setattr(ac.time, "sleep", lambda *_: None)  # don't actually wait
+    cancelled = {"done": False}
+
+    def fake_request(http_client, method, path, **kwargs):
+        if method == "POST":
+            return {"id": "e-2", "side": "buy", "status": "new"}  # never fills
+        if method == "GET":
+            return {"id": "e-2", "side": "buy", "status": "new"}
+        if method == "DELETE":
+            cancelled["done"] = True
+            return {}
+        raise AssertionError(path)
+
+    monkeypatch.setattr(client, "_request", fake_request)
+    try:
+        client.place_order_for_session("GDX", "BUY", usdt_amount=60.0, session="post")
+        assert False, "expected AlpacaAPIError"
+    except AlpacaAPIError as exc:
+        assert "nie wypełni" in str(exc)
+    assert cancelled["done"] is True

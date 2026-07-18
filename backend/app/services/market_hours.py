@@ -1,9 +1,13 @@
-"""Computes whether the US equities regular session is currently open or
-closed. Alpaca's /v2/calendar supplies the *actual* regular-session open/close
-for each date (accounting for holidays and early closes); this reduces it to a
-simple REGULAR/CLOSED state. Pre-market and after-hours are not modeled here
-yet -- the POZA SESJĄ (extended-hours) leg's PRE/POST session gating lands in a
-later package; for now this is regular-session-only."""
+"""Computes which US-equities session is currently live. Alpaca's /v2/calendar
+supplies the *actual* regular-session open/close for each date (accounting for
+holidays and early closes); on top of that this models the extended-hours
+windows so the two trading legs can be gated correctly:
+
+  PRE     pre-market   04:00 ET -> regular open
+  REGULAR regular      regular open -> regular close   (SESJA leg)
+  POST    after-hours  regular close -> 20:00 ET       (POZA SESJĄ leg)
+  CLOSED  everything else (overnight, weekends, holidays)
+"""
 
 import logging
 from dataclasses import dataclass
@@ -18,6 +22,13 @@ ET = ZoneInfo("America/New_York")
 
 CLOSED = "closed"
 REGULAR = "regular"
+PRE = "pre"
+POST = "post"
+
+# Extended-hours wall-clock bounds (ET). Alpaca accepts extended-hours LIMIT
+# orders from 04:00 to 09:30 (pre) and 16:00 to 20:00 (post).
+PRE_MARKET_OPEN = time(4, 0)
+AFTER_HOURS_CLOSE = time(20, 0)
 
 # The calendar rarely changes and this is polled by the dashboard every ~15s
 # -- cache it so a hot status endpoint doesn't hammer Alpaca for something
@@ -32,7 +43,7 @@ _cache_computed_at: datetime | None = None
 
 @dataclass
 class SessionInfo:
-    session: str  # CLOSED | REGULAR
+    session: str  # CLOSED | PRE | REGULAR | POST
     # UTC-aware boundaries for the next relevant trading day: today's, if the
     # market is open or about to open today; otherwise the next trading day
     # after a weekend/holiday. None only if Alpaca returned no upcoming
@@ -61,7 +72,16 @@ def compute_session_info(now_et: datetime, calendar: list[dict]) -> SessionInfo:
     if today_entry is not None:
         reg_open = _combine_et(now_et.date(), _parse_hhmm(today_entry["open"]))
         reg_close = _combine_et(now_et.date(), _parse_hhmm(today_entry["close"]))
-        session = REGULAR if reg_open <= now_et < reg_close else CLOSED
+        pre_open = _combine_et(now_et.date(), PRE_MARKET_OPEN)
+        post_close = _combine_et(now_et.date(), AFTER_HOURS_CLOSE)
+        if reg_open <= now_et < reg_close:
+            session = REGULAR
+        elif pre_open <= now_et < reg_open:
+            session = PRE
+        elif reg_close <= now_et < post_close:
+            session = POST
+        else:
+            session = CLOSED
         return SessionInfo(session, reg_open, reg_close)
 
     # Not a trading day at all (weekend/holiday) -- surface the *next* one so
@@ -109,4 +129,16 @@ def get_session_info(broker: AlpacaClient, *, force_refresh: bool = False) -> Se
 
 
 def is_tradable_session(session: str) -> bool:
+    """Regular-session (SESJA) leg: trades only during regular hours."""
     return session == REGULAR
+
+
+def is_extended_session(session: str) -> bool:
+    """POZA SESJĄ leg: trades only in pre-market / after-hours."""
+    return session in (PRE, POST)
+
+
+def is_tradable_for(venue: str, session: str) -> bool:
+    """Per-leg session gate: the extended leg trades PRE/POST, the regular
+    (default) leg trades REGULAR."""
+    return is_extended_session(session) if venue == "extended" else is_tradable_session(session)

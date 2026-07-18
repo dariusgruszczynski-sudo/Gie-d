@@ -12,8 +12,15 @@ def _et(hour: int, minute: int, day: int = 6) -> datetime:
     return datetime(2026, 7, day, hour, minute, tzinfo=market_hours.ET)
 
 
-def test_before_regular_open_is_closed():
+def test_pre_market_window():
+    # 06:00 ET is inside pre-market (04:00 -> 09:30).
     info = market_hours.compute_session_info(_et(6, 0), CALENDAR)
+    assert info.session == market_hours.PRE
+
+
+def test_before_pre_market_open_is_closed():
+    # 03:00 ET is before pre-market opens.
+    info = market_hours.compute_session_info(_et(3, 0), CALENDAR)
     assert info.session == market_hours.CLOSED
 
 
@@ -22,8 +29,14 @@ def test_regular_session_window():
     assert info.session == market_hours.REGULAR
 
 
-def test_after_regular_close_is_closed():
+def test_after_hours_window():
+    # 18:00 ET is inside after-hours (16:00 -> 20:00).
     info = market_hours.compute_session_info(_et(18, 0), CALENDAR)
+    assert info.session == market_hours.POST
+
+
+def test_after_20_00_is_closed():
+    info = market_hours.compute_session_info(_et(21, 0), CALENDAR)
     assert info.session == market_hours.CLOSED
 
 
@@ -32,9 +45,20 @@ def test_boundary_at_exactly_regular_open_is_regular():
     assert info.session == market_hours.REGULAR
 
 
-def test_boundary_at_exactly_regular_close_is_closed():
+def test_boundary_at_exactly_regular_close_is_post():
+    # 16:00 ET (regular close) opens the after-hours window.
     info = market_hours.compute_session_info(_et(16, 0), CALENDAR)
-    assert info.session == market_hours.CLOSED
+    assert info.session == market_hours.POST
+
+
+def test_per_leg_tradability():
+    # Regular (SESJA) leg trades only REGULAR; extended (POZA SESJĄ) only PRE/POST.
+    assert market_hours.is_tradable_for("alpaca", market_hours.REGULAR) is True
+    assert market_hours.is_tradable_for("alpaca", market_hours.POST) is False
+    assert market_hours.is_tradable_for("extended", market_hours.PRE) is True
+    assert market_hours.is_tradable_for("extended", market_hours.POST) is True
+    assert market_hours.is_tradable_for("extended", market_hours.REGULAR) is False
+    assert market_hours.is_tradable_for("extended", market_hours.CLOSED) is False
 
 
 def test_weekend_with_no_calendar_entry_surfaces_next_trading_day():

@@ -34,6 +34,10 @@ DATA_FEED = "iex"
 # response doesn't carry the fill synchronously -- poll briefly for it.
 FILL_POLL_ATTEMPTS = 10
 FILL_POLL_DELAY_SECONDS = 0.5
+# Extended-hours orders must be LIMIT (Alpaca rejects MARKET outside RTH). Price
+# them slightly THROUGH the last trade (a "marketable limit") so they actually
+# fill in thin pre-/after-market books without chasing far past fair value.
+EXTENDED_LIMIT_BUFFER = 0.004  # 0.4%
 _TIMEFRAMES = {"1m": "1Min", "5m": "5Min", "15m": "15Min", "1h": "1Hour", "1d": "1Day"}
 _TIMEFRAME_MINUTES = {"1m": 1, "5m": 5, "15m": 15, "1h": 60, "1d": 1440}
 # Calendar time needed per TRADING bar: the market trades ~6.5h out of 24 on
@@ -221,6 +225,59 @@ class AlpacaClient:
         fallback_price = self.get_price(symbol)
         return self._resolve_fill(order, fallback_price, symbol)
 
+    def _resolve_fill_or_cancel(self, order: dict, fallback_price: float, symbol: str) -> OrderResult:
+        """Like _resolve_fill, but for extended-hours LIMIT orders that may NOT
+        fill in a thin book: poll for the fill, and if it doesn't land inside
+        the window, CANCEL the order and raise -- so we never book a phantom
+        trade that never happened (or let a stale limit fill later at a price we
+        didn't record)."""
+        order_id = order.get("id", "")
+        side = (order.get("side") or "").upper()
+        for _ in range(FILL_POLL_ATTEMPTS):
+            if order.get("status") == "filled":
+                qty = float(order.get("filled_qty") or 0)
+                price = float(order.get("filled_avg_price") or fallback_price)
+                if qty > 0:
+                    return OrderResult(order_id, symbol, side, qty, price, qty * price)
+            time.sleep(FILL_POLL_DELAY_SECONDS)
+            try:
+                order = self._request(self._trading, "GET", f"/v2/orders/{order_id}")
+            except AlpacaAPIError:
+                logger.warning("Extended-hours order poll failed for %s, retrying", order_id, exc_info=True)
+        try:
+            self._request(self._trading, "DELETE", f"/v2/orders/{order_id}")
+        except AlpacaAPIError:
+            logger.warning("Failed to cancel unfilled extended-hours order %s", order_id, exc_info=True)
+        raise AlpacaAPIError(
+            f"Zlecenie LIMIT {symbol} nie wypełniło się w oknie poza sesją — anulowano (cienki rynek)"
+        )
+
+    def place_extended_limit_order(
+        self, symbol: str, side: str, *, usdt_amount: float | None = None, quantity: float | None = None
+    ) -> OrderResult:
+        """WHOLE-share marketable-LIMIT order for pre-/after-market. Alpaca
+        rejects MARKET orders and fractional shares outside regular hours, so a
+        notional BUY is converted to an integer share count at a limit priced
+        slightly through the last trade; a SELL floors to whole shares."""
+        price = self.get_price(symbol)
+        if price <= 0:
+            raise AlpacaAPIError(f"Brak ceny dla {symbol}, nie mogę wystawić zlecenia LIMIT poza sesją")
+        if side.upper() == "BUY":
+            limit_price = round(price * (1 + EXTENDED_LIMIT_BUFFER), 2)
+            shares = int((usdt_amount or 0) // limit_price) if usdt_amount is not None else int(quantity or 0)
+        else:
+            limit_price = round(price * (1 - EXTENDED_LIMIT_BUFFER), 2)
+            shares = int(quantity or 0)  # whole shares only after hours
+        if shares < 1:
+            raise AlpacaAPIError(
+                f"Poza sesją tylko CAŁE akcje {symbol}: budżet/pozycja nie starcza na 1 sztukę "
+                f"(cena ~${limit_price:.2f})"
+            )
+        order = self._submit_order(
+            symbol, side, qty=float(shares), order_type="limit", limit_price=limit_price, extended_hours=True
+        )
+        return self._resolve_fill_or_cancel(order, price, symbol)
+
     def place_order_for_session(
         self,
         symbol: str,
@@ -230,10 +287,12 @@ class AlpacaClient:
         usdt_amount: float | None = None,
         quantity: float | None = None,
     ) -> OrderResult:
-        """Places a plain market/notional order (fractional-friendly). US
-        trades regular-session-only now that pre-/after-market are removed, so
-        `session` is accepted for call-site compatibility but otherwise unused
-        -- there's no longer a whole-share LIMIT path to route to."""
+        """Routes by session: pre-/after-market ("pre"/"post") go through the
+        whole-share extended-hours LIMIT path; the regular session uses plain
+        MARKET/notional orders (fractional-friendly, essential for a small
+        account)."""
+        if session in ("pre", "post"):
+            return self.place_extended_limit_order(symbol, side, usdt_amount=usdt_amount, quantity=quantity)
         if usdt_amount is not None:
             return self.place_market_order_usdt_amount(symbol, side, usdt_amount)
         return self.place_market_order_quantity(symbol, side, quantity)

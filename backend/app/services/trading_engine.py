@@ -83,8 +83,8 @@ def volatility_adjusted_size(settings: Settings, requested_pct: float, ticker_vo
     return round(requested_pct * scale, 4)
 
 
-def _is_tradable_session(session_info: SessionInfo) -> bool:
-    return market_hours.is_tradable_session(session_info.session)
+def _is_tradable_session(session_info: SessionInfo, venue: str = "alpaca") -> bool:
+    return market_hours.is_tradable_for(venue, session_info.session)
 
 
 def _session_closed_reason(session_info: SessionInfo) -> str:
@@ -653,7 +653,7 @@ def check_take_profit_stop_loss(
     care about market-hours gating. Tracks each position's peak price for the
     trailing stop and clears it once the position is closed."""
     session = session_info.session if session_info is not None else market_hours.REGULAR
-    tradable = True if always_open else market_hours.is_tradable_session(session)
+    tradable = True if always_open else market_hours.is_tradable_for(venue, session)
     if not tradable or not risk_manager.can_trade_automated(db, venue).approved:
         return []
 
@@ -1014,7 +1014,7 @@ def run_cycle(
         tradable = True
     else:
         session_info = market_hours.get_session_info(broker)
-        tradable = _is_tradable_session(session_info)
+        tradable = _is_tradable_session(session_info, venue)
 
     # Mechanical take-profit / stop-loss runs every scheduled poll, before we
     # even decide whether to ask Claude -- this is what makes the bot actively
