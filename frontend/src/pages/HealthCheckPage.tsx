@@ -10,7 +10,6 @@ const STATUS_META: Record<HealthStatus, { light: string; label: string }> = {
 
 // Human labels for the reset buttons a probe can attach.
 const ACTION_LABEL: Record<string, string> = {
-  reset_budget_meter: "Wyzeruj licznik budżetu",
   resume_alpaca: "Wznów silnik US",
   resume_extended: "Wznów silnik poza sesją",
   clear_halt: "Zdejmij halt",

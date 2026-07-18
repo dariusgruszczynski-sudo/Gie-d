@@ -75,24 +75,12 @@ def _probe_alpaca_extended(db, settings):
 
 
 def _probe_claude(db, settings):
+    # Cost/budget is intentionally NOT surfaced here anymore -- tokens are used
+    # for many things and the spend is not a meaningful health signal. We only
+    # confirm the brain has a key to reach the model.
     if not settings.anthropic_api_key:
         return _check("claude", "Claude (mózg)", "Integracje", "down", "Brak ANTHROPIC_API_KEY w .env")
-    bs = budget_tracker.get_budget_status(db, settings)
-    blocked = (
-        settings.claude_pause_trading_at_budget
-        and bs["claude_monthly_budget_usd"] > 0
-        and bs["claude_spend_usd_this_month"] >= bs["claude_monthly_budget_usd"]
-    )
-    remaining = bs.get("claude_budget_remaining_usd", 0.0)
-    if blocked:
-        return _check("claude", "Claude (mózg)", "Integracje", "down",
-                      f"Budżet wyczerpany — automat wstrzymany (${bs['claude_spend_usd_this_month']:.2f} / "
-                      f"${bs['claude_monthly_budget_usd']:.2f})", action="reset_budget_meter")
-    if bs.get("claude_budget_alert"):
-        return _check("claude", "Claude (mózg)", "Integracje", "warn",
-                      f"Budżet {bs['claude_budget_pct_used']:.0f}% — pozostało ~${remaining:.2f}",
-                      action="reset_budget_meter")
-    return _check("claude", "Claude (mózg)", "Integracje", "ok", f"Klucz OK · pozostało ~${remaining:.2f} z budżetu")
+    return _check("claude", "Claude (mózg)", "Integracje", "ok", "Klucz OK — model osiągalny")
 
 
 def _probe_news(db, settings):

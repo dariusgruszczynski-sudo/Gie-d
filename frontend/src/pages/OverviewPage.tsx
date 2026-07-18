@@ -6,8 +6,8 @@ import { PageData } from "./types";
 
 /** Dashboard główny — TYLKO najważniejsze na jeden rzut oka: ile masz i jak się
  *  rusza (hero), w co jesteś zainwestowany (pozycje + „co robię"), krzywa konta
- *  i ostatnie decyzje. Szczegóły (budżet, tokeny, edge, nastawy) są w Centrum
- *  sterowania i zakładkach silników. */
+ *  i ostatnie decyzje. Szczegóły (nastawy silników) są w Centrum sterowania
+ *  i zakładkach silników. */
 export function OverviewPage({ data }: { data: PageData }) {
   const { status, portfolio, extendedPortfolio, decisions, refresh } = data;
   return (

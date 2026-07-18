@@ -1,6 +1,4 @@
 import { ReactNode } from "react";
-import { BudgetGauge } from "../components/BudgetGauge";
-import { ClaudeEdgePanel } from "../components/ClaudeEdgePanel";
 import { ControlToolbar } from "../components/ControlToolbar";
 import { NotificationSettings } from "../components/NotificationSettings";
 import { ShareLinkPanel } from "../components/ShareLinkPanel";
@@ -105,38 +103,8 @@ function EngineProfiles({ status }: { status: StatusResponse }) {
   );
 }
 
-function BudgetPanel({ status }: { status: StatusResponse }) {
-  const fmtTok = (v: number) =>
-    v >= 1_000_000 ? `${(v / 1_000_000).toFixed(2)}M` : v >= 1_000 ? `${(v / 1_000).toFixed(1)}k` : Math.round(v).toString();
-  return (
-    <div className="panel budget-panel">
-      <h2 style={{ marginTop: 0 }}>Claude — budżet i tokeny (ten miesiąc)</h2>
-      <div className="budget-panel-body">
-        <BudgetGauge pctUsed={status.claude_budget_pct_used} alert={status.claude_budget_alert} />
-        <div className="budget-panel-figs">
-          <ProfileRow
-            label="Wydano (szacunek)"
-            value={`$${status.claude_spend_usd_this_month.toFixed(2)} / $${status.claude_monthly_budget_usd.toFixed(2)}`}
-          />
-          <ProfileRow label="Tokeny łącznie" value={fmtTok(status.claude_total_tokens_this_month)} />
-          <ProfileRow
-            label="Wejście / wyjście"
-            value={`${fmtTok(status.claude_input_tokens_this_month)} / ${fmtTok(status.claude_output_tokens_this_month)}`}
-          />
-        </div>
-      </div>
-      {status.claude_budget_alert && (
-        <p className="subtitle" style={{ marginBottom: 0 }}>
-          💰 Ponad {status.claude_budget_pct_used.toFixed(0)}% budżetu — rozważ doładowanie na console.anthropic.com.
-        </p>
-      )}
-    </div>
-  );
-}
-
 /** Centrum sterowania: wszystkie akcje (START/STOP per silnik, raport, restart),
- *  powiadomienia push, nastawy zachowań silników i budżet Claude w jednym
- *  miejscu. */
+ *  powiadomienia push i nastawy zachowań silników w jednym miejscu. */
 export function ControlPage({ data }: { data: PageData }) {
   const { status, refresh, muted, toggleMuted } = data;
   return (
@@ -145,7 +113,7 @@ export function ControlPage({ data }: { data: PageData }) {
         <div className="panel">
           <p className="subtitle" style={{ margin: 0 }}>
             Widok tylko do odczytu — sterowanie silnikami, powiadomienia i ręczne transakcje są ukryte. Poniżej podgląd
-            nastaw i budżetu.
+            nastaw.
           </p>
         </div>
       )}
@@ -185,11 +153,6 @@ export function ControlPage({ data }: { data: PageData }) {
       )}
 
       <EngineProfiles status={status} />
-
-      <BudgetPanel status={status} />
-
-      <ClaudeEdgePanel venue="alpaca" />
-      {status.extended_enabled && <ClaudeEdgePanel venue="extended" />}
     </>
   );
 }

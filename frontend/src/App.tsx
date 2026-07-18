@@ -3,7 +3,7 @@ import { api, Decision, isReadOnly, PortfolioResponse, StatusResponse, Trade, wi
 import { BrandLoader } from "./components/BrandLoader";
 import { BrandLogo } from "./components/BrandLogo";
 import { DecisionSplash } from "./components/DecisionSplash";
-import { EmberBackground } from "./components/EmberBackground";
+import { AuroraBackground } from "./components/AuroraBackground";
 import { MarketTemperature } from "./components/MarketTemperature";
 import { StrategyBar } from "./components/StrategyBar";
 import { TabNav } from "./components/TabNav";
@@ -167,7 +167,7 @@ export default function App() {
   return (
     <>
       {splashDecision && <DecisionSplash decision={splashDecision} onDismiss={() => setSplashDecision(null)} />}
-      <EmberBackground />
+      <AuroraBackground />
 
       <div className="app">
         {isReadOnly && (

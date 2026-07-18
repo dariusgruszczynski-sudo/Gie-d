@@ -134,7 +134,6 @@ export function AccountHero({ status }: { status: StatusResponse }) {
   const poza = account?.extended_positions_value ?? 0;
   const invested = sesja + poza;
   const invPct = account && account.total_value > 0 ? Math.round((invested / account.total_value) * 100) : 0;
-  const netUp = status.net_result_usd >= 0;
 
   const usLive = !status.is_halted && !status.is_paused;
   const usText = status.is_halted ? "HALT" : status.is_paused ? "STOP" : "aktywny";
@@ -155,9 +154,6 @@ export function AccountHero({ status }: { status: StatusResponse }) {
             <div className="nb-hero-pills">
               <PnlPill label="dziś" value={status.day_pnl_pct} />
               <PnlPill label="tydzień" value={status.week_pnl_pct} />
-            </div>
-            <div className={`nb-hero-net ${netUp ? "up" : "down"}`}>
-              netto {netUp ? "+" : "−"}${fmt(Math.abs(status.net_result_usd))} po koszcie Claude
             </div>
           </div>
         </div>
@@ -187,12 +183,8 @@ export function AccountHero({ status }: { status: StatusResponse }) {
 
       <div className="nb-stats">
         <StatTile label="Wolna gotówka" value={`$${fmt0(cash)}`} />
-        <StatTile
-          label="Netto (życie)"
-          value={`${netUp ? "+" : "−"}$${fmt0(Math.abs(status.net_result_usd))}`}
-          tone={netUp ? "up" : "down"}
-        />
-        <StatTile label="Budżet AI" value={`~$${fmt0(status.claude_budget_remaining_usd)}`} />
+        <StatTile label="W grze" value={`$${fmt0(invested)}`} />
+        <StatTile label="Zaangażowanie" value={`${invPct}%`} />
       </div>
     </>
   );

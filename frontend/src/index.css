@@ -2084,39 +2084,46 @@ button {
   .tabnav {
     position: fixed;
     top: auto;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    left: 12px;
+    right: 12px;
     margin: 0;
     gap: 2px;
-    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
-    border-bottom: none;
-    border-top: 1px solid var(--border);
-    background: color-mix(in srgb, var(--bg) 92%, transparent);
-    backdrop-filter: blur(16px);
-    box-shadow: 0 -8px 24px -12px rgba(0, 0, 0, 0.7);
+    padding: 7px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 22px;
+    background: rgba(16, 15, 26, 0.72);
+    backdrop-filter: blur(22px) saturate(1.3);
+    -webkit-backdrop-filter: blur(22px) saturate(1.3);
+    box-shadow: 0 18px 50px -18px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.06);
     overflow: visible;
   }
   .tabnav-btn {
     flex: 1;
     flex-direction: column;
     gap: 3px;
-    padding: 6px 4px;
-    font-size: 0.66rem;
+    padding: 8px 4px;
+    font-size: 0.62rem;
     font-weight: 600;
-    border-radius: 12px;
+    border-radius: 16px;
+    transition: transform 0.18s ease, background 0.2s ease, color 0.2s ease;
   }
   .tabnav-btn-active {
-    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--text);
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--accent) 32%, transparent),
+      color-mix(in srgb, var(--accent) 12%, transparent)
+    );
     border-color: transparent;
-    box-shadow: none;
+    box-shadow: 0 7px 18px -9px var(--accent);
   }
-  .tabnav-btn-active .tabnav-ico { color: var(--accent); transform: translateY(-1px); }
-  .tabnav-ico { transition: transform 0.18s ease; }
+  .tabnav-btn-active .tabnav-ico { color: #fff; transform: translateY(-2px) scale(1.06); }
+  .tabnav-ico { transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
   .tabnav-label-full { display: none; }
   .tabnav-label-short { display: inline; }
   .tabnav-off { display: none; }
-  .app { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .app { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
 }
 
 /* Smooth entrance when switching tabs (App keys .tab-page by tab). */
@@ -2814,4 +2821,88 @@ button {
   .nb-ring, .nb-ring svg { width: 104px; height: 104px; }
   .nb-stats { grid-template-columns: 1fr 1fr; }
   .nb-stats .nb-stat:last-child { grid-column: 1 / -1; }
+}
+
+/* =========================================================================
+   AURORA — living, video-like motion backdrop (UX rebuild v6)
+   ========================================================================= */
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+  background: radial-gradient(140% 120% at 50% -10%, #12111d 0%, #0a0a12 46%, #070610 100%);
+  pointer-events: none;
+}
+.aurora-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.55;
+  will-change: transform;
+  mix-blend-mode: screen;
+}
+.aurora-1 {
+  width: 46vmax; height: 46vmax;
+  background: radial-gradient(circle at 30% 30%, rgba(124, 92, 255, 0.9), transparent 62%);
+  top: -12vmax; left: -8vmax;
+  animation: aurora-drift-1 26s ease-in-out infinite;
+}
+.aurora-2 {
+  width: 40vmax; height: 40vmax;
+  background: radial-gradient(circle at 50% 50%, rgba(240, 180, 41, 0.6), transparent 62%);
+  bottom: -14vmax; right: -6vmax;
+  animation: aurora-drift-2 32s ease-in-out infinite;
+}
+.aurora-3 {
+  width: 38vmax; height: 38vmax;
+  background: radial-gradient(circle at 50% 50%, rgba(47, 214, 160, 0.42), transparent 64%);
+  top: 34%; right: -12vmax;
+  animation: aurora-drift-3 38s ease-in-out infinite;
+}
+.aurora-4 {
+  width: 34vmax; height: 34vmax;
+  background: radial-gradient(circle at 50% 50%, rgba(164, 139, 255, 0.5), transparent 66%);
+  bottom: 6%; left: -10vmax;
+  animation: aurora-drift-4 30s ease-in-out infinite;
+}
+@keyframes aurora-drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(22vw, 12vh) scale(1.18); }
+  66% { transform: translate(8vw, 26vh) scale(0.92); }
+}
+@keyframes aurora-drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1.05); }
+  40% { transform: translate(-20vw, -14vh) scale(0.85); }
+  70% { transform: translate(-6vw, -4vh) scale(1.2); }
+}
+@keyframes aurora-drift-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-26vw, 10vh) scale(1.22); }
+}
+@keyframes aurora-drift-4 {
+  0%, 100% { transform: translate(0, 0) scale(0.95); }
+  45% { transform: translate(18vw, -12vh) scale(1.15); }
+  75% { transform: translate(26vw, 4vh) scale(0.9); }
+}
+/* Fine film grain + a soft vignette veil so the blobs read as cinematic, not flat. */
+.aurora-grain {
+  position: absolute;
+  inset: -50%;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  animation: aurora-grain 7s steps(6) infinite;
+}
+@keyframes aurora-grain {
+  0% { transform: translate(0, 0); }
+  50% { transform: translate(-3%, 2%); }
+  100% { transform: translate(2%, -2%); }
+}
+.aurora-veil {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 100% at 50% 40%, transparent 40%, rgba(5, 5, 12, 0.55) 100%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob, .aurora-grain { animation: none; }
 }
