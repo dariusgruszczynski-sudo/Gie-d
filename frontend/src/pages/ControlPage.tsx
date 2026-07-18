@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { ControlToolbar } from "../components/ControlToolbar";
 import { NotificationSettings } from "../components/NotificationSettings";
+import { SectionTitle } from "../components/SectionTitle";
 import { ShareLinkPanel } from "../components/ShareLinkPanel";
 import { VenueControls } from "../components/VenueControls";
 import { EngineProfile, isReadOnly, StatusResponse } from "../api/client";
@@ -120,6 +121,7 @@ export function ControlPage({ data }: { data: PageData }) {
 
       {!isReadOnly && (
         <>
+          <SectionTitle eyebrow="Sterowanie" title="Silniki — START / STOP" />
           <div className="grid">
             <VenueControls
               venue="alpaca"
@@ -138,6 +140,7 @@ export function ControlPage({ data }: { data: PageData }) {
             />
           </div>
 
+          <SectionTitle eyebrow="Akcje" title="Panel operatora" />
           <ControlToolbar
             status={status}
             onChanged={refresh}
@@ -146,12 +149,13 @@ export function ControlPage({ data }: { data: PageData }) {
             onShutdown={data.shutdown}
           />
 
+          <SectionTitle eyebrow="Łączność" title="Powiadomienia i dostęp" />
           <NotificationSettings />
-
           <ShareLinkPanel />
         </>
       )}
 
+      <SectionTitle eyebrow="Nastawy" title="Profile silników" />
       <EngineProfiles status={status} />
     </>
   );

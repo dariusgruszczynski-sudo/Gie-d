@@ -5,14 +5,16 @@ import { MarketStrip } from "../components/MarketStrip";
 import { PositionsBoard } from "../components/PositionsBoard";
 import { PriceTicker } from "../components/PriceTicker";
 import { RegimeBadge } from "../components/RegimeBadge";
+import { SectionTitle } from "../components/SectionTitle";
 import { TradesTable } from "../components/TradesTable";
 import { VenueControls } from "../components/VenueControls";
 import { isReadOnly } from "../api/client";
 import { PageData } from "./types";
 
-/** One engine's full dashboard: ticker, regime, START/STOP, its own positions,
- *  manual trade, trade history, thesis and Claude decisions — filtered to just
- *  that venue (Alpaca US equities OR extended). */
+/** One engine's cockpit, organised into clear chapters: a live ticker + regime
+ *  header, START/STOP, its positions, the market/session strip (US), manual
+ *  trade + history, the whitelist thesis, and that engine's Claude decisions —
+ *  all filtered to just this venue (Akcje US OR Poza sesją). */
 export function EnginePage({ data, venue }: { data: PageData; venue: "alpaca" | "extended" }) {
   const { status, refresh } = data;
   const isExtended = venue === "extended";
@@ -22,6 +24,7 @@ export function EnginePage({ data, venue }: { data: PageData; venue: "alpaca" | 
   const regime = isExtended ? status.extended_market_regime : status.market_regime;
   const dot = isExtended ? "extended" : "alpaca";
   const label = isExtended ? "Silnik — Poza sesją (pre & after-market)" : "Silnik — Akcje US (sesja dzienna)";
+  const short = isExtended ? "Poza sesją" : "Akcje US";
   const decisions = data.decisions.filter((d) => (d.venue ?? "alpaca") === venue);
 
   if (isExtended && !status.extended_enabled) {
@@ -61,33 +64,40 @@ export function EnginePage({ data, venue }: { data: PageData; venue: "alpaca" | 
         />
       )}
 
+      <SectionTitle eyebrow={short} title="Otwarte pozycje" />
       <PositionsBoard alpaca={isExtended ? null : portfolio} extended={isExtended ? portfolio : null} onChanged={refresh} />
 
       {!isExtended && (
-        <MarketStrip
-          session={status.market_session}
-          bounds={status.session_bounds}
-          lastCycleAt={portfolio?.current?.timestamp ?? null}
-          pollIntervalMinutes={status.poll_interval_minutes}
-          scorecard={portfolio?.scorecard ?? null}
-          regime={status.market_regime}
-        />
+        <>
+          <SectionTitle eyebrow="Rynek" title="Sesja i skuteczność" />
+          <MarketStrip
+            session={status.market_session}
+            bounds={status.session_bounds}
+            lastCycleAt={portfolio?.current?.timestamp ?? null}
+            pollIntervalMinutes={status.poll_interval_minutes}
+            scorecard={portfolio?.scorecard ?? null}
+            regime={status.market_regime}
+          />
+        </>
       )}
 
+      <SectionTitle eyebrow={short} title={isReadOnly ? "Historia transakcji" : "Ręcznie i historia"} />
       <div className="grid">
         {!isReadOnly && (
           <ManualTradePanel
             whitelist={whitelist}
             onChanged={refresh}
             venue={venue}
-            title={`Ręczna transakcja — ${isExtended ? "Poza sesją" : "Akcje US"}`}
+            title={`Ręczna transakcja — ${short}`}
           />
         )}
-        <TradesTable trades={trades} title={`Transakcje — ${isExtended ? "Poza sesją" : "Akcje US"}`} />
+        <TradesTable trades={trades} title={`Transakcje — ${short}`} />
       </div>
 
+      <SectionTitle eyebrow="Whitelist" title="Teza inwestycyjna" />
       <InvestmentThesis whitelist={whitelist} />
 
+      <SectionTitle eyebrow="Mózg" title="Decyzje Claude" />
       <div style={{ marginBottom: 16 }}>
         <DecisionsLog decisions={decisions} />
       </div>
