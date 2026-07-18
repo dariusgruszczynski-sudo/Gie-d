@@ -26,7 +26,7 @@ function EngineProfileColumn({
   whitelistLabel,
   extra,
 }: {
-  dot: "alpaca" | "crypto";
+  dot: "alpaca" | "extended";
   title: string;
   status: StatusResponse;
   profile: EngineProfile;
@@ -34,7 +34,7 @@ function EngineProfileColumn({
   whitelistLabel: string;
   extra?: ReactNode;
 }) {
-  const regime = dot === "crypto" ? status.crypto_market_regime : status.market_regime;
+  const regime = dot === "extended" ? status.extended_market_regime : status.market_regime;
   return (
     <div className="profile-col">
       <div className="profile-col-head">
@@ -87,16 +87,16 @@ function EngineProfiles({ status }: { status: StatusResponse }) {
           whitelistLabel="tickerów"
         />
         <EngineProfileColumn
-          dot="crypto"
-          title="Krypto 24/7"
+          dot="extended"
+          title="Poza sesją (pre & after-market)"
           status={status}
-          profile={status.profiles.crypto}
-          whitelistCount={status.crypto_whitelist.length}
+          profile={status.profiles.extended}
+          whitelistCount={status.extended_whitelist.length}
           whitelistLabel="par"
           extra={
             <>
-              <ProfileRow label="Silnik" value={status.crypto_enabled ? "włączony" : "wyłączony"} />
-              <ProfileRow label="Handel" value={status.crypto_paused ? "zatrzymany" : "aktywny"} />
+              <ProfileRow label="Silnik" value={status.extended_enabled ? "włączony" : "wyłączony"} />
+              <ProfileRow label="Handel" value={status.extended_paused ? "zatrzymany" : "aktywny"} />
             </>
           }
         />
@@ -162,10 +162,10 @@ export function ControlPage({ data }: { data: PageData }) {
               onChanged={refresh}
             />
             <VenueControls
-              venue="crypto"
-              label="Silnik — Krypto 24/7"
-              paused={status.crypto_paused}
-              enabled={status.crypto_enabled}
+              venue="extended"
+              label="Silnik — Poza sesją"
+              paused={status.extended_paused}
+              enabled={status.extended_enabled}
               onChanged={refresh}
             />
           </div>
@@ -189,7 +189,7 @@ export function ControlPage({ data }: { data: PageData }) {
       <BudgetPanel status={status} />
 
       <ClaudeEdgePanel venue="alpaca" />
-      {status.crypto_enabled && <ClaudeEdgePanel venue="crypto" />}
+      {status.extended_enabled && <ClaudeEdgePanel venue="extended" />}
     </>
   );
 }

@@ -23,12 +23,12 @@ _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; GielDarek/1.0)"}
 BATCH_DELAY_SECONDS = 0.3
 SECONDS_PER_YEAR = 365.25 * 86400
 
-# Our crypto whitelist ("BTCUSD") -> Yahoo chart symbol ("BTC-USD"), needed
-# because Alpaca's own crypto market data doesn't reach back far enough for a
-# multi-year regime backtest (Alpaca crypto only started ~2021-2022). Yahoo's
-# crypto history goes back to ~2014 (BTC) / 2017 (ETH), which is exactly the
+# Our extended whitelist ("BTCUSD") -> Yahoo chart symbol ("BTC-USD"), needed
+# because Alpaca's own extended market data doesn't reach back far enough for a
+# multi-year regime backtest (Alpaca extended only started ~2021-2022). Yahoo's
+# extended history goes back to ~2014 (BTC) / 2017 (ETH), which is exactly the
 # multi-year calibration a backtest needs.
-CRYPTO_YAHOO_SYMBOL = {
+EXTENDED_YAHOO_SYMBOL = {
     "BTCUSD": "BTC-USD",
     "ETHUSD": "ETH-USD",
     "SOLUSD": "SOL-USD",
@@ -48,12 +48,12 @@ CRYPTO_YAHOO_SYMBOL = {
 
 
 def _yahoo_symbol(symbol: str) -> str:
-    """Map a crypto whitelist ticker to its Yahoo chart symbol so the backtest
-    can pull deep crypto history (BTCUSD -> BTC-USD). A plain US-equity ticker
-    isn't in the map and passes through unchanged. Without this a crypto
-    symbol was sent to Yahoo verbatim and returned nothing, so the crypto
+    """Map a extended whitelist ticker to its Yahoo chart symbol so the backtest
+    can pull deep extended history (BTCUSD -> BTC-USD). A plain US-equity ticker
+    isn't in the map and passes through unchanged. Without this a extended
+    symbol was sent to Yahoo verbatim and returned nothing, so the extended
     venue could never be backtested at all."""
-    return CRYPTO_YAHOO_SYMBOL.get(symbol.upper(), symbol)
+    return EXTENDED_YAHOO_SYMBOL.get(symbol.upper(), symbol)
 
 
 def get_daily_history(symbol: str, years: int = 20) -> list[list]:
@@ -66,8 +66,8 @@ def get_daily_history(symbol: str, years: int = 20) -> list[list]:
     daily data. period1/period2 + interval=1d returns true daily bars. Still
     filters client-side to the requested window as a belt-and-suspenders guard.
 
-    Crypto tickers are mapped to their Yahoo symbol (BTCUSD -> BTC-USD) so the
-    crypto whitelist can be backtested on the same deep-history engine as stocks."""
+    Extended tickers are mapped to their Yahoo symbol (BTCUSD -> BTC-USD) so the
+    extended whitelist can be backtested on the same deep-history engine as stocks."""
     now = int(time.time())
     period1 = now - int(years * SECONDS_PER_YEAR)
     try:

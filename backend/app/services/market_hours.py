@@ -1,9 +1,9 @@
 """Computes whether the US equities regular session is currently open or
 closed. Alpaca's /v2/calendar supplies the *actual* regular-session open/close
 for each date (accounting for holidays and early closes); this reduces it to a
-simple REGULAR/CLOSED state. Pre-market and after-hours are intentionally not
-modeled -- US trading here is regular-session-only, and overnight coverage is
-handled by the separate 24/7 crypto venue."""
+simple REGULAR/CLOSED state. Pre-market and after-hours are not modeled here
+yet -- the POZA SESJĄ (extended-hours) leg's PRE/POST session gating lands in a
+later package; for now this is regular-session-only."""
 
 import logging
 from dataclasses import dataclass

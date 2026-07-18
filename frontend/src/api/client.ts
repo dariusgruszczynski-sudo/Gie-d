@@ -21,7 +21,7 @@ export interface MarketRegime {
 export interface AccountView {
   cash: number;
   equity_positions_value: number;
-  crypto_positions_value: number;
+  extended_positions_value: number;
   total_value: number;
 }
 
@@ -29,7 +29,7 @@ export interface StatusResponse {
   mode: "testnet" | "live";
   quote_currency: string;
   is_paused: boolean;
-  crypto_paused: boolean;
+  extended_paused: boolean;
   is_halted: boolean;
   halted_reason: string | null;
   day_pnl_pct: number | null;
@@ -41,12 +41,12 @@ export interface StatusResponse {
   max_position_pct: number;
   whitelist: string[];
   poll_interval_minutes: number;
-  crypto_enabled: boolean;
-  crypto_whitelist: string[];
+  extended_enabled: boolean;
+  extended_whitelist: string[];
   market_session: MarketSession;
   session_bounds: SessionBounds | null;
   market_regime: MarketRegime | null;
-  crypto_market_regime: MarketRegime | null;
+  extended_market_regime: MarketRegime | null;
   // The ONE Alpaca account shared by both engines (cash counted once).
   account: AccountView | null;
   // Read-only share link enabled on the server (token stays server-side).
@@ -57,7 +57,7 @@ export interface StatusResponse {
   net_result_usd: number;
   // Every live tuning knob per venue, resolved through the same
   // effective_settings() the engine itself runs with -- exact, not a guess.
-  profiles: { alpaca: EngineProfile; crypto: EngineProfile };
+  profiles: { alpaca: EngineProfile; extended: EngineProfile };
   claude_monthly_budget_usd: number;
   claude_spend_usd_this_month: number;
   claude_budget_remaining_usd: number;
@@ -160,7 +160,7 @@ export interface Decision {
   triggered_by: string;
   executed: boolean;
   rejection_reason: string | null;
-  // "alpaca" (US equities) or "crypto" -- which engine made the call.
+  // "alpaca" (US equities) or "extended" -- which engine made the call.
   venue?: string;
   // JSON-encoded snapshots of what Claude saw for this decision -- parse with
   // JSON.parse for per-symbol technical indicators / market sentiment.
@@ -240,9 +240,9 @@ export const api = {
     side: "BUY" | "SELL";
     usdt_amount?: number;
     quantity?: number;
-    venue?: "alpaca" | "crypto";
+    venue?: "alpaca" | "extended";
   }) => apiFetch<Trade>("/api/control/manual-trade", { method: "POST", body: JSON.stringify(body) }),
-  sellAll: (symbol: string, venue: "alpaca" | "crypto" = "alpaca") =>
+  sellAll: (symbol: string, venue: "alpaca" | "extended" = "alpaca") =>
     apiFetch<Trade>(`/api/control/sell-all?symbol=${encodeURIComponent(symbol)}&venue=${venue}`, { method: "POST" }),
   shareLink: () => apiFetch<{ enabled: boolean; token: string }>("/api/control/share-link"),
   claudeEdge: (venue: string = "alpaca") =>

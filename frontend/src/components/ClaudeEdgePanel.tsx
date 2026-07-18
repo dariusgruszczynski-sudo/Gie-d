@@ -35,7 +35,7 @@ function Side({ title, side, sub }: { title: string; side: ClaudeEdge["mechanica
  *  of what the mechanical filter alone would have done vs what Claude-directed
  *  trading actually did, recomputed from stored decision history. Never
  *  touches the live trading path. */
-export function ClaudeEdgePanel({ venue }: { venue: "alpaca" | "crypto" }) {
+export function ClaudeEdgePanel({ venue }: { venue: "alpaca" | "extended" }) {
   const [data, setData] = useState<ClaudeEdge | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

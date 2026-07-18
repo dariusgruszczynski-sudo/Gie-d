@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 
 /** Per-portfolio control panel: START/STOP, refresh, force-analysis for one
- *  venue (Alpaca equities or crypto), each independent of the other. */
+ *  venue (Alpaca equities or extended), each independent of the other. */
 export function VenueControls({
   venue,
   label,
@@ -11,7 +11,7 @@ export function VenueControls({
   enabled,
   onChanged,
 }: {
-  venue: "alpaca" | "crypto";
+  venue: "alpaca" | "extended";
   label: string;
   paused: boolean;
   halted?: boolean;
@@ -42,7 +42,7 @@ export function VenueControls({
     }
   }
 
-  const accent = venue === "crypto" ? "crypto" : "alpaca";
+  const accent = venue === "extended" ? "extended" : "alpaca";
 
   if (!enabled) {
     return (
@@ -51,7 +51,7 @@ export function VenueControls({
           <span className={`venue-dot venue-dot-${accent}`} /> {label}
         </div>
         <p className="subtitle" style={{ margin: 0 }}>
-          Portfel wyłączony — włącz go (CRYPTO_ENABLED=true) i zasil konto, żeby sterować handlem.
+          Portfel wyłączony — włącz go (EXTENDED_ENABLED=true) i zasil konto, żeby sterować handlem.
         </p>
       </div>
     );

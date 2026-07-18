@@ -41,7 +41,7 @@ def push_configured(settings: Settings) -> bool:
 
 
 def _venue_label(venue: str) -> str:
-    return "Krypto" if venue == "crypto" else "Akcje US"
+    return "Poza sesją" if venue == "extended" else "Akcje US"
 
 
 def _fmt_usd(v: float) -> str:
@@ -162,15 +162,15 @@ def send_daily_summary_push(db: Session, settings: Settings) -> bool:
         return False
 
     a = _latest_snapshot(db, "alpaca")
-    c = _latest_snapshot(db, "crypto")
+    c = _latest_snapshot(db, "extended")
     if a is None and c is None:
         return False
 
     freshest = max((s for s in (a, c) if s is not None), key=lambda s: s.timestamp)
     cash = freshest.usdt_balance
     equity_value = (a.total_value_usdt - a.usdt_balance) if a else 0.0
-    crypto_value = (c.total_value_usdt - c.usdt_balance) if c else 0.0
-    total = cash + equity_value + crypto_value
+    extended_value = (c.total_value_usdt - c.usdt_balance) if c else 0.0
+    total = cash + equity_value + extended_value
 
     state = risk_manager.get_state(db)
     day_pnl_pct = (
@@ -179,7 +179,7 @@ def send_daily_summary_push(db: Session, settings: Settings) -> bool:
     day_txt = f"{'+' if day_pnl_pct >= 0 else ''}{day_pnl_pct:.2f}% dziś" if day_pnl_pct is not None else "brak danych dziś"
 
     positions_us = _held_position_count(a)
-    positions_crypto = _held_position_count(c)
+    positions_extended = _held_position_count(c)
 
     realized = scorecard.total_realized_pnl(db)
     budget = budget_tracker.get_budget_status(db, settings)
@@ -190,7 +190,7 @@ def send_daily_summary_push(db: Session, settings: Settings) -> bool:
 
     title = f"📊 GielDarek — konto: {_fmt_usd(total)}"
     body = (
-        f"{day_txt} · Akcje US: {positions_us} poz. · Krypto: {positions_crypto} poz. · "
+        f"{day_txt} · Akcje US: {positions_us} poz. · Poza sesją: {positions_extended} poz. · "
         f"netto (po koszcie Claude): {_fmt_usd(net)} · budżet Claude: {budget['claude_budget_pct_used']:.0f}%"
     )
     sent = send_to_all(db, settings, title=title, body=body, tag="daily-summary", url="/")

@@ -98,7 +98,7 @@ def test_uncertain_hold_never_escalates(settings, monkeypatch):
 
 
 def test_two_brains_pick_venue_specific_persona(settings, monkeypatch):
-    """The crypto venue must get the aggressive crypto persona, the equities
+    """The extended venue must get the aggressive extended persona, the equities
     venue the medium-aggressive equities persona -- that's the whole "2 mózgi"
     split. We capture the system prompt handed to _call_model."""
     from app.services import claude_advisor
@@ -112,8 +112,8 @@ def test_two_brains_pick_venue_specific_persona(settings, monkeypatch):
 
     monkeypatch.setattr(advisor, "_call_model", fake_call_model)
 
-    advisor.decide(**_decide_kwargs(), venue="crypto")
-    assert captured["system"] == claude_advisor.CRYPTO_PERSONA
+    advisor.decide(**_decide_kwargs(), venue="extended")
+    assert captured["system"] == claude_advisor.EXTENDED_PERSONA
 
     advisor.decide(**_decide_kwargs(), venue="alpaca")
     assert captured["system"] == claude_advisor.EQUITIES_PERSONA

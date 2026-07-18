@@ -59,7 +59,7 @@ def test_claude_edge_no_entry_when_signal_weak(db_session, settings):
 
 def test_claude_edge_ignores_other_venue_decisions(db_session, settings):
     now = datetime.now(timezone.utc)
-    db_session.add(_decision(now, {"BTCUSD": {"price": 50000.0, "technical": _tech()}}, venue="crypto"))
+    db_session.add(_decision(now, {"BTCUSD": {"price": 50000.0, "technical": _tech()}}, venue="extended"))
     db_session.commit()
 
     result = shadow_analysis.compute_claude_edge(db_session, settings, venue="alpaca")

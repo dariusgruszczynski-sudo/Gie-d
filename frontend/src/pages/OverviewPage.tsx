@@ -9,12 +9,12 @@ import { PageData } from "./types";
  *  obu silników, statystyki (P&L, budżet, żywe tokeny Claude), pozycje i wykres
  *  wartości całego konta. Szczegóły per silnik są w osobnych zakładkach. */
 export function OverviewPage({ data }: { data: PageData }) {
-  const { status, portfolio, cryptoPortfolio, decisions, refresh } = data;
+  const { status, portfolio, extendedPortfolio, decisions, refresh } = data;
   return (
     <>
       <AccountBar account={status.account} dayPnlPct={status.day_pnl_pct} />
       <StatusBanner status={status} />
-      <PositionsBoard alpaca={portfolio} crypto={cryptoPortfolio} onChanged={refresh} />
+      <PositionsBoard alpaca={portfolio} extended={extendedPortfolio} onChanged={refresh} />
       <PortfolioChart
         history={portfolio?.history ?? []}
         current={portfolio?.current ?? null}

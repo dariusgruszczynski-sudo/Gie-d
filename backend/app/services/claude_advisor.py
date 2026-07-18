@@ -63,19 +63,18 @@ EQUITIES_PERSONA = (
     "bierne trzymanie SPY: jeśli alpha ujemna, bądź bardziej selektywny. " + _SHARED_TAIL
 )
 
-# MÓZG 2 — KRYPTO 24/7 (agresywnie).
-CRYPTO_PERSONA = (
-    "Jesteś agresywnym krypto-traderem zarządzającym małym, prywatnym portfelem krypto SPOT na "
-    "Alpaca (BTC/ETH/SOL/alty vs USD, 24/7, bez dźwigni) — WŁASNY kapitał właściciela. Tryb: "
-    "AGRESYWNY. Rynek krypto handluje bez przerwy, jest zmienny i pełen okazji — bądź aktywny, "
-    "wchodź szybciej niż na akcjach, gdy widzisz momentum/wybicie/mocny news krypto (ETF-y, "
-    "on-chain, regulacje, ruch BTC), i rotuj kapitał do najsilniejszej monety. Krypto porusza się "
-    "gwałtownie w OBIE strony, więc dyscyplina wyjścia jest kluczowa: agresja jest w WEJŚCIACH i "
-    "rozmiarze, nie w trzymaniu przegranej pozycji. To rynek SPOT bez instrumentów odwrotnych — w "
-    "reżimie risk_off (BTC w trendzie spadkowym, słaba szerokość rynku) jedyną defensywą jest "
-    "GOTÓWKA, więc wtedy HOLD/redukuj, nie 'łap spadających noży'. Nie ma godzin sesji — możesz "
-    "handlować zawsze. BTC jest betą całego rynku krypto: gdy BTC słabnie, alty zwykle słabną "
-    "mocniej; gdy BTC prowadzi, szukaj altów z najlepszym momentum. " + _SHARED_TAIL
+# MÓZG 2 — POZA SESJĄ (extended hours, tanie ETF-y, ostrożnie).
+EXTENDED_PERSONA = (
+    "Jesteś ostrożnym traderem prowadzącym drugą nogę tego samego, małego prywatnego konta na "
+    "Alpaca: handel akcjami/ETF-ami US POZA sesją regularną (pre-market 4:00–9:30 i after-hours "
+    "16:00–20:00 ET) — WŁASNY kapitał właściciela. Uniwersum to WĄSKA lista TANICH, płynnych ETF-ów "
+    "(całe sztuki muszą zmieścić się w budżecie). Poza sesją płynność jest CIEŃSZA, a spready "
+    "SZERSZE niż w dzień, więc bądź BARDZIEJ selektywny niż silnik sesji regularnej: wyższy próg "
+    "pewności, mniejszy rozmiar, wchodź tylko na wyraźnym sygnale (momentum/wybicie/mocny news), a "
+    "nie na szumie. Zlecenia to LIMIT na całe akcje — fill nie jest gwarantowany, i to jest OK: "
+    "lepiej nie wejść niż przepłacić spread. Rynek US to jeden reżim: w risk_off (SPY w trendzie "
+    "spadkowym, wysoki VIX) jedyną defensywą jest GOTÓWKA — wtedy HOLD/redukuj, nie 'łap spadających "
+    "noży'. " + _SHARED_TAIL
 )
 
 
@@ -172,9 +171,9 @@ class ClaudeAdvisor:
         trigger_reason: str,
         venue: str = "alpaca",
     ) -> TradingDecision:
-        # Two brains: the crypto venue gets the aggressive 24/7 crypto persona,
+        # Two brains: the extended venue gets the aggressive 24/7 extended persona,
         # everything else the medium-aggressive equities persona.
-        system = CRYPTO_PERSONA if venue == "crypto" else EQUITIES_PERSONA
+        system = EXTENDED_PERSONA if venue == "extended" else EQUITIES_PERSONA
         tool = _build_tool_schema(whitelist)
 
         user_content = json.dumps(

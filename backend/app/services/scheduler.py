@@ -36,29 +36,31 @@ def _job() -> None:
         db.close()
 
 
-def _crypto_job() -> None:
-    """The 24-7 crypto venue -- same Alpaca account, a separate asset-class
-    client. Runs only when CRYPTO_ENABLED -- shares the same pause/halt STOP
-    gate as the equities cycle, but trades round the clock (always_open) with
-    its own whitelist and isolated per-venue state."""
+def _extended_job() -> None:
+    """The POZA SESJĄ (extended-hours) leg -- same Alpaca equities account.
+    Runs only when EXTENDED_ENABLED; shares the same pause/halt STOP gate as the
+    regular cycle, with its own (cheap-ETF) whitelist and isolated per-leg state.
+    NOTE: pre-/after-market session gating + whole-share LIMIT orders land in the
+    next package -- until then this stays session-gated like the regular leg
+    (always_open=False), so it never fires orders into a closed market."""
     settings = get_settings()
-    if not settings.crypto_enabled:
+    if not settings.extended_enabled:
         return
     db = SessionLocal()
     try:
-        broker = AlpacaClient(settings, asset_class="crypto")
+        broker = AlpacaClient(settings)
         news = NewsClient(settings)
         advisor = ClaudeAdvisor(settings)
         market_ctx = MarketContextClient()
-        # Crypto brain: aggressive 24/7 profile (crypto_* overrides folded in).
+        # Extended-hours brain: conservative profile (extended_* overrides folded in).
         decision = run_cycle(
-            db, effective_settings(settings, "crypto"), broker, news, advisor, market_ctx,
-            venue="crypto", whitelist=settings.crypto_whitelist_symbols, always_open=True,
+            db, effective_settings(settings, "extended"), broker, news, advisor, market_ctx,
+            venue="extended", whitelist=settings.extended_whitelist_symbols, always_open=False,
         )
         if decision is not None:
-            logger.info("Crypto cycle produced decision: %s %s", decision.action, decision.symbol)
+            logger.info("Extended cycle produced decision: %s %s", decision.action, decision.symbol)
     except Exception:
-        logger.exception("Crypto trading cycle failed")
+        logger.exception("Extended trading cycle failed")
     finally:
         db.close()
 
@@ -81,14 +83,14 @@ def _regime_job() -> None:
             )
         except Exception:
             logger.warning("Regime refresh (alpaca) failed", exc_info=True)
-        if settings.crypto_enabled:
+        if settings.extended_enabled:
             try:
                 compute_and_cache_regime(
-                    db, effective_settings(settings, "crypto"), AlpacaClient(settings, asset_class="crypto"),
-                    market_ctx, venue="crypto", whitelist=settings.crypto_whitelist_symbols,
+                    db, effective_settings(settings, "extended"), AlpacaClient(settings),
+                    market_ctx, venue="extended", whitelist=settings.extended_whitelist_symbols,
                 )
             except Exception:
-                logger.warning("Regime refresh (crypto) failed", exc_info=True)
+                logger.warning("Regime refresh (extended) failed", exc_info=True)
     except Exception:
         logger.exception("Regime refresh job failed")
     finally:
@@ -145,14 +147,14 @@ def prime_portfolio_snapshots() -> None:
             )
         except Exception:
             logger.warning("Startup snapshot (equities) failed, will populate on first poll", exc_info=True)
-        if settings.crypto_enabled:
+        if settings.extended_enabled:
             try:
                 compute_portfolio(
-                    db, settings, AlpacaClient(settings, asset_class="crypto"),
-                    venue="crypto", whitelist=settings.crypto_whitelist_symbols,
+                    db, settings, AlpacaClient(settings),
+                    venue="extended", whitelist=settings.extended_whitelist_symbols,
                 )
             except Exception:
-                logger.warning("Startup snapshot (crypto) failed, will populate on first poll", exc_info=True)
+                logger.warning("Startup snapshot (extended) failed, will populate on first poll", exc_info=True)
     finally:
         db.close()
     # Prime the market read too, so "temperatura rynku" isn't blank until the
@@ -176,13 +178,13 @@ def start_scheduler() -> BackgroundScheduler:
         minutes=settings.poll_interval_minutes,
         id="trading_cycle",
     )
-    # Crypto (24-7, same Alpaca account) venue -- the job itself no-ops unless
-    # CRYPTO_ENABLED, so it's always registered and just idles until enabled.
+    # Extended (24-7, same Alpaca account) venue -- the job itself no-ops unless
+    # EXTENDED_ENABLED, so it's always registered and just idles until enabled.
     scheduler.add_job(
-        _crypto_job,
+        _extended_job,
         "interval",
-        minutes=settings.crypto_poll_interval_minutes,
-        id="crypto_trading_cycle",
+        minutes=settings.extended_poll_interval_minutes,
+        id="extended_trading_cycle",
     )
     # Keep the market read fresh even when nothing is trading (see _regime_job).
     scheduler.add_job(

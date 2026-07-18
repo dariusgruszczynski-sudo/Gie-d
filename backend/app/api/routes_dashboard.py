@@ -47,8 +47,8 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
     state = risk_manager.get_state(db)
     # Day/week P&L must compare against the TRUE combined account (cash once +
     # both engines' positions) -- NOT the single most-recently-written snapshot
-    # across either venue. Crypto polls far more often than equities, so that
-    # naive "latest snapshot" was almost always the crypto-only total, compared
+    # across either venue. Extended polls far more often than equities, so that
+    # naive "latest snapshot" was almost always the extended-only total, compared
     # against a day_start_value baselined on the (much larger) equities total:
     # a purely cosmetic scope mismatch that showed a large, entirely fake loss.
     account = _account_view(db)
@@ -66,7 +66,7 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "mode": "testnet" if settings.alpaca_paper else "live",
         "quote_currency": settings.quote_currency,
         "is_paused": state.is_paused,
-        "crypto_paused": state.crypto_paused,
+        "extended_paused": state.extended_paused,
         "is_halted": state.is_halted,
         "halted_reason": state.halted_reason,
         "day_pnl_pct": day_pnl_pct,
@@ -78,12 +78,12 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "max_position_pct": settings.max_position_pct,
         "whitelist": settings.whitelist_symbols,
         "poll_interval_minutes": settings.poll_interval_minutes,
-        # Crypto (24-7, same Alpaca account) venue -- lets the dashboard
+        # Extended (24-7, same Alpaca account) venue -- lets the dashboard
         # show/hide the second portfolio panel and its whitelist.
-        "crypto_enabled": settings.crypto_enabled,
-        "crypto_whitelist": settings.crypto_whitelist_symbols,
+        "extended_enabled": settings.extended_enabled,
+        "extended_whitelist": settings.extended_whitelist_symbols,
         "market_regime": _load_regime(state.market_regime_json),
-        "crypto_market_regime": _load_regime(state.crypto_market_regime_json) if settings.crypto_enabled else None,
+        "extended_market_regime": _load_regime(state.extended_market_regime_json) if settings.extended_enabled else None,
         # ONE Alpaca account shared by both engines (cash counted once). Lets the
         # dashboard show a single account total instead of two double-counted
         # per-engine "portfolio" values.
@@ -94,7 +94,7 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         # just the headline daily/weekly limits above.
         "profiles": {
             "alpaca": _engine_profile_view(settings, "alpaca"),
-            "crypto": _engine_profile_view(settings, "crypto"),
+            "extended": _engine_profile_view(settings, "extended"),
         },
         **_serialize_session_info(settings),
         **_net_result_view(db, settings),
@@ -124,7 +124,7 @@ def _engine_profile_view(settings: Settings, venue: str) -> dict:
         "price_move_trigger_pct": s.price_move_trigger_pct,
         "full_analysis_every_minutes": s.full_analysis_every_minutes,
         "volatility_reference_pct": s.volatility_reference_pct,
-        "allocation_pct": s.crypto_allocation_pct if venue == "crypto" else s.alpaca_allocation_pct,
+        "allocation_pct": s.extended_allocation_pct if venue == "extended" else s.alpaca_allocation_pct,
     }
 
 
@@ -170,19 +170,19 @@ def _account_view(db: Session) -> dict | None:
     true account here: cash counted ONCE + each engine's position value
     (snapshot total minus that shared cash)."""
     a = _latest_snapshot(db, "alpaca")
-    c = _latest_snapshot(db, "crypto")
+    c = _latest_snapshot(db, "extended")
     if a is None and c is None:
         return None
     # Cash is identical in both snapshots; take it from the freshest one.
     freshest = max((s for s in (a, c) if s is not None), key=lambda s: s.timestamp)
     cash = freshest.usdt_balance
     equity_positions_value = (a.total_value_usdt - a.usdt_balance) if a else 0.0
-    crypto_positions_value = (c.total_value_usdt - c.usdt_balance) if c else 0.0
+    extended_positions_value = (c.total_value_usdt - c.usdt_balance) if c else 0.0
     return {
         "cash": round(cash, 2),
         "equity_positions_value": round(equity_positions_value, 2),
-        "crypto_positions_value": round(crypto_positions_value, 2),
-        "total_value": round(cash + equity_positions_value + crypto_positions_value, 2),
+        "extended_positions_value": round(extended_positions_value, 2),
+        "total_value": round(cash + equity_positions_value + extended_positions_value, 2),
     }
 
 
@@ -216,7 +216,7 @@ def get_portfolio(
     ).scalar_one_or_none()
     inception = serialize(inception_row) if inception_row else None
 
-    whitelist = settings.crypto_whitelist_symbols if venue == "crypto" else settings.whitelist_symbols
+    whitelist = settings.extended_whitelist_symbols if venue == "extended" else settings.whitelist_symbols
 
     # Average entry price per currently-held base asset ("BTC" -> 61234.5), so
     # the dashboard can show per-position unrealized P&L. Keyed by base asset to
@@ -230,7 +230,7 @@ def get_portfolio(
 
     # Scorecard vs buy-and-hold benchmark, computed from the latest snapshot's
     # prices (no live broker call needed on this hot, auth-gated endpoint).
-    # Account-wide benchmark is Alpaca-driven; the crypto venue has no scorecard.
+    # Account-wide benchmark is Alpaca-driven; the extended venue has no scorecard.
     latest = rows[0] if rows else None
     card = None
     if latest is not None and venue == "alpaca":
@@ -307,13 +307,13 @@ def _widget_positions(db: Session, settings: Settings, venue: str) -> list[dict]
         prices = json.loads(snap.prices_json or "{}")
     except (TypeError, ValueError):
         return []
-    leg = "crypto" if venue == "crypto" else "us"
+    leg = "extended" if venue == "extended" else "us"
     out: list[dict] = []
     for asset, qty_raw in balances.items():
         qty = float(qty_raw)
         if qty <= 0:
             continue
-        # equities: prices keyed by ticker (== base); crypto: by full "BTCUSD".
+        # equities: prices keyed by ticker (== base); extended: by full "BTCUSD".
         full = asset if asset in prices else asset + settings.quote_currency
         price = prices.get(asset)
         if price is None:
@@ -341,8 +341,8 @@ def get_widget(db: Session = Depends(get_db), settings: Settings = Depends(get_s
     net = _net_result_view(db, settings)
 
     # Day P&L vs the TRUE combined account total (cash once + both engines'
-    # positions), NOT the latest single-venue snapshot -- crypto polls far more
-    # often, so "latest snapshot" is usually the crypto-only slice, which
+    # positions), NOT the latest single-venue snapshot -- extended polls far more
+    # often, so "latest snapshot" is usually the extended-only slice, which
     # against a combined day_start_value shows a large fake loss. Same fix as
     # get_status.
     day_pnl_pct = None
@@ -350,12 +350,12 @@ def get_widget(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         day_pnl_pct = round((account["total_value"] - state.day_start_value) / state.day_start_value * 100, 2)
 
     positions = _widget_positions(db, settings, "alpaca")
-    if settings.crypto_enabled:
-        positions += _widget_positions(db, settings, "crypto")
+    if settings.extended_enabled:
+        positions += _widget_positions(db, settings, "extended")
     positions.sort(key=lambda p: p["value"], reverse=True)
 
     # Downsampled account-value curve (equities-venue history == the account
-    # when crypto is off; a fair trend proxy otherwise). ~30 points, oldest→newest.
+    # when extended is off; a fair trend proxy otherwise). ~30 points, oldest→newest.
     rows = db.execute(
         select(PortfolioSnapshot.total_value_usdt)
         .where(PortfolioSnapshot.venue == "alpaca", PortfolioSnapshot.total_value_usdt > 0)

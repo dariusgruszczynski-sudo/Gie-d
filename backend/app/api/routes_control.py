@@ -43,8 +43,8 @@ def resume(venue: str = "alpaca", db: Session = Depends(get_db)):
 
 
 def _broker_for(venue: str, settings: Settings):
-    if venue == "crypto":
-        return AlpacaClient(settings, asset_class="crypto"), settings.crypto_whitelist_symbols, True
+    if venue == "extended":
+        return AlpacaClient(settings), settings.extended_whitelist_symbols, True
     return AlpacaClient(settings), settings.whitelist_symbols, False
 
 
@@ -54,8 +54,8 @@ def sell_all(symbol: str, venue: str = "alpaca", db: Session = Depends(get_db), 
     account currently holds (read live from the broker), so a dollar amount that
     rounds to more shares than held can't cause an 'insufficient qty' reject.
     Works for any held symbol -- including adopted / off-whitelist ones."""
-    if venue == "crypto" and not settings.crypto_enabled:
-        raise HTTPException(status_code=400, detail="Silnik krypto jest wyłączony (CRYPTO_ENABLED=false)")
+    if venue == "extended" and not settings.extended_enabled:
+        raise HTTPException(status_code=400, detail="Silnik poza sesją jest wyłączony (EXTENDED_ENABLED=false)")
     broker, whitelist, _ = _broker_for(venue, settings)
     sym = symbol.upper()
     try:
@@ -81,7 +81,7 @@ class ManualTradeRequest(BaseModel):
     side: Literal["BUY", "SELL"]
     usdt_amount: float | None = None
     quantity: float | None = None
-    venue: Literal["alpaca", "crypto"] = "alpaca"
+    venue: Literal["alpaca", "extended"] = "alpaca"
 
     @model_validator(mode="after")
     def check_amount(self):
@@ -96,11 +96,11 @@ def manual_trade(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):
-    if req.venue == "crypto":
-        if not settings.crypto_enabled:
-            raise HTTPException(status_code=400, detail="Portfel krypto jest wyłączony (CRYPTO_ENABLED=false)")
-        broker = AlpacaClient(settings, asset_class="crypto")
-        whitelist = settings.crypto_whitelist_symbols
+    if req.venue == "extended":
+        if not settings.extended_enabled:
+            raise HTTPException(status_code=400, detail="Silnik poza sesją jest wyłączony (EXTENDED_ENABLED=false)")
+        broker = AlpacaClient(settings)
+        whitelist = settings.extended_whitelist_symbols
     else:
         broker = AlpacaClient(settings)
         whitelist = settings.whitelist_symbols
@@ -126,9 +126,9 @@ def run_cycle_now(venue: str = "alpaca", db: Session = Depends(get_db), settings
     """Forces one full Claude analysis immediately (bypassing the price/schedule
     trigger gate) instead of waiting for the scheduler's next poll -- this is
     the dashboard's "Wymuś analizę" button, so it must always produce a
-    decision rather than returning 'no trigger'. Per venue (equities/crypto)."""
-    if venue == "crypto" and not settings.crypto_enabled:
-        raise HTTPException(status_code=400, detail="Portfel krypto jest wyłączony (CRYPTO_ENABLED=false)")
+    decision rather than returning 'no trigger'. Per venue (equities/extended)."""
+    if venue == "extended" and not settings.extended_enabled:
+        raise HTTPException(status_code=400, detail="Silnik poza sesją jest wyłączony (EXTENDED_ENABLED=false)")
     broker, whitelist, always_open = _broker_for(venue, settings)
     news = NewsClient(settings)
     advisor = ClaudeAdvisor(settings)
@@ -151,8 +151,8 @@ def refresh_portfolio(venue: str = "alpaca", db: Session = Depends(get_db), sett
     proves the API key works and populates the dashboard (saldo, ceny, pozycje)
     on demand, at zero Claude cost and zero trading risk, even while the automat
     is stopped before START."""
-    if venue == "crypto" and not settings.crypto_enabled:
-        raise HTTPException(status_code=400, detail="Portfel krypto jest wyłączony (CRYPTO_ENABLED=false)")
+    if venue == "extended" and not settings.extended_enabled:
+        raise HTTPException(status_code=400, detail="Silnik poza sesją jest wyłączony (EXTENDED_ENABLED=false)")
     broker, whitelist, _ = _broker_for(venue, settings)
     try:
         portfolio = compute_portfolio(db, settings, broker, venue=venue, whitelist=whitelist)

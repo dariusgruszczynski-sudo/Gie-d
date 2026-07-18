@@ -1,20 +1,20 @@
 import { isReadOnly } from "../api/client";
 import { TabKey } from "../pages/types";
 
-type IconName = "home" | "stocks" | "crypto" | "sliders" | "pulse";
+type IconName = "home" | "stocks" | "extended" | "sliders" | "pulse";
 
 interface TabDef {
   key: TabKey;
   label: string;
   short: string;
   icon: IconName;
-  dot?: "alpaca" | "crypto";
+  dot?: "alpaca" | "extended";
 }
 
 const TABS: TabDef[] = [
   { key: "overview", label: "Dashboard główny", short: "Główny", icon: "home" },
-  { key: "us", label: "Alpaca · Akcje US", short: "Akcje US", icon: "stocks", dot: "alpaca" },
-  { key: "crypto", label: "Alpaca · Krypto", short: "Krypto", icon: "crypto", dot: "crypto" },
+  { key: "us", label: "Sesja · Akcje US", short: "SESJA", icon: "stocks", dot: "alpaca" },
+  { key: "extended", label: "Poza sesją · ETF", short: "POZA SESJĄ", icon: "extended", dot: "extended" },
   { key: "control", label: "Centrum sterowania", short: "Sterowanie", icon: "sliders" },
   { key: "health", label: "Health check", short: "Health", icon: "pulse" },
 ];
@@ -35,7 +35,7 @@ function TabIcon({ name }: { name: IconName }) {
           <path d="M4 20h16" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
         </svg>
       );
-    case "crypto":
+    case "extended":
       return (
         <svg {...p}>
           <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.7" />
@@ -65,11 +65,11 @@ function TabIcon({ name }: { name: IconName }) {
 export function TabNav({
   active,
   onChange,
-  cryptoEnabled,
+  extendedEnabled,
 }: {
   active: TabKey;
   onChange: (t: TabKey) => void;
-  cryptoEnabled: boolean;
+  extendedEnabled: boolean;
 }) {
   // Health check drives auth-gated probes/resets -- hide it from the read-only
   // share view (the endpoint would 401 there anyway).
@@ -77,7 +77,7 @@ export function TabNav({
   return (
     <nav className="tabnav" aria-label="Sekcje">
       {tabs.map((t) => {
-        const dimmed = t.key === "crypto" && !cryptoEnabled;
+        const dimmed = t.key === "extended" && !extendedEnabled;
         return (
           <button
             key={t.key}

@@ -68,8 +68,8 @@ def test_get_daily_history_drops_null_gaps(monkeypatch):
     assert rows[1][4] == 12.0
 
 
-def test_crypto_symbols_map_to_yahoo_symbols(monkeypatch):
-    """The crypto whitelist can only be backtested if tickers are rewritten to
+def test_extended_symbols_map_to_yahoo_symbols(monkeypatch):
+    """The extended whitelist can only be backtested if tickers are rewritten to
     their Yahoo chart symbols -- otherwise 'BTCUSD' is sent verbatim and Yahoo
     returns nothing, so the venue is silently un-backtestable."""
     captured = {}

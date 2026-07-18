@@ -28,17 +28,17 @@ logger = logging.getLogger(__name__)
 MIN_SELL_NOTIONAL_USD = 1.0
 
 # Per-venue SystemState column mapping. The equities venue keeps using the
-# original columns (its behaviour stays byte-for-byte identical); the crypto
-# venue (same Alpaca account, 24/7 book) uses dedicated crypto_* columns so
+# original columns (its behaviour stays byte-for-byte identical); the extended
+# venue (same Alpaca account, 24/7 book) uses dedicated extended_* columns so
 # the two venues' per-cycle state (price anchors, trailing peaks, cooldowns,
 # seen headlines) never collide.
 _STATE_COLUMNS = {
-    "anchors": {"alpaca": "last_check_prices_json", "crypto": "crypto_check_prices_json"},
-    "peaks": {"alpaca": "position_peaks_json", "crypto": "crypto_position_peaks_json"},
-    "cooldowns": {"alpaca": "stop_loss_cooldowns_json", "crypto": "crypto_stop_loss_cooldowns_json"},
-    "seen": {"alpaca": "seen_ticker_headlines_json", "crypto": "crypto_seen_ticker_headlines_json"},
-    "partial": {"alpaca": "partial_tp_taken_json", "crypto": "crypto_partial_tp_taken_json"},
-    "streak": {"alpaca": "stop_loss_streak_json", "crypto": "crypto_stop_loss_streak_json"},
+    "anchors": {"alpaca": "last_check_prices_json", "extended": "extended_check_prices_json"},
+    "peaks": {"alpaca": "position_peaks_json", "extended": "extended_position_peaks_json"},
+    "cooldowns": {"alpaca": "stop_loss_cooldowns_json", "extended": "extended_stop_loss_cooldowns_json"},
+    "seen": {"alpaca": "seen_ticker_headlines_json", "extended": "extended_seen_ticker_headlines_json"},
+    "partial": {"alpaca": "partial_tp_taken_json", "extended": "extended_partial_tp_taken_json"},
+    "streak": {"alpaca": "stop_loss_streak_json", "extended": "extended_stop_loss_streak_json"},
 }
 
 
@@ -48,19 +48,19 @@ def _state_col(kind: str, venue: str) -> str:
 
 def _get_analysis_marks(state, venue: str) -> tuple[str, str]:
     """(last_full_analysis_date, last_analysis_at) for a venue. Equities uses
-    the original scalar columns; crypto uses its own JSON blob."""
-    if venue != "crypto":
+    the original scalar columns; extended uses its own JSON blob."""
+    if venue != "extended":
         return state.last_full_analysis_date, state.last_analysis_at
-    b = json.loads(state.crypto_analysis_state_json or "{}")
+    b = json.loads(state.extended_analysis_state_json or "{}")
     return b.get("last_full_date", ""), b.get("last_at", "")
 
 
 def _set_analysis_marks(state, venue: str, full_date: str, at: str) -> None:
-    if venue != "crypto":
+    if venue != "extended":
         state.last_full_analysis_date = full_date
         state.last_analysis_at = at
     else:
-        state.crypto_analysis_state_json = json.dumps({"last_full_date": full_date, "last_at": at})
+        state.extended_analysis_state_json = json.dumps({"last_full_date": full_date, "last_at": at})
 
 
 def _base_asset(symbol: str, quote_currency: str) -> str:
@@ -107,14 +107,14 @@ def compute_portfolio(db: Session, settings: Settings, broker, *, venue: str = "
     # outside the list silently vanishes from the dashboard AND is left out of
     # the account total, understating what you really have. We still only ever
     # TRADE the whitelist; this is display/valuation only. Both engines share
-    # one Alpaca positions list, so split by venue: crypto positions are the
-    # ones on the crypto whitelist, everything else belongs to the equities lot.
-    crypto_syms = set(settings.crypto_whitelist_symbols)
+    # one Alpaca positions list, so split by venue: extended positions are the
+    # ones on the extended whitelist, everything else belongs to the equities lot.
+    extended_syms = set(settings.extended_whitelist_symbols)
     for held, qty in balances.items():
         if held == settings.quote_currency or qty <= 0:
             continue
-        held_is_crypto = held in crypto_syms
-        belongs = held_is_crypto if venue == "crypto" else not held_is_crypto
+        held_is_extended = held in extended_syms
+        belongs = held_is_extended if venue == "extended" else not held_is_extended
         if belongs and held not in symbols:
             symbols.append(held)
 
@@ -131,9 +131,9 @@ def compute_portfolio(db: Session, settings: Settings, broker, *, venue: str = "
             failed_symbols.append(symbol)
             continue
         base = _base_asset(symbol, settings.quote_currency)
-        # Crypto positions come back from Alpaca keyed by the FULL symbol
+        # Extended positions come back from Alpaca keyed by the FULL symbol
         # ("BTCUSD"), equities by the plain ticker (== base). Try the full
-        # symbol first so a held crypto qty isn't silently read as 0 (which
+        # symbol first so a held extended qty isn't silently read as 0 (which
         # would hide the position and zero out its value on the dashboard).
         qty = balances.get(symbol, balances.get(base, 0.0))
         prices[symbol] = price
@@ -399,63 +399,38 @@ def _trend_of(market_data: dict, symbol: str) -> str | None:
 def compute_market_regime(
     market_data: dict, market_context: dict, settings: Settings, venue: str = "alpaca"
 ) -> dict:
-    """Cheap risk-on / neutral / risk-off read, computed from each venue's OWN
-    signals so the gate is meaningful per asset class.
-
-    alpaca (equities): benchmark 50/200 trend + VIX fear level + today's S&P move.
-    crypto (24/7, same account): BTC (the crypto-beta proxy) 50/200 trend + the
-      breadth of the crypto majors -- an equity VIX/SPY read is meaningless for
-      a 24/7 crypto book.
+    """Cheap risk-on / neutral / risk-off read from the US-equity market: the
+    benchmark's 50/200 trend + VIX fear level + today's S&P move. Both legs
+    (regular session + extended hours) trade the SAME US market, so both read
+    the SAME regime -- `venue` is accepted for call-site parity but no longer
+    changes the computation.
 
     Fed to Claude every cycle; also gates BUYs while risk-off (regime_gate_enabled
-    / crypto_regime_gate_enabled)."""
+    / extended_regime_gate_enabled)."""
     reasons: list[str] = []
     score = 0
 
-    if venue == "crypto":
-        bench = settings.crypto_regime_benchmark.upper()
-        bench_trend = _trend_of(market_data, bench)
-        if bench_trend == "below":
+    bench = settings.benchmark_symbol
+    trend = _trend_of(market_data, bench)
+    if trend == "below":
+        score -= 1
+        reasons.append(f"{bench}: SMA50 < SMA200 (trend spadkowy)")
+    elif trend == "above":
+        score += 1
+        reasons.append(f"{bench}: SMA50 > SMA200 (trend wzrostowy)")
+
+    vix = market_context.get("vix_level")
+    if vix is not None and vix >= settings.regime_vix_risk_off:
+        score -= 1
+        reasons.append(f"VIX {vix} ≥ {settings.regime_vix_risk_off} (podwyższony strach)")
+
+    sp = market_context.get("sp500_change_pct")
+    if sp is not None:
+        if sp <= -1.0:
             score -= 1
-            reasons.append(f"{bench}: SMA50 < SMA200 (krypto w trendzie spadkowym)")
-        elif bench_trend == "above":
+            reasons.append(f"S&P dziś {sp}%")
+        elif sp >= 1.0:
             score += 1
-            reasons.append(f"{bench}: SMA50 > SMA200 (krypto w trendzie wzrostowym)")
-
-        # Breadth across the crypto majors.
-        crypto = list(market_data.keys())
-        below = sum(1 for s in crypto if _trend_of(market_data, s) == "below")
-        above = sum(1 for s in crypto if _trend_of(market_data, s) == "above")
-        rated = below + above
-        if rated:
-            if below / rated >= 0.6:
-                score -= 1
-                reasons.append(f"Szerokość krypto: {below}/{rated} majorów w trendzie spadkowym")
-            elif above / rated >= 0.6:
-                score += 1
-                reasons.append(f"Szerokość krypto: {above}/{rated} majorów w trendzie wzrostowym")
-    else:
-        bench = settings.benchmark_symbol
-        trend = _trend_of(market_data, bench)
-        if trend == "below":
-            score -= 1
-            reasons.append(f"{bench}: SMA50 < SMA200 (trend spadkowy)")
-        elif trend == "above":
-            score += 1
-            reasons.append(f"{bench}: SMA50 > SMA200 (trend wzrostowy)")
-
-        vix = market_context.get("vix_level")
-        if vix is not None and vix >= settings.regime_vix_risk_off:
-            score -= 1
-            reasons.append(f"VIX {vix} ≥ {settings.regime_vix_risk_off} (podwyższony strach)")
-
-        sp = market_context.get("sp500_change_pct")
-        if sp is not None:
-            if sp <= -1.0:
-                score -= 1
-                reasons.append(f"S&P dziś {sp}%")
-            elif sp >= 1.0:
-                score += 1
 
     if score <= -2:
         regime = "risk_off"
@@ -477,8 +452,8 @@ def compute_and_cache_regime(db: Session, settings: Settings, broker, market_ctx
 
     Only fetches the klines the regime actually needs: the equities read uses
     just the benchmark's 50/200 trend + VIX + today's S&P move, so the caller
-    passes [benchmark_symbol]; the crypto read needs breadth across the majors,
-    so it passes the crypto whitelist."""
+    passes [benchmark_symbol]; the extended read needs breadth across the majors,
+    so it passes the extended whitelist."""
     market_data: dict = {}
     for symbol in whitelist:
         try:
@@ -496,8 +471,8 @@ def compute_and_cache_regime(db: Session, settings: Settings, broker, market_ctx
         regime["aggression_label"] = adaptive_risk.aggression_label(aggression)
 
     state = risk_manager.get_state(db)
-    if venue == "crypto":
-        state.crypto_market_regime_json = json.dumps(regime)
+    if venue == "extended":
+        state.extended_market_regime_json = json.dumps(regime)
     else:
         state.market_regime_json = json.dumps(regime)
     db.commit()
@@ -505,7 +480,7 @@ def compute_and_cache_regime(db: Session, settings: Settings, broker, market_ctx
 
 
 def _other_venue(venue: str) -> str:
-    return "alpaca" if venue == "crypto" else "crypto"
+    return "alpaca" if venue == "extended" else "extended"
 
 
 def account_total_value(db: Session, portfolio: dict, venue: str) -> float:
@@ -530,12 +505,12 @@ def account_total_value(db: Session, portfolio: dict, venue: str) -> float:
 def venue_allocation_room(db: Session, settings: Settings, portfolio: dict, venue: str) -> float:
     """USD this engine may still deploy into NEW positions without exceeding its
     share of the whole account. Both engines share ONE Alpaca cash pool; without
-    this the aggressive 24/7 crypto engine could spend all the cash the equities
+    this the aggressive 24/7 extended engine could spend all the cash the equities
     engine needs (and vice-versa). The engine's cap is account_total *
     allocation_pct, minus what it already holds. Returns min(free cash,
     remaining room). An allocation of 0 blocks new buys; 100 effectively
     disables the cap (room ~= free cash)."""
-    alloc_pct = settings.crypto_allocation_pct if venue == "crypto" else settings.alpaca_allocation_pct
+    alloc_pct = settings.extended_allocation_pct if venue == "extended" else settings.alpaca_allocation_pct
     if alloc_pct <= 0:
         return 0.0
     cash = portfolio["usdt_balance"]
@@ -672,7 +647,7 @@ def check_take_profit_stop_loss(
     from entry, plus either a trailing stop (default -- lets winners run) or a
     fixed take-profit. Respects the same stop/halt gate as any automated trade
     -- if the user pressed STOP, these don't fire either. Also skipped while the
-    market is closed (unless always_open, e.g. the 24-7 crypto venue), since a
+    market is closed (unless always_open, e.g. the 24-7 extended venue), since a
     SELL order would just be rejected. Defaults to the regular session when no
     session_info is given, for callers (and the many existing tests) that don't
     care about market-hours gating. Tracks each position's peak price for the
@@ -978,7 +953,7 @@ def build_performance_context(
 
     # Am I actually beating buy-and-hold? Feeding this back makes Claude
     # accountable to a benchmark instead of just churning. Scorecard/benchmark
-    # is account-wide (Alpaca-driven) for now -- the crypto venue skips it.
+    # is account-wide (Alpaca-driven) for now -- the extended venue skips it.
     card = scorecard.compute_scorecard(db, settings, portfolio) if venue == "alpaca" else None
 
     # Durable weekly-review lessons -- memory that outlives the recent-trade
@@ -1020,12 +995,12 @@ def run_cycle(
 
     `venue`/`whitelist`/`always_open` select the portfolio: the default Alpaca
     equities (day, US stocks/ETFs, market-hours gated) path is behaviour-
-    identical; the crypto venue (same account, 24/7 book) passes
+    identical; the extended venue (same account, 24/7 book) passes
     always_open=True and skips the SPY buy-and-hold benchmark (equities-only
     concept). The account-wide day/week/peak-drawdown risk halt DOES see both
     engines: it's fed the combined account total (this venue's live figure +
     the other venue's latest snapshot) from WHICHEVER venue's cycle just ran,
-    so a crypto-only drawdown trips the same account-wide halt an equities
+    so a extended-only drawdown trips the same account-wide halt an equities
     drawdown would -- not just whichever venue happens to poll."""
     symbols = whitelist if whitelist is not None else settings.whitelist_symbols
     portfolio = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
@@ -1054,7 +1029,7 @@ def run_cycle(
             # sees post-exit balances/cash.
             portfolio = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
 
-    # Stocks/ETFs don't trade 24/7 like crypto -- a scheduled poll while the
+    # Stocks/ETFs don't trade 24/7 like extended -- a scheduled poll while the
     # market is closed has nothing useful to do (any order would just be
     # rejected) and must not burn Claude budget on it. A manual "Wymuś analizę"
     # still runs so the user can see Claude's read on demand; it just can't
@@ -1165,7 +1140,7 @@ def run_cycle(
         headlines = fresh_headlines + [h for h in headlines if h["title"] not in seen_titles]
     global_context = market_ctx.get_market_context() if market_ctx is not None else {}
     # Risk regime, computed per venue from that venue's OWN signals: equities
-    # from SPY trend + VIX + tape; crypto from BTC trend + crypto breadth.
+    # from SPY trend + VIX + tape; extended from BTC trend + extended breadth.
     # Always given to Claude; gates BUYs while risk-off (see the gate below).
     regime = compute_market_regime(market_data, global_context, settings, venue=venue)
     # Adaptacyjne ryzyko: silnik SAM dobiera agresję do reżimu (agresywnie w
@@ -1176,25 +1151,25 @@ def run_cycle(
         regime["aggression"] = round(aggression, 2)
         regime["aggression_label"] = adaptive_risk.aggression_label(aggression)
     # Cache per venue so /api/status can show each venue's regime chip.
-    if venue == "crypto":
-        state.crypto_market_regime_json = json.dumps(regime)
+    if venue == "extended":
+        state.extended_market_regime_json = json.dumps(regime)
     else:
         state.market_regime_json = json.dumps(regime)
     db.commit()
     # Venue-appropriate regime gate: equities gate on the equity regime + equity
-    # defensive names; crypto on its own regime (spot-only -> no defensive set).
+    # defensive names; extended on its own regime (spot-only -> no defensive set).
     # With adaptive risk ON, the graded scaling REPLACES the hard risk-off block
     # (the engine trades conservatively instead of not at all), so skip the gate.
-    if venue == "crypto":
-        regime_gate_on = settings.crypto_regime_gate_enabled and not settings.adaptive_risk_enabled
-        defensive_list = settings.crypto_defensive_symbol_list
+    if venue == "extended":
+        regime_gate_on = settings.extended_regime_gate_enabled and not settings.adaptive_risk_enabled
+        defensive_list = settings.extended_defensive_symbol_list
     else:
         regime_gate_on = settings.regime_gate_enabled and not settings.adaptive_risk_enabled
         defensive_list = settings.defensive_symbol_list
     performance_context = build_performance_context(db, settings, portfolio, venue=venue, whitelist=symbols)
     # Upcoming earnings per ticker (days until next report). Best-effort --
     # never blocks the cycle if the calendar lookup fails. Only meaningful for
-    # equities -- crypto has no earnings, so the crypto venue skips it.
+    # equities -- extended has no earnings, so the extended venue skips it.
     if venue == "alpaca":
         try:
             earnings_days = earnings_calendar.get_days_until_earnings(symbols)
@@ -1350,7 +1325,7 @@ def run_cycle(
         # (b) cap the order notional to it (see _execute_trade, via the dict).
         alloc_room = venue_allocation_room(db, settings, portfolio, venue)
         portfolio["allocation_room"] = alloc_room
-        alloc_pct = settings.crypto_allocation_pct if venue == "crypto" else settings.alpaca_allocation_pct
+        alloc_pct = settings.extended_allocation_pct if venue == "extended" else settings.alpaca_allocation_pct
         if alloc_room < MIN_SELL_NOTIONAL_USD:
             decision.rejection_reason = (
                 f"Silnik osiągnął swój przydział kapitału ({alloc_pct:.0f}% konta) — "
@@ -1375,7 +1350,7 @@ def run_cycle(
 
         # Regime gate: while this venue's regime is risk-off, only its defensive
         # set may be OPENED (equity havens/inverses for stocks; safe-haven FX for
-        # the crypto/forex book -> crypto longs blocked, cash/haven-FX only);
+        # the extended/forex book -> extended longs blocked, cash/haven-FX only);
         # everything else is forced to HOLD.
         if (
             regime_gate_on

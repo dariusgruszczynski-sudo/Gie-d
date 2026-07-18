@@ -21,16 +21,16 @@ function temperature(regime: MarketRegime | null): { emoji: string; text: string
 /** "Temperatura wody" jednym zdaniem pod nazwą apki: hossa/bessa dla USA i
  *  osobno dla krypto — czysty odczyt rynku, niezależny od tego czy dany silnik
  *  akurat handluje. Najedź na zdanie, żeby zobaczyć konkretne przesłanki. */
-export function MarketTemperature({ us, crypto }: { us: MarketRegime | null; crypto: MarketRegime | null }) {
+export function MarketTemperature({ us, extended }: { us: MarketRegime | null; extended: MarketRegime | null }) {
   const usT = temperature(us);
-  const cryptoT = temperature(crypto);
+  const extendedT = temperature(extended);
   return (
     <div className="market-temp">
       <span className="market-temp-line" title={us?.reasons.join(" · ") || "Brak danych o rynku"}>
         <span className="market-temp-emoji">{usT.emoji}</span> Rynek USA: <strong>{usT.text}</strong>
       </span>
-      <span className="market-temp-line" title={crypto?.reasons.join(" · ") || "Brak danych o rynku"}>
-        <span className="market-temp-emoji">{cryptoT.emoji}</span> Krypto: <strong>{cryptoT.text}</strong>
+      <span className="market-temp-line" title={extended?.reasons.join(" · ") || "Brak danych o rynku"}>
+        <span className="market-temp-emoji">{extendedT.emoji}</span> Poza sesją: <strong>{extendedT.text}</strong>
       </span>
     </div>
   );

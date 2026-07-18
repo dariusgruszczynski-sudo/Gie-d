@@ -56,6 +56,6 @@ def test_every_probe_action_has_a_reset_handler():
     entry handles (a typo would render a dead button)."""
     emitted = {
         "reset_budget_meter", "refresh_snapshots", "restart_scheduler",
-        "clear_halt", "resume_alpaca", "resume_crypto",
+        "clear_halt", "resume_alpaca", "resume_extended",
     }
     assert emitted <= set(health.RESET_ACTIONS)

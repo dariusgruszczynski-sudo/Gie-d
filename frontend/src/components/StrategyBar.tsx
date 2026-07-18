@@ -8,10 +8,10 @@ function equityState(s: StatusResponse): State {
   return { label: "Aktywny", cls: "live" };
 }
 
-function cryptoState(s: StatusResponse): State {
-  if (!s.crypto_enabled) return { label: "Wyłączony", cls: "off" };
+function extendedState(s: StatusResponse): State {
+  if (!s.extended_enabled) return { label: "Wyłączony", cls: "off" };
   if (s.is_halted) return { label: "Zatrzymany — limit strat", cls: "halt" };
-  if (s.crypto_paused) return { label: "Wstrzymany", cls: "paused" };
+  if (s.extended_paused) return { label: "Wstrzymany", cls: "paused" };
   return { label: "Aktywny", cls: "live" };
 }
 
@@ -32,7 +32,7 @@ function Leg({
   regime,
   signal,
 }: {
-  venue: "alpaca" | "crypto";
+  venue: "alpaca" | "extended";
   name: string;
   state: State;
   regime: MarketRegime | null;
@@ -76,10 +76,10 @@ export function StrategyBar({ status }: { status: StatusResponse }) {
         signal="sygnał dzienny · sesja"
       />
       <Leg
-        venue="crypto"
-        name="Krypto 24/7"
-        state={cryptoState(status)}
-        regime={status.crypto_market_regime}
+        venue="extended"
+        name="Poza sesją"
+        state={extendedState(status)}
+        regime={status.extended_market_regime}
         signal="swingi 15-min · całodobowo"
       />
     </div>

@@ -2,7 +2,7 @@
   color-scheme: dark;
   /* v3 theme — "institutional terminal": restrained neutral-slate surfaces, a
      confident (not neon) indigo accent, and trading-desk green/red for P&L.
-     Crypto keeps a distinct refined gold. Tuned for a professional, calm feel
+     Extended keeps a distinct refined gold. Tuned for a professional, calm feel
      rather than a flashy one. */
   --bg: #0a0e15;
   --bg-2: #0e141d;
@@ -19,11 +19,11 @@
   --gold-bright: #8fb4fb;
   --green: #2ebd85;         /* trading-terminal green (gains) */
   --red: #f0616d;           /* trading-terminal red (loss) */
-  --amber: #d9a441;         /* refined gold — crypto venue accent */
+  --amber: #d9a441;         /* refined gold — extended venue accent */
   --ink: #0a0e15;
   /* Semantic venue colors (used by the unified two-lane layout). */
   --venue-us: #4c82f0;
-  --venue-crypto: #d9a441;
+  --venue-extended: #d9a441;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
@@ -1442,7 +1442,7 @@ button {
   }
 }
 
-/* ---- Dual-portfolio (Alpaca equities day / crypto 24-7) ---- */
+/* ---- Dual-portfolio (Alpaca equities day / extended 24-7) ---- */
 .portfolios-bar {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -1459,7 +1459,7 @@ button {
 .portfolio-card-alpaca {
   border-left-color: var(--accent);
 }
-.portfolio-card-crypto {
+.portfolio-card-extended {
   border-left-color: var(--amber);
 }
 .portfolio-card-total {
@@ -1512,10 +1512,10 @@ button {
 .venue-dot-alpaca {
   background: var(--accent);
 }
-.venue-dot-crypto {
+.venue-dot-extended {
   background: var(--amber);
 }
-.venue-section-crypto {
+.venue-section-extended {
   border: 1px solid rgba(251, 146, 60, 0.25);
   border-radius: 14px;
   padding: 16px;
@@ -1663,8 +1663,8 @@ button {
 .pos-card-us {
   border-left-color: var(--venue-us);
 }
-.pos-card-crypto {
-  border-left-color: var(--venue-crypto);
+.pos-card-extended {
+  border-left-color: var(--venue-extended);
 }
 .pos-card-head {
   display: flex;
@@ -1730,7 +1730,7 @@ button {
   text-overflow: ellipsis;
 }
 
-/* ---- Stacked per-engine ticker bars (equities over crypto) ---- */
+/* ---- Stacked per-engine ticker bars (equities over extended) ---- */
 .tickers-stack {
   position: sticky;
   top: 0;
@@ -1780,7 +1780,7 @@ button {
 .venue-controls-alpaca {
   border-left: 3px solid var(--accent);
 }
-.venue-controls-crypto {
+.venue-controls-extended {
   border-left: 3px solid var(--amber);
 }
 .venue-controls-head {
@@ -2161,7 +2161,7 @@ button {
   border-left: 3px solid var(--border);
 }
 .strat-leg-alpaca { border-left-color: var(--venue-us); }
-.strat-leg-crypto { border-left-color: var(--venue-crypto); }
+.strat-leg-extended { border-left-color: var(--venue-extended); }
 .strat-leg-dim { opacity: 0.62; }
 .strat-leg-top {
   display: flex;

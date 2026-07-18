@@ -9,7 +9,7 @@ export function ManualTradePanel({
 }: {
   whitelist: string[];
   onChanged: () => void;
-  venue?: "alpaca" | "crypto";
+  venue?: "alpaca" | "extended";
   title?: string;
 }) {
   const [busy, setBusy] = useState(false);

@@ -116,9 +116,9 @@ def _scorecard_html(card: dict | None) -> str:
 
 
 def _venue_tag(venue: str) -> str:
-    is_crypto = venue == "crypto"
-    color = "#fb923c" if is_crypto else GOLD
-    label = "Krypto" if is_crypto else "Akcje US"
+    is_extended = venue == "extended"
+    color = "#fb923c" if is_extended else GOLD
+    label = "Poza sesją" if is_extended else "Akcje US"
     return (
         f'<span style="font-size:10px;font-weight:700;color:{color};border:1px solid {color};'
         f'border-radius:4px;padding:1px 5px;">{label}</span>'
@@ -128,8 +128,8 @@ def _venue_tag(venue: str) -> str:
 def _build_html(
     *,
     alpaca_current: PortfolioSnapshot | None,
-    crypto_current: PortfolioSnapshot | None,
-    crypto_enabled: bool,
+    extended_current: PortfolioSnapshot | None,
+    extended_enabled: bool,
     day_pnl_pct: float | None,
     week_pnl_pct: float | None,
     state,
@@ -141,11 +141,11 @@ def _build_html(
 ) -> str:
     mode_label = "PRODUKCJA (realny kapitał)"
     alpaca_status = "zatrzymany (limit strat)" if state.is_halted else "zapauzowany" if state.is_paused else "aktywny"
-    crypto_status = "wyłączony" if not crypto_enabled else ("zatrzymany" if state.crypto_paused else "aktywny")
+    extended_status = "wyłączony" if not extended_enabled else ("zatrzymany" if state.extended_paused else "aktywny")
 
     alpaca_val = alpaca_current.total_value_usdt if alpaca_current else 0.0
-    crypto_val = crypto_current.total_value_usdt if (crypto_enabled and crypto_current) else 0.0
-    total_val = alpaca_val + crypto_val
+    extended_val = extended_current.total_value_usdt if (extended_enabled and extended_current) else 0.0
+    total_val = alpaca_val + extended_val
 
     decisions_rows = "".join(
         f"""
@@ -185,9 +185,9 @@ def _build_html(
         else ""
     )
 
-    crypto_cell = (
-        f'${crypto_val:,.2f} <span style="color:{MUTED};font-size:11px;">({crypto_status})</span>'
-        if crypto_enabled
+    extended_cell = (
+        f'${extended_val:,.2f} <span style="color:{MUTED};font-size:11px;">({extended_status})</span>'
+        if extended_enabled
         else f'<span style="color:{MUTED};">wyłączony</span>'
     )
 
@@ -207,12 +207,12 @@ def _build_html(
       <table style="width:100%;border-collapse:collapse;">
         <tr>
           <td style="color:{MUTED};font-size:11px;">PORTFEL DZIENNY (AKCJE US)</td>
-          <td style="color:{MUTED};font-size:11px;">PORTFEL KRYPTO (24/7)</td>
+          <td style="color:{MUTED};font-size:11px;">PORTFEL POZA SESJĄ</td>
           <td style="color:{MUTED};font-size:11px;">RAZEM</td>
         </tr>
         <tr>
           <td style="font-weight:700;padding-top:2px;">${alpaca_val:,.2f} <span style="color:{MUTED};font-size:11px;">({alpaca_status})</span></td>
-          <td style="font-weight:700;padding-top:2px;">{crypto_cell}</td>
+          <td style="font-weight:700;padding-top:2px;">{extended_cell}</td>
           <td style="font-weight:800;padding-top:2px;color:{GOLD_BRIGHT};">${total_val:,.2f}</td>
         </tr>
       </table>
@@ -274,7 +274,7 @@ def _latest_snapshot(db: Session, venue: str) -> PortfolioSnapshot | None:
 
 def build_report(db: Session, settings: Settings) -> tuple[str, bytes]:
     alpaca_current = _latest_snapshot(db, "alpaca")
-    crypto_current = _latest_snapshot(db, "crypto")
+    extended_current = _latest_snapshot(db, "extended")
     since = datetime.utcnow() - timedelta(days=7)
     # Chart tracks the Alpaca (day) portfolio -- the account-wide day/week
     # loss baselines are Alpaca-driven.
@@ -323,8 +323,8 @@ def build_report(db: Session, settings: Settings) -> tuple[str, bytes]:
     chart_png = _render_chart_png(history)
     html = _build_html(
         alpaca_current=alpaca_current,
-        crypto_current=crypto_current,
-        crypto_enabled=settings.crypto_enabled,
+        extended_current=extended_current,
+        extended_enabled=settings.extended_enabled,
         day_pnl_pct=day_pnl_pct,
         week_pnl_pct=week_pnl_pct,
         state=state,

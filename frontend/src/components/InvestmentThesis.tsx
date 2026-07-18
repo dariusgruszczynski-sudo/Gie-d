@@ -187,7 +187,7 @@ const TICKER_INFO: Record<string, TickerInfo> = {
     description:
       "Kryptowaluta „memowa”, skrajnie zmienna i napędzana sentymentem/social media. Najbardziej ryzykowna, spekulacyjna pozycja krypto — rozmiar bardzo mocno przycinany przez skalowanie wg zmienności. Spot, 24/7.",
   },
-  // --- Portfel akcji US: mega-capy tech + crypto-proxy (dodane) ---
+  // --- Portfel akcji US: mega-capy tech + extended-proxy (dodane) ---
   MSFT: {
     name: "Microsoft Corp.",
     description:

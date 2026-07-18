@@ -12,7 +12,7 @@ const STATUS_META: Record<HealthStatus, { light: string; label: string }> = {
 const ACTION_LABEL: Record<string, string> = {
   reset_budget_meter: "Wyzeruj licznik budżetu",
   resume_alpaca: "Wznów silnik US",
-  resume_crypto: "Wznów silnik krypto",
+  resume_extended: "Wznów silnik poza sesją",
   clear_halt: "Zdejmij halt",
   refresh_snapshots: "Odśwież snapshoty",
   restart_scheduler: "Restart schedulera",

@@ -49,8 +49,8 @@ class Decision(Base):
     triggered_by: Mapped[TriggerType] = mapped_column(Enum(TriggerType), default=TriggerType.SCHEDULED_DAILY)
     executed: Mapped[bool] = mapped_column(Boolean, default=False)
     rejection_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # Which lot this belongs to: "alpaca" (day, US stocks/ETFs) or "crypto"
-    # (24-7 crypto, same Alpaca account). Existing rows backfill to "alpaca".
+    # Which lot this belongs to: "alpaca" (day, US stocks/ETFs) or "extended"
+    # (24-7 extended, same Alpaca account). Existing rows backfill to "alpaca".
     venue: Mapped[str] = mapped_column(String(16), default="alpaca", index=True)
 
     trades: Mapped[list["Trade"]] = relationship(back_populates="decision")
@@ -128,10 +128,10 @@ class SystemState(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
     is_paused: Mapped[bool] = mapped_column(Boolean, default=False)  # Alpaca equities (day) venue manual pause
-    # Crypto (24/7) venue manual pause -- independent START/STOP from the
+    # Extended (24/7) venue manual pause -- independent START/STOP from the
     # equities one. Defaults paused so a freshly-enabled venue never trades
     # until the human presses START. is_halted (loss-limit auto-stop) is global.
-    crypto_paused: Mapped[bool] = mapped_column(Boolean, default=True)
+    extended_paused: Mapped[bool] = mapped_column(Boolean, default=True)
     is_halted: Mapped[bool] = mapped_column(Boolean, default=False)
     halted_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     day_start_date: Mapped[str] = mapped_column(String(10), default="")
@@ -157,27 +157,27 @@ class SystemState(Base):
     # already been booked, so the partial only fires once per position (not on
     # every subsequent poll). Cleared per ticker when the position is closed.
     partial_tp_taken_json: Mapped[str] = mapped_column(Text, default="{}")
-    crypto_partial_tp_taken_json: Mapped[str] = mapped_column(Text, default="{}")
+    extended_partial_tp_taken_json: Mapped[str] = mapped_column(Text, default="{}")
     # JSON dict {ticker -> [ISO timestamps of recent stop-losses]} -- drives the
     # auto-blacklist: a ticker that stop-losses too many times in a short window
     # gets quarantined (a long re-buy cooldown) instead of being retried.
     stop_loss_streak_json: Mapped[str] = mapped_column(Text, default="{}")
-    crypto_stop_loss_streak_json: Mapped[str] = mapped_column(Text, default="{}")
+    extended_stop_loss_streak_json: Mapped[str] = mapped_column(Text, default="{}")
     # JSON dict {ticker -> [recent per-ticker headline titles]} -- lets the
     # bot detect a brand-new headline (earnings, material single-stock news)
     # the moment it's published and wake Claude immediately, independent of
     # any price move. Bounded to PER_TICKER_LIMIT titles per ticker each
     # cycle so this never grows unbounded.
     seen_ticker_headlines_json: Mapped[str] = mapped_column(Text, default="{}")
-    # Dedicated per-cycle state for the crypto (24-7) venue, kept in separate
+    # Dedicated per-cycle state for the extended (24-7) venue, kept in separate
     # columns so the equities venue's state above stays byte-for-byte untouched
     # (zero risk to the live stock path). Same JSON shapes as their equities
     # counterparts. analysis_state_json holds {last_full_date, last_at}.
-    crypto_check_prices_json: Mapped[str] = mapped_column(Text, default="{}")
-    crypto_position_peaks_json: Mapped[str] = mapped_column(Text, default="{}")
-    crypto_stop_loss_cooldowns_json: Mapped[str] = mapped_column(Text, default="{}")
-    crypto_seen_ticker_headlines_json: Mapped[str] = mapped_column(Text, default="{}")
-    crypto_analysis_state_json: Mapped[str] = mapped_column(Text, default="{}")
+    extended_check_prices_json: Mapped[str] = mapped_column(Text, default="{}")
+    extended_position_peaks_json: Mapped[str] = mapped_column(Text, default="{}")
+    extended_stop_loss_cooldowns_json: Mapped[str] = mapped_column(Text, default="{}")
+    extended_seen_ticker_headlines_json: Mapped[str] = mapped_column(Text, default="{}")
+    extended_analysis_state_json: Mapped[str] = mapped_column(Text, default="{}")
     claude_budget_month_key: Mapped[str] = mapped_column(String(7), default="")
     claude_spend_usd_this_month: Mapped[float] = mapped_column(Float, default=0.0)
     # NEVER resets (unlike the monthly counter above) -- lifetime Claude spend,
@@ -209,9 +209,9 @@ class SystemState(Base):
     # by the Alpaca cycle so /api/status can show it without recomputing on
     # every 15s poll.
     market_regime_json: Mapped[str] = mapped_column(Text, default="{}")
-    # The crypto venue's own risk regime (BTC trend + crypto breadth), cached by
-    # the crypto cycle so the dashboard can show a separate crypto chip.
-    crypto_market_regime_json: Mapped[str] = mapped_column(Text, default="{}")
+    # The extended venue's own risk regime (BTC trend + extended breadth), cached by
+    # the extended cycle so the dashboard can show a separate extended chip.
+    extended_market_regime_json: Mapped[str] = mapped_column(Text, default="{}")
     # Highest ever-observed total account value -- distinct from day/week
     # start (which reset on a rolling window). Drives the max-drawdown-from-
     # peak halt: unlike day/week loss, this catches a slow bleed that never

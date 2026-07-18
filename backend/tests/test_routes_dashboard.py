@@ -15,15 +15,15 @@ def test_account_view_counts_shared_cash_once(db_session):
     engine's position value -- not sum the two snapshot totals (which would
     double-count the cash, the "two portfolios" bug)."""
     now = datetime.now(timezone.utc)
-    # cash=100 in both; equities holds 50 of positions, crypto holds 30.
+    # cash=100 in both; equities holds 50 of positions, extended holds 30.
     db_session.add(PortfolioSnapshot(timestamp=now, total_value_usdt=150.0, usdt_balance=100.0, venue="alpaca"))
-    db_session.add(PortfolioSnapshot(timestamp=now, total_value_usdt=130.0, usdt_balance=100.0, venue="crypto"))
+    db_session.add(PortfolioSnapshot(timestamp=now, total_value_usdt=130.0, usdt_balance=100.0, venue="extended"))
     db_session.commit()
 
     acc = _account_view(db_session)
     assert acc["cash"] == 100.0
     assert acc["equity_positions_value"] == 50.0
-    assert acc["crypto_positions_value"] == 30.0
+    assert acc["extended_positions_value"] == 30.0
     # 100 + 50 + 30 = 180, NOT 150 + 130 = 280 (cash counted once).
     assert acc["total_value"] == 180.0
 
@@ -93,8 +93,8 @@ def test_status_includes_per_engine_profiles(db_session, settings):
     body = get_status(db=db_session, settings=settings)
 
     assert body["profiles"]["alpaca"]["signal_timeframe"] == settings.signal_timeframe
-    assert body["profiles"]["crypto"]["signal_timeframe"] == settings.crypto_signal_timeframe
-    assert body["profiles"]["crypto"]["poll_interval_minutes"] == settings.crypto_poll_interval_minutes
+    assert body["profiles"]["extended"]["signal_timeframe"] == settings.extended_signal_timeframe
+    assert body["profiles"]["extended"]["poll_interval_minutes"] == settings.extended_poll_interval_minutes
 
 
 def test_widget_endpoint_returns_compact_payload(db_session, settings):
@@ -111,11 +111,11 @@ def test_widget_endpoint_returns_compact_payload(db_session, settings):
         timestamp=now, total_value_usdt=1020.0, usdt_balance=800.0,
         balances_json=json.dumps({"SPY": 2.0}), prices_json=json.dumps({"SPY": 110.0}), venue="alpaca",
     ))
-    # A MORE RECENT crypto snapshot (crypto polls more often) with only the
+    # A MORE RECENT extended snapshot (extended polls more often) with only the
     # shared cash -- day P&L must use the COMBINED account, not this slice.
     db_session.add(PortfolioSnapshot(
         timestamp=now + timedelta(seconds=30), total_value_usdt=800.0, usdt_balance=800.0,
-        balances_json=json.dumps({}), prices_json=json.dumps({}), venue="crypto",
+        balances_json=json.dumps({}), prices_json=json.dumps({}), venue="extended",
     ))
     # Day baseline = the combined account (1020), same as it's now recorded.
     from app.services import risk_manager
@@ -128,7 +128,7 @@ def test_widget_endpoint_returns_compact_payload(db_session, settings):
 
     assert body["cash"] == 800.0
     assert body["total"] == 1020.0  # 800 cash + 2*110 position
-    # Flat vs baseline -> ~0%, NOT a fake -22% from the crypto-only 800 slice.
+    # Flat vs baseline -> ~0%, NOT a fake -22% from the extended-only 800 slice.
     assert body["day_pnl_pct"] == 0.0
     assert isinstance(body["spark"], list) and len(body["spark"]) >= 1
     assert body["positions"][0]["asset"] == "SPY"
@@ -145,22 +145,22 @@ def test_claude_edge_endpoint_returns_both_sides(db_session, settings):
 
 def test_portfolio_venue_filter_separates_portfolios(db_session, settings):
     """/api/portfolio?venue=... must return only that venue's snapshots, so the
-    equities and crypto portfolios never bleed into each other on the dashboard."""
+    equities and extended portfolios never bleed into each other on the dashboard."""
     now = datetime.now(timezone.utc)
     db_session.add(
         PortfolioSnapshot(timestamp=now, total_value_usdt=500.0, usdt_balance=500.0, venue="alpaca")
     )
     db_session.add(
-        PortfolioSnapshot(timestamp=now, total_value_usdt=42.0, usdt_balance=42.0, venue="crypto")
+        PortfolioSnapshot(timestamp=now, total_value_usdt=42.0, usdt_balance=42.0, venue="extended")
     )
     db_session.commit()
 
     alpaca = get_portfolio(limit=200, venue="alpaca", db=db_session, settings=settings)
-    crypto = get_portfolio(limit=200, venue="crypto", db=db_session, settings=settings)
+    extended = get_portfolio(limit=200, venue="extended", db=db_session, settings=settings)
 
     assert alpaca["current"]["total_value_usdt"] == 500.0
-    assert crypto["current"]["total_value_usdt"] == 42.0
-    assert crypto["scorecard"] is None  # crypto venue has no SPY scorecard
+    assert extended["current"]["total_value_usdt"] == 42.0
+    assert extended["scorecard"] is None  # extended venue has no SPY scorecard
 
 
 def test_portfolio_inception_is_the_very_first_snapshot_even_beyond_limit(db_session, settings):
@@ -196,9 +196,9 @@ def test_portfolio_inception_is_none_when_no_snapshots_exist(db_session, setting
 def test_day_pnl_uses_combined_account_not_whichever_venue_polled_last(db_session, settings):
     """day_pnl_pct/week_pnl_pct must compare the combined account (cash once +
     both engines' positions) against the day/week baseline -- NOT whichever
-    single venue's snapshot happens to be most recent. Crypto polls far more
+    single venue's snapshot happens to be most recent. Extended polls far more
     often than equities, so picking "the latest snapshot" naively almost always
-    picks the crypto-only total, which is a completely different (usually much
+    picks the extended-only total, which is a completely different (usually much
     smaller) scope than an equities-baselined day_start_value -- a scope
     mismatch that shows a large, entirely fake loss."""
     from app.services import risk_manager
@@ -213,17 +213,17 @@ def test_day_pnl_uses_combined_account_not_whichever_venue_polled_last(db_sessio
     state.day_start_value = 3000.0
     db_session.commit()
 
-    # Crypto polls again a moment ago (much more recently than equities), same
+    # Extended polls again a moment ago (much more recently than equities), same
     # shared cash, holding nothing -> its OWN snapshot total is just 1000.
     # Naively using "the latest snapshot across either venue" here would read
     # 1000 and compare it to the 3000 baseline -> a fake -66% "loss".
     just_now = datetime.now(timezone.utc)
-    db_session.add(PortfolioSnapshot(timestamp=just_now, total_value_usdt=1000.0, usdt_balance=1000.0, venue="crypto"))
+    db_session.add(PortfolioSnapshot(timestamp=just_now, total_value_usdt=1000.0, usdt_balance=1000.0, venue="extended"))
     db_session.commit()
 
     body = get_status(db=db_session, settings=settings)
 
-    # True combined account is still 1000 cash + 2000 equity + 0 crypto = 3000
+    # True combined account is still 1000 cash + 2000 equity + 0 extended = 3000
     # -> unchanged from the morning baseline, day_pnl_pct must be ~0, not -66%.
     assert body["day_pnl_pct"] == pytest.approx(0.0)
 

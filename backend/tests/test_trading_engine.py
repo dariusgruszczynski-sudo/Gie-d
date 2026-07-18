@@ -323,20 +323,20 @@ def test_compute_portfolio_records_failed_symbols(db_session, settings):
     assert json.loads(snapshot.failed_symbols_json) == ["NVDA"]
 
 
-def test_compute_portfolio_records_held_crypto_qty(db_session, settings):
-    """Alpaca keys a held crypto position by the FULL symbol ("BTCUSD"), not the
+def test_compute_portfolio_records_held_extended_qty(db_session, settings):
+    """Alpaca keys a held extended position by the FULL symbol ("BTCUSD"), not the
     base ("BTC"). compute_portfolio must find that qty so the coin isn't recorded
     as 0 (which would hide it and zero its value on the dashboard)."""
     from app.models import PortfolioSnapshot
 
-    crypto_settings = settings.model_copy(update={"crypto_whitelist": "BTCUSD,ETHUSD"})
+    extended_settings = settings.model_copy(update={"extended_whitelist": "BTCUSD,ETHUSD"})
     broker = FakeAlpaca(
         prices={"BTCUSD": 50000.0, "ETHUSD": 3000.0},
         balances={"USD": 500.0, "BTCUSD": 0.01, "ETHUSD": 0.0},
     )
 
     portfolio = trading_engine.compute_portfolio(
-        db_session, crypto_settings, broker, venue="crypto", whitelist=["BTCUSD", "ETHUSD"]
+        db_session, extended_settings, broker, venue="extended", whitelist=["BTCUSD", "ETHUSD"]
     )
 
     # 0.01 BTC @ 50k = 500 of position value on top of 500 cash.
@@ -682,7 +682,7 @@ def test_run_cycle_without_market_ctx_does_not_crash(db_session, settings):
 
 
 def test_scheduled_cycle_skipped_when_market_closed(db_session, settings, monkeypatch):
-    """Stocks/ETFs aren't 24/7 like crypto -- a scheduled poll outside market
+    """Stocks/ETFs aren't 24/7 like extended -- a scheduled poll outside market
     hours must do nothing (and never burn Claude budget), same as any other
     routine no-op cycle."""
     monkeypatch.setattr(
@@ -833,38 +833,38 @@ def test_failed_mechanical_exit_surfaces_real_reason(db_session, settings):
 
 
 def test_manual_trade_stamps_venue_and_uses_venue_whitelist(db_session, settings):
-    """A manual crypto trade must validate against the crypto whitelist and
-    stamp its records venue='crypto' (so they land in the right portfolio)."""
+    """A manual extended trade must validate against the extended whitelist and
+    stamp its records venue='extended' (so they land in the right portfolio)."""
     from app.models import Trade
 
     broker = FakeAlpaca(prices={"BTCUSD": 50000.0}, balances={"USD": 1000.0, "BTCUSD": 0.0})
     trade = trading_engine.execute_manual_trade(
         db_session, settings, broker, symbol="BTCUSD", side="BUY", usdt_amount=100.0,
-        venue="crypto", whitelist=["BTCUSD", "ETHUSD"],
+        venue="extended", whitelist=["BTCUSD", "ETHUSD"],
     )
-    assert trade.venue == "crypto"
-    assert db_session.query(Trade).filter(Trade.venue == "crypto").count() == 1
+    assert trade.venue == "extended"
+    assert db_session.query(Trade).filter(Trade.venue == "extended").count() == 1
 
     # A symbol outside the venue whitelist is rejected.
     try:
         trading_engine.execute_manual_trade(
             db_session, settings, broker, symbol="SPY", side="BUY", usdt_amount=100.0,
-            venue="crypto", whitelist=["BTCUSD", "ETHUSD"],
+            venue="extended", whitelist=["BTCUSD", "ETHUSD"],
         )
         assert False, "expected ValueError"
     except ValueError:
         pass
 
 
-def test_crypto_venue_cycle_is_isolated_and_stamped(db_session, settings, monkeypatch):
-    """The crypto venue trades 24/7 (always_open) even while the US market is
-    closed, stamps its records venue='crypto', and uses its OWN state columns
+def test_extended_venue_cycle_is_isolated_and_stamped(db_session, settings, monkeypatch):
+    """The extended venue trades 24/7 (always_open) even while the US market is
+    closed, stamps its records venue='extended', and uses its OWN state columns
     so the equities venue's anchors stay untouched."""
     from app.models import Trade
 
-    crypto_settings = settings.model_copy(update={"crypto_enabled": True})
-    risk_manager.resume(db_session, "crypto")  # crypto starts paused -> press START
-    # Equities would be CLOSED right now -- crypto must trade anyway.
+    extended_settings = settings.model_copy(update={"extended_enabled": True})
+    risk_manager.resume(db_session, "extended")  # extended starts paused -> press START
+    # Equities would be CLOSED right now -- extended must trade anyway.
     monkeypatch.setattr(
         trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.CLOSED)
     )
@@ -872,18 +872,18 @@ def test_crypto_venue_cycle_is_isolated_and_stamped(db_session, settings, monkey
     advisor = FakeAdvisor(TradingDecision("BUY", "BTCUSD", 10, 0.9, "Krypto mocne."))
 
     decision = trading_engine.run_cycle(
-        db_session, crypto_settings, broker, FakeNews(), advisor, force=True,
-        venue="crypto", whitelist=["BTCUSD", "ETHUSD"], always_open=True,
+        db_session, extended_settings, broker, FakeNews(), advisor, force=True,
+        venue="extended", whitelist=["BTCUSD", "ETHUSD"], always_open=True,
     )
 
-    assert decision.venue == "crypto"
+    assert decision.venue == "extended"
     assert decision.executed is True
     trade = db_session.query(Trade).order_by(Trade.id.desc()).first()
-    assert trade.venue == "crypto"
+    assert trade.venue == "extended"
     assert trade.symbol == "BTCUSD"
 
     state = risk_manager.get_state(db_session)
-    assert json.loads(state.crypto_check_prices_json)  # crypto anchors were set
+    assert json.loads(state.extended_check_prices_json)  # extended anchors were set
     assert json.loads(state.last_check_prices_json or "{}") == {}  # equities column untouched
 
 
@@ -1042,7 +1042,7 @@ def test_dynamic_stop_loss_scales_with_volatility(settings):
     assert trading_engine.dynamic_stop_loss_pct(s, 0.25) == 2.5
     # Volatile ticker (1.5%/1h) -> 6*1.5=9% (within band).
     assert trading_engine.dynamic_stop_loss_pct(s, 1.5) == 9.0
-    # Very volatile (crypto, 3%/1h) -> 18% capped at the 12% max.
+    # Very volatile (extended, 3%/1h) -> 18% capped at the 12% max.
     assert trading_engine.dynamic_stop_loss_pct(s, 3.0) == 12.0
     # Disabled -> fixed stop regardless of volatility.
     off = s.model_copy(update={"stop_loss_vol_mult": 0.0})
@@ -1235,33 +1235,28 @@ def test_adaptive_risk_preserves_unlimited_concurrent_positions(settings):
         assert tuned.max_new_positions_per_day == 0
 
 
-def test_crypto_regime_from_btc_trend_and_crypto_breadth_ignores_equity_inputs(settings):
-    """The crypto venue derives its OWN regime from BTC + crypto breadth, NOT
-    from SPY/VIX."""
-    s = settings.model_copy(update={"crypto_whitelist": "BTCUSD,ETHUSD,LTCUSD"})
-    down = {
-        "BTCUSD": {"technical": {"sma50_vs_sma200_1h": "below"}},
-        "ETHUSD": {"technical": {"sma50_vs_sma200_1h": "below"}},
-        "LTCUSD": {"technical": {"sma50_vs_sma200_1h": "below"}},
-    }
-    assert trading_engine.compute_market_regime(down, {}, s, venue="crypto")["regime"] == "risk_off"
+def test_extended_regime_uses_the_same_equity_read(settings):
+    """Both legs trade the SAME US market, so the extended leg reads the SAME
+    equity regime (benchmark trend + VIX + S&P move), not a separate one."""
+    bench = settings.benchmark_symbol
+    down_md = {bench: {"technical": {"sma50_vs_sma200_1h": "below"}}}
+    panic = {"vix_level": 45.0, "sp500_change_pct": -4.0}
+    # benchmark below (-1) + VIX high (-1) + S&P dumping (-1) => risk_off.
+    assert trading_engine.compute_market_regime(down_md, panic, settings, venue="extended")["regime"] == "risk_off"
 
-    up = {k: {"technical": {"sma50_vs_sma200_1h": "above"}} for k in ("BTCUSD", "ETHUSD", "LTCUSD")}
-    assert trading_engine.compute_market_regime(up, {}, s, venue="crypto")["regime"] == "risk_on"
-
-    # A screaming-panic EQUITY tape must NOT move the crypto regime.
-    equity_panic = {"vix_level": 45.0, "sp500_change_pct": -4.0}
-    assert trading_engine.compute_market_regime({}, equity_panic, s, venue="crypto")["regime"] == "neutral"
+    up_md = {bench: {"technical": {"sma50_vs_sma200_1h": "above"}}}
+    calm_up = {"vix_level": 14.0, "sp500_change_pct": 1.5}
+    assert trading_engine.compute_market_regime(up_md, calm_up, settings, venue="extended")["regime"] == "risk_on"
 
 
-def test_crypto_regime_gate_blocks_new_longs_in_risk_off(db_session, settings, monkeypatch):
-    """In crypto risk-off the gate blocks new crypto longs -- a spot-only book
+def test_extended_regime_gate_blocks_new_longs_in_risk_off(db_session, settings, monkeypatch):
+    """In extended risk-off the gate blocks new extended longs -- a spot-only book
     has no defensive instrument, so cash is the only defensive position."""
     s = settings.model_copy(update={
-        "crypto_enabled": True, "crypto_regime_gate_enabled": True, "adaptive_risk_enabled": False,
-        "crypto_whitelist": "BTCUSD,ETHUSD", "crypto_defensive_symbols": "",
+        "extended_enabled": True, "extended_regime_gate_enabled": True, "adaptive_risk_enabled": False,
+        "extended_whitelist": "BTCUSD,ETHUSD", "extended_defensive_symbols": "",
     })
-    risk_manager.resume(db_session, "crypto")
+    risk_manager.resume(db_session, "extended")
     monkeypatch.setattr(
         trading_engine.market_hours, "get_session_info", lambda broker: _session_info(market_hours.CLOSED)
     )
@@ -1275,7 +1270,7 @@ def test_crypto_regime_gate_blocks_new_longs_in_risk_off(db_session, settings, m
     broker = FakeAlpaca(prices=dict(prices), balances=dict(balances))
     blocked = trading_engine.run_cycle(
         db_session, s, broker, FakeNews(), FakeAdvisor(TradingDecision("BUY", "BTCUSD", 10, 0.9, "krypto")),
-        force=True, venue="crypto", whitelist=["BTCUSD", "ETHUSD"], always_open=True,
+        force=True, venue="extended", whitelist=["BTCUSD", "ETHUSD"], always_open=True,
     )
     assert blocked.executed is False
     assert "risk-off" in (blocked.rejection_reason or "")
@@ -1322,21 +1317,21 @@ def test_venue_allocation_room_caps_engine_to_its_share(db_session, settings):
     cash + both engines' positions), minus what it already holds."""
     from app.models import PortfolioSnapshot
 
-    s = settings.model_copy(update={"alpaca_allocation_pct": 50.0, "crypto_allocation_pct": 50.0})
+    s = settings.model_copy(update={"alpaca_allocation_pct": 50.0, "extended_allocation_pct": 50.0})
     # The OTHER (equities) engine holds $50 of positions on top of $100 shared cash.
     db_session.add(PortfolioSnapshot(total_value_usdt=150.0, usdt_balance=100.0, venue="alpaca"))
     db_session.commit()
 
-    # Crypto engine currently holds nothing (its snapshot: cash 100, total 100).
-    crypto_portfolio = {"usdt_balance": 100.0, "total_value_usdt": 100.0}
-    # account = 100 cash + 0 crypto + 50 equity = 150; crypto target = 75; room = 75.
-    room = trading_engine.venue_allocation_room(db_session, s, crypto_portfolio, "crypto")
+    # Extended engine currently holds nothing (its snapshot: cash 100, total 100).
+    extended_portfolio = {"usdt_balance": 100.0, "total_value_usdt": 100.0}
+    # account = 100 cash + 0 extended + 50 equity = 150; extended target = 75; room = 75.
+    room = trading_engine.venue_allocation_room(db_session, s, extended_portfolio, "extended")
     assert room == pytest.approx(75.0)
 
-    # If crypto already holds $80 (total 180), it's OVER its 50% target -> less room.
-    crypto_full = {"usdt_balance": 100.0, "total_value_usdt": 180.0}
+    # If extended already holds $80 (total 180), it's OVER its 50% target -> less room.
+    extended_full = {"usdt_balance": 100.0, "total_value_usdt": 180.0}
     # account = 100 + 80 + 50 = 230; target = 115; room = min(100, 115-80) = 35.
-    room2 = trading_engine.venue_allocation_room(db_session, s, crypto_full, "crypto")
+    room2 = trading_engine.venue_allocation_room(db_session, s, extended_full, "extended")
     assert room2 == pytest.approx(35.0)
 
 
@@ -1367,26 +1362,26 @@ def test_account_total_value_combines_both_venues(db_session, settings):
     db_session.add(PortfolioSnapshot(total_value_usdt=150.0, usdt_balance=100.0, venue="alpaca"))
     db_session.commit()
 
-    crypto_portfolio = {"usdt_balance": 100.0, "total_value_usdt": 180.0}
-    # cash 100 + crypto positions 80 + equity positions 50 = 230.
-    assert trading_engine.account_total_value(db_session, crypto_portfolio, "crypto") == pytest.approx(230.0)
+    extended_portfolio = {"usdt_balance": 100.0, "total_value_usdt": 180.0}
+    # cash 100 + extended positions 80 + equity positions 50 = 230.
+    assert trading_engine.account_total_value(db_session, extended_portfolio, "extended") == pytest.approx(230.0)
 
 
 def test_account_total_value_ignores_missing_other_venue(db_session, settings):
-    crypto_portfolio = {"usdt_balance": 100.0, "total_value_usdt": 180.0}
+    extended_portfolio = {"usdt_balance": 100.0, "total_value_usdt": 180.0}
     # No alpaca snapshot exists yet -> falls back to just this venue's total.
-    assert trading_engine.account_total_value(db_session, crypto_portfolio, "crypto") == pytest.approx(180.0)
+    assert trading_engine.account_total_value(db_session, extended_portfolio, "extended") == pytest.approx(180.0)
 
 
-def test_crypto_only_drawdown_trips_account_wide_halt(db_session, settings):
+def test_extended_only_drawdown_trips_account_wide_halt(db_session, settings):
     """The max-drawdown/day-loss halt must see the WHOLE account, not just
-    whichever venue happens to poll -- a severe crypto-only drawdown has to
+    whichever venue happens to poll -- a severe extended-only drawdown has to
     trip the same account-wide halt an equities drawdown would, since is_halted
     blocks BOTH engines."""
     from app.services import risk_manager
 
     lenient = settings.model_copy(update={
-        "crypto_enabled": True, "crypto_whitelist": "BTCUSD",
+        "extended_enabled": True, "extended_whitelist": "BTCUSD",
         "daily_loss_limit_pct": 10.0, "weekly_loss_limit_pct": 90.0, "max_drawdown_halt_pct": 90.0,
     })
 
@@ -1398,13 +1393,13 @@ def test_crypto_only_drawdown_trips_account_wide_halt(db_session, settings):
     )
     assert risk_manager.get_state(db_session).is_halted is False
 
-    # Crypto side crashes hard (-40%) on its own -- must trip the account-wide
+    # Extended side crashes hard (-40%) on its own -- must trip the account-wide
     # halt even though the equities side never moved.
-    crypto_broker = FakeAlpaca(prices={"BTCUSD": 30000.0}, balances={"USD": 300.0})
+    extended_broker = FakeAlpaca(prices={"BTCUSD": 30000.0}, balances={"USD": 300.0})
     trading_engine.run_cycle(
-        db_session, lenient, crypto_broker, FakeNews(),
+        db_session, lenient, extended_broker, FakeNews(),
         FakeAdvisor(TradingDecision("HOLD", None, 0, 0.5, "hold")),
-        force=True, venue="crypto", whitelist=["BTCUSD"], always_open=True,
+        force=True, venue="extended", whitelist=["BTCUSD"], always_open=True,
     )
 
     assert risk_manager.get_state(db_session).is_halted is True

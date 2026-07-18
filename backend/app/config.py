@@ -35,78 +35,54 @@ class Settings(BaseSettings):
     alpaca_paper: bool = False
     quote_currency: str = "USD"
 
-    # --- Crypto: DRUGI, 24/7 lot handlu na TYM SAMYM koncie Alpaca ---
-    # Alpaca (nie osobny broker) wykonuje realne zlecenia krypto -- ta sama
-    # para kluczy jak akcje US, ta sama sesja paper/live (ALPACA_PAPER). To
-    # zastąpiło eToro (przyjmowało zlecenia bez wykonania -- patrz historia
-    # commitów) jednym, sprawdzonym API dla obu faz handlu.
-    crypto_enabled: bool = True
-    # Minimum notional (USD) dla zlecenia krypto -- guard po stronie klienta,
-    # żeby cienko dofinansowane konto nie strzelało wciąż odrzucanym REAL
-    # zleceniem poniżej minimum giełdy. 0 wyłącza guard.
-    crypto_min_order_usd: float = 1.0
-    # Krypto handluje 24/7 (także w weekend) -- to pokrywa noce i weekendy, gdy
-    # rynek US jest zamknięty. Spot, bez dźwigni, ta sama mechanika co portfel
-    # akcji. Lista zweryfikowana jako aktualnie wspierana przez Alpaca (2026-07).
-    crypto_whitelist: str = (
-        "BTCUSD,ETHUSD,SOLUSD,LTCUSD,BCHUSD,DOGEUSD,LINKUSD,AVAXUSD,"
-        "ADAUSD,DOTUSD,UNIUSD,AAVEUSD,XRPUSD,SHIBUSD"
-    )
+    # --- POZA SESJĄ (extended hours): DRUGI lot na TYM SAMYM koncie Alpaca ---
+    # Ta sama para kluczy i to samo konto co sesja regularna, ale handluje w
+    # pre-market (4:00-9:30 ET) i after-hours (16:00-20:00 ET). Poza sesją Alpaca
+    # NIE przyjmuje zleceń MARKET ani ułamków -- tylko LIMIT na CAŁE akcje. Dlatego
+    # ta noga gra WĄSKĄ listą TANICH, płynnych ETF-ów (całe sztuki muszą zmieścić
+    # się w budżecie). Domyślnie OFF -- włącza się dopiero gdy egzekucja AH
+    # (LIMIT/całe akcje) jest zbudowana i skonfigurowana.
+    extended_enabled: bool = False
+    # Tania, płynna whitelista ETF pod handel po godzinach (całe sztuki < ~$60).
+    # Zarządzana automatycznie przez piątkowy auto-przegląd (dodaj/wyrzuć/sprzedaj);
+    # to jest tylko seed startowy.
+    extended_whitelist: str = "XLF,GDX,SLV,FXI,EEM,EWZ,KWEB"
 
-    # --- DWA MÓZGI: osobne profile agresji per venue -------------------------
-    # Bazowe knoby niżej to profil AKCJI US ("średnio agresywnie"). Krypto
-    # dostaje WŁASNY, AGRESYWNIEJSZY profil (rynek 24/7, wyższa zmienność, więcej
-    # okazji) -- te crypto_* wartości nadpisują bazowe TYLKO dla venue "crypto"
-    # (patrz strategy_profiles.effective_settings). Zmień tu, żeby wykręcić
-    # agresję krypto bez ruszania profilu akcji.
-    crypto_risk_per_trade_pct: float = 2.0            # vs 1.25 na akcjach
-    crypto_max_concurrent_positions: int = 0          # 0 = bez limitu (skasowany)
-    crypto_min_buy_confidence: float = 0.52           # niżej = więcej wejść
-    crypto_max_new_positions_per_day: int = 0         # 0 = bez limitu wejść/dobę
-    crypto_min_hold_minutes: int = 0                  # 0 = bez min. czasu trzymania (bez limitu wyjść)
-    crypto_max_position_pct: float = 30.0
-    # FILOZOFIA KRYPTO: łap NAWET MAŁE wahnięcia i księguj MAŁE zyski, ale CZĘSTO
-    # -- bez maksymalizowania na chama (żeby nie oddawać zysku czekając na ideał).
-    # Interwał 15m (klasyczny day-trading krypto), realizacja wcześnie i w transzach:
-    #   partial_r=0.7 (bierz część zysku już przy 0.7× dystansu stopa),
-    #   partial_frac=0.5 (połowa pozycji schodzi na tej pierwszej transzy),
-    #   reward_risk=1.5 (uzbrój trailing szybko -- nie wyciskaj ostatniego grosza),
-    #   trailing_frac=0.5 (ciasny trailing = częściej zaksięgowany zysk).
-    crypto_reward_risk_ratio: float = 1.5
-    crypto_trailing_stop_frac: float = 0.5
-    crypto_partial_take_profit_frac: float = 0.50
-    crypto_partial_take_profit_r: float = 0.7
-    # Stopy dostrojone do ŚWIEC 15m (nie dziennych): zwrot na jednej świecy 15m
-    # to ~0.5-1.5%, nie 4-6% jak dziennie -> ciaśniejszy zakres stopa i niższa
-    # referencja zmienności, żeby małe swingi miały sensowny stosunek zysku do
-    # ryzyka, ale bez wytrząsania na mikroszumie.
-    crypto_stop_loss_vol_mult: float = 4.0
-    crypto_stop_loss_min_pct: float = 1.5
-    crypto_stop_loss_max_pct: float = 8.0
-    crypto_volatility_reference_pct: float = 1.5
-    # Reaguj CZĘSTO na małe ruchy: niski próg wybudzenia (1.5% skumulowanego
-    # ruchu) + częsty heartbeat (co 30 min patrzy na rynek nawet w ciszy).
-    # Twardy bezpiecznik budżetu (claude_pause_trading_at_budget) chroni przed
-    # spaleniem kasy na wywołaniach, gdyby rynek był bardzo ruchliwy.
-    crypto_price_move_trigger_pct: float = 1.5
-    crypto_full_analysis_every_minutes: int = 30
-    # Krypto sprawdza ceny CZĘSTO (rynek 24/7, małe swingi) -- co 5 minut, podczas
-    # gdy akcje US mogą być rzadziej (patrz poll_interval_minutes). Analiza Claude
-    # i tak pada tylko przy wybudzeniu (ruch >= próg / heartbeat), nie na każdym
-    # sprawdzeniu ceny.
-    crypto_poll_interval_minutes: int = 5
-    # Krypto na SZYBSZYM interwale niż akcje: 15m łapie wewnątrzdobowe swingi
-    # (standard day-tradingu krypto), zamiast dziennego trendu jak akcje US.
-    crypto_signal_timeframe: str = "15m"
+    # --- DWA MÓZGI: osobne profile agresji per noga --------------------------
+    # Bazowe knoby niżej to profil SESJI REGULARNEJ ("średnio agresywnie",
+    # ułamki, MARKET). Noga POZA SESJĄ dostaje WŁASNY, OSTROŻNIEJSZY profil
+    # (cieńsza płynność, szersze spready, całe akcje) -- te extended_* wartości
+    # nadpisują bazowe TYLKO dla venue "extended" (patrz strategy_profiles.
+    # effective_settings). Zmień tu, żeby dostroić handel po godzinach bez
+    # ruszania sesji regularnej.
+    extended_risk_per_trade_pct: float = 1.0          # ostrożniej po godzinach
+    extended_max_concurrent_positions: int = 0        # 0 = bez limitu
+    extended_min_buy_confidence: float = 0.60         # wyższy próg (cienki rynek)
+    extended_max_new_positions_per_day: int = 0       # 0 = bez limitu
+    extended_min_hold_minutes: int = 0                # 0 = bez limitu
+    extended_max_position_pct: float = 25.0
+    extended_reward_risk_ratio: float = 1.5
+    extended_trailing_stop_frac: float = 0.5
+    extended_partial_take_profit_frac: float = 0.50
+    extended_partial_take_profit_r: float = 0.7
+    extended_stop_loss_vol_mult: float = 4.0
+    extended_stop_loss_min_pct: float = 1.5
+    extended_stop_loss_max_pct: float = 8.0
+    extended_volatility_reference_pct: float = 1.5
+    extended_price_move_trigger_pct: float = 1.5
+    extended_full_analysis_every_minutes: int = 30
+    # Poza sesją sprawdzamy rzadziej niż sesja regularna (cieńszy rynek, mniej
+    # okazji, oszczędność tokenów) -- co 15 min.
+    extended_poll_interval_minutes: int = 15
+    extended_signal_timeframe: str = "15m"
 
-    # --- Podział kapitału między dwa silniki (JEDNO konto Alpaca) ------------
-    # Oba silniki grają jedną, wspólną gotówką. Bez podziału agresywne krypto
-    # 24/7 zjadłoby gotówkę, zanim rano ruszy silnik US. Każdy silnik może
-    # zaangażować najwyżej swój PRZYDZIAŁ wartości konta (equity) w pozycje;
-    # sizing BUY jest przycinany do wolnego miejsca w tym przydziale. 50/50 =
-    # równy podział. Suma nie musi dać 100 (mogą się nakładać jako górne limity).
-    alpaca_allocation_pct: float = 50.0
-    crypto_allocation_pct: float = 50.0
+    # --- Podział kapitału między dwie nogi (JEDNO konto Alpaca) --------------
+    # Obie nogi grają jedną, wspólną gotówką. Każda może zaangażować najwyżej swój
+    # PRZYDZIAŁ wartości konta w pozycje; sizing BUY jest przycinany do wolnego
+    # miejsca w tym przydziale. 100/100 = brak limitu wzajemnego (mogą się
+    # nakładać jako górne limity).
+    alpaca_allocation_pct: float = 100.0
+    extended_allocation_pct: float = 100.0
 
     daily_loss_limit_pct: float = 20.0
     # Zacieśnione z 70% -> 25%: tygodniowy 70% to praktycznie brak ochrony małego
@@ -241,17 +217,15 @@ class Settings(BaseSettings):
     regime_gate_enabled: bool = True
     regime_vix_risk_off: float = 25.0
     defensive_symbols: str = "GLD,TLT,SH"
-    # --- Crypto has its OWN risk regime --------------------------------------
-    # The equity regime (SPY trend + VIX) is meaningless for a 24/7 crypto book,
-    # so the crypto venue derives its own read: BTC as the crypto-beta proxy
-    # (its 50/200 trend) plus the breadth of the crypto majors (how many are in
-    # a downtrend). In risk-off the gate blocks new CRYPTO longs -- there's no
-    # inverse/defensive instrument on a spot-only crypto whitelist, so cash is
-    # the defensive position (forces HOLD). Set crypto_regime_gate_enabled=False
-    # to keep the signal as context but drop the hard block.
-    crypto_regime_gate_enabled: bool = True
-    crypto_regime_benchmark: str = "BTCUSD"
-    crypto_defensive_symbols: str = ""
+    # --- POZA SESJĄ: regime read ---------------------------------------------
+    # The extended-hours leg trades the SAME US market as the regular session
+    # (just pre-/after-market), so it reads the SAME equity regime (SPY trend +
+    # VIX) rather than a separate benchmark. In risk-off the gate blocks new
+    # longs; cash is the defensive position. Set extended_regime_gate_enabled=
+    # False to keep the signal as context but drop the hard block.
+    extended_regime_gate_enabled: bool = True
+    extended_regime_benchmark: str = "SPY"
+    extended_defensive_symbols: str = ""
     # --- Auto-blacklist po serii stop-lossów (Pakiet 4) ---------------------
     # If a ticker stop-losses auto_blacklist_stop_count times within
     # auto_blacklist_window_hours, quarantine it: block re-buying for
@@ -385,8 +359,8 @@ class Settings(BaseSettings):
         return [s.strip().upper() for s in self.trading_whitelist.split(",") if s.strip()]
 
     @property
-    def crypto_whitelist_symbols(self) -> list[str]:
-        return [s.strip().upper() for s in self.crypto_whitelist.split(",") if s.strip()]
+    def extended_whitelist_symbols(self) -> list[str]:
+        return [s.strip().upper() for s in self.extended_whitelist.split(",") if s.strip()]
 
     @property
     def high_spread_symbol_list(self) -> list[str]:
@@ -400,11 +374,10 @@ class Settings(BaseSettings):
         return [s.strip().upper() for s in self.defensive_symbols.split(",") if s.strip()]
 
     @property
-    def crypto_defensive_symbol_list(self) -> list[str]:
-        """Names the crypto venue may still BUY in a risk-off regime. Empty by
-        default -- a spot-only crypto book has no genuine defensive instrument,
-        so risk-off forces HOLD (cash) rather than buying anything."""
-        return [s.strip().upper() for s in self.crypto_defensive_symbols.split(",") if s.strip()]
+    def extended_defensive_symbol_list(self) -> list[str]:
+        """Names the extended-hours leg may still BUY in a risk-off regime.
+        Empty by default -- risk-off forces HOLD (cash)."""
+        return [s.strip().upper() for s in self.extended_defensive_symbols.split(",") if s.strip()]
 
     @property
     def dashboard_credentials(self) -> dict[str, str]:

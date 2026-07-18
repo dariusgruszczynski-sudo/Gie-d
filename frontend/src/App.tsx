@@ -19,7 +19,7 @@ const TAB_KEY = "gield.tab";
 
 function readInitialTab(): TabKey {
   const fromHash = window.location.hash.replace("#", "");
-  const valid: TabKey[] = ["overview", "us", "crypto", "control", "health"];
+  const valid: TabKey[] = ["overview", "us", "extended", "control", "health"];
   if (valid.includes(fromHash as TabKey)) return fromHash as TabKey;
   const stored = localStorage.getItem(TAB_KEY);
   return valid.includes(stored as TabKey) ? (stored as TabKey) : "overview";
@@ -28,8 +28,8 @@ function readInitialTab(): TabKey {
 export default function App() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
-  const [cryptoPortfolio, setCryptoPortfolio] = useState<PortfolioResponse | null>(null);
-  const [cryptoTrades, setCryptoTrades] = useState<Trade[]>([]);
+  const [extendedPortfolio, setExtendedPortfolio] = useState<PortfolioResponse | null>(null);
+  const [extendedTrades, setExtendedTrades] = useState<Trade[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -77,15 +77,15 @@ export default function App() {
       setError(null);
       setReconnecting(false);
 
-      // The 24-7 crypto portfolio is fetched only when the venue is enabled,
+      // The 24-7 extended portfolio is fetched only when the venue is enabled,
       // so a single-lot setup pays no extra requests.
-      if (s.crypto_enabled) {
-        const [cp, ct] = await Promise.all([api.portfolio("crypto"), api.trades("crypto")]);
-        setCryptoPortfolio(cp);
-        setCryptoTrades(ct);
+      if (s.extended_enabled) {
+        const [cp, ct] = await Promise.all([api.portfolio("extended"), api.trades("extended")]);
+        setExtendedPortfolio(cp);
+        setExtendedTrades(ct);
       } else {
-        setCryptoPortfolio(null);
-        setCryptoTrades([]);
+        setExtendedPortfolio(null);
+        setExtendedTrades([]);
       }
 
       if (seenDecisionIds.current === null) {
@@ -145,9 +145,9 @@ export default function App() {
     ? {
         status,
         portfolio,
-        cryptoPortfolio,
+        extendedPortfolio,
         trades,
-        cryptoTrades,
+        extendedTrades,
         decisions,
         refresh,
         muted,
@@ -182,14 +182,14 @@ export default function App() {
               Giel<span className="brand-accent">Darek</span>
             </h1>
             <p className="subtitle">
-              Dwa mózgi Claude (Sonnet→Opus): akcje USA średnio agresywnie · krypto 24/7 agresywnie · wykonanie Alpaca ·
+              Dwa mózgi Claude (Sonnet→Opus): akcje USA średnio agresywnie · poza sesją (tanie ETF-y) ostrożnie · wykonanie Alpaca ·
               narzędzie prywatne, nie jest to porada inwestycyjna.
             </p>
-            {status && <MarketTemperature us={status.market_regime} crypto={status.crypto_market_regime} />}
+            {status && <MarketTemperature us={status.market_regime} extended={status.extended_market_regime} />}
           </div>
         </div>
 
-        {status && <TabNav active={tab} onChange={changeTab} cryptoEnabled={status.crypto_enabled} />}
+        {status && <TabNav active={tab} onChange={changeTab} extendedEnabled={status.extended_enabled} />}
 
         {data && <StrategyBar status={data.status} />}
 
@@ -207,7 +207,7 @@ export default function App() {
           <div className="tab-page" key={tab}>
             {tab === "overview" && <OverviewPage data={data} />}
             {tab === "us" && <EnginePage data={data} venue="alpaca" />}
-            {tab === "crypto" && <EnginePage data={data} venue="crypto" />}
+            {tab === "extended" && <EnginePage data={data} venue="extended" />}
             {tab === "control" && <ControlPage data={data} />}
             {tab === "health" && <HealthCheckPage />}
           </div>

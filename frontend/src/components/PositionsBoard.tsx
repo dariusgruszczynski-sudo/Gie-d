@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, isReadOnly, PortfolioResponse } from "../api/client";
 
-type Leg = "us" | "crypto";
+type Leg = "us" | "extended";
 
 interface Pos {
   asset: string;
@@ -29,8 +29,8 @@ function extract(portfolio: PortfolioResponse | null, leg: Leg): Pos[] {
     const qty = Number(qtyRaw);
     if (!(qty > 0)) continue;
     // balances are keyed by base asset ("BTC"); prices are keyed by the full
-    // trading symbol ("BTCUSD") for crypto but by the plain ticker for equities
-    // -- try both so crypto prices don't silently come back null.
+    // trading symbol ("BTCUSD") for extended but by the plain ticker for equities
+    // -- try both so extended prices don't silently come back null.
     const price = prices[asset] ?? prices[asset + "USD"] ?? null;
     const value = price !== null ? qty * price : 0;
     if (value < 1) continue; // ignore unsellable dust
@@ -44,14 +44,14 @@ function extract(portfolio: PortfolioResponse | null, leg: Leg): Pos[] {
 
 function PositionCard({ p, onChanged }: { p: Pos; onChanged?: () => void }) {
   const up = (p.pnlPct ?? 0) >= 0;
-  const legLabel = p.leg === "crypto" ? "Krypto" : "Akcje US";
+  const legLabel = p.leg === "extended" ? "Poza sesją" : "Akcje US";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Full symbol the backend expects: crypto is the pair ("BTCUSD"), equities the
+  // Full symbol the backend expects: extended is the pair ("BTCUSD"), equities the
   // plain ticker. venue follows the leg.
-  const symbol = p.leg === "crypto" ? p.asset + "USD" : p.asset;
-  const venue = p.leg === "crypto" ? "crypto" : "alpaca";
+  const symbol = p.leg === "extended" ? p.asset + "USD" : p.asset;
+  const venue = p.leg === "extended" ? "extended" : "alpaca";
   const canSell = !isReadOnly && !!onChanged;
 
   async function sellAll() {
@@ -71,7 +71,7 @@ function PositionCard({ p, onChanged }: { p: Pos; onChanged?: () => void }) {
   return (
     <div className={`pos-card pos-card-${p.leg}`}>
       <div className="pos-card-head">
-        <span className={`venue-dot venue-dot-${p.leg === "crypto" ? "crypto" : "alpaca"}`} />
+        <span className={`venue-dot venue-dot-${p.leg === "extended" ? "extended" : "alpaca"}`} />
         <span className="pos-asset">{p.asset}</span>
         <span className="pos-leg-tag">{legLabel}</span>
         {p.pnlPct !== null ? (
@@ -123,14 +123,14 @@ function PositionCard({ p, onChanged }: { p: Pos; onChanged?: () => void }) {
  *  qty'); hidden in read-only view. */
 export function PositionsBoard({
   alpaca,
-  crypto,
+  extended,
   onChanged,
 }: {
   alpaca: PortfolioResponse | null;
-  crypto: PortfolioResponse | null;
+  extended: PortfolioResponse | null;
   onChanged?: () => void;
 }) {
-  const positions = [...extract(alpaca, "us"), ...extract(crypto, "crypto")].sort((a, b) => b.value - a.value);
+  const positions = [...extract(alpaca, "us"), ...extract(extended, "extended")].sort((a, b) => b.value - a.value);
   const invested = positions.reduce((s, p) => s + p.value, 0);
   const pnl = positions.reduce((s, p) => s + (p.pnlUsd ?? 0), 0);
   const hasPnl = positions.some((p) => p.pnlUsd !== null);

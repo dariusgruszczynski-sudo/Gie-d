@@ -46,9 +46,9 @@ export function AccountBar({
           <span className="account-bar-chip-val">${fmt(account.equity_positions_value)}</span>
         </span>
         <span className="account-bar-chip">
-          <span className="venue-dot venue-dot-crypto" />
-          <span className="account-bar-chip-label">Krypto</span>
-          <span className="account-bar-chip-val">${fmt(account.crypto_positions_value)}</span>
+          <span className="venue-dot venue-dot-extended" />
+          <span className="account-bar-chip-label">Poza sesją</span>
+          <span className="account-bar-chip-val">${fmt(account.extended_positions_value)}</span>
         </span>
       </div>
     </div>

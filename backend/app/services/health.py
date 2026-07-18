@@ -64,14 +64,14 @@ def _probe_alpaca_market_data(db, settings):
         return _check("alpaca_data", "Dane rynkowe (US)", "Integracje", "down", f"{type(exc).__name__}: {exc}")
 
 
-def _probe_alpaca_crypto(db, settings):
-    if not settings.crypto_enabled:
-        return _check("alpaca_crypto", "Alpaca — krypto (24/7)", "Integracje", "off", "Silnik krypto wyłączony")
+def _probe_alpaca_extended(db, settings):
+    if not settings.extended_enabled:
+        return _check("alpaca_extended", "Alpaca — poza sesją", "Integracje", "off", "Silnik poza sesją wyłączony")
     try:
-        AlpacaClient(settings, asset_class="crypto").get_account_balances()
-        return _check("alpaca_crypto", "Alpaca — krypto (24/7)", "Integracje", "ok", "Konto krypto osiągalne")
+        AlpacaClient(settings).get_account_balances()
+        return _check("alpaca_extended", "Alpaca — poza sesją", "Integracje", "ok", "Konto osiągalne (poza sesją)")
     except Exception as exc:
-        return _check("alpaca_crypto", "Alpaca — krypto (24/7)", "Integracje", "down", f"{type(exc).__name__}: {exc}")
+        return _check("alpaca_extended", "Alpaca — poza sesją", "Integracje", "down", f"{type(exc).__name__}: {exc}")
 
 
 def _probe_claude(db, settings):
@@ -98,7 +98,7 @@ def _probe_claude(db, settings):
 def _probe_news(db, settings):
     try:
         headlines = NewsClient(settings).get_headlines(
-            (settings.whitelist_symbols[:2] + settings.crypto_whitelist_symbols[:1]), limit=40
+            (settings.whitelist_symbols[:2] + settings.extended_whitelist_symbols[:1]), limit=40
         )
         n = len(headlines)
         keyed = " · Finnhub ON" if settings.finnhub_api_key else " · tylko RSS"
@@ -166,14 +166,14 @@ def _probe_automat_us(db, settings):
     return _check("automat_us", "Silnik US", "Funkcjonalności", "ok", "Aktywny")
 
 
-def _probe_automat_crypto(db, settings):
-    if not settings.crypto_enabled:
-        return _check("automat_crypto", "Silnik krypto", "Funkcjonalności", "off", "Wyłączony")
+def _probe_automat_extended(db, settings):
+    if not settings.extended_enabled:
+        return _check("automat_extended", "Silnik poza sesją", "Funkcjonalności", "off", "Wyłączony")
     state = risk_manager.get_state(db)
-    if state.crypto_paused:
-        return _check("automat_crypto", "Silnik krypto", "Funkcjonalności", "warn", "Zapauzowany",
-                      action="resume_crypto")
-    return _check("automat_crypto", "Silnik krypto", "Funkcjonalności", "ok", "Aktywny")
+    if state.extended_paused:
+        return _check("automat_extended", "Silnik poza sesją", "Funkcjonalności", "warn", "Zapauzowany",
+                      action="resume_extended")
+    return _check("automat_extended", "Silnik poza sesją", "Funkcjonalności", "ok", "Aktywny")
 
 
 def _probe_loop_freshness(db, settings):
@@ -195,7 +195,7 @@ def _probe_loop_freshness(db, settings):
 _PROBES = [
     _probe_alpaca_equities,
     _probe_alpaca_market_data,
-    _probe_alpaca_crypto,
+    _probe_alpaca_extended,
     _probe_claude,
     _probe_news,
     _probe_database,
@@ -203,7 +203,7 @@ _PROBES = [
     _probe_push,
     _probe_scheduler,
     _probe_automat_us,
-    _probe_automat_crypto,
+    _probe_automat_extended,
     _probe_loop_freshness,
 ]
 
@@ -249,9 +249,9 @@ def _reset_resume_alpaca(db, settings):
     return "Silnik US wznowiony (halt i pauza zdjęte)."
 
 
-def _reset_resume_crypto(db, settings):
-    risk_manager.resume(db, "crypto")
-    return "Silnik krypto wznowiony."
+def _reset_resume_extended(db, settings):
+    risk_manager.resume(db, "extended")
+    return "Silnik poza sesją wznowiony."
 
 
 def _reset_clear_halt(db, settings):
@@ -298,7 +298,7 @@ def _reset_rebaseline_pnl(db, settings):
 RESET_ACTIONS = {
     "reset_budget_meter": _reset_budget_meter,
     "resume_alpaca": _reset_resume_alpaca,
-    "resume_crypto": _reset_resume_crypto,
+    "resume_extended": _reset_resume_extended,
     "clear_halt": _reset_clear_halt,
     "refresh_snapshots": _reset_refresh_snapshots,
     "restart_scheduler": _reset_restart_scheduler,
