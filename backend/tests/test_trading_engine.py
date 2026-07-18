@@ -362,6 +362,56 @@ def test_compute_portfolio_values_held_position_off_whitelist(db_session, settin
     assert portfolio["total_value_usdt"] == 1000.0 + 2.0 * 250.0
 
 
+def test_dual_listed_ticker_not_double_counted(db_session, settings):
+    """A ticker on BOTH whitelists (e.g. XLF) must be valued on exactly ONE leg.
+    Regression for the account being overstated (and the position shown twice --
+    once as an entry-less "adopted" copy) when the equities snapshot AND the
+    extended snapshot each counted the same shared Alpaca position."""
+    from app.api.routes_dashboard import _account_view
+
+    s = settings.model_copy(update={"trading_whitelist": "SPY,XLF", "extended_whitelist": "XLF,GDX"})
+    broker = FakeAlpaca(
+        prices={"SPY": 500.0, "XLF": 40.0, "GDX": 30.0},
+        balances={"USD": 100.0, "SPY": 0.0, "XLF": 2.0, "GDX": 0.0},  # holds 2 XLF = $80
+    )
+    trading_engine.compute_portfolio(db_session, s, broker, venue="alpaca")
+    trading_engine.compute_portfolio(db_session, s, broker, venue="extended", whitelist=s.extended_whitelist_symbols)
+
+    acct = _account_view(db_session)
+    # cash 100 + XLF 80 counted ONCE == 180 (the bug made this 260).
+    assert acct["total_value"] == 180.0
+    # No ledger for XLF -> classified by whitelist membership -> extended leg.
+    assert acct["extended_positions_value"] == 80.0
+    assert acct["equity_positions_value"] == 0.0
+
+
+def test_owned_ticker_stays_on_the_leg_that_opened_it(db_session, settings):
+    """Ownership wins: XLF bought by the SESJA (alpaca) engine stays on that leg
+    -- valued there with its real cost basis -- even though it also sits on the
+    extended whitelist. It must NOT be re-attributed to the extended leg as an
+    entry-less adopted position."""
+    from app.models import Trade, TradeMode
+    from app.api.routes_dashboard import _account_view
+
+    s = settings.model_copy(update={"trading_whitelist": "SPY,XLF", "extended_whitelist": "XLF,GDX"})
+    db_session.add(
+        Trade(symbol="XLF", side="BUY", quantity=2.0, price=35.0, usdt_value=70.0, mode=TradeMode.LIVE, venue="alpaca")
+    )
+    db_session.commit()
+    broker = FakeAlpaca(
+        prices={"SPY": 500.0, "XLF": 40.0, "GDX": 30.0},
+        balances={"USD": 100.0, "SPY": 0.0, "XLF": 2.0, "GDX": 0.0},
+    )
+    trading_engine.compute_portfolio(db_session, s, broker, venue="alpaca")
+    trading_engine.compute_portfolio(db_session, s, broker, venue="extended", whitelist=s.extended_whitelist_symbols)
+
+    acct = _account_view(db_session)
+    assert acct["total_value"] == 180.0
+    assert acct["equity_positions_value"] == 80.0  # valued on SESJA (owner)
+    assert acct["extended_positions_value"] == 0.0
+    assert trading_engine.venue_for_holding(db_session, "XLF", s) == "alpaca"
+
+
 def test_whitelist_rejects_symbol_not_in_four_ticker_list(db_session, settings):
     four_ticker_settings = settings.model_copy(update={"trading_whitelist": "SPY,QQQ,AAPL,NVDA"})
     broker = FakeAlpaca(

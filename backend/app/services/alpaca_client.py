@@ -138,6 +138,19 @@ class AlpacaClient:
                 balances[p["symbol"]] = qty
         return balances
 
+    def get_account_summary(self) -> dict[str, float]:
+        """The broker's OWN authoritative account figures -- Alpaca already sums
+        cash + every position with no risk of the app double-counting a ticket
+        that sits on two whitelists. `equity` = the real total portfolio value.
+        Used to reconcile our reconstructed account view against the source of
+        truth (see the /api reconcile check)."""
+        a = self._request(self._trading, "GET", "/v2/account")
+        return {
+            "cash": float(a["cash"]),
+            "equity": float(a["equity"]),
+            "long_market_value": float(a.get("long_market_value", 0.0) or 0.0),
+        }
+
     # ---- orders ----
 
     def _submit_order(

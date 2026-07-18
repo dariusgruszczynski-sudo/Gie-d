@@ -115,12 +115,26 @@ def compute_portfolio(db: Session, settings: Settings, broker, *, venue: str = "
     from app.services.whitelist_review import get_extended_whitelist
 
     extended_syms = set(get_extended_whitelist(db, settings))
+    # When we're computing the extended snapshot the caller hands us that leg's
+    # exact whitelist -- trust it as authoritative for classification too, so an
+    # entry-less name the extended engine is about to trade this cycle isn't
+    # mis-owned to the equities leg (matches production, where the passed list IS
+    # get_extended_whitelist).
+    if venue == "extended":
+        extended_syms |= set(symbols)
+    # Cache each symbol's owning leg so we resolve it once, not twice (append +
+    # valuation), and never bill the same ledger walk repeatedly per cycle.
+    owner_of: dict[str, str] = {}
+
+    def _owner(sym: str) -> str:
+        if sym not in owner_of:
+            owner_of[sym] = venue_for_holding(db, sym, settings, extended_syms=extended_syms)
+        return owner_of[sym]
+
     for held, qty in balances.items():
         if held == settings.quote_currency or qty <= 0:
             continue
-        held_is_extended = held in extended_syms
-        belongs = held_is_extended if venue == "extended" else not held_is_extended
-        if belongs and held not in symbols:
+        if _owner(held) == venue and held not in symbols:
             symbols.append(held)
 
     prices: dict[str, float] = {}
@@ -129,6 +143,11 @@ def compute_portfolio(db: Session, settings: Settings, broker, *, venue: str = "
     total_value = usdt_balance
 
     for symbol in symbols:
+        # Value each position on EXACTLY the leg that owns it -- otherwise a
+        # ticker on both whitelists is counted on both snapshots and the account
+        # total (and the widget's position list) double-counts it.
+        if _owner(symbol) != venue:
+            continue
         try:
             price = broker.get_price(symbol)
         except Exception:
@@ -295,6 +314,35 @@ def average_cost_basis(db: Session, symbol: str, *, venue: str = "alpaca") -> fl
     if qty <= 1e-12:
         return None
     return cost / qty
+
+
+def venue_for_holding(
+    db: Session, symbol: str, settings: Settings, *, extended_syms: set[str] | None = None
+) -> str:
+    """Assign a physically-held Alpaca position to EXACTLY ONE leg.
+
+    Both engines share one Alpaca account and one positions list, so the two
+    per-venue snapshots must PARTITION that list -- never overlap. The old split
+    keyed purely on whitelist membership, so a ticker sitting on BOTH whitelists
+    (e.g. XLF) was valued on the equities snapshot AND the extended snapshot, and
+    `_account_view` summed it twice -- overstating the account by that position's
+    whole value, and showing the position twice (once "adopted", with no
+    take-profit) on the dashboard/widget.
+
+    Ownership wins: the leg whose ledger actually opened the position keeps it --
+    so it retains its real cost basis (and hard take-profit) instead of being
+    re-attributed to the other leg as an entry-less "adopted" position. A holding
+    with no trade history on either leg (pre-existing / bought by hand) is
+    classified by whitelist membership as a last resort."""
+    if extended_syms is None:
+        from app.services.whitelist_review import get_extended_whitelist
+
+        extended_syms = set(get_extended_whitelist(db, settings))
+    if average_cost_basis(db, symbol, venue="extended") is not None:
+        return "extended"
+    if average_cost_basis(db, symbol, venue="alpaca") is not None:
+        return "alpaca"
+    return "extended" if symbol in extended_syms else "alpaca"
 
 
 def _set_stop_loss_cooldown(db: Session, symbol: str, minutes: int, *, venue: str = "alpaca") -> None:
