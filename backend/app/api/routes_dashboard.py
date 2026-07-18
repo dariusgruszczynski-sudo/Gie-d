@@ -458,3 +458,50 @@ def get_decisions(limit: int = Query(100, le=1000), venue: str | None = None, db
         stmt = select(Decision).where(Decision.venue == venue).order_by(Decision.timestamp.desc()).limit(limit)
     rows = db.execute(stmt).scalars().all()
     return [serialize(r) for r in rows]
+
+
+# --- News relevant to our operation -----------------------------------------
+# Cached in-process: get_headlines() fans out to ~40 feeds + per-ticker sources,
+# far too heavy to run on every poll. One shared fetch, reused for a few minutes.
+_news_cache: dict = {"ts": 0.0, "items": []}
+_NEWS_TTL_SECONDS = 300
+
+
+def _mentions(title: str, ticker: str) -> bool:
+    import re
+
+    return re.search(rf"\b{re.escape(ticker)}\b", title, re.IGNORECASE) is not None
+
+
+@router.get("/news")
+async def get_news(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """Headlines relevant to what we actually trade: our two legs' whitelists
+    (ticker-specific feeds) plus broad US-market news. Tagged with any of our
+    tickers named in the headline so the UI can flag what touches our book."""
+    import time
+
+    from app.services.news_client import NewsClient
+    from app.services.trading_engine import _base_asset
+
+    now = time.time()
+    if now - _news_cache["ts"] < _NEWS_TTL_SECONDS and _news_cache["items"]:
+        return {"items": _news_cache["items"], "cached": True}
+
+    syms = list(dict.fromkeys(settings.whitelist_symbols + get_extended_whitelist(db, settings)))
+    bases = [_base_asset(s, settings.quote_currency) for s in syms]
+    try:
+        news = NewsClient(settings)
+        headlines = await run_in_threadpool(news.get_headlines, bases, 18)
+    except Exception:
+        logger.warning("news fetch failed", exc_info=True)
+        return {"items": _news_cache["items"], "cached": True}
+
+    items = []
+    for h in headlines:
+        title = (h.get("title") or "").strip()
+        if not title:
+            continue
+        tickers = [t for t in bases if _mentions(title, t)][:2]
+        items.append({"title": title, "source": h.get("source", ""), "published_at": h.get("published_at"), "tickers": tickers})
+    _news_cache.update(ts=now, items=items)
+    return {"items": items, "cached": False}

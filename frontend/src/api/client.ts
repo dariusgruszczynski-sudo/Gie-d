@@ -219,6 +219,7 @@ export const api = {
   portfolio: (venue: string = "alpaca") => apiFetch<PortfolioResponse>(withShare(`/api/portfolio?limit=600&venue=${venue}`)),
   trades: (venue?: string) => apiFetch<Trade[]>(withShare(venue ? `/api/trades?venue=${venue}` : "/api/trades")),
   decisions: (venue?: string) => apiFetch<Decision[]>(withShare(venue ? `/api/decisions?venue=${venue}` : "/api/decisions")),
+  news: () => apiFetch<{ items: NewsItem[] }>(withShare("/api/news")),
   logout: () => apiFetch<{ message: string }>("/api/auth/logout", { method: "POST" }),
   pause: (venue: string = "alpaca") => apiFetch<unknown>(`/api/control/pause?venue=${venue}`, { method: "POST" }),
   resume: (venue: string = "alpaca") => apiFetch<unknown>(`/api/control/resume?venue=${venue}`, { method: "POST" }),
@@ -262,6 +263,13 @@ export const api = {
       body: JSON.stringify({ action }),
     }),
 };
+
+export interface NewsItem {
+  title: string;
+  source: string;
+  published_at: string | null;
+  tickers: string[];
+}
 
 export interface PositionPlan {
   asset: string;

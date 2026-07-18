@@ -21,6 +21,7 @@ export function Engines({ status, alpaca, extended, trades, extendedTrades, deci
   const regime = isExt ? status.extended_market_regime : status.market_regime;
   const value = isExt ? status.account?.extended_positions_value ?? 0 : status.account?.equity_positions_value ?? 0;
   const live = isExt ? status.extended_enabled && !status.extended_paused : !status.is_halted && !status.is_paused;
+  const prof = isExt ? status.profiles.extended : status.profiles.alpaca;
   const positions = extract(portfolio, leg);
   const legDecisions = decisions.filter((d) => (d.venue ?? "alpaca") === venue);
 
@@ -53,6 +54,25 @@ export function Engines({ status, alpaca, extended, trades, extendedTrades, deci
         </div>
         <div className="gd-lane-val">{money0(value)}</div>
         <div className="gd-lane-meta"><span>{positions.length} pozycji</span><RegimeChip r={regime} /></div>
+      </div>
+
+      <div className={`gd-brain gd-brain-${leg}`}>
+        <div className="gd-brain-head">
+          <span className="gd-brain-dot" />
+          {isExt
+            ? "Mózg POZA SESJĄ — osobny, agresywny profil na pre/after-market: tanie ETF, całe akcje, zlecenia LIMIT."
+            : "Mózg SESJA — pełny swing sesji dziennej: akcje US, ułamki, zlecenia MARKET."}
+        </div>
+        <div className="gd-brain-knobs">
+          <span className="gd-knob"><i>Ryzyko / transakcję</i><b>{prof.risk_per_trade_pct}%</b></span>
+          <span className="gd-knob"><i>Min. pewność wejścia</i><b>{Math.round(prof.min_buy_confidence * 100)}%</b></span>
+          <span className="gd-knob"><i>Max pozycja</i><b>{prof.max_position_pct}%</b></span>
+          <span className="gd-knob"><i>Stop-loss</i><b>{prof.stop_loss_min_pct}–{prof.stop_loss_max_pct}%</b></span>
+          <span className="gd-knob"><i>Wyzwalacz ruchu</i><b>{prof.price_move_trigger_pct}%</b></span>
+          <span className="gd-knob"><i>R:R</i><b>{prof.reward_risk_ratio}:1</b></span>
+          <span className="gd-knob"><i>Alokacja nogi</i><b>{prof.allocation_pct}%</b></span>
+          <span className="gd-knob"><i>Podgląd</i><b>{prof.poll_interval_minutes}m · {prof.signal_timeframe}</b></span>
+        </div>
       </div>
 
       <div className="gd-band"><EquityBand history={portfolio?.history ?? []} /></div>

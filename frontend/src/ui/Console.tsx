@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, Decision, isReadOnly, MarketRegime, PortfolioResponse, StatusResponse } from "../api/client";
 import { useCountUp } from "../hooks/useCountUp";
 import { ago, EquityBand, money, money0, pct, TickerTape } from "./kit";
+import { NewsBar } from "./NewsBar";
 
 export type Leg = "sesja" | "poza";
 export interface Pos {
@@ -208,6 +209,7 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
   return (
     <div className="gd-view">
       <TickerTape sesja={status.whitelist} poza={status.extended_whitelist} prices={livePrices} />
+      <NewsBar />
       <div className="gd-topline">
         <span className="gd-kicker">Konsola · {new Date().toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })}</span>
         <span className={`gd-mode ${status.mode === "live" ? "live" : ""}`}>
