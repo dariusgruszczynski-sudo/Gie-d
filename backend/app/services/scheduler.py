@@ -12,6 +12,7 @@ from app.services.news_client import NewsClient
 from app.services.push_notifier import send_daily_summary_push
 from app.services.strategy_profiles import effective_settings
 from app.services.trading_engine import compute_and_cache_regime, compute_portfolio, run_cycle
+from app.services.whitelist_review import get_extended_whitelist, run_whitelist_review
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +54,11 @@ def _extended_job() -> None:
         advisor = ClaudeAdvisor(settings)
         market_ctx = MarketContextClient()
         # Extended-hours brain: conservative profile (extended_* overrides folded in).
+        # Whitelist comes from the DB (auto-managed by the Friday review), not the
+        # static config, so add/remove takes effect without a redeploy.
         decision = run_cycle(
             db, effective_settings(settings, "extended"), broker, news, advisor, market_ctx,
-            venue="extended", whitelist=settings.extended_whitelist_symbols, always_open=False,
+            venue="extended", whitelist=get_extended_whitelist(db, settings), always_open=False,
         )
         if decision is not None:
             logger.info("Extended cycle produced decision: %s %s", decision.action, decision.symbol)
@@ -87,7 +90,7 @@ def _regime_job() -> None:
             try:
                 compute_and_cache_regime(
                     db, effective_settings(settings, "extended"), AlpacaClient(settings),
-                    market_ctx, venue="extended", whitelist=settings.extended_whitelist_symbols,
+                    market_ctx, venue="extended", whitelist=get_extended_whitelist(db, settings),
                 )
             except Exception:
                 logger.warning("Regime refresh (extended) failed", exc_info=True)
@@ -130,6 +133,23 @@ def _self_review_job() -> None:
         db.close()
 
 
+def _whitelist_review_job() -> None:
+    """Friday-night auto-review of the POZA SESJĄ ETF whitelist. Only updates the
+    DB list + pushes a summary -- removed-and-held names are force-closed by the
+    next pre-market cycle (market is closed now, so we place no order here)."""
+    settings = get_settings()
+    if not settings.extended_whitelist_review_enabled:
+        return
+    db = SessionLocal()
+    try:
+        result = run_whitelist_review(db, settings, AlpacaClient(settings))
+        logger.info("Whitelist review: +%s -%s", result["added"], result["removed"])
+    except Exception:
+        logger.exception("Whitelist review failed")
+    finally:
+        db.close()
+
+
 def prime_portfolio_snapshots() -> None:
     """Take ONE read-only portfolio snapshot per venue at boot so the dashboard
     shows the account immediately instead of 'oczekiwanie na dane' until the
@@ -151,7 +171,7 @@ def prime_portfolio_snapshots() -> None:
             try:
                 compute_portfolio(
                     db, settings, AlpacaClient(settings),
-                    venue="extended", whitelist=settings.extended_whitelist_symbols,
+                    venue="extended", whitelist=get_extended_whitelist(db, settings),
                 )
             except Exception:
                 logger.warning("Startup snapshot (extended) failed, will populate on first poll", exc_info=True)
@@ -210,6 +230,14 @@ def start_scheduler() -> BackgroundScheduler:
         _self_review_job,
         CronTrigger(hour=12, minute=0, timezone=settings.report_timezone),
         id="daily_self_review",
+    )
+    # Friday-night whitelist review: 20:15 ET (America/New_York, so DST-correct),
+    # i.e. right AFTER the after-market close at 20:00. Re-picks the POZA SESJĄ
+    # ETF whitelist from live candidate prices.
+    scheduler.add_job(
+        _whitelist_review_job,
+        CronTrigger(day_of_week="fri", hour=20, minute=15, timezone="America/New_York"),
+        id="whitelist_review",
     )
     scheduler.start()
     _scheduler = scheduler

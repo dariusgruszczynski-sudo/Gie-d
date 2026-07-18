@@ -212,6 +212,11 @@ class SystemState(Base):
     # The extended venue's own risk regime (BTC trend + extended breadth), cached by
     # the extended cycle so the dashboard can show a separate extended chip.
     extended_market_regime_json: Mapped[str] = mapped_column(Text, default="{}")
+    # Live, auto-managed POZA SESJĄ whitelist (JSON list of tickers). Empty ->
+    # falls back to the config seed (extended_whitelist). Rewritten by the
+    # Friday whitelist_review; read by the extended cycle so add/remove takes
+    # effect without a redeploy.
+    extended_whitelist_json: Mapped[str] = mapped_column(Text, default="")
     # Highest ever-observed total account value -- distinct from day/week
     # start (which reset on a rolling window). Drives the max-drawdown-from-
     # peak halt: unlike day/week loss, this catches a slow bleed that never

@@ -47,6 +47,21 @@ class Settings(BaseSettings):
     # Zarządzana automatycznie przez piątkowy auto-przegląd (dodaj/wyrzuć/sprzedaj);
     # to jest tylko seed startowy.
     extended_whitelist: str = "XLF,GDX,SLV,FXI,EEM,EWZ,KWEB"
+    # Piątkowy auto-przegląd whitelisty POZA SESJĄ (whitelist_review): co piątek po
+    # zamknięciu after-market wybiera z puli kandydatów te TANIE, płynne ETF-y,
+    # które mieszczą się w budżecie (całe akcje), wyrzuca za drogie / niepłynne
+    # (wyrzucone, jeśli trzymane, sprzedaje istniejący force-close przy najbliższym
+    # pre-market) i dodaje nowe. Lista żyje w bazie (extended_whitelist_json);
+    # te pola sterują doborem.
+    extended_max_share_price: float = 60.0        # całe akcje muszą się mieścić
+    extended_whitelist_target: int = 7            # docelowa liczba nazw
+    extended_whitelist_review_enabled: bool = True
+    # Szeroka pula kandydatów, z której piątkowy przegląd dobiera whitelistę:
+    # tanie, płynne, NIElewarowane ETF-y (sektory, surowce, geografia).
+    extended_candidate_pool: str = (
+        "XLF,XLE,XLU,XLI,XLV,GDX,GDXJ,SLV,IAU,FXI,KWEB,EEM,EWZ,EWJ,INDA,"
+        "TLT,HYG,KRE,SMH,IWM,VWO,ARKK,PSLV"
+    )
 
     # --- DWA MÓZGI: osobne profile agresji per noga --------------------------
     # Bazowe knoby niżej to profil SESJI REGULARNEJ ("średnio agresywnie",
@@ -361,6 +376,10 @@ class Settings(BaseSettings):
     @property
     def extended_whitelist_symbols(self) -> list[str]:
         return [s.strip().upper() for s in self.extended_whitelist.split(",") if s.strip()]
+
+    @property
+    def extended_candidate_pool_symbols(self) -> list[str]:
+        return [s.strip().upper() for s in self.extended_candidate_pool.split(",") if s.strip()]
 
     @property
     def high_spread_symbol_list(self) -> list[str]:

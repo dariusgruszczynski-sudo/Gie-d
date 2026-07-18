@@ -16,6 +16,7 @@ from app.services import budget_tracker, market_hours, risk_manager, scorecard, 
 from app.services.alpaca_client import AlpacaClient
 from app.services.strategy_profiles import effective_settings
 from app.services.trading_engine import _state_col, average_cost_basis, describe_position_plan
+from app.services.whitelist_review import get_extended_whitelist
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,7 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         # Extended (24-7, same Alpaca account) venue -- lets the dashboard
         # show/hide the second portfolio panel and its whitelist.
         "extended_enabled": settings.extended_enabled,
-        "extended_whitelist": settings.extended_whitelist_symbols,
+        "extended_whitelist": get_extended_whitelist(db, settings),
         "market_regime": _load_regime(state.market_regime_json),
         "extended_market_regime": _load_regime(state.extended_market_regime_json) if settings.extended_enabled else None,
         # ONE Alpaca account shared by both engines (cash counted once). Lets the
@@ -216,7 +217,7 @@ def get_portfolio(
     ).scalar_one_or_none()
     inception = serialize(inception_row) if inception_row else None
 
-    whitelist = settings.extended_whitelist_symbols if venue == "extended" else settings.whitelist_symbols
+    whitelist = get_extended_whitelist(db, settings) if venue == "extended" else settings.whitelist_symbols
 
     # Average entry price per currently-held base asset ("BTC" -> 61234.5), so
     # the dashboard can show per-position unrealized P&L. Keyed by base asset to
