@@ -142,6 +142,11 @@ class Settings(BaseSettings):
     take_profit_pct: float = 3.0
     trailing_stop_enabled: bool = True
     trailing_stop_pct: float = 1.5
+    # Twardy sufit realizacji zysku: nawet przy włączonym trailingu, gdy pozycja
+    # urośnie o >= tyle procent od wejścia, BIERZEMY cały zysk od razu -- żeby
+    # mocny ruch nie „odjechał" z powrotem czekając aż trailing się uzbroi. To
+    # odpowiedź na "indeks na +X% a nie sprzedany". 0 wyłącza (czysty trailing).
+    hard_take_profit_pct: float = 8.0
     # Pozycje, których automat NIE otworzył sam (były na koncie wcześniej albo
     # kupione ręcznie) nie mają zapisanej ceny wejścia -> dotąd mechaniczny stop
     # je pomijał (żadnej ochrony). Gdy włączone, taka "adoptowana" pozycja i tak

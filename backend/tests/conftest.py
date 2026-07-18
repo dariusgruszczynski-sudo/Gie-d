@@ -47,6 +47,9 @@ def settings():
         min_buy_confidence=0.0,
         max_new_positions_per_day=0,
         min_hold_minutes=0,
+        # Hard take-profit ceiling OFF in the baseline so trailing/partial tests
+        # stay focused; the dedicated test enables it via model_copy.
+        hard_take_profit_pct=0.0,
         partial_take_profit_enabled=False,
         risk_per_trade_pct=0.0,
         regime_gate_enabled=False,

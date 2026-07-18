@@ -182,8 +182,7 @@ export default function App() {
               Giel<span className="brand-accent">Darek</span>
             </h1>
             <p className="subtitle">
-              Dwa mózgi Claude (Sonnet→Opus): akcje USA średnio agresywnie · poza sesją (tanie ETF-y) ostrożnie · wykonanie Alpaca ·
-              narzędzie prywatne, nie jest to porada inwestycyjna.
+              Automat na akcjach US · dwie nogi: SESJA + POZA SESJĄ · napędzany Claude.
             </p>
             {status && <MarketTemperature us={status.market_regime} extended={status.extended_market_regime} />}
           </div>

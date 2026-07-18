@@ -44,26 +44,6 @@ export function NotificationSettings() {
         </span>
       </div>
 
-      {state === "unsupported" && (
-        <p className="subtitle notif-note">
-          Ta przeglądarka nie obsługuje Web Push. Na iPhone: otwórz w Safari i <strong>dodaj apkę do ekranu
-          początkowego</strong> (iOS 16.4+), potem włącz powiadomienia stąd.
-        </p>
-      )}
-      {state === "server-off" && (
-        <p className="subtitle notif-note">
-          Serwer nie ma jeszcze kluczy VAPID. Wygeneruj je raz na serwerze:
-          <code className="notif-code">docker compose exec -T app python scripts/gen_vapid.py</code>
-          i wklej wynik do <code>.env</code>, potem zrestartuj apkę.
-        </p>
-      )}
-      {state === "denied" && (
-        <p className="subtitle notif-note">
-          Powiadomienia są zablokowane w ustawieniach przeglądarki dla tej strony — odblokuj je ręcznie, żeby
-          włączyć.
-        </p>
-      )}
-
       <div className="notif-actions">
         {state === "on" ? (
           <>
@@ -84,11 +64,6 @@ export function NotificationSettings() {
           </button>
         )}
       </div>
-
-      <p className="subtitle notif-fineprint">
-        ⌚ Apple Watch pokazuje powiadomienia z iPhone'a automatycznie (gdy telefon jest zablokowany/na nadgarstku) —
-        nie trzeba nic dodatkowo ustawiać. Powiadomienia działają tylko po HTTPS z zainstalowanej apki (PWA).
-      </p>
 
       {message && <p className="toolbar-feedback" style={{ marginBottom: 0 }}>{message}</p>}
     </div>

@@ -1,29 +1,28 @@
 :root {
   color-scheme: dark;
-  /* v3 theme — "institutional terminal": restrained neutral-slate surfaces, a
-     confident (not neon) indigo accent, and trading-desk green/red for P&L.
-     Extended keeps a distinct refined gold. Tuned for a professional, calm feel
-     rather than a flashy one. */
-  --bg: #0a0e15;
-  --bg-2: #0e141d;
-  --panel: #121a25;
-  --panel-2: #18212e;
-  --border: #232e3d;
-  --text: #e6ecf3;
-  --muted: #8894a6;
-  --accent: #4c82f0;        /* refined indigo-blue — brand / US venue */
-  --accent-2: #6ea8fe;
-  --accent-dark: #3a6fd8;
+  /* v4 theme — "aurora": deep ink with a subtle violet cast, premium electric-
+     violet accent (distinct from the old indigo), fresh emerald/rose for P&L.
+     Extended keeps a warm gold. Modern, vivid but still calm. */
+  --bg: #0a0a12;
+  --bg-2: #0f0f1a;
+  --panel: #14141f;
+  --panel-2: #1b1b28;
+  --border: #29293b;
+  --text: #ecedf6;
+  --muted: #9698b4;
+  --accent: #7c5cff;        /* electric violet — brand / regular (SESJA) venue */
+  --accent-2: #a48bff;
+  --accent-dark: #6344e0;
   /* Legacy tokens repointed at the new accent so existing rules re-theme. */
-  --gold: #4c82f0;
-  --gold-bright: #8fb4fb;
-  --green: #2ebd85;         /* trading-terminal green (gains) */
-  --red: #f0616d;           /* trading-terminal red (loss) */
-  --amber: #d9a441;         /* refined gold — extended venue accent */
-  --ink: #0a0e15;
+  --gold: #7c5cff;
+  --gold-bright: #a48bff;
+  --green: #2fd6a0;         /* fresh emerald (gains) */
+  --red: #fb6f84;           /* soft rose (loss) */
+  --amber: #f0b429;         /* warm gold — extended (POZA SESJĄ) venue accent */
+  --ink: #0a0a12;
   /* Semantic venue colors (used by the unified two-lane layout). */
-  --venue-us: #4c82f0;
-  --venue-extended: #d9a441;
+  --venue-us: #7c5cff;
+  --venue-extended: #f0b429;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;

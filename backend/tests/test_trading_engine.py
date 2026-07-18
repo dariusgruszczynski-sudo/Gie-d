@@ -1550,3 +1550,17 @@ def test_compute_portfolio_split_uses_live_db_whitelist(db_session, settings):
     assert ext["balances"].get("SMH") == 2.0            # extended leg owns SMH
     assert "SMH" not in reg["balances"]                 # regular leg must NOT see it
     assert reg["balances"].get("SPY") == 1.0            # SPY stays with the regular leg
+
+
+def test_hard_take_profit_floor_banks_strong_gain_even_with_trailing(settings):
+    """A big gain is taken outright even with trailing enabled, so it can't
+    fully round-trip while the trailing waits to arm ('+X% a nie sprzedany')."""
+    s = settings.model_copy(update={"hard_take_profit_pct": 8.0, "trailing_stop_enabled": True})
+    # +9% from entry, price == peak (trailing not triggered) -> hard floor fires.
+    reason, pct, kind = trading_engine._decide_mechanical_exit(s, "SPY", 100.0, 109.0, 109.0)
+    assert kind == "take_profit" and pct == 100.0
+    assert "sufit" in reason
+
+    # +5% (below the ceiling) -> the floor does NOT fire.
+    reason2, _pct2, kind2 = trading_engine._decide_mechanical_exit(s, "SPY", 100.0, 105.0, 105.0)
+    assert kind2 != "take_profit"

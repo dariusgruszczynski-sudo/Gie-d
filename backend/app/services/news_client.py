@@ -70,6 +70,11 @@ RSS_FEEDS: list[tuple[str, str]] = [
     ("ETF.com", "https://www.etf.com/rss"),
     ("Investopedia", "https://www.investopedia.com/feedbuilder/feed/getfeed?feedName=rss_headline"),
     ("StockTitan", "https://www.stocktitan.net/rss"),
+    ("Seeking Alpha ETFs", "https://seekingalpha.com/api/sa/combined/etf.xml"),
+    ("MarketBeat", "https://www.marketbeat.com/feed/"),
+    ("CNN Business", "http://rss.cnn.com/rss/money_latest.rss"),
+    ("Reuters Markets", "https://www.reutersagency.com/feed/?best-topics=markets&post_type=best"),
+    ("Yahoo Finance Headlines", "https://finance.yahoo.com/rss/topstories"),
     # World / macro / index coverage -- broad global + economic headlines so the
     # brains see the big picture (central banks, geopolitics, indices), not only
     # US single-stock news. Keyless; each degrades independently on failure.

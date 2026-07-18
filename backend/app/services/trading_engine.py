@@ -596,9 +596,13 @@ def describe_position_plan(settings: Settings, *, basis: float | None, price: fl
     change_pct = (price - basis) / basis * 100
     armed = tp_arm <= 0 or peak >= basis * (1 + tp_arm / 100)
 
+    hard_tp = settings.hard_take_profit_pct
     if change_pct <= -stop:
         action = "near_stop"
         note = f"Strata {change_pct:+.1f}% — przy −{stop:.1f}% od wejścia zamykam (stop-loss)."
+    elif hard_tp > 0 and change_pct >= hard_tp:
+        action = "take_profit_ready"
+        note = f"+{change_pct:.1f}% — biorę cały zysk (sufit +{hard_tp:.1f}%)."
     elif settings.trailing_stop_enabled and armed:
         action = "trailing_protected"
         note = (
@@ -613,9 +617,10 @@ def describe_position_plan(settings: Settings, *, basis: float | None, price: fl
         )
     else:
         action = "hold"
+        ceiling = f", pełna realizacja przy +{hard_tp:.1f}%" if hard_tp > 0 else ""
         note = (
             f"Trzymam — czekam. Częściowa realizacja przy +{partial_r:.1f}%, trailing uzbroi się przy "
-            f"+{tp_arm:.1f}% (teraz {change_pct:+.1f}%)."
+            f"+{tp_arm:.1f}%{ceiling} (teraz {change_pct:+.1f}%)."
         )
 
     return {
@@ -657,6 +662,16 @@ def _decide_mechanical_exit(
             f"Stop-loss: {base} {change_pct:.1f}% od wejścia (stop {stop:.1f}%, średnia {basis:.2f} → {price:.2f})",
             100.0,
             "stop",
+        )
+
+    # Hard take-profit floor: bank a STRONG gain outright even with trailing on,
+    # so a big move doesn't fully round-trip while the trailing waits to arm.
+    if settings.hard_take_profit_pct > 0 and change_pct >= settings.hard_take_profit_pct:
+        return (
+            f"Take-profit (sufit): {base} +{change_pct:.1f}% od wejścia — biorę cały zysk "
+            f"(średnia {basis:.2f} → {price:.2f})",
+            100.0,
+            "take_profit",
         )
 
     if settings.trailing_stop_enabled:
