@@ -28,19 +28,21 @@ if (args.widgetParameter) {
   if (parts[1]) SHARE_TOKEN = parts[1].trim();
 }
 
+// Aurora palette (matches the app v4 theme): electric-violet accent, fresh
+// emerald/rose for P&L, warm gold for the POZA SESJĄ leg.
 const C = {
-  bg: new Color("#080b11"),
-  bg2: new Color("#131c28"),
+  bg: new Color("#08070f"),
+  bg2: new Color("#14121f"),
   card: new Color("#ffffff", 0.05),
-  cardBorder: new Color("#ffffff", 0.06),
-  text: new Color("#eef2f7"),
-  muted: new Color("#8a97a8"),
-  faint: new Color("#5c6879"),
-  accent: new Color("#4c82f0"),
-  green: new Color("#2ebd85"),
-  red: new Color("#f0616d"),
-  us: new Color("#4c82f0"),
-  crypto: new Color("#d9a441"),
+  cardBorder: new Color("#ffffff", 0.07),
+  text: new Color("#ecedf6"),
+  muted: new Color("#9698b4"),
+  faint: new Color("#63647e"),
+  accent: new Color("#7c5cff"),
+  green: new Color("#2fd6a0"),
+  red: new Color("#fb6f84"),
+  us: new Color("#7c5cff"),
+  crypto: new Color("#f0b429"),
 };
 
 // Ręczne formatowanie (bez Intl/toLocaleString — bywa zawodne w Scriptable).
@@ -127,7 +129,7 @@ function drawSparkline(spark, w, h) {
   const max = Math.max.apply(null, vals);
   const range = max - min || 1;
   const up = vals[vals.length - 1] >= vals[0];
-  const col = up ? "#2ebd85" : "#f0616d";
+  const col = up ? "#2fd6a0" : "#fb6f84";
   const pad = 4;
 
   const ctx = new DrawContext();
@@ -182,7 +184,7 @@ function headerRow(w, mode) {
   row.addSpacer();
   if (mode) {
     const live = mode === "live";
-    pill(row, live ? "● LIVE" : "PAPER", live ? C.green : C.muted, new Color(live ? "#2ebd85" : "#8894a6", 0.14), 9);
+    pill(row, live ? "● LIVE" : "PAPER", live ? C.green : C.muted, new Color(live ? "#2fd6a0" : "#9698b4", 0.14), 9);
   }
 }
 
@@ -265,7 +267,7 @@ async function buildWidget() {
     pillWrap,
     (up ? "▲ " : "▼ ") + fmtPct(d.day_pnl_pct),
     up ? C.green : C.red,
-    new Color(up ? "#2ebd85" : "#f0616d", 0.16),
+    new Color(up ? "#2fd6a0" : "#fb6f84", 0.16),
     12
   );
   const pillCap = pillWrap.addText("dziś");
@@ -332,7 +334,7 @@ async function buildWidget() {
       row.centerAlignContent();
       row.setPadding(3, 0, 3, 0);
       const dot = row.addText("●");
-      dot.textColor = p.leg === "crypto" ? C.crypto : C.us;
+      dot.textColor = p.leg === "extended" ? C.crypto : C.us;
       dot.font = Font.boldSystemFont(9);
       row.addSpacer(6);
       const sym = row.addText(p.asset);
@@ -349,7 +351,7 @@ async function buildWidget() {
         dash.textColor = C.muted;
       } else {
         const pu = p.pnl_pct >= 0;
-        pill(row, fmtPct(p.pnl_pct), pu ? C.green : C.red, new Color(pu ? "#2ebd85" : "#f0616d", 0.14), 10.5);
+        pill(row, fmtPct(p.pnl_pct), pu ? C.green : C.red, new Color(pu ? "#2fd6a0" : "#fb6f84", 0.14), 10.5);
       }
     }
     const extra = positions.length - Math.min(positions.length, family === "large" ? 6 : 3);
