@@ -109,7 +109,12 @@ def compute_portfolio(db: Session, settings: Settings, broker, *, venue: str = "
     # TRADE the whitelist; this is display/valuation only. Both engines share
     # one Alpaca positions list, so split by venue: extended positions are the
     # ones on the extended whitelist, everything else belongs to the equities lot.
-    extended_syms = set(settings.extended_whitelist_symbols)
+    # Use the LIVE (DB-managed) extended whitelist, not the static config seed --
+    # otherwise a name the Friday review added outside the seed would be
+    # misattributed to the regular leg, which would then force-close it.
+    from app.services.whitelist_review import get_extended_whitelist
+
+    extended_syms = set(get_extended_whitelist(db, settings))
     for held, qty in balances.items():
         if held == settings.quote_currency or qty <= 0:
             continue

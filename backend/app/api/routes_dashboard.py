@@ -311,6 +311,9 @@ def get_position_plans(venue: str = "alpaca", db: Session = Depends(get_db), set
     except (TypeError, ValueError):
         return {"venue": venue, "positions": []}
     state = risk_manager.get_state(db)
+    # Use the venue's EFFECTIVE settings so the extended leg's plan reflects its
+    # own stop/reward knobs, not the regular-session base.
+    eff = effective_settings(settings, venue)
     try:
         peaks = json.loads(getattr(state, _state_col("peaks", venue)) or "{}")
     except (TypeError, ValueError):
@@ -330,7 +333,7 @@ def get_position_plans(venue: str = "alpaca", db: Session = Depends(get_db), set
             continue
         basis = average_cost_basis(db, full, venue=venue)
         peak = float(peaks.get(asset) or peaks.get(full) or price)
-        plan = describe_position_plan(settings, basis=basis, price=price, peak=peak)
+        plan = describe_position_plan(eff, basis=basis, price=price, peak=peak)
         out.append({
             "asset": asset,
             "qty": qty,

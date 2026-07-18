@@ -1532,3 +1532,21 @@ def test_describe_position_plan_trailing_protected_when_armed(settings):
     plan = trading_engine.describe_position_plan(s, basis=100.0, price=108.0, peak=110.0)
     assert plan["action"] == "trailing_protected"
     assert "trailingiem" in plan["note"]
+
+
+def test_compute_portfolio_split_uses_live_db_whitelist(db_session, settings):
+    """The venue split must follow the LIVE (DB) extended whitelist, not the
+    config seed -- otherwise a name the Friday review added would be attributed
+    to the wrong leg and the regular leg would force-close it."""
+    from app.services import whitelist_review
+
+    # SMH is NOT in the config seed; put it on the live DB whitelist.
+    whitelist_review.set_extended_whitelist(db_session, ["SMH"])
+    broker = FakeAlpaca(prices={"SMH": 30.0, "SPY": 500.0}, balances={"USD": 100.0, "SMH": 2.0, "SPY": 1.0})
+
+    ext = trading_engine.compute_portfolio(db_session, settings, broker, venue="extended", whitelist=["SMH"])
+    reg = trading_engine.compute_portfolio(db_session, settings, broker, venue="alpaca", whitelist=settings.whitelist_symbols)
+
+    assert ext["balances"].get("SMH") == 2.0            # extended leg owns SMH
+    assert "SMH" not in reg["balances"]                 # regular leg must NOT see it
+    assert reg["balances"].get("SPY") == 1.0            # SPY stays with the regular leg

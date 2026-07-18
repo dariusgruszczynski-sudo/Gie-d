@@ -267,7 +267,10 @@ class AlpacaClient:
             shares = int((usdt_amount or 0) // limit_price) if usdt_amount is not None else int(quantity or 0)
         else:
             limit_price = round(price * (1 - EXTENDED_LIMIT_BUFFER), 2)
-            shares = int(quantity or 0)  # whole shares only after hours
+            # Whole shares only after hours. Round-with-epsilon so a full exit of
+            # a whole-share position (held qty stored as 2.9999999) doesn't floor
+            # to 2 and strand a share; never rounds UP past what's actually held.
+            shares = int((quantity or 0) + 1e-6)
         if shares < 1:
             raise AlpacaAPIError(
                 f"Poza sesją tylko CAŁE akcje {symbol}: budżet/pozycja nie starcza na 1 sztukę "
