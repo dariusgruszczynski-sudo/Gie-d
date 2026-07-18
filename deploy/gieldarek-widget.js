@@ -93,20 +93,84 @@ function card(parent) {
   return s;
 }
 
-function statBlock(parent, label, value, valueColor) {
+function statBlock(parent, label, value, valueColor, dotColor) {
   const s = parent.addStack();
   s.layoutVertically();
-  const l = s.addText(label.toUpperCase());
+  const lrow = s.addStack();
+  lrow.centerAlignContent();
+  if (dotColor) {
+    const dot = lrow.addText("●");
+    dot.font = Font.boldSystemFont(7);
+    dot.textColor = dotColor;
+    lrow.addSpacer(4);
+  }
+  const l = lrow.addText(label.toUpperCase());
   l.font = Font.mediumSystemFont(8);
   l.textColor = C.faint;
   l.lineLimit = 1;
   s.addSpacer(2);
   const v = s.addText(value);
-  v.font = Font.semiboldSystemFont(12.5);
+  v.font = Font.semiboldSystemFont(13);
   v.textColor = valueColor || C.text;
   v.lineLimit = 1;
   v.minimumScaleFactor = 0.6;
   return s;
+}
+
+// --- pierścień alokacji (jak "activity rings") -------------------------------
+// Segmentowany donut pokazujący podział konta: gotówka / SESJA / POZA SESJĄ.
+// Scriptable nie ma prymitywu łuku, więc kreślimy pierścień gęstą serią kropek,
+// kolorując każdą wg segmentu, w którym leży jej kąt — daje gładki, żywy ring.
+function drawRing(segments, size, thickness, centerTop, centerBig) {
+  const total = segments.reduce((a, s) => a + Math.max(0, s.value), 0) || 1;
+  const ctx = new DrawContext();
+  ctx.size = new Size(size, size);
+  ctx.opaque = false;
+  ctx.respectScreenScale = true;
+
+  const cx = size / 2;
+  const cy = size / 2;
+  const r = (size - thickness) / 2 - 1;
+  const steps = 160;
+  const dot = thickness / 2;
+
+  const bounds = [];
+  let acc = 0;
+  for (const s of segments) {
+    const frac = Math.max(0, s.value) / total;
+    bounds.push({ from: acc, to: acc + frac, color: s.color });
+    acc += frac;
+  }
+  const track = new Color("#ffffff", 0.06);
+  for (let i = 0; i < steps; i++) {
+    const f = i / steps;
+    const ang = -Math.PI / 2 + f * 2 * Math.PI; // start at 12 o'clock
+    const x = cx + r * Math.cos(ang);
+    const y = cy + r * Math.sin(ang);
+    let col = track;
+    for (const b of bounds) {
+      if (f >= b.from - 1e-9 && f < b.to - 1e-9) {
+        col = b.color;
+        break;
+      }
+    }
+    ctx.setFillColor(col);
+    ctx.fillEllipse(new Rect(x - dot, y - dot, dot * 2, dot * 2));
+  }
+
+  // Środek: mała etykieta + duża liczba (np. % zainwestowany).
+  if (centerBig) {
+    ctx.setTextAlignedCenter();
+    if (centerTop) {
+      ctx.setFont(Font.mediumSystemFont(9));
+      ctx.setTextColor(C.faint);
+      ctx.drawTextInRect(centerTop, new Rect(0, cy - 22, size, 12));
+    }
+    ctx.setFont(Font.boldSystemFont(21));
+    ctx.setTextColor(C.text);
+    ctx.drawTextInRect(centerBig, new Rect(0, cy - 12, size, 26));
+  }
+  return ctx.getImage();
 }
 
 const base = () => BASE_URL.replace(/\/$/, "");
@@ -241,59 +305,86 @@ async function buildWidget() {
 
   const up = isUp(d.day_pnl_pct);
 
-  headerRow(w, d.mode);
-  w.addSpacer(small ? 8 : 10);
+  // Podział konta na segmenty pierścienia (z pozycji per noga).
+  const positions = d.positions || [];
+  let sesjaVal = 0;
+  let pozaVal = 0;
+  for (const p of positions) {
+    if (p.leg === "extended") pozaVal += p.value || 0;
+    else sesjaVal += p.value || 0;
+  }
+  const cashVal = d.cash || 0;
+  const investedVal = sesjaVal + pozaVal;
+  const invPct = d.total ? Math.round((investedVal / d.total) * 100) : 0;
+  const cashRingColor = new Color("#8a8ca8", 0.45);
+  const ringSegs = [
+    { value: sesjaVal, color: C.us },
+    { value: pozaVal, color: C.crypto },
+    { value: cashVal, color: cashRingColor },
+  ];
 
-  // --- HERO: etykieta + wartość konta + pill zmiany dziennej -----------------
+  headerRow(w, d.mode);
+  w.addSpacer(small ? 9 : 11);
+
+  // --- HERO: pierścień alokacji + wartość konta + zmiana dzienna -------------
   const hero = w.addStack();
   hero.centerAlignContent();
-  const heroL = hero.addStack();
-  heroL.layoutVertically();
-  const capLbl = heroL.addText("WARTOŚĆ KONTA");
+
+  const ringSize = small ? 78 : family === "large" ? 104 : 92;
+  const ringImg = drawRing(ringSegs, ringSize, small ? 12 : 15, "ZAINWEST.", invPct + "%");
+  const ringView = hero.addImage(ringImg);
+  ringView.imageSize = new Size(ringSize, ringSize);
+
+  hero.addSpacer(small ? 11 : 14);
+
+  const heroR = hero.addStack();
+  heroR.layoutVertically();
+  const capLbl = heroR.addText("WARTOŚĆ KONTA");
   capLbl.font = Font.mediumSystemFont(8.5);
   capLbl.textColor = C.faint;
-  heroL.addSpacer(2);
-  const total = heroL.addText(fmtUsd(d.total));
+  heroR.addSpacer(2);
+  const total = heroR.addText(fmtUsd(d.total));
   total.textColor = C.text;
-  total.font = Font.boldSystemFont(small ? 25 : 27);
+  total.font = Font.boldSystemFont(small ? 22 : 28);
   total.minimumScaleFactor = 0.5;
   total.lineLimit = 1;
-
-  hero.addSpacer();
-  const pillWrap = hero.addStack();
-  pillWrap.layoutVertically();
-  pillWrap.addSpacer();
+  heroR.addSpacer(6);
+  const chg = heroR.addStack();
+  chg.centerAlignContent();
   pill(
-    pillWrap,
+    chg,
     (up ? "▲ " : "▼ ") + fmtPct(d.day_pnl_pct),
     up ? C.green : C.red,
     new Color(up ? "#2fd6a0" : "#fb6f84", 0.16),
-    12
+    11.5
   );
-  const pillCap = pillWrap.addText("dziś");
-  pillCap.font = Font.mediumSystemFont(8);
-  pillCap.textColor = C.faint;
-  pillCap.rightAlignText();
+  chg.addSpacer(6);
+  const chgCap = chg.addText("dziś");
+  chgCap.font = Font.mediumSystemFont(9);
+  chgCap.textColor = C.faint;
+  if (!small) {
+    heroR.addSpacer(6);
+    const netRow = heroR.addStack();
+    netRow.centerAlignContent();
+    const netLbl = netRow.addText("NETTO ");
+    netLbl.font = Font.mediumSystemFont(9);
+    netLbl.textColor = C.faint;
+    const netV = netRow.addText(fmtUsd(d.net_result_usd, 2));
+    netV.font = Font.boldSystemFont(13);
+    netV.textColor = pnlColor(d.net_result_usd);
+  }
 
   if (small) {
-    // Mały: dokładamy tylko slim wykres na dole.
-    w.addSpacer(8);
-    const img = drawSparkline(d.spark, 300, 30);
-    if (img) {
-      const wi = w.addImage(img);
-      wi.imageSize = new Size(300, 30);
-      wi.centerAlignImage();
-    }
     w.addSpacer();
     return w;
   }
 
   // --- WYKRES ----------------------------------------------------------------
-  w.addSpacer(10);
-  const img = drawSparkline(d.spark, 320, family === "large" ? 58 : 46);
+  w.addSpacer(11);
+  const img = drawSparkline(d.spark, 320, family === "large" ? 56 : 44);
   if (img) {
     const wi = w.addImage(img);
-    wi.imageSize = new Size(320, family === "large" ? 58 : 46);
+    wi.imageSize = new Size(320, family === "large" ? 56 : 44);
     wi.centerAlignImage();
   } else {
     const nn = w.addText("zbieram dane do wykresu…");
@@ -301,14 +392,16 @@ async function buildWidget() {
     nn.textColor = C.muted;
   }
 
-  // --- KARTA STATÓW: gotówka / netto / budżet Claude -------------------------
+  // --- KARTA STATÓW: gotówka / SESJA / POZA SESJĄ / budżet -------------------
   w.addSpacer(10);
   const stats = card(w);
   const statsRow = stats.addStack();
   statsRow.centerAlignContent();
-  statBlock(statsRow, "Gotówka", fmtUsd(d.cash, 0));
+  statBlock(statsRow, "Gotówka", fmtUsd(cashVal, 0), C.text, new Color("#8a8ca8", 0.7));
   statsRow.addSpacer();
-  statBlock(statsRow, "Netto", fmtUsd(d.net_result_usd, 0), pnlColor(d.net_result_usd));
+  statBlock(statsRow, "Sesja", fmtUsd(sesjaVal, 0), C.text, C.us);
+  statsRow.addSpacer();
+  statBlock(statsRow, "Poza", fmtUsd(pozaVal, 0), C.text, C.crypto);
   if (d.claude_budget_remaining_usd !== undefined && d.claude_budget_remaining_usd !== null) {
     statsRow.addSpacer();
     statBlock(statsRow, "Budżet AI", "~" + fmtUsd(d.claude_budget_remaining_usd, 0));
@@ -316,7 +409,6 @@ async function buildWidget() {
 
   // --- POZYCJE ---------------------------------------------------------------
   w.addSpacer(10);
-  const positions = d.positions || [];
   const posHdr = w.addText("POZYCJE");
   posHdr.font = Font.mediumSystemFont(8.5);
   posHdr.textColor = C.faint;
