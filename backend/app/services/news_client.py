@@ -99,6 +99,19 @@ RSS_FEEDS: list[tuple[str, str]] = [
     ("SEC EDGAR 8-K filings", "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&company=&dateb=&owner=include&count=40&output=atom"),
     ("SEC EDGAR Form 4 (insider trades)", "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&company=&dateb=&owner=include&count=40&output=atom"),
 ]
+# Polish-language news band (display only) — sourced from Google News RSS with
+# hl=pl so headlines come back in Polish. Google News is already the per-ticker
+# source below, so it's proven-reachable from the server (unlike raw PL RSS,
+# which is IP/UA-blocked on datacenter hosts). Topic queries relevant to our
+# US-stock operation.
+PL_NEWS_QUERIES: list[str] = [
+    "giełda USA Wall Street",
+    "S&P 500 Nasdaq notowania",
+    "akcje spółek technologicznych USA",
+    "Rezerwa Federalna stopy procentowe",
+    "rynki akcji giełda świat",
+    "gospodarka USA inflacja",
+]
 PER_SOURCE_LIMIT = 3
 # Per-ticker headlines (keyless) so news specific to symbols on the whitelist
 # reaches Claude even when general market feeds don't mention them. Google
@@ -310,6 +323,44 @@ class NewsClient:
                 updated_seen[ticker] = [h["title"] for h in headlines] if headlines else list(previously_seen)
 
         return new_headlines, updated_seen
+
+    def get_pl_headlines(self, limit: int = 18) -> list[dict]:
+        """Polish-language headlines for the on-screen news band (display only).
+
+        Google News returns titles as "Nagłówek - Wydawca"; split the outlet off
+        so the band shows a clean headline + a compact source tag."""
+        with ThreadPoolExecutor(max_workers=max(1, len(PL_NEWS_QUERIES))) as pool:
+            futures = [
+                pool.submit(
+                    _get_rss, "Google News PL", GOOGLE_NEWS_RSS_URL, PER_SOURCE_LIMIT,
+                    {"q": q, "hl": "pl", "gl": "PL", "ceid": "PL:pl"},
+                )
+                for q in PL_NEWS_QUERIES
+            ]
+            per_source: list[list[dict]] = []
+            for future in futures:
+                try:
+                    per_source.append(future.result())
+                except Exception:
+                    logger.warning("A PL news query raised, skipping it", exc_info=True)
+                    per_source.append([])
+
+        out: list[dict] = []
+        seen: set[str] = set()
+        for h in _interleave(per_source):
+            title = (h.get("title") or "").strip()
+            if not title or title in seen:
+                continue
+            seen.add(title)
+            source = "Google News"
+            if " - " in title:
+                head, outlet = title.rsplit(" - ", 1)
+                if head.strip():
+                    title, source = head.strip(), outlet.strip()
+            out.append({"title": title, "published_at": h.get("published_at"), "source": source})
+            if len(out) >= limit:
+                break
+        return out
 
     def get_headlines(self, tickers: list[str], limit: int = 40) -> list[dict]:
         key = self._finnhub_key

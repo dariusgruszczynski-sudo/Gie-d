@@ -491,7 +491,8 @@ async def get_news(db: Session = Depends(get_db), settings: Settings = Depends(g
     bases = [_base_asset(s, settings.quote_currency) for s in syms]
     try:
         news = NewsClient(settings)
-        headlines = await run_in_threadpool(news.get_headlines, bases, 18)
+        # Polish-language band for display (the model still reads original feeds).
+        headlines = await run_in_threadpool(news.get_pl_headlines, 18)
     except Exception:
         logger.warning("news fetch failed", exc_info=True)
         return {"items": _news_cache["items"], "cached": True}

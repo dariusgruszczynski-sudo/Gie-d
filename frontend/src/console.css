@@ -413,18 +413,51 @@
 }
 .gd-news-track {
   display: inline-flex;
-  align-items: center;
-  gap: 30px;
-  padding: 9px 18px;
+  align-items: stretch;
+  gap: 10px;
+  padding: 8px 12px;
   white-space: nowrap;
-  animation: gd-news 90s linear infinite;
+  animation: gd-news 95s linear infinite;
 }
 .gd-news:hover .gd-news-track { animation-play-state: paused; }
 @keyframes gd-news { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-.gd-news-item { display: inline-flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--txt); }
-.gd-news-item .t { }
-.gd-news-item .src { color: var(--dim-2); font-style: normal; font-size: 0.7rem; }
-.gd-news-tk { color: var(--ink); background: var(--mint); font-weight: 800; font-size: 0.62rem; padding: 2px 6px; border-radius: 6px; }
+/* Uniform, pretty chips: every headline the same size, one clean line. */
+.gd-news-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  width: 300px;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.025);
+}
+.gd-news-item .t {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: var(--txt);
+}
+.gd-news-item .src {
+  flex: 0 0 auto;
+  font-style: normal;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--mint);
+  background: color-mix(in srgb, var(--mint) 12%, transparent);
+  padding: 3px 7px;
+  border-radius: 6px;
+  max-width: 78px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gd-news-tk { flex: 0 0 auto; color: var(--ink); background: var(--amber); font-weight: 800; font-size: 0.58rem; padding: 3px 6px; border-radius: 6px; }
 
 /* Per-leg brain card ---------------------------------------------------------- */
 .gd-brain {
