@@ -70,12 +70,12 @@ class Settings(BaseSettings):
     # nadpisują bazowe TYLKO dla venue "extended" (patrz strategy_profiles.
     # effective_settings). Zmień tu, żeby dostroić handel po godzinach bez
     # ruszania sesji regularnej.
-    extended_risk_per_trade_pct: float = 1.0          # ostrożniej po godzinach
+    extended_risk_per_trade_pct: float = 1.3          # nieco odwazniej, ale wciaz ostroznie po godzinach
     extended_max_concurrent_positions: int = 0        # 0 = bez limitu
     extended_min_buy_confidence: float = 0.60         # wyższy próg (cienki rynek)
     extended_max_new_positions_per_day: int = 0       # 0 = bez limitu
     extended_min_hold_minutes: int = 0                # 0 = bez limitu
-    extended_max_position_pct: float = 25.0
+    extended_max_position_pct: float = 30.0
     extended_reward_risk_ratio: float = 1.5
     extended_trailing_stop_frac: float = 0.5
     extended_partial_take_profit_frac: float = 0.50
@@ -109,7 +109,7 @@ class Settings(BaseSettings):
     # krwotok, który nigdy nie przekracza dziennego/tygodniowego limitu w
     # pojedynczym dniu, ale sumuje się w realną stratę kapitału.
     max_drawdown_halt_pct: float = 20.0
-    max_position_pct: float = 25.0
+    max_position_pct: float = 32.0          # wiekszy udzial na mocnym setupie
     # Mechanical exit rules applied to every held position on every poll,
     # without asking Claude: auto-SELL the whole position when it gains
     # >= take_profit_pct or loses >= stop_loss_pct vs its average entry price.
@@ -221,7 +221,7 @@ class Settings(BaseSettings):
     # risk). Composed as a CAP with Claude's request and max_position_pct (only
     # ever shrinks), so a wide-stop name automatically gets a smaller slice.
     # 0 disables (falls back to the volatility-scaled sizing only).
-    risk_per_trade_pct: float = 1.25
+    risk_per_trade_pct: float = 1.8          # odwazniej gdy jest przewaga
     # Market-regime gate: in a risk-off regime (benchmark below its long trend +
     # elevated VIX / falling tape) only defensive/inverse names may be bought;
     # everything else is forced to HOLD. The regime is ALWAYS passed to Claude
