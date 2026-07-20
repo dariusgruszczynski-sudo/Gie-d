@@ -1,11 +1,13 @@
-// GielDarek — widget na ekran główny iPhone (Scriptable). Zaprojektowany od zera
-// pod nowy UI "GD Console": atrament + mięta (SESJA) / bursztyn (POZA) / róż.
-// Ciągnie JEDEN lekki endpoint GET /api/widget?share=... (tylko odczyt).
+// GielDarek — widget iPhone (Scriptable), styl Apple Fitness: trzy współśrodkowe
+// pierścienie aktywności = skład konta (SESJA / POZA / Gotówka), duże liczby,
+// legenda z kropkami, wykres. Ciągnie GET /api/widget?share=... (tylko odczyt).
+// (Widżety iOS nie animują się na żywo — system je odświeża; tu stawiamy na
+//  bogaty, żywy wygląd: pierścienie z poświatą, gradientowy wykres.)
 // =============================================================================
 // INSTALACJA: Scriptable -> "+" -> wklej CAŁY plik -> nazwij "GielDarek".
 // Ekran główny -> przytrzymaj -> "+" -> Scriptable -> rozmiar -> Dodaj.
-// W polu "Parameter" wpisz:  https://46.225.229.113.sslip.io|TWOJ_SHARE_TOKEN
-// (albo wklej token na sztywno w SHARE_TOKEN niżej). ŚREDNI = konto+podział+wykres,
+// Parameter:  https://46.225.229.113.sslip.io|TWOJ_SHARE_TOKEN
+// (albo wklej token w SHARE_TOKEN niżej). ŚREDNI = pierścienie+legenda+wykres,
 // DUŻY = do tego pozycje.
 // =============================================================================
 
@@ -19,12 +21,12 @@ if (args.widgetParameter) {
 
 const HEX = {
   ink: "#05080f", ink2: "#0b1120", text: "#eef3fa", dim: "#7c8aa2", faint: "#4f5c73",
-  mint: "#19e39a", amber: "#ffae34", rose: "#ff5470", cash: "#8a97ab",
+  mint: "#19e39a", amber: "#ffae34", blue: "#8fa3c8", rose: "#ff5470",
 };
 const C = {
   ink: new Color(HEX.ink), ink2: new Color(HEX.ink2), text: new Color(HEX.text),
   dim: new Color(HEX.dim), faint: new Color(HEX.faint),
-  mint: new Color(HEX.mint), amber: new Color(HEX.amber), rose: new Color(HEX.rose),
+  mint: new Color(HEX.mint), amber: new Color(HEX.amber), blue: new Color(HEX.blue), rose: new Color(HEX.rose),
 };
 
 function fmtUsd(v, dp) {
@@ -53,12 +55,11 @@ async function fetchWidget() {
   return { data, status };
 }
 
-// pill ------------------------------------------------------------------------
 function pill(parent, text, hex, size) {
   const s = parent.addStack();
-  s.setPadding(3, 8, 3, 8);
-  s.cornerRadius = 9;
-  s.backgroundColor = new Color(hex, 0.16);
+  s.setPadding(3, 9, 3, 9);
+  s.cornerRadius = 10;
+  s.backgroundColor = new Color(hex, 0.18);
   s.centerAlignContent();
   const t = s.addText(text);
   t.font = Font.semiboldSystemFont(size || 11);
@@ -66,30 +67,64 @@ function pill(parent, text, hex, size) {
   t.lineLimit = 1;
   return s;
 }
-function label(parent, text, size, color) {
-  const t = parent.addText(text.toUpperCase());
-  t.font = Font.mediumSystemFont(size || 8.5);
-  t.textColor = color || C.faint;
-  return t;
+
+// --- Apple-Fitness activity rings -------------------------------------------
+// Concentric rings (outer→inner) drawn as a dense arc of dots so ends look
+// rounded; a faint full-circle track behind each, plus a glowing end cap.
+function drawRings(size, rings) {
+  const ctx = new DrawContext();
+  ctx.size = new Size(size, size);
+  ctx.opaque = false;
+  ctx.respectScreenScale = true;
+  const cx = size / 2, cy = size / 2;
+  const th = size * 0.13, gap = size * 0.035;
+  const steps = 200;
+  for (let i = 0; i < rings.length; i++) {
+    const ring = rings[i];
+    const r = size / 2 - th / 2 - i * (th + gap) - 1;
+    const dot = th / 2;
+    for (let k = 0; k < steps; k++) {
+      const f = k / steps, ang = -Math.PI / 2 + f * 2 * Math.PI;
+      const x = cx + r * Math.cos(ang), y = cy + r * Math.sin(ang);
+      ctx.setFillColor(new Color(ring.color, 0.15));
+      ctx.fillEllipse(new Rect(x - dot, y - dot, dot * 2, dot * 2));
+    }
+    const frac = Math.max(0, Math.min(1, ring.frac));
+    const pdots = Math.round(steps * frac);
+    for (let k = 0; k <= pdots; k++) {
+      const f = k / steps, ang = -Math.PI / 2 + f * 2 * Math.PI;
+      const x = cx + r * Math.cos(ang), y = cy + r * Math.sin(ang);
+      ctx.setFillColor(new Color(ring.color));
+      ctx.fillEllipse(new Rect(x - dot, y - dot, dot * 2, dot * 2));
+    }
+    // glowing end cap
+    if (frac > 0.003) {
+      const f = pdots / steps, ang = -Math.PI / 2 + f * 2 * Math.PI;
+      const x = cx + r * Math.cos(ang), y = cy + r * Math.sin(ang);
+      ctx.setFillColor(new Color(ring.color, 0.35));
+      ctx.fillEllipse(new Rect(x - dot * 1.5, y - dot * 1.5, dot * 3, dot * 3));
+      ctx.setFillColor(new Color("#ffffff", 0.9));
+      ctx.fillEllipse(new Rect(x - dot * 0.4, y - dot * 0.4, dot * 0.8, dot * 0.8));
+    }
+  }
+  return ctx.getImage();
 }
 
-// area sparkline --------------------------------------------------------------
+// --- area sparkline ----------------------------------------------------------
 function drawSpark(spark, w, h) {
   const vals = (spark || []).map(Number).filter((v) => v > 0);
   if (vals.length < 2) return null;
-  const min = Math.min.apply(null, vals);
-  const max = Math.max.apply(null, vals);
+  const min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
   const range = max - min || 1;
   const up = vals[vals.length - 1] >= vals[0];
   const colHex = up ? HEX.mint : HEX.rose;
-  const col = new Color(colHex);
   const pad = 3;
   const ctx = new DrawContext();
   ctx.size = new Size(w, h);
   ctx.opaque = false;
   ctx.respectScreenScale = true;
   const pt = (i) => new Point(pad + (i / (vals.length - 1)) * (w - 2 * pad), h - pad - ((vals[i] - min) / range) * (h - 2 * pad));
-  for (const a of [0.05, 0.12]) {
+  for (const a of [0.05, 0.13]) {
     const fill = new Path();
     fill.move(new Point(pad, h - pad));
     for (let i = 0; i < vals.length; i++) fill.addLine(pt(i));
@@ -102,31 +137,37 @@ function drawSpark(spark, w, h) {
   const path = new Path();
   path.move(pt(0));
   for (let i = 1; i < vals.length; i++) path.addLine(pt(i));
-  ctx.setStrokeColor(col);
+  ctx.setStrokeColor(new Color(colHex));
   ctx.setLineWidth(2.4);
   ctx.addPath(path);
   ctx.strokePath();
   const last = pt(vals.length - 1);
   ctx.setFillColor(new Color(colHex, 0.3));
   ctx.fillEllipse(new Rect(last.x - 5, last.y - 5, 10, 10));
-  ctx.setFillColor(col);
+  ctx.setFillColor(new Color(colHex));
   ctx.fillEllipse(new Rect(last.x - 2.4, last.y - 2.4, 4.8, 4.8));
   return ctx.getImage();
 }
 
-function dotLabelVal(parent, dotColor, name, value) {
+function legendItem(parent, hex, name, value) {
   const s = parent.addStack();
-  s.centerAlignContent();
-  const d = s.addText("●");
-  d.font = Font.boldSystemFont(8);
-  d.textColor = dotColor;
-  s.addSpacer(5);
-  const l = s.addText(name + " ");
-  l.font = Font.mediumSystemFont(10.5);
+  s.layoutVertically();
+  const top = s.addStack();
+  top.centerAlignContent();
+  const d = top.addText("●");
+  d.font = Font.boldSystemFont(9);
+  d.textColor = new Color(hex);
+  top.addSpacer(5);
+  const l = top.addText(name.toUpperCase());
+  l.font = Font.mediumSystemFont(8.5);
   l.textColor = C.dim;
+  s.addSpacer(2);
   const v = s.addText(value);
-  v.font = Font.semiboldSystemFont(10.5);
+  v.font = Font.semiboldSystemFont(13);
   v.textColor = C.text;
+  v.minimumScaleFactor = 0.6;
+  v.lineLimit = 1;
+  return s;
 }
 
 function header(w, mode) {
@@ -162,7 +203,7 @@ async function build() {
   g.colors = [C.ink2, C.ink];
   g.locations = [0, 1];
   g.startPoint = new Point(0, 0);
-  g.endPoint = new Point(0.5, 1);
+  g.endPoint = new Point(0.6, 1);
   w.backgroundGradient = g;
   w.setPadding(14, 15, 13, 15);
   if (SHARE_TOKEN) w.url = `${base()}/?share=${encodeURIComponent(SHARE_TOKEN)}`;
@@ -187,46 +228,65 @@ async function build() {
   const positions = d.positions || [];
   let sesja = 0, poza = 0;
   for (const p of positions) { if (p.leg === "extended") poza += p.value || 0; else sesja += p.value || 0; }
+  const cash = d.cash || 0;
+  const total = d.total || sesja + poza + cash || 1;
   const up = isUp(d.day_pnl_pct);
 
   header(w, d.mode);
   w.addSpacer(small ? 8 : 10);
 
-  // HERO
-  label(w, "Wartość konta", 8.5);
-  w.addSpacer(2);
-  const val = w.addText(fmtUsd(d.total));
-  val.font = Font.boldSystemFont(small ? 26 : 32);
+  // HERO: activity rings (left) + big value & day pill (right)
+  const hero = w.addStack();
+  hero.centerAlignContent();
+  const ringSize = small ? 82 : large ? 116 : 98;
+  const rings = [
+    { frac: sesja / total, color: HEX.mint },
+    { frac: poza / total, color: HEX.amber },
+    { frac: cash / total, color: HEX.blue },
+  ];
+  const img = hero.addImage(drawRings(ringSize, rings));
+  img.imageSize = new Size(ringSize, ringSize);
+  hero.addSpacer(small ? 11 : 15);
+  const right = hero.addStack();
+  right.layoutVertically();
+  const cap = right.addText("WARTOŚĆ KONTA");
+  cap.font = Font.mediumSystemFont(8.5);
+  cap.textColor = C.faint;
+  right.addSpacer(2);
+  const val = right.addText(fmtUsd(d.total));
+  val.font = Font.boldSystemFont(small ? 22 : 30);
   val.textColor = C.text;
   val.minimumScaleFactor = 0.5;
   val.lineLimit = 1;
-  w.addSpacer(7);
-  const deltas = w.addStack();
-  deltas.centerAlignContent();
-  pill(deltas, (up ? "▲ " : "▼ ") + fmtPct(d.day_pnl_pct) + " dziś", up ? HEX.mint : HEX.rose, 11);
+  right.addSpacer(7);
+  const chg = right.addStack();
+  chg.centerAlignContent();
+  pill(chg, (up ? "▲ " : "▼ ") + fmtPct(d.day_pnl_pct) + " dziś", up ? HEX.mint : HEX.rose, 11);
 
   if (small) { w.addSpacer(); return w; }
 
-  // SPLIT — SESJA / POZA / gotówka
-  w.addSpacer(11);
-  const split = w.addStack();
-  split.centerAlignContent();
-  dotLabelVal(split, C.mint, "SESJA", fmtUsd(sesja, 0));
-  split.addSpacer();
-  dotLabelVal(split, C.amber, "POZA", fmtUsd(poza, 0));
-  split.addSpacer();
-  dotLabelVal(split, new Color("#8a97ab"), "GOT.", fmtUsd(d.cash, 0));
+  // LEGEND (like Move / Exercise / Stand)
+  w.addSpacer(12);
+  const leg = w.addStack();
+  leg.centerAlignContent();
+  legendItem(leg, HEX.mint, "Sesja", fmtUsd(sesja, 0));
+  leg.addSpacer();
+  legendItem(leg, HEX.amber, "Poza", fmtUsd(poza, 0));
+  leg.addSpacer();
+  legendItem(leg, HEX.blue, "Gotówka", fmtUsd(cash, 0));
 
   // SPARK
-  w.addSpacer(11);
-  const img = drawSpark(d.spark, 320, large ? 50 : 40);
-  if (img) { const wi = w.addImage(img); wi.imageSize = new Size(320, large ? 50 : 40); wi.centerAlignImage(); }
+  w.addSpacer(12);
+  const sp = drawSpark(d.spark, 320, large ? 52 : 42);
+  if (sp) { const wi = w.addImage(sp); wi.imageSize = new Size(320, large ? 52 : 42); wi.centerAlignImage(); }
 
   if (!large) { w.addSpacer(); return w; }
 
   // POZYCJE (large)
-  w.addSpacer(11);
-  label(w, "Pozycje", 8.5);
+  w.addSpacer(12);
+  const ph = w.addText("POZYCJE");
+  ph.font = Font.mediumSystemFont(8.5);
+  ph.textColor = C.faint;
   w.addSpacer(5);
   if (positions.length === 0) {
     const none = w.addText("Brak pozycji — gotówka czeka na wejścia.");
