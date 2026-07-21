@@ -197,7 +197,16 @@ class Settings(BaseSettings):
     # Removed: RSI now only ever adds to the score. entry_filter_enabled=False
     # disables the whole filter.
     entry_filter_enabled: bool = True
-    entry_min_score: int = 2
+    # 2-of-3 proved too strict in a choppy/mixed market: 5 days of live data
+    # showed ZERO autonomous BUY on either venue despite real intraday swings --
+    # not because entries were rejected (rejection log was empty), but because
+    # Claude's own system prompt describes this gate, so it self-censored any
+    # candidate it expected to fail 2-of-3 confluence. Lowered to 1-of-3 so a
+    # single clear signal (fresh RSI bounce, a MACD cross, trend alignment) is
+    # enough to clear -- catches smaller, more frequent moves, not just clean
+    # multi-signal trends. Trade-off: more attempts also means more spread/
+    # slippage cost and more chances to be wrong, not free money.
+    entry_min_score: int = 1
     # --- Ilościowa auto-degradacja setupów (Tier 1) -------------------------
     # Once a ticker has >= auto_demote_min_trades CLOSED trades on a venue with
     # negative realized P&L and a sub-par win rate, block opening fresh
