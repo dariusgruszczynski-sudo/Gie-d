@@ -72,7 +72,7 @@ class Settings(BaseSettings):
     # ruszania sesji regularnej.
     extended_risk_per_trade_pct: float = 1.3          # nieco odwazniej, ale wciaz ostroznie po godzinach
     extended_max_concurrent_positions: int = 0        # 0 = bez limitu
-    extended_min_buy_confidence: float = 0.60         # wyższy próg (cienki rynek)
+    extended_min_buy_confidence: float = 0.55         # zrownane z sesja -- 0.60 dawalo 0 prob BUY przez tydzien
     extended_max_new_positions_per_day: int = 0       # 0 = bez limitu
     extended_min_hold_minutes: int = 0                # 0 = bez limitu
     extended_max_position_pct: float = 30.0
