@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, isReadOnly, StatusResponse } from "../api/client";
+import { PushState, usePushNotifications } from "../hooks/usePushNotifications";
 
 function useAction() {
   const [busy, setBusy] = useState<string | null>(null);
@@ -40,6 +41,45 @@ function LegControls({ status, onChanged }: { status: StatusResponse; onChanged:
         </div>
       ))}
       {a.msg && <div className={`gd-msg ${a.msg.ok ? "ok" : "err"}`}>{a.msg.t}</div>}
+    </div>
+  );
+}
+
+const PUSH_LABEL: Record<PushState, { text: string; tone: "on" | "off" | "neu" }> = {
+  on: { text: "włączone na tym urządzeniu", tone: "on" },
+  off: { text: "wyłączone na tym urządzeniu", tone: "off" },
+  denied: { text: "zablokowane w przeglądarce", tone: "off" },
+  "server-off": { text: "serwer nie ma kluczy VAPID", tone: "neu" },
+  unsupported: { text: "przeglądarka nie wspiera Push API", tone: "neu" },
+};
+
+function Notifications() {
+  const { state, busy, message, enable, disable, test } = usePushNotifications();
+  const info = PUSH_LABEL[state];
+  return (
+    <div className="gd-card">
+      <h4>Powiadomienia push</h4>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <span className={`gd-chip ${info.tone === "on" ? "gd-chip-on" : info.tone === "off" ? "gd-chip-off" : "gd-chip-neu"}`}>
+          {info.text}
+        </span>
+      </div>
+      <div className="gd-btnrow">
+        {state === "on" ? (
+          <button className="gd-btn warn" disabled={busy} onClick={disable}>Wyłącz na tym urządzeniu</button>
+        ) : (
+          <button className="gd-btn primary" disabled={busy || state === "unsupported" || state === "server-off"} onClick={enable}>
+            🔔 Włącz powiadomienia
+          </button>
+        )}
+        <button className="gd-btn" disabled={busy || state !== "on"} onClick={test}>Wyślij testowe</button>
+      </div>
+      {state === "denied" && (
+        <p className="gd-msg err" style={{ marginTop: 10 }}>
+          Zablokowane w ustawieniach przeglądarki/systemu — odblokuj powiadomienia dla tej strony ręcznie, potem odśwież.
+        </p>
+      )}
+      {message && <div className={`gd-msg ${message.toLowerCase().includes("nie udał") || message.toLowerCase().includes("nieudan") ? "err" : "ok"}`}>{message}</div>}
     </div>
   );
 }
@@ -109,6 +149,7 @@ export function Control({ status, onChanged }: { status: StatusResponse; onChang
       ) : (
         <>
           <LegControls status={status} onChanged={onChanged} />
+          <Notifications />
           <ManualTrade status={status} onChanged={onChanged} />
           <Ops onChanged={onChanged} />
         </>
