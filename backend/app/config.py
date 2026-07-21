@@ -289,20 +289,25 @@ class Settings(BaseSettings):
     # Volatility-aware position sizing: Claude's requested size_pct is scaled
     # DOWN for tickers more volatile than this reference (so a wild name like
     # MSTR can't dominate P&L), never scaled up. Expressed as a per-bar
-    # per-bar return standard deviation in %. On ŚWIECACH DZIENNYCH ~1.5 is
-    # roughly a broad-index day. Set 0 to disable vol-scaling entirely.
-    volatility_reference_pct: float = 1.5
+    # per-bar return standard deviation in %, so it MUST be recalibrated
+    # whenever signal_timeframe changes -- it's currently set for "1h" bars
+    # (~0.6 is a typical broad-index hour; was 1.5 for a daily bar, ~2.55x
+    # bigger per sqrt-time scaling over ~6.5 session-hours/day). Set 0 to
+    # disable vol-scaling entirely.
+    volatility_reference_pct: float = 0.6
     # Never let vol-scaling shrink a position below this fraction of what
     # Claude asked for -- otherwise a very volatile name gets sized to dust.
     volatility_min_scale: float = 0.35
 
     # Timeframe świec, z których liczone są sygnały wejścia (trend SMA50/200,
-    # MACD, RSI) i skala zmienności stopa. "1d" = ŚWIECE DZIENNE -- to dokładnie
-    # ten timeframe, na którym backtest potwierdził przewagę (SMA50/200 dzienne
-    # to klasyczne średnie). Handel na "1h" był szybszy, ale NIEzwalidowany na
-    # tym timeframie i mocniej zaszumiony. "1d" = mniej transakcji, mniej tarcia,
-    # mniej tokenów, dowiedziona przewaga.
-    signal_timeframe: str = "1d"
+    # MACD, RSI) i skala zmienności stopa. Był "1d" (dowiedziona backtestem
+    # przewaga, ale niewrażliwa na dzienne wahnięcia -- 5 dni bez ŻADNEGO
+    # autonomicznego wejścia mimo realnych ruchów rynku). Świadomie skrócone na
+    # "1h" (2026-07-21, decyzja właściciela): SMA50/200 liczone na 200
+    # godzinach, MACD/RSI też godzinowe -- łapie mniejsze, częstsze ruchy w
+    # ciągu dnia. To teren NIEzwalidowany backtestem na tym interwale -- więcej
+    # transakcji, ale i więcej szumu/kosztu spreadu; obserwuj wyniki.
+    signal_timeframe: str = "1h"
 
     # Akcje US: agresja siedzi w knobach ryzyka/pewności, NIE w częstotliwości --
     # na sygnale dziennym (1d) nie ma po co zaglądać co chwilę. Sprawdzamy co 30

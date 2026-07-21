@@ -42,8 +42,12 @@ _TIMEFRAMES = {"1m": "1Min", "5m": "5Min", "15m": "15Min", "1h": "1Hour", "1d": 
 _TIMEFRAME_MINUTES = {"1m": 1, "5m": 5, "15m": 15, "1h": 60, "1d": 1440}
 # Calendar time needed per TRADING bar: the market trades ~6.5h out of 24 on
 # ~5 of 7 days, so reaching back `limit` bars needs roughly 5x the naive bar
-# span in wall-clock time.
-_CALENDAR_SPAN_FACTOR = 5
+# span in wall-clock time. At 5x, 200 hourly bars needed a ~41.7-day window but
+# only ~44-45 calendar days actually contain 200 regular-session hours -- SMA200
+# (needs exactly 200) would ALWAYS come back "insufficient_data" on the "1h"
+# signal_timeframe. 7x covers 1h (and the previously-marginal 15m) with a
+# holiday buffer; still tiny relative to "1d"'s multi-year window.
+_CALENDAR_SPAN_FACTOR = 7
 
 
 @dataclass
