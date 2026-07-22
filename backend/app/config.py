@@ -325,11 +325,12 @@ class Settings(BaseSettings):
     # transakcji, ale i więcej szumu/kosztu spreadu; obserwuj wyniki.
     signal_timeframe: str = "1h"
 
-    # Akcje US: agresja siedzi w knobach ryzyka/pewności, NIE w częstotliwości --
-    # na sygnale dziennym (1d) nie ma po co zaglądać co chwilę. Sprawdzamy co 30
-    # min (świeca dzienna i tak nie zmienia trendu między pollami), co odciąża
-    # apkę i budżet Claude. Krypto ma własny, szybszy poll (crypto_poll_interval).
-    poll_interval_minutes: int = 30
+    # Akcje US: poll co 15 min (zrównany z nogą POZA SESJĄ, 2026-07-22) -- na
+    # sygnale 1h (LIVE) szybszy puls łapie wejścia/wyjścia bliżej ruchu ceny.
+    # Sam poll nie pali budżetu: pełna analiza Claude i tak jest bramkowana
+    # wyzwalaczem (ruch >= price_move_trigger_pct lub heartbeat), a mechaniczne
+    # stopy/take-profity liczą się co poll niezależnie od Claude.
+    poll_interval_minutes: int = 15
     # Raised from 2.0 -> 3.0 (Tier 2): a lower bar woke Claude on routine noise
     # and drove low-edge, cost-bleeding trades. A wider trigger = fewer, better
     # analyses (the expectancy model showed cost meaningfully lifts break-even).
