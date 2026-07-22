@@ -1,9 +1,11 @@
 .env
+.env.staging
 __pycache__/
 *.pyc
 venv/
 .venv/
 data/
+data-staging/
 *.db
 node_modules/
 dist/

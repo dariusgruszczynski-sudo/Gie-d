@@ -1,4 +1,5 @@
 services:
+  # PRODUKCJA -- gra na ŻYWYM koncie Alpaca (klucze w .env). Nie ruszać.
   app:
     build: .
     ports:
@@ -7,4 +8,28 @@ services:
       - .env
     volumes:
       - ./data:/app/data
+    restart: unless-stopped
+
+  # STAGING -- dokładna kopia proda (ten sam obraz, ta sama gałąź, więc kod
+  # jest ZAWSZE równoległy: `docker compose up -d --build` przebudowuje oba z
+  # tego samego repo). Różni się CELOWO tylko trzema rzeczami, wszystkie po
+  # stronie środowiska, nie kodu:
+  #   1. Osobny port (8001) -- własny dashboard obok produkcyjnego.
+  #   2. Osobna baza (./data-staging) -- decyzje/transakcje/stan NIE mieszają
+  #      się z produkcją.
+  #   3. Osobny .env.staging z kluczami DRUGIEGO, PAPEROWEGO konta Alpaca --
+  #      tu jest cała soczewica: gdyby staging używał tych samych kluczy co
+  #      prod, dwa boty słałyby zlecenia na to samo żywe konto (podwójne
+  #      transakcje, realna strata). ALPACA_PAPER=true + osobne klucze paper
+  #      = pełna mechanika egzekucji, ale wirtualne pieniądze.
+  # Uruchamiaj razem z produkcją: `docker compose up -d --build`.
+  # Albo sam staging: `docker compose up -d --build app-staging`.
+  app-staging:
+    build: .
+    ports:
+      - "8001:8000"
+    env_file:
+      - .env.staging
+    volumes:
+      - ./data-staging:/app/data
     restart: unless-stopped
