@@ -70,12 +70,17 @@ class Settings(BaseSettings):
     # nadpisują bazowe TYLKO dla venue "extended" (patrz strategy_profiles.
     # effective_settings). Zmień tu, żeby dostroić handel po godzinach bez
     # ruszania sesji regularnej.
-    extended_risk_per_trade_pct: float = 1.3          # nieco odwazniej, ale wciaz ostroznie po godzinach
+    # 2026-07-22 (decyzja właściciela): pełna agresja na wejściach -- większy
+    # rozmiar pozycji i niższy próg pewności, żeby duża część kapitału realnie
+    # wchodziła w mocne okazje zamiast siedzieć w gotówce. Geometria WYJŚCIA
+    # (stop/trailing/take-profit) celowo NIE ruszona -- ochrona kapitału ma
+    # zostać stała niezależnie od tego, jak śmiało wchodzimy.
+    extended_risk_per_trade_pct: float = 2.2          # z 1.3 -- większy rozmiar per transakcję
     extended_max_concurrent_positions: int = 0        # 0 = bez limitu
-    extended_min_buy_confidence: float = 0.55         # zrownane z sesja -- 0.60 dawalo 0 prob BUY przez tydzien
+    extended_min_buy_confidence: float = 0.48         # z 0.55 -- łapie więcej "dość dobrych" setupów
     extended_max_new_positions_per_day: int = 0       # 0 = bez limitu
     extended_min_hold_minutes: int = 0                # 0 = bez limitu
-    extended_max_position_pct: float = 30.0
+    extended_max_position_pct: float = 40.0           # z 30.0 -- duża część kapitału na mocny setup
     extended_reward_risk_ratio: float = 1.5
     extended_trailing_stop_frac: float = 0.5
     extended_partial_take_profit_frac: float = 0.50
@@ -109,7 +114,7 @@ class Settings(BaseSettings):
     # krwotok, który nigdy nie przekracza dziennego/tygodniowego limitu w
     # pojedynczym dniu, ale sumuje się w realną stratę kapitału.
     max_drawdown_halt_pct: float = 20.0
-    max_position_pct: float = 32.0          # wiekszy udzial na mocnym setupie
+    max_position_pct: float = 45.0          # z 32.0 (2026-07-22): duzy udzial na mocnym setupie
     # Mechanical exit rules applied to every held position on every poll,
     # without asking Claude: auto-SELL the whole position when it gains
     # >= take_profit_pct or loses >= stop_loss_pct vs its average entry price.
@@ -175,8 +180,10 @@ class Settings(BaseSettings):
     # --- Anty-churn (Pakiet 2) ----------------------------------------------
     # Hard conviction floor: an automated BUY below this confidence is rejected
     # outright -- cash is a valid position, don't trade a weak edge. 0 disables.
-    # Equities profile = "medium aggressive" (crypto overrides lower, see above).
-    min_buy_confidence: float = 0.57
+    # Lowered 0.57 -> 0.48 (2026-07-22, owner's call): live decisions showed
+    # many "decent but not perfect" setups (0.50-0.62) sitting just under the
+    # old floor -- full aggression means catching those, not only the cleanest.
+    min_buy_confidence: float = 0.48
     # Cap on NEW automated BUY entries per venue per calendar day -- stops a
     # small account churning on many low-edge entries. 0 disables (bez limitu).
     max_new_positions_per_day: int = 0
@@ -230,7 +237,7 @@ class Settings(BaseSettings):
     # risk). Composed as a CAP with Claude's request and max_position_pct (only
     # ever shrinks), so a wide-stop name automatically gets a smaller slice.
     # 0 disables (falls back to the volatility-scaled sizing only).
-    risk_per_trade_pct: float = 1.8          # odwazniej gdy jest przewaga
+    risk_per_trade_pct: float = 3.0          # z 1.8 (2026-07-22): duzy udzial kapitalu na mocny setup
     # Market-regime gate: in a risk-off regime (benchmark below its long trend +
     # elevated VIX / falling tape) only defensive/inverse names may be bought;
     # everything else is forced to HOLD. The regime is ALWAYS passed to Claude
