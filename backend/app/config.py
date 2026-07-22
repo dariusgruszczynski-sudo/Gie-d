@@ -18,12 +18,18 @@ class Settings(BaseSettings):
     # (Opus). Każdy cykl to jedno tanie wywołanie modelu szybkiego -- to obcina
     # koszt AI, który przy małym koncie jest głównym progiem rentowności. Włącz
     # (=true) dopiero, gdy konto jest na tyle duże, że koszt Opusa to <2-3%/mies.
-    claude_escalation_enabled: bool = False
+    # 2026-07-22 ("zdjąć kaganiec"): WŁĄCZONE -- gdy Claude jest niepewny na
+    # BUY/SELL, może sięgnąć po mocniejszy model (Opus). Właściciel dosypuje
+    # tokeny i chce pełnej swobody "jak chce / za ile chce".
+    claude_escalation_enabled: bool = True
     # Twardy bezpiecznik budżetu: gdy szacowany wydatek Claude w tym miesiącu
     # przekroczy claude_monthly_budget_usd, automat WSTRZYMUJE nowe wywołania
     # (nie pyta Claude, nie handluje automatycznie), zamiast palić budżet w
     # nieskończoność. Ręczne transakcje i mechaniczne wyjścia działają dalej.
-    claude_pause_trading_at_budget: bool = True
+    # 2026-07-22 ("za ile chce"): WYŁĄCZONE -- budżet nie wstrzymuje już handlu.
+    # Prawdziwym limitem jest kredyt na koncie Anthropic (gdy się skończy, API
+    # zwraca błąd i cykl i tak pominie się łagodnie). Właściciel dosypuje tokeny.
+    claude_pause_trading_at_budget: bool = False
 
     alpaca_api_key: str = ""
     alpaca_api_secret: str = ""
@@ -76,11 +82,11 @@ class Settings(BaseSettings):
     # (stop/trailing/take-profit) celowo NIE ruszona -- ochrona kapitału ma
     # zostać stała niezależnie od tego, jak śmiało wchodzimy.
     extended_risk_per_trade_pct: float = 2.2          # z 1.3 -- większy rozmiar per transakcję
-    extended_max_concurrent_positions: int = 4        # z 0: skupienie kapitału (jak SESJA, patrz backtest)
-    extended_min_buy_confidence: float = 0.48         # z 0.55 -- łapie więcej "dość dobrych" setupów
+    extended_max_concurrent_positions: int = 0        # kaganiec zdjęty -- Claude dobiera koncentrację
+    extended_min_buy_confidence: float = 0.0          # próg pewności zdjęty -- decyduje Claude
     extended_max_new_positions_per_day: int = 0       # 0 = bez limitu
     extended_min_hold_minutes: int = 0                # 0 = bez limitu
-    extended_max_position_pct: float = 40.0           # z 30.0 -- duża część kapitału na mocny setup
+    extended_max_position_pct: float = 90.0           # kaganiec zdjęty -- duży udział możliwy
     extended_reward_risk_ratio: float = 1.5
     extended_trailing_stop_frac: float = 0.5
     extended_partial_take_profit_frac: float = 0.50
@@ -119,7 +125,12 @@ class Settings(BaseSettings):
     # zanim rynek zdążył odbić. 45% = bezpiecznik tylko na prawdziwą
     # katastrofę (gorzej niż cokolwiek w 20-letniej historii).
     max_drawdown_halt_pct: float = 45.0
-    max_position_pct: float = 45.0          # z 32.0 (2026-07-22): duzy udzial na mocnym setupie
+    # 45 -> 90 (2026-07-22, "zdjąć kaganiec"): Claude może wrzucić dużą część
+    # kapitału w jeden setup. Realnym ogranicznikiem rozmiaru zostaje ryzyko
+    # per-transakcja (risk_per_trade_pct: strata na stopie <= X% konta) i
+    # skalowanie zmiennością -- to pasy bezpieczeństwa, nie kaganiec.
+    # UWAGA: prod .env ma MAX_POSITION_PCT=25 -- podnieś tam, żeby weszło.
+    max_position_pct: float = 90.0
     # Mechanical exit rules applied to every held position on every poll,
     # without asking Claude: auto-SELL the whole position when it gains
     # >= take_profit_pct or loses >= stop_loss_pct vs its average entry price.
@@ -188,10 +199,10 @@ class Settings(BaseSettings):
     # Lowered 0.57 -> 0.48 (2026-07-22, owner's call): live decisions showed
     # many "decent but not perfect" setups (0.50-0.62) sitting just under the
     # old floor -- full aggression means catching those, not only the cleanest.
-    # 0.48 -> 0.40 (2026-07-22): PM-mode Claude gra często i w miarę agresywnie
-    # (decyzja właściciela), więc próg pewności niżej -- łapiemy więcej realnych
-    # setupów; ochrona kapitału i tak siedzi w mechanicznych wyjściach.
-    min_buy_confidence: float = 0.40
+    # 0.40 -> 0.0 (2026-07-22, "zdjąć kaganiec"): próg pewności ZDJĘTY -- to
+    # Claude decyduje, czy wejść, nie sztywny próg. Ochrona kapitału zostaje w
+    # mechanicznych wyjściach i w ryzyku per-transakcja (risk_per_trade_pct).
+    min_buy_confidence: float = 0.0
     # Cap on NEW automated BUY entries per venue per calendar day -- stops a
     # small account churning on many low-edge entries. 0 disables (bez limitu).
     max_new_positions_per_day: int = 0
@@ -234,7 +245,10 @@ class Settings(BaseSettings):
     # Once a ticker has >= auto_demote_min_trades CLOSED trades on a venue with
     # negative realized P&L and a sub-par win rate, block opening fresh
     # positions in it -- stop repeating a setup the data says doesn't work.
-    auto_demote_enabled: bool = True
+    # 2026-07-22 ("zdjąć kaganiec"): WYŁĄCZONE jako twarda blokada -- Claude i tak
+    # WIDZI ten bilans w your_performance.per_symbol_stats i playbook każe unikać
+    # powtarzalnych strat, więc to jego decyzja, nie sztywne weto silnika.
+    auto_demote_enabled: bool = False
     auto_demote_min_trades: int = 5
     auto_demote_win_rate_floor: float = 40.0
     # --- Ochrona przewagi: koszty / churn / koncentracja (Tier 2) -----------
@@ -245,7 +259,11 @@ class Settings(BaseSettings):
     # ryzyka 4 pozycje biją 6 i 8 na zwrocie ORAZ Calmarze. Whitelist jest mocno
     # skorelowany (tech beta), więc 8 otwartych nazw to w praktyce jeden zakład z
     # gorszym wyborem -- skupienie kapitału w 4 najlepszych setupach wygrywa.
-    max_concurrent_positions: int = 4
+    # 4 -> 0 (2026-07-22, "zdjąć kaganiec"): limit równoczesnych pozycji ZDJĘTY
+    # -- Claude sam dobiera koncentrację. UWAGA: backtest 20-letni faworyzował
+    # skupienie (4 > 6 > 8) i playbook uczy "wiele nazw tech = jeden zakład",
+    # więc Claude ma wiedzę, by nie rozdrabniać -- ale decyzja jest jego.
+    max_concurrent_positions: int = 0
     # Wide-spread / thinner names (inverse ETFs, small caps, sector/bond ETFs):
     # every round trip pays more spread, so their edge must be larger. Haircut
     # their BUY size by high_spread_size_scale (1.0 = no haircut).

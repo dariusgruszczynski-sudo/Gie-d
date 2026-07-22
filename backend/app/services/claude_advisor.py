@@ -185,6 +185,51 @@ def _build_tool_schema(whitelist: list[str]) -> dict:
     }
 
 
+def _parse_portfolio_actions(data: dict, model: str) -> list[TradingDecision]:
+    """Turns a portfolio_decisions tool payload into a non-empty list of
+    TradingDecision. Only actionable (BUY/SELL with a symbol) actions are kept;
+    if Claude sent nothing actionable, collapse to a single HOLD (so we still
+    record a decision and fire the 'czeka' notification). Cost/tokens are set by
+    the caller on the first element."""
+    thesis = (data.get("portfolio_thesis") or "").strip()
+    raw_actions = data.get("actions") or []
+    decisions: list[TradingDecision] = []
+    for a in raw_actions:
+        action = (a.get("action") or "HOLD").upper()
+        if action not in ("BUY", "SELL", "HOLD"):
+            logger.warning("decide_portfolio: nieznana akcja %r, pomijam", action)
+            continue
+        reasoning = (a.get("reasoning") or "").strip()
+        if thesis and decisions == []:
+            reasoning = f"{reasoning} [Teza: {thesis}]".strip()
+        decisions.append(
+            TradingDecision(
+                action=action,
+                symbol=a.get("symbol"),
+                size_pct=float(a.get("size_pct", 0) or 0),
+                confidence=float(a.get("confidence", 0) or 0),
+                reasoning=reasoning,
+                raw_input=a,
+                model_used=model,
+            )
+        )
+
+    actionable = [d for d in decisions if d.action in ("BUY", "SELL") and d.symbol]
+    if not actionable:
+        actionable = [
+            TradingDecision(
+                action="HOLD",
+                symbol=None,
+                size_pct=0.0,
+                confidence=float(raw_actions[0].get("confidence", 0)) if raw_actions else 0.0,
+                reasoning=(thesis or "Trzymam cały portfel — brak wyraźnej przewagi w tym cyklu."),
+                raw_input=data,
+                model_used=model,
+            )
+        ]
+    return actionable
+
+
 def _build_portfolio_tool_schema(whitelist: list[str]) -> dict:
     return {
         "name": TOOL_NAME_PORTFOLIO,
@@ -385,50 +430,30 @@ class ClaudeAdvisor:
             indent=2,
         )
 
-        model = self._settings.claude_model_fast
-        data, cost, in_tok, out_tok = self._call_model(model, tool, user_content, system, max_tokens=2048)
-        thesis = (data.get("portfolio_thesis") or "").strip()
-        raw_actions = data.get("actions") or []
+        fast_model = self._settings.claude_model_fast
+        data, cost, in_tok, out_tok = self._call_model(fast_model, tool, user_content, system, max_tokens=2048)
+        actionable = _parse_portfolio_actions(data, fast_model)
+        total_cost, total_in, total_out = cost, in_tok, out_tok
 
-        decisions: list[TradingDecision] = []
-        for a in raw_actions:
-            action = (a.get("action") or "HOLD").upper()
-            if action not in ("BUY", "SELL", "HOLD"):
-                logger.warning("decide_portfolio: nieznana akcja %r, pomijam", action)
-                continue
-            reasoning = (a.get("reasoning") or "").strip()
-            if thesis and decisions == []:
-                reasoning = f"{reasoning} [Teza: {thesis}]".strip()
-            decisions.append(
-                TradingDecision(
-                    action=action,
-                    symbol=a.get("symbol"),
-                    size_pct=float(a.get("size_pct", 0) or 0),
-                    confidence=float(a.get("confidence", 0) or 0),
-                    reasoning=reasoning,
-                    raw_input=a,
-                    model_used=model,
-                )
+        # Kaganiec zdjęty: gdy escalation ON i którakolwiek AKTYWNA akcja jest
+        # niepewna, Claude może sięgnąć po mocniejszy model (Opus) i przemyśleć
+        # CAŁY portfel jeszcze raz -- to jego wynik wygrywa. Koszt obu wywołań
+        # sumowany (właściciel dosypuje tokeny, świadoma decyzja "jak chce").
+        uncertain = any(
+            d.action in ("BUY", "SELL") and d.confidence < self._settings.claude_escalation_confidence_threshold
+            for d in actionable
+        )
+        if self._settings.claude_escalation_enabled and uncertain:
+            data2, cost2, in2, out2 = self._call_model(
+                self._settings.claude_model, tool, user_content, system, max_tokens=2048
             )
+            actionable = _parse_portfolio_actions(data2, self._settings.claude_model)
+            total_cost += cost2
+            total_in += in2
+            total_out += out2
 
-        # Only actionable (non-HOLD) actions matter downstream; if Claude sent
-        # nothing actionable, collapse to a single HOLD so we still record one
-        # decision (and fire the "czeka" notification).
-        actionable = [d for d in decisions if d.action in ("BUY", "SELL") and d.symbol]
-        if not actionable:
-            hold = TradingDecision(
-                action="HOLD",
-                symbol=None,
-                size_pct=0.0,
-                confidence=float(raw_actions[0].get("confidence", 0)) if raw_actions else 0.0,
-                reasoning=(thesis or "Trzymam cały portfel — brak wyraźnej przewagi w tym cyklu."),
-                raw_input=data,
-                model_used=model,
-            )
-            actionable = [hold]
-
-        # The one API call's cost/tokens ride on the first element only.
-        actionable[0].cost_usd = cost
-        actionable[0].input_tokens = in_tok
-        actionable[0].output_tokens = out_tok
+        # The call(s)' cost/tokens ride on the first element only.
+        actionable[0].cost_usd = total_cost
+        actionable[0].input_tokens = total_in
+        actionable[0].output_tokens = total_out
         return actionable

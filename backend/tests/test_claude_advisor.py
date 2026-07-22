@@ -177,3 +177,27 @@ def test_decide_portfolio_empty_actions_collapses_to_hold(settings, monkeypatch)
     assert len(out) == 1 and out[0].action == "HOLD"
     assert out[0].cost_usd == 0.01
     assert "Czekam" in out[0].reasoning
+
+
+def test_decide_portfolio_escalates_uncertain_batch_to_opus(settings, monkeypatch):
+    """Kaganiec zdjęty: gdy escalation ON i któraś aktywna akcja jest niepewna,
+    cały portfel jest przemyślany ponownie mocniejszym modelem (Opus), a JEGO
+    wynik wygrywa; koszt obu wywołań się sumuje."""
+    advisor = _advisor(settings.model_copy(update={"claude_escalation_enabled": True}))
+    calls = []
+
+    def fake_call_model(model, tool, user_content, system, max_tokens=1024):
+        calls.append(model)
+        if model == settings.claude_model_fast:
+            return ({"actions": [{"action": "BUY", "symbol": "SPY", "size_pct": 20, "confidence": 0.4,
+                                  "reasoning": "niepewne"}]}, 0.03, 300, 120)
+        return ({"actions": [{"action": "HOLD", "symbol": None, "size_pct": 0, "confidence": 0.9,
+                              "reasoning": "Opus: lepiej poczekać"}]}, 0.06, 400, 150)
+
+    monkeypatch.setattr(advisor, "_call_model", fake_call_model)
+    out = advisor.decide_portfolio(**_pf_kwargs())
+
+    assert calls == [settings.claude_model_fast, settings.claude_model]  # escalowano
+    assert out[0].action == "HOLD"  # wynik Opusa wygrywa
+    assert out[0].cost_usd == 0.09  # 0.03 + 0.06
+    assert out[0].input_tokens == 700
