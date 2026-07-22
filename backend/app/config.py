@@ -405,6 +405,18 @@ class Settings(BaseSettings):
     # the 5-min cycle stays well under the daily cap. Empty -> skipped.
     newsapi_api_key: str = ""
 
+    # --- Blackout newsów: brak danych = wstrzymaj NOWE wejścia + alarm --------
+    # Claude to narzędzie AI karmione newsami; jeśli feedy padną, decyzja byłaby
+    # ślepa. Gdy w wyzwolonym cyklu liczba nagłówków spadnie poniżej progu,
+    # silnik NIE otwiera nowych pozycji (zwraca HOLD) i wysyła alarm push. WAŻNE:
+    # to blokuje tylko NOWE wejścia -- mechaniczne wyjścia (stop/trailing) i tak
+    # biegną co poll, żeby chronić otwarte pozycje mimo braku newsów.
+    news_blackout_halt_enabled: bool = True
+    news_min_headlines: int = 3
+    # Ile minut wyciszenia między kolejnymi alarmami o blackoutcie (żeby nie
+    # spamować telefonu co cykl, gdy feedy są długo w dół).
+    news_blackout_alarm_cooldown_minutes: int = 30
+
     # SerpAPI Google News (free tier: ~100 searches/MONTH, https://serpapi.com)
     # -- a Google-News search proxy. The monthly cap is tight, so it sits behind
     # a LONG TTL cache (news_client._SERPAPI_TTL_S) and is a light general source

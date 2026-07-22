@@ -27,6 +27,47 @@ logger = logging.getLogger(__name__)
 # on every poll -- it's economically irrelevant (fractions of a cent).
 MIN_SELL_NOTIONAL_USD = 1.0
 
+# News-blackout alarm throttle (per venue): last time we pushed the "feeds down"
+# alarm, so a long outage doesn't spam the phone every cycle. Process-local is
+# fine -- the scheduler is one process; worst case a restart re-alarms once.
+_news_blackout_alarm_at: dict[str, datetime] = {}
+
+
+def _news_blackout_active(db: Session, settings: Settings, headlines: list, venue: str) -> bool:
+    """True when the news feeds are effectively dark (fewer than
+    news_min_headlines came back this cycle). Fires a throttled push ALARM the
+    first time an outage is seen (and re-arms once it clears), so the owner knows
+    trading was suspended for lack of data -- not just that a connection blipped.
+    Disabled -> always False (never blocks)."""
+    if not settings.news_blackout_halt_enabled:
+        return False
+    dark = len(headlines) < max(0, settings.news_min_headlines)
+    now = datetime.now(timezone.utc)
+    if not dark:
+        _news_blackout_alarm_at.pop(venue, None)  # feeds are back -> re-arm alarm
+        return False
+    last = _news_blackout_alarm_at.get(venue)
+    cooldown = timedelta(minutes=max(1, settings.news_blackout_alarm_cooldown_minutes))
+    if last is None or now - last >= cooldown:
+        _news_blackout_alarm_at[venue] = now
+        try:
+            push_notifier.send_alarm(
+                db,
+                settings,
+                title="🚨 Blackout newsów — handel wstrzymany",
+                body=(
+                    f"Silnik {push_notifier._venue_label(venue)}: tylko {len(headlines)} nagłówków "
+                    f"(< próg {settings.news_min_headlines}). Nowe wejścia wstrzymane do powrotu danych; "
+                    "otwarte pozycje dalej chronione mechanicznymi stopami."
+                ),
+                tag=f"news-blackout-{venue}",
+            )
+        except Exception:  # alarm nigdy nie może wywalić cyklu
+            logger.warning("Nie udało się wysłać alarmu o blackoutcie newsów", exc_info=True)
+        logger.warning("News blackout (%s): %d nagłówków < próg %d — nowe wejścia wstrzymane",
+                       venue, len(headlines), settings.news_min_headlines)
+    return True
+
 # Per-venue SystemState column mapping. The equities venue keeps using the
 # original columns (its behaviour stays byte-for-byte identical); the extended
 # venue (same Alpaca account, 24/7 book) uses dedicated extended_* columns so
@@ -1572,6 +1613,34 @@ def run_cycle(
             h["just_published"] = True
         seen_titles = {h["title"] for h in fresh_headlines}
         headlines = fresh_headlines + [h for h in headlines if h["title"] not in seen_titles]
+
+    # News blackout: Claude jest narzędziem AI karmionym newsami. Jeśli feedy
+    # padły (za mało nagłówków), NIE otwieramy nowych pozycji na ślepo -- alarm
+    # push i HOLD. Mechaniczne wyjścia już przebiegły wyżej w tym cyklu, więc
+    # otwarte pozycje dalej są chronione stopami mimo braku newsów.
+    if not force and _news_blackout_active(db, settings, headlines, venue):
+        decision = Decision(
+            symbol=None,
+            action=TradeAction.HOLD,
+            size_pct=0.0,
+            confidence=0.0,
+            reasoning=(
+                f"BLACKOUT NEWSÓW: tylko {len(headlines)} nagłówków (< próg {settings.news_min_headlines}) — "
+                "wstrzymuję nowe wejścia, bo decyzja bez danych byłaby ślepa. Mechaniczne stopy działają dalej."
+            ),
+            market_data_snapshot=json.dumps(market_data, default=str),
+            news_snapshot=json.dumps(headlines),
+            market_context_snapshot="{}",
+            triggered_by=trigger_reason,
+            executed=False,
+            rejection_reason="News blackout — brak danych newsowych",
+            venue=venue,
+        )
+        db.add(decision)
+        db.commit()
+        db.refresh(decision)
+        return decision
+
     global_context = market_ctx.get_market_context() if market_ctx is not None else {}
     # Risk regime, computed per venue from that venue's OWN signals: equities
     # from SPY trend + VIX + tape; extended from BTC trend + extended breadth.

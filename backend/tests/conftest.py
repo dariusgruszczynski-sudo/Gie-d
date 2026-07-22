@@ -60,4 +60,8 @@ def settings():
         max_concurrent_positions=0,
         auto_demote_enabled=False,
         high_spread_size_scale=1.0,
+        # News-blackout halt is a production safety feature; the mechanical/cycle
+        # tests feed empty news deliberately, so keep it OFF here (a dedicated
+        # test enables it explicitly).
+        news_blackout_halt_enabled=False,
     )

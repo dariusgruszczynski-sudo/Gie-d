@@ -143,6 +143,9 @@ def _prod_like_settings() -> Settings:
         auto_blacklist_stop_count=0,
         auto_demote_enabled=False,
         high_spread_size_scale=1.0,
+        # Blackout newsów off w bazie -- News() zwraca [] celowo; dedykowany
+        # test włącza go jawnie.
+        news_blackout_halt_enabled=False,
     )
 
 
@@ -276,6 +279,29 @@ def test_portfolio_manager_executes_multiple_buys_in_one_cycle(db_session):
     assert abs(spy.usdt_value - 200.0) < 1e-6  # 20% z 1000
     assert abs(qqq.usdt_value - 120.0) < 1e-6  # 15% z 800 (po odświeżeniu portfela)
     assert d is not None and d.symbol == "SPY"  # zwraca pierwszą decyzję
+
+
+def test_news_blackout_halts_new_entries_and_skips_claude(db_session):
+    """Gdy feedy newsów padają (za mało nagłówków), silnik NIE otwiera nowych
+    pozycji na ślepo: zwraca HOLD z powodem 'blackout' i NIE pyta Claude --
+    dokładnie 'wstrzymujemy trading z powodu braku danych'."""
+    s = _prod_like_settings().model_copy(update={"news_blackout_halt_enabled": True, "news_min_headlines": 3})
+    broker, ctx = Broker(), Ctx()
+
+    class DarkNews:
+        def get_headlines(self, currencies, limit=10):
+            return []  # feedy w dół
+
+        def get_new_ticker_headlines(self, tickers, seen):
+            return [], {t: seen.get(t, []) for t in tickers}
+
+    advisor = Advisor(TradingDecision("BUY", "SPY", 10, 0.9, "Nie powinno pójść do Claude."))
+    d = trading_engine.run_cycle(db_session, s, broker, DarkNews(), advisor, market_ctx=ctx)
+
+    assert advisor.calls == 0  # Claude NIE pytany bez danych
+    assert d is not None and d.action.value == "HOLD"
+    assert d.rejection_reason and "blackout" in d.rejection_reason.lower()
+    assert len(broker.orders) == 0  # żadnego nowego wejścia
 
 
 def test_halted_interval_skips_claude_entirely(db_session):

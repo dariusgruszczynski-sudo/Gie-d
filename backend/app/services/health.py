@@ -84,19 +84,37 @@ def _probe_claude(db, settings):
 
 
 def _probe_news(db, settings):
+    """Data-level probe: nie sprawdza samego POŁĄCZENIA, tylko czy REALNIE
+    spływają nagłówki -- i czy jest ich tyle, ile trzeba do decyzji. Poniżej
+    progu blackoutu (news_min_headlines) raportuje 'down', bo silnik wstrzymuje
+    wtedy nowe wejścia (patrz trading_engine._news_blackout_active)."""
     try:
+        keyed_sources = []
+        if getattr(settings, "alpaca_api_key", "") and getattr(settings, "alpaca_api_secret", ""):
+            keyed_sources.append("Alpaca")
+        if getattr(settings, "alpha_vantage_api_key", ""):
+            keyed_sources.append("AlphaVantage")
+        if getattr(settings, "finnhub_api_key", ""):
+            keyed_sources.append("Finnhub")
+        if getattr(settings, "newsapi_api_key", ""):
+            keyed_sources.append("NewsAPI")
+        if getattr(settings, "serpapi_api_key", ""):
+            keyed_sources.append("SerpAPI")
+        keyed = (" · keyed: " + ", ".join(keyed_sources)) if keyed_sources else " · tylko RSS (brak keyed)"
+
         headlines = NewsClient(settings).get_headlines(
             (settings.whitelist_symbols[:2] + settings.extended_whitelist_symbols[:1]), limit=40
         )
         n = len(headlines)
-        keyed = " · Finnhub ON" if settings.finnhub_api_key else " · tylko RSS"
+        floor = settings.news_min_headlines if getattr(settings, "news_blackout_halt_enabled", False) else 1
+        if n < floor:
+            return _check("news", "Newsy (dane)", "Integracje", "down",
+                          f"BLACKOUT: {n} nagłówków < próg {floor} — handel wstrzymany{keyed}")
         if n >= 15:
-            return _check("news", "Newsy (agregator)", "Integracje", "ok", f"{n} nagłówków{keyed}")
-        if n >= 1:
-            return _check("news", "Newsy (agregator)", "Integracje", "warn", f"Tylko {n} nagłówków{keyed}")
-        return _check("news", "Newsy (agregator)", "Integracje", "down", f"0 nagłówków — wszystkie źródła padły{keyed}")
+            return _check("news", "Newsy (dane)", "Integracje", "ok", f"{n} nagłówków spływa{keyed}")
+        return _check("news", "Newsy (dane)", "Integracje", "warn", f"Tylko {n} nagłówków (chudo){keyed}")
     except Exception as exc:
-        return _check("news", "Newsy (agregator)", "Integracje", "down", f"{type(exc).__name__}: {exc}")
+        return _check("news", "Newsy (dane)", "Integracje", "down", f"{type(exc).__name__}: {exc}")
 
 
 def _probe_database(db, settings):

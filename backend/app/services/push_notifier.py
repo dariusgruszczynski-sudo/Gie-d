@@ -136,6 +136,16 @@ def send_trade_push(db: Session, settings: Settings, trade, account_total: float
         logger.warning("send_trade_push failed: %s", exc)
 
 
+def send_alarm(db: Session, settings: Settings, *, title: str, body: str, tag: str = "alarm") -> int:
+    """Wysoki-priorytet alarm (np. blackout newsów, wstrzymanie handlu). Cienka
+    nakładka na send_to_all, best-effort -- nigdy nie wywraca ścieżki handlu."""
+    try:
+        return send_to_all(db, settings, title=title, body=body, tag=tag, url="/")
+    except Exception as exc:  # pragma: no cover - alarm nie może wywalić handlu
+        logger.warning("send_alarm failed: %s", exc)
+        return 0
+
+
 def _latest_snapshot(db: Session, venue: str) -> PortfolioSnapshot | None:
     return db.execute(
         select(PortfolioSnapshot).where(PortfolioSnapshot.venue == venue).order_by(PortfolioSnapshot.timestamp.desc()).limit(1)
