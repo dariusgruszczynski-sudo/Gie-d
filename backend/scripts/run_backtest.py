@@ -86,7 +86,11 @@ def _fetch_yahoo(symbols: list[str], years: int) -> dict[str, list[list]]:
 # how many positions may run at once -- so sweep that grid and print the
 # return<->drawdown frontier + Calmar, letting the user pick their point on the
 # risk/return curve from DATA rather than by feel.
-SWEEP_RISK_PCTS = [0.5, 1.0, 1.5, 2.0]
+# Prod is running risk_per_trade_pct=3.0 with unlimited positions -- both above
+# the old grid ceiling -- so extend the risk axis to 2.5/3.0 to see whether the
+# extra aggression actually buys return or just inflates drawdown past the point
+# where max_position_pct caps kick in.
+SWEEP_RISK_PCTS = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
 SWEEP_MAX_POSITIONS = [4, 6, 8]
 
 
