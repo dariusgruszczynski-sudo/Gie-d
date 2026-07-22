@@ -20,7 +20,9 @@ from app.services import budget_tracker, risk_manager, scorecard
 
 logger = logging.getLogger(__name__)
 
-MAX_LESSONS_KEPT = 10
+# Zwiększone 10 -> 30: Claude ma BUDOWAĆ bazę zachowań, więc nauczone lekcje
+# akumulują się dłużej (obok stałego playbooka), zamiast szybko rotować.
+MAX_LESSONS_KEPT = 30
 MAX_TRADES_REVIEWED = 40
 REVIEW_MAX_TOKENS = 600
 

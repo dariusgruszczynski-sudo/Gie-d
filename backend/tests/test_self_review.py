@@ -56,7 +56,9 @@ def test_self_review_skips_without_trades(db_session, settings):
 def test_lessons_capped_at_max(db_session, settings):
     _make_trade(db_session, settings)
     state = risk_manager.get_state(db_session)
-    state.lessons_json = json.dumps([{"date": "2026-07-01", "lesson": f"Stara lekcja numer {i}"} for i in range(10)])
+    state.lessons_json = json.dumps(
+        [{"date": "2026-07-01", "lesson": f"Stara lekcja numer {i}"} for i in range(self_review.MAX_LESSONS_KEPT)]
+    )
     db_session.commit()
 
     def fake_generate(s, prompt):
@@ -83,3 +85,14 @@ def test_lessons_reach_claude_decision_context(db_session, settings):
     assert advisor.last_kwargs["performance_context"]["lessons_learned"] == [
         "Nie kupuj MSTR po dwoch stop-lossach"
     ]
+
+
+def test_playbook_seed_is_fed_to_claude_context(db_session, settings):
+    """Stała baza zachowań (playbook) trafia do kontekstu decyzji Claude jako
+    your_performance.playbook -- niezależnie od tego, czy są już nauczone lekcje."""
+    from app.services import playbook, trading_engine
+
+    portfolio = {"total_value_usdt": 1000.0, "usdt_balance": 1000.0, "balances": {}, "prices": {}}
+    ctx = trading_engine.build_performance_context(db_session, settings, portfolio, venue="alpaca", whitelist=["SPY"])
+    assert ctx["playbook"] == playbook.SEED_PLAYBOOK
+    assert len(ctx["playbook"]) >= 10  # realny playbook, nie pusty placeholder

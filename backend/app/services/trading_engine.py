@@ -1137,7 +1137,7 @@ def build_performance_context(
     # Durable weekly-review lessons -- memory that outlives the recent-trade
     # window. Imported here (not at module top) to avoid a circular import
     # via self_review -> scorecard -> ... -> trading_engine test doubles.
-    from app.services import self_review
+    from app.services import playbook, self_review
 
     lessons = [l.get("lesson", "") for l in self_review.get_lessons(db)]
 
@@ -1145,6 +1145,9 @@ def build_performance_context(
         "open_positions": open_positions,
         "recent_trades": recent_trades,
         "scorecard": card,
+        # Trwała baza zachowań destylowana z praktyki innych traderów/botów --
+        # startowa wiedza, na której Claude buduje własne (świeższe) lekcje.
+        "playbook": playbook.get_playbook(),
         "lessons_learned": lessons,
         # Quantitative per-symbol track record -- what actually works for me.
         "per_symbol_stats": compute_symbol_stats(db, venue=venue),
