@@ -14,7 +14,8 @@ services:
   # jest ZAWSZE równoległy: `docker compose up -d --build` przebudowuje oba z
   # tego samego repo). Różni się CELOWO tylko trzema rzeczami, wszystkie po
   # stronie środowiska, nie kodu:
-  #   1. Osobny port (8001) -- własny dashboard obok produkcyjnego.
+  #   1. Osobny port (8002) -- własny dashboard obok produkcyjnego (8001 jest
+  #      zajęty przez inną apkę na tym serwerze, fit-tracker).
   #   2. Osobna baza (./data-staging) -- decyzje/transakcje/stan NIE mieszają
   #      się z produkcją.
   #   3. Osobny .env.staging z kluczami DRUGIEGO, PAPEROWEGO konta Alpaca --
@@ -27,7 +28,7 @@ services:
   app-staging:
     build: .
     ports:
-      - "8001:8000"
+      - "8002:8000"
     env_file:
       - .env.staging
     volumes:
