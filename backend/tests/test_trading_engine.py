@@ -1144,6 +1144,32 @@ def test_partial_take_profit_sells_a_slice_once_then_holds(db_session, settings)
     assert trading_engine.check_take_profit_stop_loss(db_session, s, broker, portfolio) == []
 
 
+def test_extended_partial_take_profit_promotes_to_full_exit_on_one_share(db_session, settings):
+    """Poza sesją trades WHOLE shares only. A partial slice of a 1-share
+    position (e.g. 50% of 1 share) rounds to 0 shares -- place_extended_limit_
+    order would reject it every cycle forever (regression: silently never banks
+    the win). The engine must promote it to a FULL exit instead."""
+    s = settings.model_copy(update={
+        "partial_take_profit_enabled": True, "partial_take_profit_frac": 0.5,
+        "partial_take_profit_r": 1.0,
+    })
+    risk_manager.resume(db_session, "extended")  # extended starts paused -> press START
+    broker = FakeAlpaca(prices={"GDX": 40.0}, balances={"USD": 1000.0, "GDX": 0.0})
+    trading_engine.execute_manual_trade(
+        db_session, s, broker, symbol="GDX", side="BUY", quantity=1.0, venue="extended", whitelist=["GDX"]
+    )
+    broker.prices["GDX"] = 41.0  # +2.5% >= partial_r (2%), below the +3% trailing arm
+
+    portfolio = trading_engine.compute_portfolio(db_session, s, broker, venue="extended", whitelist=["GDX"])
+    exits = trading_engine.check_take_profit_stop_loss(
+        db_session, s, broker, portfolio, venue="extended", whitelist=["GDX"], always_open=True,
+    )
+    assert len(exits) == 1
+    assert exits[0].quantity == pytest.approx(1.0)  # promoted to the FULL share, not 0.5
+    assert broker.balances["GDX"] == pytest.approx(0.0)  # fully closed
+    assert "nie dzieli się na częściową sprzedaż" in exits[0].decision.reasoning
+
+
 # ============================================================================
 # Pakiet 2 -- anty-churn (conviction floor, per-day cap, min hold)
 # ============================================================================

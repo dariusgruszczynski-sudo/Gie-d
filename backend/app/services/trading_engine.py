@@ -899,6 +899,16 @@ def check_take_profit_stop_loss(
             new_peaks[symbol] = peak
             continue
 
+        # Poza sesją fills WHOLE shares only. A partial slice of a small
+        # (1-2 share) position rounds to 0 shares -- place_extended_limit_order
+        # would reject it EVERY cycle, forever (never marked "taken", so it
+        # keeps retrying and never actually banks the win). Promote to a FULL
+        # exit instead: same intent (bank the gain at this level), respecting
+        # the whole-share constraint instead of silently failing on it.
+        if kind == "partial" and venue == "extended" and int(qty * (sell_pct / 100) + 1e-6) < 1:
+            reason = f"{reason} — 1 akcja nie dzieli się na częściową sprzedaż, więc zamykam całość."
+            sell_pct, kind = 100.0, "partial_promoted_full"
+
         decision = Decision(
             symbol=symbol,
             action=TradeAction.SELL,
