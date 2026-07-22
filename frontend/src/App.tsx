@@ -29,8 +29,19 @@ export default function App() {
   const [muted, setMuted] = useState<boolean>(isSoundMuted);
   const [view, setView] = useState<View>("console");
   const [engineVenue, setEngineVenue] = useState<"alpaca" | "extended">("alpaca");
+  const [toasts, setToasts] = useState<Array<{ id: string; kind: "buy" | "sell" | "wait"; title: string; body: string }>>([]);
   const failCount = useRef(0);
   const seenTradeIds = useRef<Set<number> | null>(null);
+  const seenDecisionIds = useRef<Set<number> | null>(null);
+  const toastSeq = useRef(0);
+
+  const pushToast = useCallback((kind: "buy" | "sell" | "wait", title: string, body: string) => {
+    const id = `t${toastSeq.current++}`;
+    // Keep at most 3 on screen; auto-dismiss after a few seconds.
+    setToasts((cur) => [...cur, { id, kind, title, body }].slice(-3));
+    setTimeout(() => setToasts((cur) => cur.filter((t) => t.id !== id)), 7000);
+  }, []);
+  const dismissToast = useCallback((id: string) => setToasts((cur) => cur.filter((t) => t.id !== id)), []);
 
   const refresh = useCallback(async () => {
     try {
@@ -43,6 +54,8 @@ export default function App() {
         setExtendedPortfolio(cp); setExtendedTrades(ct);
       } else { setExtendedPortfolio(null); setExtendedTrades([]); }
 
+      // Popup + dźwięk przy ŚWIEŻEJ transakcji (kupno/sprzedaż). Pierwsze
+      // odświeżenie tylko zapamiętuje stan (nie wyskakuje na cały backlog).
       if (seenTradeIds.current === null) {
         seenTradeIds.current = new Set(t.map((x) => x.id));
       } else {
@@ -52,6 +65,28 @@ export default function App() {
           const side = fresh[0].side.toUpperCase() === "SELL" ? "SELL" : "BUY";
           playTradeSound(side);
           navigator.vibrate?.(side === "SELL" ? [60] : [20, 40, 20]);
+          fresh.slice(0, 3).forEach((x) => {
+            const isSell = x.side.toUpperCase() === "SELL";
+            pushToast(
+              isSell ? "sell" : "buy",
+              `${isSell ? "🔴 Sprzedano" : "🟢 Kupiono"} ${x.symbol}`,
+              `${x.quantity.toLocaleString("pl-PL", { maximumFractionDigits: 4 })} @ $${x.price.toLocaleString("pl-PL", { maximumFractionDigits: 2 })} · $${x.usdt_value.toLocaleString("pl-PL", { maximumFractionDigits: 2 })}`,
+            );
+          });
+        }
+      }
+
+      // Popup "czeka" przy ŚWIEŻEJ decyzji HOLD (bot przeanalizował i świadomie
+      // trzyma). Transakcje mają własny popup wyżej, więc tu tylko HOLD.
+      if (seenDecisionIds.current === null) {
+        seenDecisionIds.current = new Set(d.map((x) => x.id));
+      } else {
+        const freshHolds = d.filter((x) => !seenDecisionIds.current!.has(x.id) && x.action === "HOLD");
+        d.forEach((x) => seenDecisionIds.current!.add(x.id));
+        if (freshHolds.length > 0) {
+          const h = freshHolds[0];
+          const reason = (h.reasoning || "Brak wyraźnej przewagi w tym cyklu.").slice(0, 140);
+          pushToast("wait", "⏳ Czekam", reason);
         }
       }
     } catch (e) {
@@ -90,6 +125,17 @@ export default function App() {
   return (
     <div className="gd">
       <div className="gd-bg" aria-hidden="true"><span /><span /><span /></div>
+
+      {toasts.length > 0 && (
+        <div className="gd-toasts" role="status" aria-live="polite">
+          {toasts.map((t) => (
+            <button key={t.id} className={`gd-toast gd-toast-${t.kind}`} onClick={() => dismissToast(t.id)}>
+              <span className="gd-toast-title">{t.title}</span>
+              <span className="gd-toast-body">{t.body}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="gd-shell">
         <nav className="gd-rail">

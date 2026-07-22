@@ -2479,6 +2479,52 @@ button {
 .hc-counts { color: var(--muted); }
 .hc-checked-at { color: var(--muted); margin-left: auto; }
 
+/* Trade / decision popups (kup / sprzedaj / czeka) -- fixed stack, top-right on
+   desktop, full-width top on phones. Tap to dismiss; auto-fades after ~7s. */
+.gd-toasts {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.gd-toast {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel-2) 92%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  color: var(--text);
+  cursor: pointer;
+  animation: gd-toast-in 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  border-left-width: 4px;
+}
+.gd-toast-buy { border-left-color: var(--green); }
+.gd-toast-sell { border-left-color: var(--red); }
+.gd-toast-wait { border-left-color: var(--muted); }
+.gd-toast-title { font-weight: 800; font-size: 15px; letter-spacing: -0.01em; }
+.gd-toast-body { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+@keyframes gd-toast-in {
+  from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (max-width: 640px) {
+  .gd-toasts { top: 10px; right: 10px; left: 10px; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gd-toast { animation: none; }
+}
+
 .hc-toast {
   margin-top: 10px;
   padding: 8px 12px;
