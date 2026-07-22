@@ -7,6 +7,7 @@ sources before truncating to `limit`, so a handful of prolific feeds can't
 crowd out the rest (e.g. per-ticker headlines or SEC filings) once capped."""
 
 import logging
+import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
@@ -242,10 +243,147 @@ def _get_finnhub_company(ticker: str, key: str) -> list[dict]:
     return _finnhub_items(raw, FINNHUB_COMPANY_LIMIT, ticker)
 
 
-def _get_ticker_all(ticker: str, limit: int, finnhub_key: str = "") -> list[dict]:
-    """Per-ticker headlines from Google News, plus Finnhub company-news when a
-    key is set. Merged so both a keyless and a keyed deployment work."""
-    items = _get_ticker_headlines(ticker, limit)
+# --- Alpaca News (keyed, PRIMARY source) ------------------------------------
+# https://data.alpaca.markets/v1beta1/news -- Benzinga-sourced JSON news that
+# comes FREE with the Alpaca account we already trade through, and (crucially)
+# resolves from the SAME host our order flow already uses, so unlike the RSS
+# feeds it is NOT UA/IP-blocked on the datacenter server. This is the workhorse
+# per-ticker + general news source; auth is the same APCA header pair as the
+# trading/data clients. Degrades independently to [] on any error.
+ALPACA_NEWS_URL = "https://data.alpaca.markets/v1beta1/news"
+ALPACA_NEWS_GENERAL_LIMIT = 10
+ALPACA_NEWS_COMPANY_LIMIT = 4
+
+
+def _alpaca_news_get(params: dict, creds: tuple[str, str]) -> list:
+    key_id, secret = creds
+    try:
+        resp = httpx.get(
+            ALPACA_NEWS_URL,
+            params=params,
+            headers={"APCA-API-KEY-ID": key_id, "APCA-API-SECRET-KEY": secret, "Accept": "application/json"},
+            timeout=REQUEST_TIMEOUT,
+        )
+        resp.raise_for_status()
+        return resp.json().get("news", []) or []
+    except Exception as exc:
+        logger.warning("Alpaca News (%s) failed (%s), skipping it", params.get("symbols", "general"), type(exc).__name__)
+        return []
+
+
+def _alpaca_news_items(raw: list, limit: int, label: str) -> list[dict]:
+    items: list[dict] = []
+    for it in (raw if isinstance(raw, list) else [])[:limit]:
+        title = (it.get("headline") or "").strip()
+        if not title:
+            continue
+        published_at = it.get("created_at") or it.get("updated_at") or ""
+        outlet = it.get("source") or "Alpaca"
+        suffix = f" ({label})" if label else ""
+        items.append({"title": title, "published_at": published_at, "source": f"Alpaca · {outlet}{suffix}"})
+    return items
+
+
+def _get_alpaca_general(creds: tuple[str, str]) -> list[dict]:
+    return _alpaca_news_items(
+        _alpaca_news_get({"limit": ALPACA_NEWS_GENERAL_LIMIT, "sort": "desc"}, creds), ALPACA_NEWS_GENERAL_LIMIT, ""
+    )
+
+
+def _get_alpaca_company(ticker: str, creds: tuple[str, str]) -> list[dict]:
+    return _alpaca_news_items(
+        _alpaca_news_get({"symbols": ticker.upper(), "limit": ALPACA_NEWS_COMPANY_LIMIT, "sort": "desc"}, creds),
+        ALPACA_NEWS_COMPANY_LIMIT,
+        ticker,
+    )
+
+
+# --- Alpha Vantage NEWS_SENTIMENT (keyed, sentiment-scored) -----------------
+# https://www.alphavantage.co -- headlines WITH a computed sentiment label/score,
+# qualitative colour the mechanical filter can't produce. Free tier is rate-
+# capped (~25 calls/day), so this is a LIGHT general-market-sentiment source
+# behind a process-wide TTL cache: at most one live call every _ALPHA_VANTAGE_
+# TTL_S, regardless of how often the 5-min cycle asks. On throttle/error it
+# returns the last good batch (stale but useful) rather than nothing.
+ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"
+_ALPHA_VANTAGE_TTL_S = 1800  # 30 min -> <= ~48 calls/day worst case, well under free cap in practice
+_ALPHA_VANTAGE_LIMIT = 8
+_av_cache: dict = {"at": 0.0, "items": []}
+
+
+def _av_items(feed: list, limit: int) -> list[dict]:
+    out: list[dict] = []
+    for it in (feed if isinstance(feed, list) else [])[:limit]:
+        title = (it.get("title") or "").strip()
+        if not title:
+            continue
+        raw_ts = it.get("time_published") or ""
+        published_at = ""
+        if raw_ts:
+            try:
+                published_at = datetime.strptime(raw_ts, "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc).isoformat()
+            except ValueError:
+                published_at = ""
+        outlet = it.get("source") or "AlphaVantage"
+        entry = {"title": title, "published_at": published_at, "source": f"AlphaVantage · {outlet}"}
+        label = it.get("overall_sentiment_label")
+        if label:
+            entry["sentiment_label"] = label
+        score = it.get("overall_sentiment_score")
+        if score is not None:
+            try:
+                entry["sentiment_score"] = round(float(score), 3)
+            except (ValueError, TypeError):
+                pass
+        out.append(entry)
+    return out
+
+
+def _get_alpha_vantage_general(key: str) -> list[dict]:
+    if not key:
+        return []
+    now = time.monotonic()
+    if _av_cache["items"] and now - _av_cache["at"] < _ALPHA_VANTAGE_TTL_S:
+        return _av_cache["items"]
+    try:
+        resp = httpx.get(
+            ALPHA_VANTAGE_URL,
+            params={
+                "function": "NEWS_SENTIMENT",
+                "topics": "financial_markets",
+                "sort": "LATEST",
+                "limit": _ALPHA_VANTAGE_LIMIT,
+                "apikey": key,
+            },
+            timeout=REQUEST_TIMEOUT,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("Alpha Vantage failed (%s), keeping last cache", type(exc).__name__)
+        return _av_cache["items"] or []
+    feed = data.get("feed")
+    if not isinstance(feed, list):
+        # AV signals throttle/error with HTTP 200 + {"Information"/"Note": ...}.
+        note = data.get("Information") or data.get("Note") or ""
+        logger.warning("Alpha Vantage no feed (%s), keeping last cache", (note[:80] if note else list(data.keys())))
+        return _av_cache["items"] or []
+    items = _av_items(feed, _ALPHA_VANTAGE_LIMIT)
+    _av_cache["at"] = now
+    _av_cache["items"] = items
+    return items
+
+
+def _get_ticker_all(
+    ticker: str, limit: int, finnhub_key: str = "", alpaca_creds: tuple[str, str] | None = None
+) -> list[dict]:
+    """Per-ticker headlines from Alpaca News (primary) + Google News, plus
+    Finnhub company-news when a key is set. Merged so a keyless deployment still
+    works and a keyed one gets the reliable, non-IP-blocked sources on top."""
+    items: list[dict] = []
+    if alpaca_creds:
+        items += _get_alpaca_company(ticker, alpaca_creds)
+    items += _get_ticker_headlines(ticker, limit)
     if finnhub_key:
         items += _get_finnhub_company(ticker, finnhub_key)
     return items
@@ -295,6 +433,19 @@ class NewsClient:
         # keyed source is simply skipped and behaviour matches an RSS-only run.
         return getattr(self._settings, "finnhub_api_key", "") or ""
 
+    @property
+    def _alpaca_creds(self) -> tuple[str, str] | None:
+        """Alpaca News reuses the trading account's key pair. Returns None (so
+        the source is skipped) when either half is missing -- keeps tests and
+        keyless runs behaving exactly as before."""
+        kid = getattr(self._settings, "alpaca_api_key", "") or ""
+        sec = getattr(self._settings, "alpaca_api_secret", "") or ""
+        return (kid, sec) if kid and sec else None
+
+    @property
+    def _alpha_vantage_key(self) -> str:
+        return getattr(self._settings, "alpha_vantage_api_key", "") or ""
+
     def get_new_ticker_headlines(
         self, tickers: list[str], seen: dict[str, list[str]]
     ) -> tuple[list[dict], dict[str, list[str]]]:
@@ -307,8 +458,11 @@ class NewsClient:
         updated_seen: dict[str, list[str]] = {}
 
         key = self._finnhub_key
+        creds = self._alpaca_creds
         with ThreadPoolExecutor(max_workers=max(len(tickers), 1)) as pool:
-            futures = {ticker: pool.submit(_get_ticker_all, ticker, PER_TICKER_LIMIT, key) for ticker in tickers}
+            futures = {
+                ticker: pool.submit(_get_ticker_all, ticker, PER_TICKER_LIMIT, key, creds) for ticker in tickers
+            }
             for ticker, future in futures.items():
                 try:
                     headlines = future.result()
@@ -364,14 +518,22 @@ class NewsClient:
 
     def get_headlines(self, tickers: list[str], limit: int = 40) -> list[dict]:
         key = self._finnhub_key
-        worker_count = len(RSS_FEEDS) + len(tickers) + len(REDDIT_SUBREDDITS) + 1
+        creds = self._alpaca_creds
+        av_key = self._alpha_vantage_key
+        worker_count = len(RSS_FEEDS) + len(tickers) + len(REDDIT_SUBREDDITS) + 3
         with ThreadPoolExecutor(max_workers=worker_count) as pool:
             futures = [pool.submit(_get_rss, name, url, PER_SOURCE_LIMIT) for name, url in RSS_FEEDS]
-            futures += [pool.submit(_get_ticker_all, ticker, PER_TICKER_LIMIT, key) for ticker in tickers]
+            futures += [pool.submit(_get_ticker_all, ticker, PER_TICKER_LIMIT, key, creds) for ticker in tickers]
             futures += [pool.submit(_get_reddit, sub, PER_SUBREDDIT_LIMIT) for sub in REDDIT_SUBREDDITS]
             # Keyed primary source (only when configured): broad US market news.
             if key:
                 futures.append(pool.submit(_get_finnhub_general, key, "general"))
+            # Alpaca News general feed -- reliable, non-IP-blocked broad market news.
+            if creds:
+                futures.append(pool.submit(_get_alpaca_general, creds))
+            # Alpha Vantage general market sentiment (TTL-cached; sentiment-scored).
+            if av_key:
+                futures.append(pool.submit(_get_alpha_vantage_general, av_key))
 
             per_source: list[list[dict]] = []
             for future in futures:

@@ -369,6 +369,15 @@ class Settings(BaseSettings):
     # Empty -> the news layer runs on RSS only, exactly as before (graceful).
     finnhub_api_key: str = ""
 
+    # Alpha Vantage API key (free: https://www.alphavantage.co) -- a keyed
+    # NEWS_SENTIMENT source that returns headlines WITH a computed sentiment
+    # score/label per ticker. Free tier is rate-capped (~25 calls/day), so it's
+    # used as a LIGHT, TTL-cached general-market-sentiment source (see
+    # news_client._ALPHA_VANTAGE_TTL_S), not per-ticker-per-cycle. Empty -> the
+    # source is simply skipped. This is qualitative colour the mechanical filter
+    # can't compute -- exactly the AI-edge input, not another calculator metric.
+    alpha_vantage_api_key: str = ""
+
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
     smtp_username: str = ""
