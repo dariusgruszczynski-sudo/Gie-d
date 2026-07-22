@@ -20,6 +20,14 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.models import RiskEvent, SystemState
 
+# See update_portfolio_value(): a candidate new all-time-high must be seen on
+# this many total updates (the first sighting plus this many minus one more)
+# at/above it before it's promoted to the real peak used by the drawdown
+# halt. Tolerance allows trivial price-noise dips between the confirming
+# reads without resetting the candidate.
+PEAK_CONFIRMATION_UPDATES = 2
+PEAK_CONFIRMATION_TOLERANCE = 0.999
+
 
 @dataclass
 class ValidationResult:
@@ -93,9 +101,40 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
 
     # All-time peak (not the rolling day/week baseline) -- catches a slow,
     # multi-day bleed that never breaches the daily/weekly limit on any single
-    # day but adds up to a real capital hole.
-    if state.peak_account_value <= 0 or total_value_usdt > state.peak_account_value:
+    # day but adds up to a real capital hole. A brand-new peak isn't
+    # canonized on the spot: it first becomes a PENDING candidate and only
+    # promotes to the real peak once corroborated by PEAK_CONFIRMATION_UPDATES
+    # total updates at/above it. This exists because account_total_value()
+    # combines this venue's live numbers with the other venue's last stored
+    # snapshot -- both venues briefly holding positions at the same moment can
+    # inflate the combined total for a few hours before one leg closes out,
+    # and without this guard that transient high gets locked in as an
+    # all-time peak the account's real, sustained value never reaches again
+    # (a permanently unfair drawdown reference, not a real loss). The very
+    # first-ever value is exempt -- there's no prior peak to protect yet.
+    if state.peak_account_value <= 0:
         state.peak_account_value = total_value_usdt
+        state.pending_peak_value = 0.0
+        state.pending_peak_confirmations = 0
+    elif total_value_usdt > state.peak_account_value:
+        if (
+            state.pending_peak_value > 0
+            and total_value_usdt >= state.pending_peak_value * PEAK_CONFIRMATION_TOLERANCE
+        ):
+            state.pending_peak_confirmations += 1
+        else:
+            state.pending_peak_value = total_value_usdt
+            state.pending_peak_confirmations = 1
+        state.pending_peak_value = max(state.pending_peak_value, total_value_usdt)
+        if state.pending_peak_confirmations >= PEAK_CONFIRMATION_UPDATES:
+            state.peak_account_value = state.pending_peak_value
+            state.pending_peak_value = 0.0
+            state.pending_peak_confirmations = 0
+    else:
+        # Dropped back to (or below) the last confirmed peak -- any candidate
+        # in progress wasn't sustained, so it doesn't count towards confirming.
+        state.pending_peak_value = 0.0
+        state.pending_peak_confirmations = 0
     drawdown_pct = (
         (state.peak_account_value - total_value_usdt) / state.peak_account_value * 100
         if state.peak_account_value > 0
@@ -213,6 +252,8 @@ def resume(db: Session, venue: str = "alpaca") -> SystemState:
         # otherwise a drawdown halt tripped by a real loss would instantly
         # re-trip on the very next cycle since the old (pre-loss) peak stands.
         state.peak_account_value = 0.0
+        state.pending_peak_value = 0.0
+        state.pending_peak_confirmations = 0
     db.commit()
     _log_event(db, "manual_resume", f"Automat ({venue}) wznowiony ręcznie z dashboardu")
     db.refresh(state)

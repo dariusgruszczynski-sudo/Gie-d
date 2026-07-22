@@ -223,3 +223,15 @@ class SystemState(Base):
     # crosses either daily or weekly limit on any single day. 0 = not yet
     # initialized (set on the first update_portfolio_value call).
     peak_account_value: Mapped[float] = mapped_column(Float, default=0.0)
+    # A candidate new all-time-high awaiting confirmation (see
+    # PEAK_CONFIRMATION_UPDATES in risk_manager.py) -- both venues share one
+    # Alpaca account, so account_total_value() combines THIS venue's live
+    # numbers with the OTHER venue's last stored snapshot; a real diagnostic
+    # caught two legs briefly holding positions at the same moment inflating
+    # the combined total for a few hours, which then got canonized as an
+    # all-time peak the account's real, sustained value never actually
+    # reached again -- a permanently unfair drawdown reference. Requiring the
+    # candidate to reappear on a later update before promoting it filters that
+    # out without blocking a genuine, sustained new high.
+    pending_peak_value: Mapped[float] = mapped_column(Float, default=0.0)
+    pending_peak_confirmations: Mapped[int] = mapped_column(Integer, default=0)

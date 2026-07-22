@@ -1,3 +1,5 @@
+import pytest
+
 from app.services import risk_manager
 
 
@@ -65,13 +67,31 @@ def test_drawdown_peak_follows_new_highs(db_session, settings):
     lenient = settings.model_copy(update={
         "daily_loss_limit_pct": 90.0, "weekly_loss_limit_pct": 90.0, "max_drawdown_halt_pct": 5.0,
     })
-    risk_manager.update_portfolio_value(db_session, lenient, 1000.0)  # peak = 1000
-    risk_manager.update_portfolio_value(db_session, lenient, 1200.0)  # new peak = 1200
+    risk_manager.update_portfolio_value(db_session, lenient, 1000.0)  # peak = 1000 (first-ever, immediate)
+    risk_manager.update_portfolio_value(db_session, lenient, 1200.0)  # candidate 1200, 1st sighting
+    risk_manager.update_portfolio_value(db_session, lenient, 1200.0)  # confirmed -> new peak = 1200
     state = risk_manager.update_portfolio_value(db_session, lenient, 1150.0)  # -4.2% from 1200
     assert state.is_halted is False
 
     state2 = risk_manager.update_portfolio_value(db_session, lenient, 1130.0)  # -5.8% from 1200
     assert state2.is_halted is True
+
+
+def test_drawdown_peak_ignores_unconfirmed_one_off_spike(db_session, settings):
+    """A brand-new high that never reappears on a later update (e.g. a
+    transient cross-venue combination, or a stale price tick) must NOT become
+    the drawdown reference -- only a high confirmed on a subsequent update
+    counts."""
+    lenient = settings.model_copy(update={
+        "daily_loss_limit_pct": 90.0, "weekly_loss_limit_pct": 90.0, "max_drawdown_halt_pct": 5.0,
+    })
+    risk_manager.update_portfolio_value(db_session, lenient, 1000.0)  # peak = 1000
+    risk_manager.update_portfolio_value(db_session, lenient, 1200.0)  # unconfirmed candidate
+    state = risk_manager.update_portfolio_value(db_session, lenient, 1000.0)  # back to baseline
+
+    # Peak never promoted past 1000 -> back at 1000 is 0% drawdown, not ~16.7% off 1200.
+    assert state.is_halted is False
+    assert state.peak_account_value == pytest.approx(1000.0)
 
 
 def test_resume_rebaselines_drawdown_peak(db_session, settings):
