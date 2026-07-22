@@ -1110,6 +1110,303 @@ def build_performance_context(
     }
 
 
+def _advise_portfolio(advisor, **kwargs) -> list:
+    """Dispatch to the portfolio-manager path (a SET of actions across the whole
+    whitelist) when the advisor supports it, else fall back to the legacy
+    single-decision `decide()` wrapped in a list. The fallback keeps every
+    existing test double (which only implements `.decide()`) working unchanged;
+    production's real ClaudeAdvisor always has `decide_portfolio`."""
+    if hasattr(advisor, "decide_portfolio"):
+        return advisor.decide_portfolio(**kwargs)
+    d = advisor.decide(**kwargs)
+    return [d] if d is not None else []
+
+
+def _process_decision(
+    db: Session,
+    settings: Settings,
+    broker,
+    *,
+    decision_data,
+    portfolio: dict,
+    market_data: dict,
+    headlines: list[dict],
+    global_context: dict,
+    trigger_reason,
+    regime: dict,
+    regime_gate_on: bool,
+    defensive_list: list[str],
+    earnings_days: dict,
+    performance_context: dict,
+    trade_check,
+    tradable: bool,
+    session_info: SessionInfo | None,
+    venue: str,
+    symbols: list[str],
+) -> Decision:
+    """Runs ONE Claude action (from the portfolio set) through the full risk
+    pipeline -- volatility sizing, all BUY gates, halt/pause, min-hold, cooldown,
+    earnings blackout -- and executes it, returning the persisted Decision (with
+    a rejection_reason if any gate blocked it). Factored out of run_cycle so the
+    portfolio-manager loop can apply the SAME gates to each action; the mechanical
+    exits and the shared per-cycle context (market_data, regime, ...) are computed
+    once by the caller and passed in."""
+    # Volatility-aware sizing: scale a BUY down for a more-volatile ticker so
+    # one wild name (MSTR) can't dominate P&L. HOLD/SELL are untouched.
+    effective_size_pct = decision_data.size_pct
+    if decision_data.action == "BUY":
+        ticker_vol = (market_data.get(decision_data.symbol) or {}).get("technical", {}).get("volatility_pct_1h")
+        effective_size_pct = volatility_adjusted_size(settings, decision_data.size_pct, ticker_vol)
+        # Risk-based cap: hitting this ticker's (vol-scaled) stop must not cost
+        # more than risk_per_trade_pct of the whole account -- a wider stop
+        # implies a smaller slice. Composed via min(), so it only ever shrinks.
+        stop_dist = dynamic_stop_loss_pct(settings, ticker_vol)
+        effective_size_pct = round(min(effective_size_pct, risk_based_size_cap(settings, portfolio, stop_dist)), 4)
+        # Wide-spread / thinner names pay more on every round trip -> haircut
+        # their size so they only earn a slot when the edge is proportionally big.
+        if decision_data.symbol in settings.high_spread_symbol_list and settings.high_spread_size_scale < 1.0:
+            effective_size_pct = round(effective_size_pct * settings.high_spread_size_scale, 4)
+
+    decision = Decision(
+        symbol=decision_data.symbol,
+        action=TradeAction(decision_data.action),
+        size_pct=effective_size_pct,
+        confidence=decision_data.confidence,
+        reasoning=decision_data.reasoning,
+        market_data_snapshot=json.dumps(market_data, default=str),
+        news_snapshot=json.dumps(headlines),
+        market_context_snapshot=json.dumps(global_context),
+        triggered_by=trigger_reason,
+        executed=False,
+        venue=venue,
+    )
+
+    if not trade_check.approved:
+        decision.rejection_reason = trade_check.reason
+        db.add(decision)
+        db.commit()
+        db.refresh(decision)
+        return decision
+
+    if decision_data.action == "HOLD":
+        db.add(decision)
+        db.commit()
+        db.refresh(decision)
+        return decision
+
+    # A force=True "Wymuś analizę" still asks Claude while the market is closed
+    # (so the user can see its read on demand), but a resulting BUY/SELL can't
+    # actually execute until the regular session resumes -- Alpaca would just
+    # reject it.
+    if not tradable:
+        decision.rejection_reason = _session_closed_reason(session_info)
+        db.add(decision)
+        db.commit()
+        db.refresh(decision)
+        return decision
+
+    validation = risk_manager.validate_trade(
+        settings=settings,
+        symbol=decision_data.symbol,
+        action=decision_data.action,
+        size_pct=effective_size_pct,
+        whitelist=symbols,
+    )
+    if not validation.approved:
+        decision.rejection_reason = validation.reason
+        db.add(decision)
+        db.commit()
+        db.refresh(decision)
+        return decision
+
+    # Post-stop-loss cooldown: refuse to re-buy a coin we just cut, even if
+    # Claude wants back in -- this is the anti-churn guard for a small account.
+    if decision_data.action == "BUY":
+        # Capital allocation: this engine may only deploy up to its share of the
+        # whole account (shared Alpaca cash). Compute the remaining room and both
+        # (a) reject the BUY if the engine is already at its allocation, and
+        # (b) cap the order notional to it (see _execute_trade, via the dict).
+        alloc_room = venue_allocation_room(db, settings, portfolio, venue)
+        portfolio["allocation_room"] = alloc_room
+        alloc_pct = settings.extended_allocation_pct if venue == "extended" else settings.alpaca_allocation_pct
+        if alloc_room < MIN_SELL_NOTIONAL_USD:
+            decision.rejection_reason = (
+                f"Silnik osiągnął swój przydział kapitału ({alloc_pct:.0f}% konta) — "
+                "nowe wejście wstrzymane, żeby nie zająć puli drugiego silnika"
+            )
+            db.add(decision)
+            db.commit()
+            db.refresh(decision)
+            return decision
+
+        # Conviction floor: a weak-edge BUY is not worth the spread -- reject it
+        # outright rather than churn the account (cash is a valid position).
+        if settings.min_buy_confidence > 0 and decision_data.confidence < settings.min_buy_confidence:
+            decision.rejection_reason = (
+                f"Zbyt niska pewność: {decision_data.confidence:.2f} < próg {settings.min_buy_confidence:.2f} "
+                "— wejście pominięte (gotówka to też pozycja)"
+            )
+            db.add(decision)
+            db.commit()
+            db.refresh(decision)
+            return decision
+
+        # Regime gate: while this venue's regime is risk-off, only its defensive
+        # set may be OPENED (equity havens/inverses for stocks; safe-haven FX for
+        # the extended/forex book -> extended longs blocked, cash/haven-FX only);
+        # everything else is forced to HOLD.
+        if (
+            regime_gate_on
+            and regime.get("regime") == "risk_off"
+            and decision_data.symbol not in defensive_list
+        ):
+            allowed = ", ".join(defensive_list) or "nic (tylko gotówka)"
+            decision.rejection_reason = (
+                f"Reżim risk-off ({'; '.join(regime.get('reasons') or []) or 'sygnały rynku'}) — "
+                f"nowe wejście tylko na nazwach defensywnych ({allowed})"
+            )
+            db.add(decision)
+            db.commit()
+            db.refresh(decision)
+            return decision
+
+        # Per-day new-entry cap: stop a small account churning on many low-edge
+        # entries. SELL/HOLD and mechanical exits are unaffected.
+        if (
+            settings.max_new_positions_per_day > 0
+            and count_new_entries_today(db, venue=venue) >= settings.max_new_positions_per_day
+        ):
+            decision.rejection_reason = (
+                f"Limit nowych wejść na dziś osiągnięty ({settings.max_new_positions_per_day}) — "
+                "nowe BUY wstrzymane do jutra (anty-churn)"
+            )
+            db.add(decision)
+            db.commit()
+            db.refresh(decision)
+            return decision
+
+        # Entry-confluence filter: a BUY must trade WITH the trend/momentum
+        # (score >= threshold, not overbought). Entry edge is the first-order
+        # driver of profit -- this is the biggest lever on the win rate.
+        if settings.entry_filter_enabled:
+            tech = (market_data.get(decision_data.symbol) or {}).get("technical", {})
+            sig = signals.entry_confluence(settings, tech)
+            if not sig.ok:
+                decision.rejection_reason = (
+                    f"Filtr konfluencji: brak zgodnego sygnału wejścia dla {decision_data.symbol} "
+                    f"(score {sig.score}/{settings.entry_min_score}"
+                    f"{'; ' + '; '.join(sig.reasons) if sig.reasons else ''})"
+                )
+                db.add(decision)
+                db.commit()
+                db.refresh(decision)
+                return decision
+
+        # Concurrency cap: bound correlated exposure (the whitelist is mostly
+        # tech beta -> many open names are really one bet). Scaling INTO an
+        # already-held name is exempt.
+        base_sym = _base_asset(decision_data.symbol, settings.quote_currency)
+        already_held = (
+            portfolio["balances"].get(base_sym, 0.0) * portfolio["prices"].get(decision_data.symbol, 0.0)
+            >= MIN_SELL_NOTIONAL_USD
+        )
+        if (
+            settings.max_concurrent_positions > 0
+            and not already_held
+            and count_open_positions(portfolio, settings, symbols) >= settings.max_concurrent_positions
+        ):
+            decision.rejection_reason = (
+                f"Limit równoczesnych pozycji osiągnięty ({settings.max_concurrent_positions}) — "
+                "ograniczenie skorelowanej ekspozycji"
+            )
+            db.add(decision)
+            db.commit()
+            db.refresh(decision)
+            return decision
+
+        # Auto-demotion: a ticker with a proven negative track record on this
+        # venue is quarantined from NEW entries -- stop repeating what loses.
+        if settings.auto_demote_enabled:
+            st = (performance_context.get("per_symbol_stats") or {}).get(decision_data.symbol)
+            if (
+                st
+                and st["closed"] >= settings.auto_demote_min_trades
+                and st["realized_pnl"] < 0
+                and (st["win_rate"] or 0) < settings.auto_demote_win_rate_floor
+            ):
+                decision.rejection_reason = (
+                    f"Auto-degradacja {decision_data.symbol}: ujemna historia "
+                    f"({st['wins']}W/{st['losses']}L, P&L {st['realized_pnl']:.2f}) — nowe wejście zablokowane"
+                )
+                db.add(decision)
+                db.commit()
+                db.refresh(decision)
+                return decision
+
+        in_cooldown, cooldown_reason = stop_loss_cooldown_active(db, decision_data.symbol, venue=venue)
+        if in_cooldown:
+            decision.rejection_reason = cooldown_reason
+            db.add(decision)
+            db.commit()
+            db.refresh(decision)
+            return decision
+
+        # Earnings-gap backstop: never OPEN a fresh position into a report the
+        # mechanical stop-loss can't protect against. Only acts on a KNOWN
+        # upcoming date, so a calendar-lookup failure never blocks trading.
+        days_to_earnings = earnings_days.get(decision_data.symbol)
+        if (
+            settings.earnings_blackout_days > 0
+            and days_to_earnings is not None
+            and 0 <= days_to_earnings <= settings.earnings_blackout_days
+        ):
+            decision.rejection_reason = (
+                f"Blackout przed earnings: {decision_data.symbol} raportuje za "
+                f"{days_to_earnings} dni — ryzyko luki, nowe wejście pominięte"
+            )
+            db.add(decision)
+            db.commit()
+            db.refresh(decision)
+            return decision
+
+    db.add(decision)
+    db.commit()
+    db.refresh(decision)
+
+    # Re-check right before placing the order: the Claude call above can take
+    # several seconds, and a "Zatrzymaj automat" click during that window
+    # should still stop the trade rather than only affecting the *next* cycle.
+    final_check = risk_manager.can_trade_automated(db, venue)
+    if not final_check.approved:
+        decision.rejection_reason = f"Zatrzymano tuż przed wykonaniem: {final_check.reason}"
+        db.commit()
+        db.refresh(decision)
+        return decision
+
+    try:
+        _execute_trade(
+            db=db,
+            broker=broker,
+            settings=settings,
+            symbol=decision_data.symbol,
+            action=decision_data.action,
+            size_pct=effective_size_pct,
+            portfolio=portfolio,
+            decision=decision,
+            is_manual=False,
+            session=session_info.session if session_info is not None else market_hours.REGULAR,
+            venue=venue,
+        )
+    except (ValueError, AlpacaAPIError) as exc:
+        # e.g. a computed order size that rounds to zero, or a broker
+        # rejection. Record why instead of crashing the whole scheduled cycle.
+        logger.warning("Wykonanie zlecenia %s nieudane, pomijam", decision_data.symbol, exc_info=True)
+        decision.rejection_reason = f"Zlecenie niewykonane: {exc}"
+        db.commit()
+        db.refresh(decision)
+    return decision
+
+
 def run_cycle(
     db: Session,
     settings: Settings,
@@ -1369,7 +1666,14 @@ def run_cycle(
         ),
     }
 
-    decision_data = advisor.decide(
+    # Portfolio-manager mode: ONE Claude call returns a SET of actions across
+    # the whole whitelist (open several, trim, rotate, or sit tight) -- the
+    # "AI tool, not a calculator" model. Each action then runs through the SAME
+    # per-action risk pipeline (_process_decision) a single decision used to;
+    # between executed trades we refresh the portfolio so the next action sees
+    # updated cash/positions (BUY sizes apply in order against free cash).
+    decisions_data = _advise_portfolio(
+        advisor,
         whitelist=tradable_symbols,
         market_data=market_data,
         news=headlines,
@@ -1381,264 +1685,47 @@ def run_cycle(
         venue=venue,
     )
     _mark_analysis_done_today(db, venue=venue)
+    # One API call regardless of how many actions came back: the portfolio path
+    # parks the whole call's cost/tokens on the first element (0 on the rest),
+    # the legacy single-decision fallback carries its own -- summing is correct
+    # either way.
     budget_tracker.record_usage_cost(
-        db, decision_data.cost_usd, decision_data.input_tokens, decision_data.output_tokens
+        db,
+        sum(d.cost_usd for d in decisions_data),
+        sum(d.input_tokens for d in decisions_data),
+        sum(d.output_tokens for d in decisions_data),
     )
 
-    # Volatility-aware sizing: scale a BUY down for a more-volatile ticker so
-    # one wild name (MSTR) can't dominate P&L. HOLD/SELL are untouched.
-    effective_size_pct = decision_data.size_pct
-    if decision_data.action == "BUY":
-        ticker_vol = (market_data.get(decision_data.symbol) or {}).get("technical", {}).get("volatility_pct_1h")
-        effective_size_pct = volatility_adjusted_size(settings, decision_data.size_pct, ticker_vol)
-        # Risk-based cap: hitting this ticker's (vol-scaled) stop must not cost
-        # more than risk_per_trade_pct of the whole account -- a wider stop
-        # implies a smaller slice. Composed via min(), so it only ever shrinks.
-        stop_dist = dynamic_stop_loss_pct(settings, ticker_vol)
-        effective_size_pct = round(min(effective_size_pct, risk_based_size_cap(settings, portfolio, stop_dist)), 4)
-        # Wide-spread / thinner names pay more on every round trip -> haircut
-        # their size so they only earn a slot when the edge is proportionally big.
-        if decision_data.symbol in settings.high_spread_symbol_list and settings.high_spread_size_scale < 1.0:
-            effective_size_pct = round(effective_size_pct * settings.high_spread_size_scale, 4)
-
-    decision = Decision(
-        symbol=decision_data.symbol,
-        action=TradeAction(decision_data.action),
-        size_pct=effective_size_pct,
-        confidence=decision_data.confidence,
-        reasoning=decision_data.reasoning,
-        market_data_snapshot=json.dumps(market_data, default=str),
-        news_snapshot=json.dumps(headlines),
-        market_context_snapshot=json.dumps(global_context),
-        triggered_by=trigger_reason,
-        executed=False,
-        venue=venue,
-    )
-
-    if not trade_check.approved:
-        decision.rejection_reason = trade_check.reason
-        db.add(decision)
-        db.commit()
-        db.refresh(decision)
-        return decision
-
-    if decision_data.action == "HOLD":
-        db.add(decision)
-        db.commit()
-        db.refresh(decision)
-        return decision
-
-    # A force=True "Wymuś analizę" still asks Claude while the market is closed
-    # (so the user can see its read on demand), but a resulting BUY/SELL can't
-    # actually execute until the regular session resumes -- Alpaca would just
-    # reject it.
-    if not tradable:
-        decision.rejection_reason = _session_closed_reason(session_info)
-        db.add(decision)
-        db.commit()
-        db.refresh(decision)
-        return decision
-
-    validation = risk_manager.validate_trade(
-        settings=settings,
-        symbol=decision_data.symbol,
-        action=decision_data.action,
-        size_pct=effective_size_pct,
-        whitelist=symbols,
-    )
-    if not validation.approved:
-        decision.rejection_reason = validation.reason
-        db.add(decision)
-        db.commit()
-        db.refresh(decision)
-        return decision
-
-    # Post-stop-loss cooldown: refuse to re-buy a coin we just cut, even if
-    # Claude wants back in -- this is the anti-churn guard for a small account.
-    if decision_data.action == "BUY":
-        # Capital allocation: this engine may only deploy up to its share of the
-        # whole account (shared Alpaca cash). Compute the remaining room and both
-        # (a) reject the BUY if the engine is already at its allocation, and
-        # (b) cap the order notional to it (see _execute_trade, via the dict).
-        alloc_room = venue_allocation_room(db, settings, portfolio, venue)
-        portfolio["allocation_room"] = alloc_room
-        alloc_pct = settings.extended_allocation_pct if venue == "extended" else settings.alpaca_allocation_pct
-        if alloc_room < MIN_SELL_NOTIONAL_USD:
-            decision.rejection_reason = (
-                f"Silnik osiągnął swój przydział kapitału ({alloc_pct:.0f}% konta) — "
-                "nowe wejście wstrzymane, żeby nie zająć puli drugiego silnika"
-            )
-            db.add(decision)
-            db.commit()
-            db.refresh(decision)
-            return decision
-
-        # Conviction floor: a weak-edge BUY is not worth the spread -- reject it
-        # outright rather than churn the account (cash is a valid position).
-        if settings.min_buy_confidence > 0 and decision_data.confidence < settings.min_buy_confidence:
-            decision.rejection_reason = (
-                f"Zbyt niska pewność: {decision_data.confidence:.2f} < próg {settings.min_buy_confidence:.2f} "
-                "— wejście pominięte (gotówka to też pozycja)"
-            )
-            db.add(decision)
-            db.commit()
-            db.refresh(decision)
-            return decision
-
-        # Regime gate: while this venue's regime is risk-off, only its defensive
-        # set may be OPENED (equity havens/inverses for stocks; safe-haven FX for
-        # the extended/forex book -> extended longs blocked, cash/haven-FX only);
-        # everything else is forced to HOLD.
-        if (
-            regime_gate_on
-            and regime.get("regime") == "risk_off"
-            and decision_data.symbol not in defensive_list
-        ):
-            allowed = ", ".join(defensive_list) or "nic (tylko gotówka)"
-            decision.rejection_reason = (
-                f"Reżim risk-off ({'; '.join(regime.get('reasons') or []) or 'sygnały rynku'}) — "
-                f"nowe wejście tylko na nazwach defensywnych ({allowed})"
-            )
-            db.add(decision)
-            db.commit()
-            db.refresh(decision)
-            return decision
-
-        # Per-day new-entry cap: stop a small account churning on many low-edge
-        # entries. SELL/HOLD and mechanical exits are unaffected.
-        if (
-            settings.max_new_positions_per_day > 0
-            and count_new_entries_today(db, venue=venue) >= settings.max_new_positions_per_day
-        ):
-            decision.rejection_reason = (
-                f"Limit nowych wejść na dziś osiągnięty ({settings.max_new_positions_per_day}) — "
-                "nowe BUY wstrzymane do jutra (anty-churn)"
-            )
-            db.add(decision)
-            db.commit()
-            db.refresh(decision)
-            return decision
-
-        # Entry-confluence filter: a BUY must trade WITH the trend/momentum
-        # (score >= threshold, not overbought). Entry edge is the first-order
-        # driver of profit -- this is the biggest lever on the win rate.
-        if settings.entry_filter_enabled:
-            tech = (market_data.get(decision_data.symbol) or {}).get("technical", {})
-            sig = signals.entry_confluence(settings, tech)
-            if not sig.ok:
-                decision.rejection_reason = (
-                    f"Filtr konfluencji: brak zgodnego sygnału wejścia dla {decision_data.symbol} "
-                    f"(score {sig.score}/{settings.entry_min_score}"
-                    f"{'; ' + '; '.join(sig.reasons) if sig.reasons else ''})"
-                )
-                db.add(decision)
-                db.commit()
-                db.refresh(decision)
-                return decision
-
-        # Concurrency cap: bound correlated exposure (the whitelist is mostly
-        # tech beta -> many open names are really one bet). Scaling INTO an
-        # already-held name is exempt.
-        base_sym = _base_asset(decision_data.symbol, settings.quote_currency)
-        already_held = (
-            portfolio["balances"].get(base_sym, 0.0) * portfolio["prices"].get(decision_data.symbol, 0.0)
-            >= MIN_SELL_NOTIONAL_USD
-        )
-        if (
-            settings.max_concurrent_positions > 0
-            and not already_held
-            and count_open_positions(portfolio, settings, symbols) >= settings.max_concurrent_positions
-        ):
-            decision.rejection_reason = (
-                f"Limit równoczesnych pozycji osiągnięty ({settings.max_concurrent_positions}) — "
-                "ograniczenie skorelowanej ekspozycji"
-            )
-            db.add(decision)
-            db.commit()
-            db.refresh(decision)
-            return decision
-
-        # Auto-demotion: a ticker with a proven negative track record on this
-        # venue is quarantined from NEW entries -- stop repeating what loses.
-        if settings.auto_demote_enabled:
-            st = (performance_context.get("per_symbol_stats") or {}).get(decision_data.symbol)
-            if (
-                st
-                and st["closed"] >= settings.auto_demote_min_trades
-                and st["realized_pnl"] < 0
-                and (st["win_rate"] or 0) < settings.auto_demote_win_rate_floor
-            ):
-                decision.rejection_reason = (
-                    f"Auto-degradacja {decision_data.symbol}: ujemna historia "
-                    f"({st['wins']}W/{st['losses']}L, P&L {st['realized_pnl']:.2f}) — nowe wejście zablokowane"
-                )
-                db.add(decision)
-                db.commit()
-                db.refresh(decision)
-                return decision
-
-        in_cooldown, cooldown_reason = stop_loss_cooldown_active(db, decision_data.symbol, venue=venue)
-        if in_cooldown:
-            decision.rejection_reason = cooldown_reason
-            db.add(decision)
-            db.commit()
-            db.refresh(decision)
-            return decision
-
-        # Earnings-gap backstop: never OPEN a fresh position into a report the
-        # mechanical stop-loss can't protect against. Only acts on a KNOWN
-        # upcoming date, so a calendar-lookup failure never blocks trading.
-        days_to_earnings = earnings_days.get(decision_data.symbol)
-        if (
-            settings.earnings_blackout_days > 0
-            and days_to_earnings is not None
-            and 0 <= days_to_earnings <= settings.earnings_blackout_days
-        ):
-            decision.rejection_reason = (
-                f"Blackout przed earnings: {decision_data.symbol} raportuje za "
-                f"{days_to_earnings} dni — ryzyko luki, nowe wejście pominięte"
-            )
-            db.add(decision)
-            db.commit()
-            db.refresh(decision)
-            return decision
-
-    db.add(decision)
-    db.commit()
-    db.refresh(decision)
-
-    # Re-check right before placing the order: the Claude call above can take
-    # several seconds, and a "Zatrzymaj automat" click during that window
-    # should still stop the trade rather than only affecting the *next* cycle.
-    final_check = risk_manager.can_trade_automated(db, venue)
-    if not final_check.approved:
-        decision.rejection_reason = f"Zatrzymano tuż przed wykonaniem: {final_check.reason}"
-        db.commit()
-        db.refresh(decision)
-        return decision
-
-    try:
-        _execute_trade(
-            db=db,
-            broker=broker,
-            settings=settings,
-            symbol=decision_data.symbol,
-            action=decision_data.action,
-            size_pct=effective_size_pct,
+    primary: Decision | None = None
+    for dd in decisions_data:
+        dec = _process_decision(
+            db,
+            settings,
+            broker,
+            decision_data=dd,
             portfolio=portfolio,
-            decision=decision,
-            is_manual=False,
-            session=session_info.session if session_info is not None else market_hours.REGULAR,
+            market_data=market_data,
+            headlines=headlines,
+            global_context=global_context,
+            trigger_reason=trigger_reason,
+            regime=regime,
+            regime_gate_on=regime_gate_on,
+            defensive_list=defensive_list,
+            earnings_days=earnings_days,
+            performance_context=performance_context,
+            trade_check=trade_check,
+            tradable=tradable,
+            session_info=session_info,
             venue=venue,
+            symbols=symbols,
         )
-    except (ValueError, AlpacaAPIError) as exc:
-        # e.g. a computed order size that rounds to zero, or a broker
-        # rejection. Record why instead of crashing the whole scheduled cycle.
-        logger.warning("Wykonanie zlecenia %s nieudane, pomijam", decision_data.symbol, exc_info=True)
-        decision.rejection_reason = f"Zlecenie niewykonane: {exc}"
-        db.commit()
-        db.refresh(decision)
-    return decision
+        if primary is None:
+            primary = dec
+        # A filled BUY/SELL changes cash and holdings -- refresh so the next
+        # action in the set (and its gates) sees the post-trade portfolio.
+        if dec is not None and dec.executed:
+            portfolio = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
+    return primary
 
 
 def _execute_trade(

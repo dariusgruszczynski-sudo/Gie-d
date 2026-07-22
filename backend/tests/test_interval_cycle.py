@@ -240,6 +240,44 @@ def test_mechanical_sell_fires_on_poll_without_claude(db_session):
     assert broker.balances.get("SPY", 0.0) <= 1e-9
 
 
+class PortfolioAdvisor:
+    """Dubler Claude w trybie zarządzania portfelem: zwraca ZESTAW akcji przez
+    decide_portfolio (nie pojedynczą decide)."""
+
+    def __init__(self, decisions: list[TradingDecision]):
+        self.decisions = decisions
+        self.calls = 0
+
+    def decide_portfolio(self, **kwargs) -> list[TradingDecision]:
+        self.calls += 1
+        return list(self.decisions)
+
+
+def test_portfolio_manager_executes_multiple_buys_in_one_cycle(db_session):
+    """Tryb PM: jedno wywołanie zwraca DWA BUY (SPY + QQQ) i OBA lądują jako
+    realne zlecenia w jednym cyklu. Rozmiary liczą się PO KOLEI od aktualnej
+    wolnej gotówki (po pierwszym kupnie portfel jest odświeżany), więc drugi
+    BUY bierze % z tego, co zostało -- to jest 'Claude prowadzi cały portfel'."""
+    s = _prod_like_settings()
+    broker, news, ctx = Broker(), News(), Ctx()
+    advisor = PortfolioAdvisor(
+        [
+            TradingDecision("BUY", "SPY", 20, 0.9, "Wejście SPY."),
+            TradingDecision("BUY", "QQQ", 15, 0.8, "Wejście QQQ."),
+        ]
+    )
+
+    d = trading_engine.run_cycle(db_session, s, broker, news, advisor, market_ctx=ctx)
+    assert advisor.calls == 1  # jedno wywołanie na cały portfel
+    buys = [o for o in broker.orders if o.side == "BUY"]
+    assert {o.symbol for o in buys} == {"SPY", "QQQ"}  # OBA kupione
+    spy = next(o for o in buys if o.symbol == "SPY")
+    qqq = next(o for o in buys if o.symbol == "QQQ")
+    assert abs(spy.usdt_value - 200.0) < 1e-6  # 20% z 1000
+    assert abs(qqq.usdt_value - 120.0) < 1e-6  # 15% z 800 (po odświeżeniu portfela)
+    assert d is not None and d.symbol == "SPY"  # zwraca pierwszą decyzję
+
+
 def test_halted_interval_skips_claude_entirely(db_session):
     """Gdy automat jest zatrzymany (halt limitem strat), zaplanowany tik NIE
     marnuje płatnego zapytania do Claude -- decyzja mogłaby zostać tylko

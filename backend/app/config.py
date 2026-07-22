@@ -92,8 +92,8 @@ class Settings(BaseSettings):
     extended_price_move_trigger_pct: float = 1.5
     extended_full_analysis_every_minutes: int = 30
     # Poza sesją sprawdzamy rzadziej niż sesja regularna (cieńszy rynek, mniej
-    # okazji, oszczędność tokenów) -- co 15 min.
-    extended_poll_interval_minutes: int = 15
+    # okazji, szersze spready) -- co 30 min (2026-07-22, decyzja właściciela).
+    extended_poll_interval_minutes: int = 30
     extended_signal_timeframe: str = "15m"
 
     # --- Podział kapitału między dwie nogi (JEDNO konto Alpaca) --------------
@@ -188,7 +188,10 @@ class Settings(BaseSettings):
     # Lowered 0.57 -> 0.48 (2026-07-22, owner's call): live decisions showed
     # many "decent but not perfect" setups (0.50-0.62) sitting just under the
     # old floor -- full aggression means catching those, not only the cleanest.
-    min_buy_confidence: float = 0.48
+    # 0.48 -> 0.40 (2026-07-22): PM-mode Claude gra często i w miarę agresywnie
+    # (decyzja właściciela), więc próg pewności niżej -- łapiemy więcej realnych
+    # setupów; ochrona kapitału i tak siedzi w mechanicznych wyjściach.
+    min_buy_confidence: float = 0.40
     # Cap on NEW automated BUY entries per venue per calendar day -- stops a
     # small account churning on many low-edge entries. 0 disables (bez limitu).
     max_new_positions_per_day: int = 0
@@ -208,7 +211,15 @@ class Settings(BaseSettings):
     # since persistently high RSI in a genuine trend is normal, not exhaustion.
     # Removed: RSI now only ever adds to the score. entry_filter_enabled=False
     # disables the whole filter.
-    entry_filter_enabled: bool = True
+    # 2026-07-22 (owner's call, "wywalamy kalkulator, budujemy AI toola"):
+    # WYŁĄCZONE. Mechaniczne sito wejścia mogło tylko ODEJMOWAĆ okazje Claude,
+    # nigdy dodać -- patrzyło na te same świece co kalkulator, więc nakładało
+    # sufit na przewagę AI. Konfluencja techniczna trafia teraz do Claude jako
+    # DORADCZY input w prompt (market_data.technical), a nie twarde weto:
+    # decyduje AI, czytając też newsy/sentyment, których sito nie widzi. Szelki
+    # RYZYKA (stop/trailing/sizing/halt/cooldown) zostają mechaniczne -- to nie
+    # sito sygnału, to ochrona kapitału.
+    entry_filter_enabled: bool = False
     # 2-of-3 proved too strict in a choppy/mixed market: 5 days of live data
     # showed ZERO autonomous BUY on either venue despite real intraday swings --
     # not because entries were rejected (rejection log was empty), but because
@@ -330,17 +341,23 @@ class Settings(BaseSettings):
     # Sam poll nie pali budżetu: pełna analiza Claude i tak jest bramkowana
     # wyzwalaczem (ruch >= price_move_trigger_pct lub heartbeat), a mechaniczne
     # stopy/take-profity liczą się co poll niezależnie od Claude.
-    poll_interval_minutes: int = 15
-    # Raised from 2.0 -> 3.0 (Tier 2): a lower bar woke Claude on routine noise
-    # and drove low-edge, cost-bleeding trades. A wider trigger = fewer, better
-    # analyses (the expectancy model showed cost meaningfully lifts break-even).
-    price_move_trigger_pct: float = 3.0
+    # 2026-07-22: 15 -> 5 min (decyzja właściciela). PM-mode Claude ma prowadzić
+    # cały portfel często i w miarę agresywnie -- szybszy puls łapie okazje i
+    # rotacje bliżej ruchu; koszt świadomie zaakceptowany ("nawet za cenę
+    # tokenów"). Martwy tik i tak jest tani (pełna analiza dalej bramkowana
+    # wyzwalaczem), a budżet miesięczny podniesiony niżej.
+    poll_interval_minutes: int = 5
+    # 3.0 -> 1.5 (2026-07-22): niższy próg budzi Claude częściej na realnym
+    # ruchu, spójnie z grą aktywną/agresywną. Sito wejścia jest już wyłączone,
+    # więc więcej analiz przekłada się na realne rotacje, nie tylko odrzucenia.
+    price_move_trigger_pct: float = 1.5
     # Heartbeat: force a full Claude analysis at least this often during
     # tradable hours, even when no price crossed the trigger threshold --
     # otherwise the bot only ever looks at the market on spikes and can sit
-    # idle through an entire quiet session. ~3-4 cheap fast-model calls per
-    # regular session at the default. 0 disables the heartbeat.
-    full_analysis_every_minutes: int = 120
+    # idle through an entire quiet session. 0 disables the heartbeat.
+    # 120 -> 30 (2026-07-22): PM-mode gra często, więc heartbeat co 30 min daje
+    # regularny pełny przegląd portfela nawet bez ostrego ruchu.
+    full_analysis_every_minutes: int = 30
     # US stocks/ETFs trade the regular session only (9:30-16:00 ET). Pre-market
     # and after-hours were removed: on a small account a position slice is
     # smaller than one whole share (extended hours reject fractional/notional
@@ -359,7 +376,12 @@ class Settings(BaseSettings):
     # small-account safety: your real console credit is the true limit -- when it
     # runs out the API errors and the scheduled cycle skips gracefully (never
     # crashes), so this cap only guards against a runaway loop, not real spend.
-    claude_monthly_budget_usd: float = 50.0
+    # 50 -> 150 (2026-07-22): poll co 5 min + PM-mode = więcej (tanich, Sonnet)
+    # wywołań, świadomie zaakceptowanych przez właściciela. Wyższy sufit, żeby
+    # twardy bezpiecznik nie wstrzymał handlu w środku miesiąca. UWAGA: jeśli w
+    # prod .env jest CLAUDE_MONTHLY_BUDGET_USD, to ONO nadpisuje tę wartość --
+    # trzeba podnieść też tam.
+    claude_monthly_budget_usd: float = 150.0
     claude_budget_alert_threshold_pct: float = 80.0
 
     # Finnhub API key (free tier: https://finnhub.io) -- an OPTIONAL, reliable,
@@ -377,6 +399,17 @@ class Settings(BaseSettings):
     # source is simply skipped. This is qualitative colour the mechanical filter
     # can't compute -- exactly the AI-edge input, not another calculator metric.
     alpha_vantage_api_key: str = ""
+
+    # NewsAPI.org (free/dev tier: ~100 calls/day, https://newsapi.org) -- broad
+    # business/market headlines. TTL-cached general source (see news_client) so
+    # the 5-min cycle stays well under the daily cap. Empty -> skipped.
+    newsapi_api_key: str = ""
+
+    # SerpAPI Google News (free tier: ~100 searches/MONTH, https://serpapi.com)
+    # -- a Google-News search proxy. The monthly cap is tight, so it sits behind
+    # a LONG TTL cache (news_client._SERPAPI_TTL_S) and is a light general source
+    # only. Empty -> skipped.
+    serpapi_api_key: str = ""
 
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
