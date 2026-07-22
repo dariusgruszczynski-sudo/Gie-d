@@ -76,7 +76,7 @@ class Settings(BaseSettings):
     # (stop/trailing/take-profit) celowo NIE ruszona -- ochrona kapitału ma
     # zostać stała niezależnie od tego, jak śmiało wchodzimy.
     extended_risk_per_trade_pct: float = 2.2          # z 1.3 -- większy rozmiar per transakcję
-    extended_max_concurrent_positions: int = 0        # 0 = bez limitu
+    extended_max_concurrent_positions: int = 4        # z 0: skupienie kapitału (jak SESJA, patrz backtest)
     extended_min_buy_confidence: float = 0.48         # z 0.55 -- łapie więcej "dość dobrych" setupów
     extended_max_new_positions_per_day: int = 0       # 0 = bez limitu
     extended_min_hold_minutes: int = 0                # 0 = bez limitu
@@ -113,7 +113,12 @@ class Settings(BaseSettings):
     # od początku dnia/tygodnia) zatrzymuje handel. Łapie powolny, wieloDNIOWY
     # krwotok, który nigdy nie przekracza dziennego/tygodniowego limitu w
     # pojedynczym dniu, ale sumuje się w realną stratę kapitału.
-    max_drawdown_halt_pct: float = 20.0
+    # Podniesione z 20.0 (2026-07-22) na podstawie backtestu 20-letniego:
+    # naturalne obsunięcie tej strategii przy wybranej agresji to ~44%, więc
+    # halt 20% ucinałby handel w KAŻDYM normalnym zjeździe i zamrażał stratę
+    # zanim rynek zdążył odbić. 45% = bezpiecznik tylko na prawdziwą
+    # katastrofę (gorzej niż cokolwiek w 20-letniej historii).
+    max_drawdown_halt_pct: float = 45.0
     max_position_pct: float = 45.0          # z 32.0 (2026-07-22): duzy udzial na mocnym setupie
     # Mechanical exit rules applied to every held position on every poll,
     # without asking Claude: auto-SELL the whole position when it gains
@@ -225,7 +230,11 @@ class Settings(BaseSettings):
     # Cap on concurrently-held positions per venue. The whitelist is heavily
     # correlated (tech beta), so many open names are really ONE bet -- this
     # bounds that concentration. 0 disables (bez limitu).
-    max_concurrent_positions: int = 0
+    # Ustawione na 4 (2026-07-22) z backtestu 20-letniego: w KAŻDYM przemiataniu
+    # ryzyka 4 pozycje biją 6 i 8 na zwrocie ORAZ Calmarze. Whitelist jest mocno
+    # skorelowany (tech beta), więc 8 otwartych nazw to w praktyce jeden zakład z
+    # gorszym wyborem -- skupienie kapitału w 4 najlepszych setupach wygrywa.
+    max_concurrent_positions: int = 4
     # Wide-spread / thinner names (inverse ETFs, small caps, sector/bond ETFs):
     # every round trip pays more spread, so their edge must be larger. Haircut
     # their BUY size by high_spread_size_scale (1.0 = no haircut).
