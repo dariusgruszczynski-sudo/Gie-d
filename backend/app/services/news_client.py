@@ -374,6 +374,86 @@ def _get_alpha_vantage_general(key: str) -> list[dict]:
     return items
 
 
+# --- NewsAPI.org (keyed, general business headlines) ------------------------
+# https://newsapi.org -- broad business/market headlines. Free/dev tier is
+# ~100 calls/day, so it's a TTL-cached general source (like Alpha Vantage).
+NEWSAPI_URL = "https://newsapi.org/v2/top-headlines"
+_NEWSAPI_TTL_S = 1800  # 30 min
+_NEWSAPI_LIMIT = 8
+_newsapi_cache: dict = {"at": 0.0, "items": []}
+
+
+def _get_newsapi_general(key: str) -> list[dict]:
+    if not key:
+        return []
+    now = time.monotonic()
+    if _newsapi_cache["items"] and now - _newsapi_cache["at"] < _NEWSAPI_TTL_S:
+        return _newsapi_cache["items"]
+    try:
+        resp = httpx.get(
+            NEWSAPI_URL,
+            params={"category": "business", "country": "us", "pageSize": _NEWSAPI_LIMIT, "apiKey": key},
+            timeout=REQUEST_TIMEOUT,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("NewsAPI failed (%s), keeping last cache", type(exc).__name__)
+        return _newsapi_cache["items"] or []
+    if data.get("status") != "ok":
+        logger.warning("NewsAPI non-ok (%s), keeping last cache", str(data.get("message"))[:80])
+        return _newsapi_cache["items"] or []
+    items: list[dict] = []
+    for it in (data.get("articles") or [])[:_NEWSAPI_LIMIT]:
+        title = (it.get("title") or "").strip()
+        if not title:
+            continue
+        outlet = (it.get("source") or {}).get("name") or "NewsAPI"
+        items.append({"title": title, "published_at": it.get("publishedAt") or "", "source": f"NewsAPI · {outlet}"})
+    _newsapi_cache["at"] = now
+    _newsapi_cache["items"] = items
+    return items
+
+
+# --- SerpAPI Google News (keyed, tight monthly cap) -------------------------
+# https://serpapi.com -- Google News search proxy. Free tier is only ~100
+# searches/MONTH, so this sits behind a LONG TTL cache and is a light general
+# source only.
+SERPAPI_URL = "https://serpapi.com/search"
+_SERPAPI_TTL_S = 21600  # 6h -> ~4 calls/day -> ~120/month worst case; usually far fewer
+_SERPAPI_LIMIT = 8
+_serpapi_cache: dict = {"at": 0.0, "items": []}
+
+
+def _get_serpapi_general(key: str) -> list[dict]:
+    if not key:
+        return []
+    now = time.monotonic()
+    if _serpapi_cache["items"] and now - _serpapi_cache["at"] < _SERPAPI_TTL_S:
+        return _serpapi_cache["items"]
+    try:
+        resp = httpx.get(
+            SERPAPI_URL,
+            params={"engine": "google_news", "q": "stock market", "gl": "us", "hl": "en", "api_key": key},
+            timeout=REQUEST_TIMEOUT,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("SerpAPI failed (%s), keeping last cache", type(exc).__name__)
+        return _serpapi_cache["items"] or []
+    items: list[dict] = []
+    for it in (data.get("news_results") or [])[:_SERPAPI_LIMIT]:
+        title = (it.get("title") or "").strip()
+        if not title:
+            continue
+        outlet = (it.get("source") or {}).get("name") if isinstance(it.get("source"), dict) else (it.get("source") or "Google News")
+        items.append({"title": title, "published_at": it.get("date") or "", "source": f"SerpAPI · {outlet}"})
+    _serpapi_cache["at"] = now
+    _serpapi_cache["items"] = items
+    return items
+
+
 def _get_ticker_all(
     ticker: str, limit: int, finnhub_key: str = "", alpaca_creds: tuple[str, str] | None = None
 ) -> list[dict]:
@@ -445,6 +525,14 @@ class NewsClient:
     @property
     def _alpha_vantage_key(self) -> str:
         return getattr(self._settings, "alpha_vantage_api_key", "") or ""
+
+    @property
+    def _newsapi_key(self) -> str:
+        return getattr(self._settings, "newsapi_api_key", "") or ""
+
+    @property
+    def _serpapi_key(self) -> str:
+        return getattr(self._settings, "serpapi_api_key", "") or ""
 
     def get_new_ticker_headlines(
         self, tickers: list[str], seen: dict[str, list[str]]
@@ -520,7 +608,7 @@ class NewsClient:
         key = self._finnhub_key
         creds = self._alpaca_creds
         av_key = self._alpha_vantage_key
-        worker_count = len(RSS_FEEDS) + len(tickers) + len(REDDIT_SUBREDDITS) + 3
+        worker_count = len(RSS_FEEDS) + len(tickers) + len(REDDIT_SUBREDDITS) + 5
         with ThreadPoolExecutor(max_workers=worker_count) as pool:
             futures = [pool.submit(_get_rss, name, url, PER_SOURCE_LIMIT) for name, url in RSS_FEEDS]
             futures += [pool.submit(_get_ticker_all, ticker, PER_TICKER_LIMIT, key, creds) for ticker in tickers]
@@ -534,6 +622,11 @@ class NewsClient:
             # Alpha Vantage general market sentiment (TTL-cached; sentiment-scored).
             if av_key:
                 futures.append(pool.submit(_get_alpha_vantage_general, av_key))
+            # NewsAPI.org + SerpAPI general headlines (both TTL-cached).
+            if self._newsapi_key:
+                futures.append(pool.submit(_get_newsapi_general, self._newsapi_key))
+            if self._serpapi_key:
+                futures.append(pool.submit(_get_serpapi_general, self._serpapi_key))
 
             per_source: list[list[dict]] = []
             for future in futures:
