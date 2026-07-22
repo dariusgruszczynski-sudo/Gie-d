@@ -171,7 +171,7 @@ def main() -> None:
             args.years = 10  # crypto history on Yahoo starts ~2014 (BTC) / 2017 (ETH)
     else:
         whitelist = settings.whitelist_symbols
-        benchmark = benchmark
+        benchmark = settings.benchmark_symbol
     symbols = sorted(set(whitelist) | {benchmark})
     source = args.source or ("yahoo" if args.years > 0 else "alpaca")
 
