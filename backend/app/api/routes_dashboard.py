@@ -506,3 +506,42 @@ async def get_news(db: Session = Depends(get_db), settings: Settings = Depends(g
         items.append({"title": title, "source": h.get("source", ""), "published_at": h.get("published_at"), "tickers": tickers})
     _news_cache.update(ts=now, items=items)
     return {"items": items, "cached": False}
+
+
+_sources_cache: dict = {"ts": 0.0, "data": None}
+_SOURCES_TTL_SECONDS = 120
+
+
+@router.get("/news/sources")
+async def get_news_sources(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """Zakładka NEWSY: do czego mamy połączenie i CO WIDZIMY na żywo. Odpala
+    każde źródło osobno i raportuje ok/down + liczbę nagłówków ZWRÓCONYCH TERAZ,
+    plus złączoną próbkę realnego feedu (z sentymentem). Cache 120 s, bo to
+    ~40 zapytań na fan-out."""
+    import time
+    from datetime import datetime, timezone
+
+    from app.services.news_client import NewsClient
+    from app.services.trading_engine import _base_asset
+
+    now = time.time()
+    if _sources_cache["data"] and now - _sources_cache["ts"] < _SOURCES_TTL_SECONDS:
+        return {**_sources_cache["data"], "cached": True}
+
+    syms = list(dict.fromkeys(settings.whitelist_symbols))[:6]
+    bases = [_base_asset(s, settings.quote_currency) for s in syms]
+    try:
+        rep = await run_in_threadpool(NewsClient(settings).source_report, bases)
+    except Exception:
+        logger.warning("news source report failed", exc_info=True)
+        return _sources_cache["data"] or {"sources": [], "headlines": [], "summary": {"ok": 0, "down": 0, "headlines": 0}}
+
+    ok = sum(1 for s in rep["sources"] if s["status"] == "ok")
+    data = {
+        "sources": rep["sources"],
+        "headlines": rep["headlines"],
+        "summary": {"ok": ok, "down": len(rep["sources"]) - ok, "headlines": len(rep["headlines"])},
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _sources_cache.update(ts=now, data=data)
+    return {**data, "cached": False}

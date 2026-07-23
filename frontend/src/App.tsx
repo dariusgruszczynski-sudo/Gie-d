@@ -4,15 +4,17 @@ import { Console } from "./ui/Console";
 import { Control } from "./ui/Control";
 import { Engines } from "./ui/Engines";
 import { Health } from "./ui/Health";
+import { News } from "./ui/News";
 import { Icon } from "./ui/kit";
 import { isSoundMuted, playTradeSound, setSoundMuted } from "./tradeSound";
 
 const REFRESH_MS = 15000;
-type View = "console" | "engines" | "control" | "health";
+type View = "console" | "engines" | "news" | "control" | "health";
 
-const NAV: Array<{ key: View; label: string; icon: "console" | "engines" | "control" | "pulse" }> = [
+const NAV: Array<{ key: View; label: string; icon: "console" | "engines" | "control" | "pulse" | "news" }> = [
   { key: "console", label: "Konsola", icon: "console" },
   { key: "engines", label: "Silniki", icon: "engines" },
+  { key: "news", label: "Newsy", icon: "news" },
   { key: "control", label: "Steruj", icon: "control" },
   { key: "health", label: "Puls", icon: "pulse" },
 ];
@@ -169,6 +171,8 @@ export default function App() {
             ) : view === "engines" ? (
               <Engines status={status} alpaca={portfolio} extended={extendedPortfolio} trades={trades} extendedTrades={extendedTrades}
                 decisions={decisions} venue={engineVenue} setVenue={setEngineVenue} onChanged={refresh} />
+            ) : view === "news" ? (
+              <News />
             ) : view === "control" ? (
               <Control status={status} onChanged={refresh} />
             ) : (

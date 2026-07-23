@@ -598,6 +598,47 @@ class NewsClient:
             logger.warning("Trending-symbols fetch failed, skipping discovery", exc_info=True)
             return []
 
+    def source_report(self, tickers: list[str]) -> dict:
+        """Live status KAŻDEGO źródła osobno dla zakładki NEWSY: odpala każde
+        źródło niezależnie i mówi ok/down + ile nagłówków ZWRÓCIŁO TERAZ (to jest
+        'co widzę na żywo', nie tylko 'czy jest połączenie'). Zwraca też złączoną
+        próbkę nagłówków (z sentymentem, gdy jest), żeby UI pokazał realny feed."""
+        key = self._finnhub_key
+        creds = self._alpaca_creds
+        av = self._alpha_vantage_key
+
+        jobs: list[tuple[str, str, object]] = []
+        for name, url in RSS_FEEDS:
+            jobs.append((name, "RSS / feedy", lambda u=url, nm=name: _get_rss(nm, u, PER_SOURCE_LIMIT)))
+        for sub in REDDIT_SUBREDDITS:
+            jobs.append((f"Reddit r/{sub}", "Reddit", lambda s=sub: _get_reddit(s, PER_SUBREDDIT_LIMIT)))
+        for t in tickers[:6]:
+            jobs.append((f"Per-ticker: {t}", "Per-ticker", lambda tt=t: _get_ticker_all(tt, PER_TICKER_LIMIT, key, creds)))
+        if creds:
+            jobs.append(("Alpaca News (Benzinga)", "Keyed (główne)", lambda: _get_alpaca_general(creds)))
+        if av:
+            jobs.append(("Alpha Vantage (sentyment)", "Keyed (główne)", lambda: _get_alpha_vantage_general(av)))
+        if self._newsapi_key:
+            jobs.append(("NewsAPI.org", "Keyed (główne)", lambda: _get_newsapi_general(self._newsapi_key)))
+        if self._serpapi_key:
+            jobs.append(("SerpAPI (Google News)", "Keyed (główne)", lambda: _get_serpapi_general(self._serpapi_key)))
+        if key:
+            jobs.append(("Finnhub", "Keyed (główne)", lambda: _get_finnhub_general(key)))
+
+        sources: list[dict] = []
+        per_source_items: list[list[dict]] = []
+        with ThreadPoolExecutor(max_workers=max(len(jobs), 1)) as pool:
+            futures = [(nm, grp, pool.submit(fn)) for nm, grp, fn in jobs]
+            for nm, grp, fut in futures:
+                try:
+                    items = fut.result() or []
+                except Exception:
+                    items = []
+                per_source_items.append(items)
+                sources.append({"name": nm, "group": grp, "status": "ok" if items else "down", "count": len(items)})
+
+        return {"sources": sources, "headlines": _interleave(per_source_items)[:30]}
+
     def get_pl_headlines(self, limit: int = 18) -> list[dict]:
         """Polish-language headlines for the on-screen news band (display only).
 

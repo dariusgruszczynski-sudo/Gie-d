@@ -257,6 +257,7 @@ export const api = {
   positionPlans: (venue: string = "alpaca") =>
     apiFetch<PositionPlansResponse>(withShare(`/api/position-plans?venue=${venue}`)),
   health: () => apiFetch<HealthReport>("/api/health"),
+  newsSources: () => apiFetch<NewsSourcesResponse>("/api/news/sources"),
   healthReset: (action: string) =>
     apiFetch<{ action: string; message: string }>("/api/health/reset", {
       method: "POST",
@@ -269,6 +270,29 @@ export interface NewsItem {
   source: string;
   published_at: string | null;
   tickers: string[];
+}
+
+export interface NewsSource {
+  name: string;
+  group: string;
+  status: "ok" | "down";
+  count: number;
+}
+
+export interface NewsSourceHeadline {
+  title: string;
+  source: string;
+  published_at: string | null;
+  sentiment_label?: string;
+  sentiment_score?: number;
+}
+
+export interface NewsSourcesResponse {
+  sources: NewsSource[];
+  headlines: NewsSourceHeadline[];
+  summary: { ok: number; down: number; headlines: number };
+  generated_at?: string;
+  cached?: boolean;
 }
 
 export interface PositionPlan {

@@ -475,3 +475,25 @@
 .gd-knob { display: flex; flex-direction: column; gap: 2px; }
 .gd-knob i { font-style: normal; font-size: 0.6rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim-2); }
 .gd-knob b { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ---- Zakładka NEWSY: status źródeł + żywy feed ---- */
+.gd-note { margin: 2px 0 14px; color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
+.gd-newsgrp { margin-bottom: 14px; }
+.gd-newsgrp-h { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 8px; font-weight: 700; }
+.gd-srcgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.gd-src { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 11px; background: var(--panel); }
+.gd-src-name { flex: 1; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gd-src-cnt { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.8rem; color: var(--muted); }
+.gd-feed { display: flex; flex-direction: column; gap: 8px; }
+.gd-feed-item { padding: 11px 13px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+.gd-feed-title { font-size: 0.9rem; line-height: 1.4; }
+.gd-feed-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.gd-feed-src { font-size: 0.72rem; color: var(--muted); }
+.gd-sent { font-size: 0.68rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.03em; }
+.gd-sent.pos { color: var(--green); background: color-mix(in srgb, var(--green) 16%, transparent); }
+.gd-sent.neg { color: var(--red); background: color-mix(in srgb, var(--red) 16%, transparent); }
+.gd-sent.neu { color: var(--muted); background: color-mix(in srgb, var(--muted) 16%, transparent); }
+
+/* ---- Strip "jak działa teraz" na Konsoli ---- */
+.gd-rules { display: flex; flex-wrap: wrap; gap: 7px; margin: 2px 0 14px; }
+.gd-rules span { font-size: 0.72rem; color: var(--muted); background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 5px 11px; line-height: 1.2; }

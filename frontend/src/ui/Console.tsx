@@ -219,6 +219,13 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
 
       {status.is_halted && status.halted_reason && <div className="gd-halt">⛔ {status.halted_reason}</div>}
 
+      <div className="gd-rules" title="Jak działa automat teraz">
+        <span>🤖 Claude prowadzi CAŁY portfel co ~5 min</span>
+        <span>🌐 Dynamiczne uniwersum z newsów — bez sztywnej whitelisty</span>
+        <span>🛡️ Mechaniczne stopy chronią pozycje 24/7</span>
+        <span>🚨 Brak newsów = alarm i stop nowych wejść</span>
+      </div>
+
       <div className="gd-hero">
         <div className="gd-hero-label">Wartość konta</div>
         <div className="gd-hero-val">{acc ? money(total) : "…"}</div>

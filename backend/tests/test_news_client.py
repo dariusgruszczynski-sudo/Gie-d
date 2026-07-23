@@ -170,3 +170,27 @@ def test_get_ticker_all_merges_finnhub_when_keyed(monkeypatch):
     # No key -> RSS/Google News only.
     nokey = news_client._get_ticker_all("NVDA", 3, finnhub_key="")
     assert {h["title"] for h in nokey} == {"GN-NVDA"}
+
+
+def test_source_report_classifies_and_returns_feed(monkeypatch):
+    """source_report (zakładka NEWSY): każde źródło raportowane osobno jako
+    ok/down + liczba, plus złączona próbka nagłówków."""
+    from app.config import Settings
+    from app.services import news_client as n
+
+    s = Settings(alpaca_api_key="k", alpaca_api_secret="s", trading_whitelist="AAPL,MSFT")
+    monkeypatch.setattr(n, "_get_rss", lambda *a, **k: [])          # RSS w dół
+    monkeypatch.setattr(n, "_get_reddit", lambda *a, **k: [])
+    monkeypatch.setattr(n, "_get_ticker_all", lambda *a, **k: [])
+    monkeypatch.setattr(
+        n, "_get_alpaca_general",
+        lambda creds: [{"title": "Rynek rośnie", "source": "Alpaca · Benzinga", "published_at": ""}],
+    )
+
+    rep = n.NewsClient(s).source_report(["AAPL", "MSFT"])
+    assert set(rep) == {"sources", "headlines"}
+    alp = [x for x in rep["sources"] if x["name"].startswith("Alpaca News")]
+    assert alp and alp[0]["status"] == "ok" and alp[0]["count"] == 1
+    rss = [x for x in rep["sources"] if x["group"] == "RSS / feedy"]
+    assert rss and all(x["status"] == "down" for x in rss)   # puste = down
+    assert len(rep["headlines"]) >= 1
