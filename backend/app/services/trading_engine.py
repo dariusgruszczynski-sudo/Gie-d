@@ -1154,6 +1154,56 @@ def build_performance_context(
     }
 
 
+def build_alpaca_universe(db: Session, settings: Settings, broker, news) -> list[str]:
+    """Dynamiczne uniwersum kandydatów dla nogi SESJA -- 'whitelista zbędna,
+    Claude patrzy na dane/newsy i decyduje'. Skład:
+      TRZYMANE pozycje  (zawsze -- nigdy nie osierocamy pozycji)
+      ∪ SEED (trading_whitelist -- baza, zawsze w środku)
+      ∪ nazwy TRENDUJĄCE W NEWSACH (Alpaca News), ale KAŻDA zwalidowana przez
+        Alpaca assets (tradable+active) zanim wejdzie -- twardy pas bezpieczeństwa
+        przeciw śmieciowym/halucynowanym tickerom.
+    Blacklist (lewary/inverse ETP) wyklucza seed i nowe nazwy (ale NIE wyrzuca
+    już trzymanej pozycji -- nią trzeba zarządzać do wyjścia). Best-effort:
+    każdy błąd degraduje do samego seedu, więc discovery tylko DODAJE, nigdy nie
+    psuje bazowego zachowania."""
+    seed = settings.whitelist_symbols
+    blacklist = settings.symbol_blacklist_set
+
+    held: list[str] = []
+    try:
+        balances = broker.get_account_balances()
+        held = [s for s, q in balances.items() if s != settings.quote_currency and (q or 0) > 0]
+    except Exception:
+        logger.warning("Uniwersum: nie udało się pobrać sald, pomijam trzymane", exc_info=True)
+
+    universe: list[str] = []
+    seen: set[str] = set()
+    for s in held:  # trzymane najpierw, blacklist ich nie wyrzuca
+        if s not in seen:
+            universe.append(s)
+            seen.add(s)
+    for s in seed:
+        if s not in seen and s not in blacklist:
+            universe.append(s)
+            seen.add(s)
+
+    if settings.dynamic_universe_enabled:
+        try:
+            trending = news.get_trending_symbols(limit=settings.universe_max_symbols)
+        except Exception:
+            logger.warning("Uniwersum: fetch trendujących nazw padł, zostaje seed", exc_info=True)
+            trending = []
+        for s in trending:
+            if len(universe) >= settings.universe_max_symbols:
+                break
+            if s in seen or s in blacklist:
+                continue
+            if broker.is_tradable(s):  # twardy pas bezpieczeństwa
+                universe.append(s)
+                seen.add(s)
+    return universe
+
+
 def _advise_portfolio(advisor, **kwargs) -> list:
     """Dispatch to the portfolio-manager path (a SET of actions across the whole
     whitelist) when the advisor supports it, else fall back to the legacy

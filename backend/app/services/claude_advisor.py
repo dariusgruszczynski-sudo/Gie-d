@@ -107,8 +107,10 @@ EXTENDED_PERSONA = (
 # realizacja intencji właściciela — narzędzie AI, nie kalkulator, który tylko
 # zatwierdza przesiane pozycje.
 _PORTFOLIO_ADDENDUM = (
-    "\n\nTRYB: ZARZĄDZASZ CAŁYM PORTFELEM. Zwróć ZESTAW akcji (pole 'actions', 0..N pozycji) na CAŁEJ "
-    "whiteliście naraz — możesz w jednym przejściu otworzyć kilka pozycji, dokupić do istniejącej, "
+    "\n\nTRYB: ZARZĄDZASZ CAŁYM PORTFELEM. 'tradable_whitelist' to DYNAMICZNE uniwersum kandydatów na "
+    "ten cykl (Twoje pozycje + nazwy trendujące w newsach + lista bazowa) — nie sztywna klatka; wybieraj "
+    "z tego, co realnie się dziś dzieje. Zwróć ZESTAW akcji (pole 'actions', 0..N pozycji) na tym "
+    "uniwersum naraz — możesz w jednym przejściu otworzyć kilka pozycji, dokupić do istniejącej, "
     "przyciąć/zrotować słabnącą i zamknąć wybraną. Pusta lista = świadomie nic nie robię (trzymam "
     "wszystko). Rozmiary BUY liczą się PO KOLEI od AKTUALNEJ wolnej gotówki w momencie wykonania, więc "
     "trzy BUY po 40% nie przepalą konta — każdy bierze % z tego, co zostało (system dodatkowo ogranicza "

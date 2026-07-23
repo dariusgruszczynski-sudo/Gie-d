@@ -85,6 +85,22 @@ class AlpacaClient:
             raise AlpacaAPIError(f"Alpaca {method} {path}: {resp.status_code} {resp.text}")
         return resp.json()
 
+    def get_asset(self, symbol: str) -> dict:
+        """Asset metadata (tradable, status, class, fractionable) for ONE symbol.
+        Used to validate a dynamically-discovered ticker before it can ever
+        reach a real order -- the hard safety gate for the no-whitelist universe."""
+        return self._request(self._trading, "GET", f"/v2/assets/{symbol}")
+
+    def is_tradable(self, symbol: str) -> bool:
+        """True only for an ACTIVE, TRADABLE US-equity/ETF asset. Any error
+        (unknown ticker, network) -> False, so a junk/hallucinated symbol from
+        the news feed is silently kept out of the universe rather than traded."""
+        try:
+            a = self.get_asset(symbol)
+        except Exception:
+            return False
+        return bool(a.get("tradable")) and a.get("status") == "active"
+
     def get_calendar(self, start: str, end: str) -> list[dict]:
         """Trading days with their actual regular-session open/close for
         that date (accounts for holidays and early closes), used by

@@ -290,6 +290,24 @@ def _get_alpaca_general(creds: tuple[str, str]) -> list[dict]:
     )
 
 
+def _get_alpaca_trending_symbols(creds: tuple[str, str], articles_limit: int = 50) -> list[str]:
+    """Harvest the tickers most-mentioned across the latest Alpaca News
+    articles (each carries a `symbols` array). This is the DISCOVERY feed for
+    the no-whitelist universe -- 'co jest teraz w newsach' -- ordered by mention
+    frequency. Junk/non-tradable tickers are filtered downstream by Alpaca's
+    asset check; here we only keep plausibly-shaped US tickers."""
+    from collections import Counter
+
+    raw = _alpaca_news_get({"limit": articles_limit, "sort": "desc"}, creds)
+    counter: Counter = Counter()
+    for it in (raw if isinstance(raw, list) else []):
+        for s in (it.get("symbols") or []):
+            sym = str(s).upper().strip()
+            if sym.isalpha() and 1 <= len(sym) <= 5:
+                counter[sym] += 1
+    return [sym for sym, _ in counter.most_common()]
+
+
 def _get_alpaca_company(ticker: str, creds: tuple[str, str]) -> list[dict]:
     return _alpaca_news_items(
         _alpaca_news_get({"symbols": ticker.upper(), "limit": ALPACA_NEWS_COMPANY_LIMIT, "sort": "desc"}, creds),
@@ -565,6 +583,20 @@ class NewsClient:
                 updated_seen[ticker] = [h["title"] for h in headlines] if headlines else list(previously_seen)
 
         return new_headlines, updated_seen
+
+    def get_trending_symbols(self, limit: int = 20) -> list[str]:
+        """Tickers currently trending in the news (Alpaca News `symbols`),
+        ordered by mention frequency. Drives the dynamic, no-whitelist universe.
+        Empty list when Alpaca creds are missing or the fetch fails -- the caller
+        then falls back to the seed list, so discovery only ever ADDS names."""
+        creds = self._alpaca_creds
+        if not creds:
+            return []
+        try:
+            return _get_alpaca_trending_symbols(creds)[:limit]
+        except Exception:
+            logger.warning("Trending-symbols fetch failed, skipping discovery", exc_info=True)
+            return []
 
     def get_pl_headlines(self, limit: int = 18) -> list[dict]:
         """Polish-language headlines for the on-screen news band (display only).

@@ -327,6 +327,26 @@ class Settings(BaseSettings):
     # held position whose symbol is no longer on this list, so trimming/adding
     # names never orphans a position.
     trading_whitelist: str = "SPY,QQQ,AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,GLD,TLT,SH"
+
+    # --- Dynamiczne uniwersum: whitelista przestaje być klatką ----------------
+    # 2026-07-22 (decyzja właściciela): "whitelista zbędna -- Claude patrzy na
+    # dane/newsy i decyduje". Gdy ON (tylko noga SESJA/alpaca), silnik co cykl
+    # buduje uniwersum kandydatów = TRZYMANE pozycje ∪ nazwy TRENDUJĄCE W NEWSACH
+    # (Alpaca News) ∪ trading_whitelist (jako SEED, nie klatka). Trzymane i seed
+    # są zawsze w środku (nie osierocamy pozycji), świeże nazwy z newsów są
+    # walidowane przez Alpaca assets (tradable+active) ZANIM trafią do handlu --
+    # to twardy pas bezpieczeństwa przeciw śmieciowym/halucynowanym tickerom.
+    # OFF -> zachowanie jak dotąd (stała trading_whitelist). Noga POZA SESJĄ ma
+    # twarde ograniczenie całych tanich akcji, więc trzyma swoją kuratorską listę.
+    dynamic_universe_enabled: bool = True
+    universe_max_symbols: int = 24
+    # Nazwy WYKLUCZANE z dynamicznego uniwersum niezależnie od newsów: lewarowane
+    # i odwrotne ETP (dzienny rebalans -> zabójcze na dłuższym trzymaniu), których
+    # mechaniczny stop i tak nie ochroni sensownie na małym koncie.
+    symbol_blacklist: str = (
+        "TQQQ,SQQQ,SOXL,SOXS,TNA,TZA,SPXL,SPXS,UPRO,SPXU,UDOW,SDOW,TMF,TMV,"
+        "LABU,LABD,YINN,YANG,NUGT,DUST,JNUG,JDST,BOIL,KOLD,UVXY,SVXY,VIXY,UVIX,SVIX"
+    )
     # Benchmark the whole strategy against simply buying and holding this
     # ticker -- if the bot can't beat holding SPY, it isn't earning its
     # complexity. Drives the dashboard scorecard and is fed back to Claude.
@@ -480,6 +500,10 @@ class Settings(BaseSettings):
     @property
     def whitelist_symbols(self) -> list[str]:
         return [s.strip().upper() for s in self.trading_whitelist.split(",") if s.strip()]
+
+    @property
+    def symbol_blacklist_set(self) -> set[str]:
+        return {s.strip().upper() for s in self.symbol_blacklist.split(",") if s.strip()}
 
     @property
     def extended_whitelist_symbols(self) -> list[str]:

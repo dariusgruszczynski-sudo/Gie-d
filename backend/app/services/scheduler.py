@@ -11,7 +11,7 @@ from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.push_notifier import send_daily_summary_push
 from app.services.strategy_profiles import effective_settings
-from app.services.trading_engine import compute_and_cache_regime, compute_portfolio, run_cycle
+from app.services.trading_engine import build_alpaca_universe, compute_and_cache_regime, compute_portfolio, run_cycle
 from app.services.whitelist_review import get_extended_whitelist, run_whitelist_review
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,18 @@ def _job() -> None:
         advisor = ClaudeAdvisor(settings)
         market_ctx = MarketContextClient()
         # Equities brain: base settings == the medium-aggressive profile.
-        decision = run_cycle(db, effective_settings(settings, "alpaca"), broker, news, advisor, market_ctx)
+        eff = effective_settings(settings, "alpaca")
+        # Dynamiczne uniwersum (whitelista zbędna): trzymane + trendujące w
+        # newsach (walidowane) + seed. Błąd -> None -> run_cycle wraca do stałej
+        # whitelisty, więc discovery nigdy nie psuje bazowego zachowania.
+        universe = None
+        if eff.dynamic_universe_enabled:
+            try:
+                universe = build_alpaca_universe(db, eff, broker, news)
+            except Exception:
+                logger.warning("Budowa dynamicznego uniwersum padła, fallback do whitelisty", exc_info=True)
+                universe = None
+        decision = run_cycle(db, eff, broker, news, advisor, market_ctx, whitelist=universe)
         if decision is not None:
             logger.info("Cycle produced decision: %s %s", decision.action, decision.symbol)
     except Exception:
