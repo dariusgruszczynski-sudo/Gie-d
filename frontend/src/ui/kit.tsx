@@ -80,7 +80,7 @@ export function TickerTape({ sesja, poza, prices }: { sesja: string[]; poza: str
   );
 }
 
-export function Icon({ name }: { name: "console" | "engines" | "control" | "pulse" | "news" }) {
+export function Icon({ name }: { name: "console" | "engines" | "control" | "pulse" | "news" | "journal" }) {
   const p = { fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   switch (name) {
     case "console":
@@ -93,5 +93,7 @@ export function Icon({ name }: { name: "console" | "engines" | "control" | "puls
       return <svg viewBox="0 0 24 24"><path d="M3 12h4l2-6 3 12 2-7 2 3h5" {...p} /></svg>;
     case "news":
       return <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" {...p} /><path d="M7 9h6M7 13h10M7 16h7" {...p} /></svg>;
+    case "journal":
+      return <svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z" {...p} /><path d="M9 8h6M9 12h6M9 16h4" {...p} /></svg>;
   }
 }

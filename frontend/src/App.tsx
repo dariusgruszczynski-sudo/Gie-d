@@ -4,16 +4,18 @@ import { Console } from "./ui/Console";
 import { Control } from "./ui/Control";
 import { Engines } from "./ui/Engines";
 import { Health } from "./ui/Health";
+import { Journal } from "./ui/Journal";
 import { News } from "./ui/News";
 import { Icon } from "./ui/kit";
 import { isSoundMuted, playTradeSound, setSoundMuted } from "./tradeSound";
 
 const REFRESH_MS = 15000;
-type View = "console" | "engines" | "news" | "control" | "health";
+type View = "console" | "engines" | "journal" | "news" | "control" | "health";
 
-const NAV: Array<{ key: View; label: string; icon: "console" | "engines" | "control" | "pulse" | "news" }> = [
+const NAV: Array<{ key: View; label: string; icon: "console" | "engines" | "control" | "pulse" | "news" | "journal" }> = [
   { key: "console", label: "Konsola", icon: "console" },
   { key: "engines", label: "Silniki", icon: "engines" },
+  { key: "journal", label: "Dziennik", icon: "journal" },
   { key: "news", label: "Newsy", icon: "news" },
   { key: "control", label: "Steruj", icon: "control" },
   { key: "health", label: "Puls", icon: "pulse" },
@@ -171,6 +173,8 @@ export default function App() {
             ) : view === "engines" ? (
               <Engines status={status} alpaca={portfolio} extended={extendedPortfolio} trades={trades} extendedTrades={extendedTrades}
                 decisions={decisions} venue={engineVenue} setVenue={setEngineVenue} onChanged={refresh} />
+            ) : view === "journal" ? (
+              <Journal decisions={decisions} status={status} />
             ) : view === "news" ? (
               <News />
             ) : view === "control" ? (
