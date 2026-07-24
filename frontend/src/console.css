@@ -510,3 +510,14 @@
 .gd-badge-sell { color: var(--red); background: color-mix(in srgb, var(--red) 16%, transparent); }
 .gd-badge-hold { color: var(--muted); background: color-mix(in srgb, var(--muted) 16%, transparent); }
 .gd-badge-reject { color: var(--red); background: color-mix(in srgb, var(--red) 10%, transparent); opacity: 0.85; }
+
+/* ---- Live licznik tokenów AI (Konsola) ---- */
+.gd-tokens { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 2px 0 12px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); border-left: 4px solid var(--accent); }
+.gd-tokens.low { border-left-color: #f5b301; }
+.gd-tokens.out { border-left-color: var(--red); background: color-mix(in srgb, var(--red) 8%, var(--panel)); }
+.gd-tokens-l { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; }
+.gd-tokens-v { font-size: 1.05rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.gd-tokens-v small { font-size: 0.75rem; color: var(--muted); font-weight: 600; }
+.gd-tokens-tag { margin-left: auto; font-size: 0.68rem; font-weight: 800; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); background: color-mix(in srgb, var(--muted) 14%, transparent); }
+.gd-tokens-tag.warn { color: #f5b301; background: color-mix(in srgb, #f5b301 16%, transparent); }
+.gd-tokens-tag.out { color: var(--red); background: color-mix(in srgb, var(--red) 16%, transparent); }

@@ -27,10 +27,12 @@ class Settings(BaseSettings):
     # przekroczy claude_monthly_budget_usd, automat WSTRZYMUJE nowe wywołania
     # (nie pyta Claude, nie handluje automatycznie), zamiast palić budżet w
     # nieskończoność. Ręczne transakcje i mechaniczne wyjścia działają dalej.
-    # 2026-07-22 ("za ile chce"): WYŁĄCZONE -- budżet nie wstrzymuje już handlu.
-    # Prawdziwym limitem jest kredyt na koncie Anthropic (gdy się skończy, API
-    # zwraca błąd i cykl i tak pominie się łagodnie). Właściciel dosypuje tokeny.
-    claude_pause_trading_at_budget: bool = False
+    # 2026-07-24 (właściciel: "jak spadnie do 0 to haltuje"): WŁĄCZONE. Gdy
+    # wydatek Claude w tym miesiącu osiągnie claude_monthly_budget_usd (= ile
+    # tokenów załadowałeś), automat PRZESTAJE pytać Claude i otwierać nowe
+    # pozycje. Mechaniczne wyjścia (stop/trailing) i tak biegną, więc otwarte
+    # pozycje zostają chronione. Licznik "zostało $" jest na Konsoli na żywo.
+    claude_pause_trading_at_budget: bool = True
 
     alpaca_api_key: str = ""
     alpaca_api_secret: str = ""

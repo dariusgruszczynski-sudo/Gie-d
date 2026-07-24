@@ -219,6 +219,20 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
 
       {status.is_halted && status.halted_reason && <div className="gd-halt">⛔ {status.halted_reason}</div>}
 
+      {status.claude_budget && (
+        <div className={`gd-tokens ${status.claude_budget.exhausted ? "out" : status.claude_budget.remaining_usd < status.claude_budget.budget_usd * 0.2 ? "low" : ""}`}>
+          <span className="gd-tokens-l">Tokeny AI — zostało</span>
+          <span className="gd-tokens-v">{money(status.claude_budget.remaining_usd)} <small>z {money(status.claude_budget.budget_usd)}</small></span>
+          {status.claude_budget.exhausted ? (
+            <span className="gd-tokens-tag out">⛔ HALT — budżet wyczerpany</span>
+          ) : status.claude_budget.halt_at_zero ? (
+            <span className="gd-tokens-tag">auto-halt przy $0</span>
+          ) : (
+            <span className="gd-tokens-tag warn">auto-halt WYŁ.</span>
+          )}
+        </div>
+      )}
+
       <div className="gd-rules" title="Jak działa automat teraz">
         <span>🤖 Claude prowadzi CAŁY portfel co ~5 min</span>
         <span>🌐 Dynamiczne uniwersum z newsów — bez sztywnej whitelisty</span>

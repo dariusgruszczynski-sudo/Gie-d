@@ -43,6 +43,24 @@ def _serialize_session_info(settings: Settings) -> dict:
     }
 
 
+def _claude_budget_view(db: Session, settings: Settings) -> dict:
+    """Licznik tokenów AI dla dashboardu: budżet, wydane, ZOSTAŁO ($) i czy
+    automat jest wstrzymany przez wyczerpanie budżetu."""
+    bs = budget_tracker.get_budget_status(db, settings)
+    budget = float(bs["claude_monthly_budget_usd"])
+    spent = float(bs["claude_spend_usd_this_month"])
+    remaining = max(0.0, budget - spent)
+    exhausted = settings.claude_pause_trading_at_budget and budget > 0 and spent >= budget
+    return {
+        "budget_usd": round(budget, 2),
+        "spent_usd": round(spent, 2),
+        "remaining_usd": round(remaining, 2),
+        "pct_used": round(bs["claude_budget_pct_used"], 1),
+        "halt_at_zero": settings.claude_pause_trading_at_budget,
+        "exhausted": exhausted,
+    }
+
+
 @router.get("/status")
 def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     state = risk_manager.get_state(db)
@@ -83,6 +101,11 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         # show/hide the second portfolio panel and its whitelist.
         "extended_enabled": settings.extended_enabled,
         "extended_whitelist": get_extended_whitelist(db, settings),
+        # Licznik tokenów AI: ile ZOSTAŁO z budżetu (na żywo). Gdy halt_at_zero i
+        # remaining=0 -> automat wstrzymuje pytania do Claude i nowe wejścia
+        # (mechaniczne wyjścia i tak chronią pozycje). budget_status liczy spend z
+        # realnego usage per-call.
+        "claude_budget": _claude_budget_view(db, settings),
         "market_regime": _load_regime(state.market_regime_json),
         "extended_market_regime": _load_regime(state.extended_market_regime_json) if settings.extended_enabled else None,
         # ONE Alpaca account shared by both engines (cash counted once). Lets the

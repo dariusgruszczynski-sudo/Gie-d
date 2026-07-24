@@ -25,6 +25,15 @@ export interface AccountView {
   total_value: number;
 }
 
+export interface ClaudeBudget {
+  budget_usd: number;
+  spent_usd: number;
+  remaining_usd: number;
+  pct_used: number;
+  halt_at_zero: boolean;
+  exhausted: boolean;
+}
+
 export interface StatusResponse {
   mode: "testnet" | "live";
   quote_currency: string;
@@ -47,6 +56,8 @@ export interface StatusResponse {
   session_bounds: SessionBounds | null;
   market_regime: MarketRegime | null;
   extended_market_regime: MarketRegime | null;
+  // Live licznik tokenów AI: ile zostało z budżetu; halt gdy exhausted.
+  claude_budget: ClaudeBudget;
   // The ONE Alpaca account shared by both engines (cash counted once).
   account: AccountView | null;
   // Read-only share link enabled on the server (token stays server-side).
