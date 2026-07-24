@@ -44,7 +44,7 @@ apply_knobs() { # apply_knobs FILE
   [ -f "$f" ] || { echo "   (pomijam $f -- brak pliku)"; return 0; }
   echo "==> Ustawiam knoby w $f"
   # Kadencja / agresja
-  setenv POLL_INTERVAL_MINUTES 5 "$f"
+  setenv POLL_INTERVAL_MINUTES 15 "$f"
   setenv EXTENDED_POLL_INTERVAL_MINUTES 30 "$f"
   setenv PRICE_MOVE_TRIGGER_PCT 1.5 "$f"
   # Oszczędność tokenów poza sesją: Claude w nodze POZA SESJĄ tylko na
@@ -56,9 +56,11 @@ apply_knobs() { # apply_knobs FILE
   # Zdjęty kaganiec (zostają tylko pasy bezpieczeństwa w kodzie)
   setenv CLAUDE_PAUSE_TRADING_AT_BUDGET false "$f"
   setenv CLAUDE_ESCALATION_ENABLED false "$f"
-  setenv MIN_BUY_CONFIDENCE 0.0 "$f"
-  setenv MAX_CONCURRENT_POSITIONS 0 "$f"
-  setenv ENTRY_FILTER_ENABLED false "$f"
+  setenv MIN_BUY_CONFIDENCE 0.55 "$f"
+  setenv MAX_CONCURRENT_POSITIONS 4 "$f"
+  setenv ENTRY_FILTER_ENABLED true "$f"
+  setenv MAX_NEW_POSITIONS_PER_DAY 4 "$f"
+  setenv MIN_HOLD_MINUTES 90 "$f"
   setenv AUTO_DEMOTE_ENABLED false "$f"
   setenv CLAUDE_MONTHLY_BUDGET_USD 150 "$f"
   # Blackout newsów (bezpieczeństwo: brak danych = stop nowych wejść + alarm)

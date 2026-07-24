@@ -210,14 +210,14 @@ class Settings(BaseSettings):
     # 0.40 -> 0.0 (2026-07-22, "zdjąć kaganiec"): próg pewności ZDJĘTY -- to
     # Claude decyduje, czy wejść, nie sztywny próg. Ochrona kapitału zostaje w
     # mechanicznych wyjściach i w ryzyku per-transakcja (risk_per_trade_pct).
-    min_buy_confidence: float = 0.0
+    min_buy_confidence: float = 0.55
     # Cap on NEW automated BUY entries per venue per calendar day -- stops a
     # small account churning on many low-edge entries. 0 disables (bez limitu).
-    max_new_positions_per_day: int = 0
+    max_new_positions_per_day: int = 4
     # Minimum holding time (minutes) before a NON-stop mechanical exit (trailing
     # / take-profit / partial) may fire. The hard stop-loss is ALWAYS allowed.
     # Kills in-and-out round trips that only pay the spread. 0 disables (bez limitu wyjść).
-    min_hold_minutes: int = 0
+    min_hold_minutes: int = 90
     # --- Filtr konfluencji wejść (Tier 1: przewaga wejścia) -----------------
     # Entry edge (win rate) is the FIRST-ORDER driver of profit -- exit geometry
     # is second-order -- so a BUY must clear a transparent confluence of trend +
@@ -238,7 +238,7 @@ class Settings(BaseSettings):
     # decyduje AI, czytając też newsy/sentyment, których sito nie widzi. Szelki
     # RYZYKA (stop/trailing/sizing/halt/cooldown) zostają mechaniczne -- to nie
     # sito sygnału, to ochrona kapitału.
-    entry_filter_enabled: bool = False
+    entry_filter_enabled: bool = True
     # 2-of-3 proved too strict in a choppy/mixed market: 5 days of live data
     # showed ZERO autonomous BUY on either venue despite real intraday swings --
     # not because entries were rejected (rejection log was empty), but because
@@ -271,7 +271,7 @@ class Settings(BaseSettings):
     # -- Claude sam dobiera koncentrację. UWAGA: backtest 20-letni faworyzował
     # skupienie (4 > 6 > 8) i playbook uczy "wiele nazw tech = jeden zakład",
     # więc Claude ma wiedzę, by nie rozdrabniać -- ale decyzja jest jego.
-    max_concurrent_positions: int = 0
+    max_concurrent_positions: int = 4
     # Wide-spread / thinner names (inverse ETFs, small caps, sector/bond ETFs):
     # every round trip pays more spread, so their edge must be larger. Haircut
     # their BUY size by high_spread_size_scale (1.0 = no haircut).
@@ -392,7 +392,7 @@ class Settings(BaseSettings):
     # rotacje bliżej ruchu; koszt świadomie zaakceptowany ("nawet za cenę
     # tokenów"). Martwy tik i tak jest tani (pełna analiza dalej bramkowana
     # wyzwalaczem), a budżet miesięczny podniesiony niżej.
-    poll_interval_minutes: int = 5
+    poll_interval_minutes: int = 15
     # 3.0 -> 1.5 (2026-07-22): niższy próg budzi Claude częściej na realnym
     # ruchu, spójnie z grą aktywną/agresywną. Sito wejścia jest już wyłączone,
     # więc więcej analiz przekłada się na realne rotacje, nie tylko odrzucenia.
