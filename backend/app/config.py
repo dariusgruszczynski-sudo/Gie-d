@@ -18,10 +18,11 @@ class Settings(BaseSettings):
     # (Opus). Każdy cykl to jedno tanie wywołanie modelu szybkiego -- to obcina
     # koszt AI, który przy małym koncie jest głównym progiem rentowności. Włącz
     # (=true) dopiero, gdy konto jest na tyle duże, że koszt Opusa to <2-3%/mies.
-    # 2026-07-22 ("zdjąć kaganiec"): WŁĄCZONE -- gdy Claude jest niepewny na
-    # BUY/SELL, może sięgnąć po mocniejszy model (Opus). Właściciel dosypuje
-    # tokeny i chce pełnej swobody "jak chce / za ile chce".
-    claude_escalation_enabled: bool = True
+    # 2026-07-23 (decyzja właściciela: "Sonnet jest wystarczająco mądry"):
+    # WYŁĄCZONE. PM leci wyłącznie na modelu szybkim (Sonnet-5) -- bez drugiego,
+    # ~5x droższego wywołania na Opusie na każdym niepewnym cyklu. Główny sposób
+    # na oszczędność tokenów w sesji regularnej, bez utraty jakości decyzji.
+    claude_escalation_enabled: bool = False
     # Twardy bezpiecznik budżetu: gdy szacowany wydatek Claude w tym miesiącu
     # przekroczy claude_monthly_budget_usd, automat WSTRZYMUJE nowe wywołania
     # (nie pyta Claude, nie handluje automatycznie), zamiast palić budżet w

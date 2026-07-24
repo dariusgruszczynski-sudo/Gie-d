@@ -55,7 +55,7 @@ apply_knobs() { # apply_knobs FILE
   setenv MAX_POSITION_PCT 90 "$f"
   # Zdjęty kaganiec (zostają tylko pasy bezpieczeństwa w kodzie)
   setenv CLAUDE_PAUSE_TRADING_AT_BUDGET false "$f"
-  setenv CLAUDE_ESCALATION_ENABLED true "$f"
+  setenv CLAUDE_ESCALATION_ENABLED false "$f"
   setenv MIN_BUY_CONFIDENCE 0.0 "$f"
   setenv MAX_CONCURRENT_POSITIONS 0 "$f"
   setenv ENTRY_FILTER_ENABLED false "$f"
