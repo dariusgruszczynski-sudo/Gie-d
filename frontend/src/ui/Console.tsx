@@ -236,25 +236,39 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
         </div>
       )}
 
-      <div className="gd-rules" title="Jak działa automat teraz">
-        <span>🤖 Claude prowadzi CAŁY portfel co ~5 min</span>
-        <span>🌐 Dynamiczne uniwersum z newsów — bez sztywnej whitelisty</span>
-        <span>🛡️ Mechaniczne stopy chronią pozycje 24/7</span>
-        <span>🚨 Brak newsów = alarm i stop nowych wejść</span>
-      </div>
-
       <div className="gd-hero">
         <div className="gd-hero-label">Wartość konta</div>
         <div className="gd-hero-val">{acc ? money(total) : "…"}</div>
         <div className="gd-hero-deltas">
-          {status.day_pnl_pct !== null && (
-            <span className={`gd-delta ${status.day_pnl_pct >= 0 ? "gd-up" : "gd-down"}`}>{pct(status.day_pnl_pct)}<small>dziś</small></span>
-          )}
-          {status.week_pnl_pct !== null && (
-            <span className={`gd-delta ${status.week_pnl_pct >= 0 ? "gd-up" : "gd-down"}`}>{pct(status.week_pnl_pct)}<small>tydzień</small></span>
-          )}
           <span className="gd-delta" style={{ color: "var(--dim)" }}>{money0(cash)}<small>gotówka</small></span>
           <span className="gd-delta" style={{ color: "var(--dim)" }}>{invPct}%<small>w grze</small></span>
+        </div>
+      </div>
+
+      <div className="gd-pnl">
+        <div className="gd-pnl-item big">
+          <span className="gd-pnl-l">Zysk / strata (zrealizowany)</span>
+          <span className={`gd-pnl-v ${status.realized_pnl_usd >= 0 ? "gd-up" : "gd-down"}`}>
+            {status.realized_pnl_usd >= 0 ? "+" : ""}{money(status.realized_pnl_usd)}
+          </span>
+        </div>
+        <div className="gd-pnl-item big">
+          <span className="gd-pnl-l">Netto (po koszcie AI)</span>
+          <span className={`gd-pnl-v ${status.net_result_usd >= 0 ? "gd-up" : "gd-down"}`}>
+            {status.net_result_usd >= 0 ? "+" : ""}{money(status.net_result_usd)}
+          </span>
+        </div>
+        <div className="gd-pnl-item">
+          <span className="gd-pnl-l">Dziś</span>
+          <span className={`gd-pnl-v ${(status.day_pnl_pct ?? 0) >= 0 ? "gd-up" : "gd-down"}`}>
+            {status.day_pnl_pct !== null ? pct(status.day_pnl_pct) : "—"}
+          </span>
+        </div>
+        <div className="gd-pnl-item">
+          <span className="gd-pnl-l">Tydzień</span>
+          <span className={`gd-pnl-v ${(status.week_pnl_pct ?? 0) >= 0 ? "gd-up" : "gd-down"}`}>
+            {status.week_pnl_pct !== null ? pct(status.week_pnl_pct) : "—"}
+          </span>
         </div>
       </div>
 

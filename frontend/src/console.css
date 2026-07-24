@@ -521,3 +521,11 @@
 .gd-tokens-tag { margin-left: auto; font-size: 0.68rem; font-weight: 800; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); background: color-mix(in srgb, var(--muted) 14%, transparent); }
 .gd-tokens-tag.warn { color: #f5b301; background: color-mix(in srgb, #f5b301 16%, transparent); }
 .gd-tokens-tag.out { color: var(--red); background: color-mix(in srgb, var(--red) 16%, transparent); }
+
+/* ---- Panel Zyski / Straty (Konsola) ---- */
+.gd-pnl { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 8px 0 22px; }
+@media (min-width: 720px) { .gd-pnl { grid-template-columns: repeat(4, 1fr); } }
+.gd-pnl-item { padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 255, 255, 0.025); display: flex; flex-direction: column; gap: 5px; }
+.gd-pnl-l { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); font-weight: 700; }
+.gd-pnl-v { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; font-size: 1.35rem; }
+.gd-pnl-item.big .gd-pnl-v { font-size: 1.75rem; }
