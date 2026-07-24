@@ -95,8 +95,15 @@ class Settings(BaseSettings):
     extended_stop_loss_min_pct: float = 1.5
     extended_stop_loss_max_pct: float = 8.0
     extended_volatility_reference_pct: float = 1.5
-    extended_price_move_trigger_pct: float = 1.5
-    extended_full_analysis_every_minutes: int = 30
+    # 2026-07-23 (oszczędność tokenów poza sesją): noga POZA SESJĄ (pre/after-
+    # market) budzi Claude TYLKO na realnym katalizatorze, nie na rutynowych
+    # tikach. Próg ruchu podniesiony 1.5 -> 3.0 (tylko mocne ruchy), a heartbeat
+    # WYŁĄCZONY (0 = brak rutynowego budzenia) -- świeży news per-ticker i tak
+    # obudzi Claude natychmiast (to jest sens tej nogi: łapać after-hours
+    # earnings/newsy), plus jeden raz na starcie dnia. Mechaniczne wyjścia biegną
+    # co poll niezależnie, więc otwarte pozycje dalej chronione.
+    extended_price_move_trigger_pct: float = 3.0
+    extended_full_analysis_every_minutes: int = 0
     # Poza sesją sprawdzamy rzadziej niż sesja regularna (cieńszy rynek, mniej
     # okazji, szersze spready) -- co 30 min (2026-07-22, decyzja właściciela).
     extended_poll_interval_minutes: int = 30

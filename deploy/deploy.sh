@@ -47,6 +47,10 @@ apply_knobs() { # apply_knobs FILE
   setenv POLL_INTERVAL_MINUTES 5 "$f"
   setenv EXTENDED_POLL_INTERVAL_MINUTES 30 "$f"
   setenv PRICE_MOVE_TRIGGER_PCT 1.5 "$f"
+  # Oszczędność tokenów poza sesją: Claude w nodze POZA SESJĄ tylko na
+  # katalizatorze (news / mocny ruch), bez rutynowego heartbeatu.
+  setenv EXTENDED_PRICE_MOVE_TRIGGER_PCT 3.0 "$f"
+  setenv EXTENDED_FULL_ANALYSIS_EVERY_MINUTES 0 "$f"
   setenv FULL_ANALYSIS_EVERY_MINUTES 30 "$f"
   setenv MAX_POSITION_PCT 90 "$f"
   # Zdjęty kaganiec (zostają tylko pasy bezpieczeństwa w kodzie)
