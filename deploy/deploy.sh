@@ -62,7 +62,8 @@ apply_knobs() { # apply_knobs FILE
   setenv MAX_NEW_POSITIONS_PER_DAY 4 "$f"
   setenv MIN_HOLD_MINUTES 90 "$f"
   setenv AUTO_DEMOTE_ENABLED false "$f"
-  setenv CLAUDE_MONTHLY_BUDGET_USD 150 "$f"
+  # CLAUDE_MONTHLY_BUDGET_USD celowo NIE wymuszane -- Ty ustawiasz limit tokenów
+  # w .env (przy niskim/dzielonym kredycie deploy nie może go zresetować w górę).
   # Blackout newsów (bezpieczeństwo: brak danych = stop nowych wejść + alarm)
   setenv NEWS_BLACKOUT_HALT_ENABLED true "$f"
   setenv NEWS_MIN_HEADLINES 3 "$f"
