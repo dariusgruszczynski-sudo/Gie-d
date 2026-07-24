@@ -469,6 +469,13 @@ class Settings(BaseSettings):
     # only. Empty -> skipped.
     serpapi_api_key: str = ""
 
+    # Anthropic Admin API key (sk-ant-admin..., Console -> Settings -> Admin keys)
+    # -- OPCJONALNY. Gdy ustawiony, dashboard pokazuje REALNY (autorytatywny)
+    # koszt i liczbę tokenów month-to-date prosto od Anthropic (Cost/Usage
+    # Report), zamiast tylko lokalnego szacunku budget_tracker. Pusty -> UI
+    # spada na lokalny szacunek (nadal live, liczony z realnego usage per call).
+    anthropic_admin_api_key: str = ""
+
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
     smtp_username: str = ""

@@ -117,6 +117,27 @@ def _probe_news(db, settings):
         return _check("news", "Newsy (dane)", "Integracje", "down", f"{type(exc).__name__}: {exc}")
 
 
+def _probe_anthropic_usage(db, settings):
+    """Realne zużycie Claude prosto od Anthropic (Admin API), gdy skonfigurowany
+    Admin key; inaczej lokalny szacunek aplikacji (też live)."""
+    from app.services import anthropic_usage, budget_tracker
+
+    key = getattr(settings, "anthropic_admin_api_key", "") or ""
+    if not key:
+        b = budget_tracker.get_budget_status(db, settings)
+        return _check("anthropic_usage", "Tokeny Claude (koszt)", "Integracje", "warn",
+                      f"Szacunek aplikacji: ${b['claude_spend_usd_this_month']:.2f} / "
+                      f"${b['claude_monthly_budget_usd']:.0f} (dodaj ANTHROPIC_ADMIN_API_KEY dla realnych liczb)")
+    u = anthropic_usage.month_to_date(key)
+    if u is None:
+        return _check("anthropic_usage", "Tokeny Claude (koszt)", "Integracje", "down",
+                      "Admin API nieosiągalne — sprawdź ANTHROPIC_ADMIN_API_KEY (musi być kluczem ADMIN)")
+    tot_m = (u["input_tokens"] + u["output_tokens"]) / 1e6
+    return _check("anthropic_usage", "Tokeny Claude (koszt)", "Integracje", "ok",
+                  f"REALNY koszt m-c: ${u['cost_usd']:.2f} · {tot_m:.2f}M tok "
+                  f"(in {u['input_tokens'] / 1e6:.2f}M / out {u['output_tokens'] / 1e6:.2f}M)")
+
+
 def _probe_database(db, settings):
     try:
         db.execute(select(func.count(PortfolioSnapshot.id))).scalar()
@@ -203,6 +224,7 @@ _PROBES = [
     _probe_alpaca_market_data,
     _probe_alpaca_extended,
     _probe_claude,
+    _probe_anthropic_usage,
     _probe_news,
     _probe_database,
     _probe_snapshots,
