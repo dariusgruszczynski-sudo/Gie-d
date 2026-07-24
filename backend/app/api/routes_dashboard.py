@@ -58,6 +58,11 @@ def _claude_budget_view(db: Session, settings: Settings) -> dict:
         "pct_used": round(bs["claude_budget_pct_used"], 1),
         "halt_at_zero": settings.claude_pause_trading_at_budget,
         "exhausted": exhausted,
+        # ODCZYTANE (nie szacowane) liczby tokenów -- Anthropic zwraca dokładny
+        # `usage` przy każdej odpowiedzi; to jest suma za bieżący miesiąc.
+        "input_tokens": bs["claude_input_tokens_this_month"],
+        "output_tokens": bs["claude_output_tokens_this_month"],
+        "total_tokens": bs["claude_total_tokens_this_month"],
     }
 
 

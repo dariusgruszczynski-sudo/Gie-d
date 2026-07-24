@@ -221,12 +221,15 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
 
       {status.claude_budget && (
         <div className={`gd-tokens ${status.claude_budget.exhausted ? "out" : status.claude_budget.remaining_usd < status.claude_budget.budget_usd * 0.2 ? "low" : ""}`}>
-          <span className="gd-tokens-l">Tokeny AI — zostało</span>
-          <span className="gd-tokens-v">{money(status.claude_budget.remaining_usd)} <small>z {money(status.claude_budget.budget_usd)}</small></span>
+          <span className="gd-tokens-l">Tokeny AI — zużyte (odczyt z API)</span>
+          <span className="gd-tokens-v">
+            {(status.claude_budget.total_tokens / 1e6).toFixed(2)}M
+            <small> in {(status.claude_budget.input_tokens / 1e6).toFixed(2)}M / out {(status.claude_budget.output_tokens / 1e6).toFixed(2)}M · {money(status.claude_budget.spent_usd)}</small>
+          </span>
           {status.claude_budget.exhausted ? (
             <span className="gd-tokens-tag out">⛔ HALT — budżet wyczerpany</span>
           ) : status.claude_budget.halt_at_zero ? (
-            <span className="gd-tokens-tag">auto-halt przy $0</span>
+            <span className="gd-tokens-tag">zostało {money(status.claude_budget.remaining_usd)} · halt przy $0</span>
           ) : (
             <span className="gd-tokens-tag warn">auto-halt WYŁ.</span>
           )}

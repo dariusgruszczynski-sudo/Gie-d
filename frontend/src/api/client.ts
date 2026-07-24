@@ -32,6 +32,10 @@ export interface ClaudeBudget {
   pct_used: number;
   halt_at_zero: boolean;
   exhausted: boolean;
+  // Odczytane (nie szacowane) liczby tokenów za bieżący miesiąc.
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
 }
 
 export interface StatusResponse {
