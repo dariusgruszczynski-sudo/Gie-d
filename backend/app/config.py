@@ -431,6 +431,11 @@ class Settings(BaseSettings):
     # trzeba podnieść też tam.
     claude_monthly_budget_usd: float = 150.0
     claude_budget_alert_threshold_pct: float = 80.0
+    # Proaktywny alarm push, gdy ZOSTAŁO <= tyle % budżetu tokenów (właściciel:
+    # "reaguj jak będzie 10% left"). Odpala się raz na miesiąc przy zejściu do
+    # progu, i drugi raz przy $0 (halt). Re-arm po resecie miesiąca lub gdy
+    # podniesiesz budżet/dosypiesz (zostało znów > progu).
+    claude_low_budget_alert_pct: float = 10.0
 
     # Finnhub API key (free tier: https://finnhub.io) -- an OPTIONAL, reliable,
     # keyed primary news source. Unlike the free RSS feeds it isn't UA/IP-blocked

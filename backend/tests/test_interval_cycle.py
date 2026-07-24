@@ -322,3 +322,23 @@ def test_halted_interval_skips_claude_entirely(db_session):
     assert decision is not None and decision.action.value == "HOLD"
     assert decision.rejection_reason is not None
     assert len(broker.orders) == 0             # żadnego zlecenia
+
+
+def test_low_budget_alert_fires_once_at_threshold_then_at_zero(db_session, monkeypatch):
+    """Alarm o niskim budżecie: raz przy zejściu <=10% zostało, raz przy $0,
+    bez re-firowania na tym samym poziomie."""
+    from app.services import budget_tracker, trading_engine
+
+    s = _prod_like_settings().model_copy(update={"claude_monthly_budget_usd": 100.0, "claude_low_budget_alert_pct": 10.0})
+    alarms = []
+    monkeypatch.setattr(trading_engine.push_notifier, "send_alarm", lambda db, st, **kw: alarms.append(kw.get("tag")))
+    trading_engine._low_budget_alert.update(month="", level=None)  # zbij stan
+
+    budget_tracker.record_usage_cost(db_session, 92.0)  # zostało 8 (<=10%)
+    trading_engine._maybe_alert_low_budget(db_session, s)
+    trading_engine._maybe_alert_low_budget(db_session, s)  # brak re-fire
+    assert alarms == ["low-budget"]
+
+    budget_tracker.record_usage_cost(db_session, 10.0)  # zostało 0
+    trading_engine._maybe_alert_low_budget(db_session, s)
+    assert alarms == ["low-budget", "budget-out"]

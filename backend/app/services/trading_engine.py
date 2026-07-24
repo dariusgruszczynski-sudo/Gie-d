@@ -33,6 +33,59 @@ MIN_SELL_NOTIONAL_USD = 1.0
 _news_blackout_alarm_at: dict[str, datetime] = {}
 
 
+# Alarm o niskim budżecie tokenów: poziom, na którym już zaalarmowano w danym
+# miesiącu, żeby nie spamować. Process-local (jeden proces schedulera).
+_low_budget_alert: dict = {"month": "", "level": None}  # level: None / "low" / "out"
+
+
+def _maybe_alert_low_budget(db: Session, settings: Settings) -> None:
+    """Proaktywny push, gdy ZOSTAŁO <= claude_low_budget_alert_pct budżetu (i
+    drugi, gdy $0). Odpala raz na poziom w miesiącu; re-arm po resecie miesiąca
+    lub gdy 'zostało' znów urośnie powyżej progu (podniesienie budżetu/dosyp)."""
+    bs = budget_tracker.get_budget_status(db, settings)
+    budget = bs["claude_monthly_budget_usd"]
+    if budget <= 0:
+        return
+    remaining = bs["claude_budget_remaining_usd"]
+    remaining_pct = remaining / budget * 100
+    month = date.today().strftime("%Y-%m")
+    st = _low_budget_alert
+    if st["month"] != month:
+        st["month"], st["level"] = month, None
+
+    if remaining <= 0:
+        level = "out"
+    elif remaining_pct <= settings.claude_low_budget_alert_pct:
+        level = "low"
+    else:
+        st["level"] = None  # odbicie powyżej progu -> re-arm
+        return
+
+    rank = {"low": 1, "out": 2}
+    if st["level"] is not None and rank[level] <= rank.get(st["level"], 0):
+        return  # już alarmowano na tym (lub wyższym) poziomie
+    st["level"] = level
+    try:
+        if level == "low":
+            push_notifier.send_alarm(
+                db, settings,
+                title=f"⚠️ Tokeny AI: zostało ~{remaining_pct:.0f}%",
+                body=(f"Budżet Claude prawie na wyczerpaniu: zostało ${remaining:.2f} z ${budget:.0f}. "
+                      "Przy $0 automat wstrzyma NOWE wejścia (mechaniczne stopy chronią pozycje dalej)."),
+                tag="low-budget",
+            )
+        else:
+            push_notifier.send_alarm(
+                db, settings,
+                title="⛔ Tokeny AI: $0 — automat wstrzymany",
+                body=(f"Budżet Claude wyczerpany (${budget:.0f}). Nowe wejścia wstrzymane do resetu miesiąca "
+                      "lub podniesienia budżetu; mechaniczne wyjścia działają dalej."),
+                tag="budget-out",
+            )
+    except Exception:  # alarm nie może wywalić cyklu
+        logger.warning("Nie udało się wysłać alarmu o budżecie tokenów", exc_info=True)
+
+
 def _news_blackout_active(db: Session, settings: Settings, headlines: list, venue: str) -> bool:
     """True when the news feeds are effectively dark (fewer than
     news_min_headlines came back this cycle). Fires a throttled push ALARM the
@@ -1817,6 +1870,8 @@ def run_cycle(
         sum(d.input_tokens for d in decisions_data),
         sum(d.output_tokens for d in decisions_data),
     )
+    # Proaktywny alarm, gdy zostało <= progu (10%) budżetu tokenów.
+    _maybe_alert_low_budget(db, settings)
 
     primary: Decision | None = None
     for dd in decisions_data:
