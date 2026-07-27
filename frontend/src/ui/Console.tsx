@@ -182,6 +182,18 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
   const pozaCount = positions.filter((p) => p.leg === "poza").length;
 
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [budgetInput, setBudgetInput] = useState("");
+  const [budgetBusy, setBudgetBusy] = useState(false);
+  async function saveBudget() {
+    const v = parseFloat(budgetInput);
+    if (!isFinite(v) || v < 0) return;
+    setBudgetBusy(true);
+    try { await api.setBudget(v); setBudgetInput(""); onChanged(); } finally { setBudgetBusy(false); }
+  }
+  async function resetMeter() {
+    setBudgetBusy(true);
+    try { await api.resetBudgetMeter(); onChanged(); } finally { setBudgetBusy(false); }
+  }
   const hasA = !!alpaca?.current, hasE = !!extended?.current;
   useEffect(() => {
     let dead = false;
@@ -232,6 +244,15 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
             <span className="gd-tokens-tag">zostało {money(status.claude_budget.remaining_usd)} · halt przy $0</span>
           ) : (
             <span className="gd-tokens-tag warn">auto-halt WYŁ.</span>
+          )}
+          {!isReadOnly && (
+            <div className="gd-tokens-ctl">
+              <input className="gd-inp" type="number" min="0" step="1" inputMode="decimal"
+                placeholder={`budżet $ (teraz ${status.claude_budget.budget_usd})`}
+                value={budgetInput} onChange={(e) => setBudgetInput(e.target.value)} disabled={budgetBusy} />
+              <button className="gd-btn" onClick={saveBudget} disabled={budgetBusy || budgetInput === ""}>Zapisz budżet</button>
+              <button className="gd-btn" onClick={resetMeter} disabled={budgetBusy}>Reset licznika</button>
+            </div>
           )}
         </div>
       )}

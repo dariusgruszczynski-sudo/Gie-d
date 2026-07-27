@@ -59,6 +59,7 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _add_column_if_missing("system_state", "claude_budget_month_key", "VARCHAR(7)", "''")
     _add_column_if_missing("system_state", "claude_spend_usd_this_month", "FLOAT", "0.0")
+    _add_column_if_missing("system_state", "claude_monthly_budget_override", "FLOAT", "0.0")
     _add_column_if_missing("system_state", "claude_input_tokens_this_month", "INTEGER", "0")
     _add_column_if_missing("system_state", "claude_output_tokens_this_month", "INTEGER", "0")
     _add_column_if_missing("system_state", "last_check_prices_json", "TEXT", "'{}'")

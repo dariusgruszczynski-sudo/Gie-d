@@ -42,6 +42,33 @@ def resume(venue: str = "alpaca", db: Session = Depends(get_db)):
     return serialize(state)
 
 
+@router.post("/set-budget")
+def set_budget(amount: float, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """Ręczne ustawienie miesięcznego budżetu tokenów z aplikacji (bez wchodzenia
+    na serwer). Zapisuje nadpisanie w bazie (wygrywa nad .env). amount<=0 zdejmuje
+    nadpisanie (wraca wartość z .env)."""
+    from app.services import budget_tracker
+
+    state = risk_manager.get_state(db)
+    state.claude_monthly_budget_override = max(0.0, float(amount))
+    db.commit()
+    return {"claude_budget": budget_tracker.get_budget_status(db, settings)}
+
+
+@router.post("/reset-budget-meter")
+def reset_budget_meter(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """Zeruje licznik wydatku/tokenów tego miesiąca -> 'zostało' wraca do pełnego
+    budżetu i automat znów może pytać Claude."""
+    from app.services import budget_tracker
+
+    state = risk_manager.get_state(db)
+    state.claude_spend_usd_this_month = 0.0
+    state.claude_input_tokens_this_month = 0
+    state.claude_output_tokens_this_month = 0
+    db.commit()
+    return {"claude_budget": budget_tracker.get_budget_status(db, settings)}
+
+
 def _broker_for(venue: str, settings: Settings):
     if venue == "extended":
         return AlpacaClient(settings), settings.extended_whitelist_symbols, True

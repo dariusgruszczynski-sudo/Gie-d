@@ -180,6 +180,9 @@ class SystemState(Base):
     extended_analysis_state_json: Mapped[str] = mapped_column(Text, default="{}")
     claude_budget_month_key: Mapped[str] = mapped_column(String(7), default="")
     claude_spend_usd_this_month: Mapped[float] = mapped_column(Float, default=0.0)
+    # Ręczne nadpisanie miesięcznego budżetu tokenów, ustawiane z UI (0 = użyj
+    # wartości z .env). Pozwala wpisać/zmienić limit bez wchodzenia na serwer.
+    claude_monthly_budget_override: Mapped[float] = mapped_column(Float, default=0.0)
     # NEVER resets (unlike the monthly counter above) -- lifetime Claude spend,
     # so "wynik netto" can compare it against realized_pnl_usd (also lifetime,
     # since inception). Comparing lifetime P&L against only THIS month's spend

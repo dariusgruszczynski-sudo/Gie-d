@@ -59,7 +59,10 @@ def get_budget_status(db: Session, settings: Settings) -> dict:
     # Tokens live in the same monthly window as spend; a stale month reads zero.
     in_tokens = state.claude_input_tokens_this_month if is_current else 0
     out_tokens = state.claude_output_tokens_this_month if is_current else 0
-    budget = settings.claude_monthly_budget_usd
+    # Ręczne nadpisanie z UI wygrywa (0 = użyj wartości z .env). Dzięki temu limit
+    # tokenów można wpisać/zmienić z aplikacji bez wchodzenia na serwer.
+    override = getattr(state, "claude_monthly_budget_override", 0.0) or 0.0
+    budget = override if override > 0 else settings.claude_monthly_budget_usd
     pct_used = (spent / budget * 100) if budget > 0 else 0.0
     # Live "ile zostało w $" -- budget minus estimated spend, floored at 0. If the
     # user sets claude_monthly_budget_usd to exactly what they've loaded on

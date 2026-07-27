@@ -8,6 +8,7 @@ const ACTION_LABEL: Record<string, string> = {
   refresh_snapshots: "Odśwież snapshoty",
   restart_scheduler: "Restart schedulera",
   rebaseline_pnl: "Wyzeruj P&L",
+  reset_budget_meter: "Wyzeruj licznik tokenów",
 };
 
 export function Health() {

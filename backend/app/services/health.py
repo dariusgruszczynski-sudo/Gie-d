@@ -123,19 +123,26 @@ def _probe_anthropic_usage(db, settings):
     from app.services import anthropic_usage, budget_tracker
 
     key = getattr(settings, "anthropic_admin_api_key", "") or ""
+    b = budget_tracker.get_budget_status(db, settings)
+    remaining = b["claude_budget_remaining_usd"]
+    exhausted = settings.claude_pause_trading_at_budget and b["claude_monthly_budget_usd"] > 0 and remaining <= 0
     if not key:
-        b = budget_tracker.get_budget_status(db, settings)
-        return _check("anthropic_usage", "Tokeny Claude (koszt)", "Integracje", "warn",
-                      f"Szacunek aplikacji: ${b['claude_spend_usd_this_month']:.2f} / "
-                      f"${b['claude_monthly_budget_usd']:.0f} (dodaj ANTHROPIC_ADMIN_API_KEY dla realnych liczb)")
+        status = "down" if exhausted else "warn"
+        note = " — WYCZERPANY, handel wstrzymany (kliknij reset)" if exhausted else ""
+        return _check("anthropic_usage", "Tokeny Claude (koszt)", "Integracje", status,
+                      f"Zostało ${remaining:.2f} z ${b['claude_monthly_budget_usd']:.0f} "
+                      f"(wydane ${b['claude_spend_usd_this_month']:.2f}){note}",
+                      action="reset_budget_meter")
     u = anthropic_usage.month_to_date(key)
     if u is None:
         return _check("anthropic_usage", "Tokeny Claude (koszt)", "Integracje", "down",
-                      "Admin API nieosiągalne — sprawdź ANTHROPIC_ADMIN_API_KEY (musi być kluczem ADMIN)")
+                      "Admin API nieosiągalne — sprawdź ANTHROPIC_ADMIN_API_KEY (musi być kluczem ADMIN)",
+                      action="reset_budget_meter")
     tot_m = (u["input_tokens"] + u["output_tokens"]) / 1e6
     return _check("anthropic_usage", "Tokeny Claude (koszt)", "Integracje", "ok",
                   f"REALNY koszt m-c: ${u['cost_usd']:.2f} · {tot_m:.2f}M tok "
-                  f"(in {u['input_tokens'] / 1e6:.2f}M / out {u['output_tokens'] / 1e6:.2f}M)")
+                  f"(in {u['input_tokens'] / 1e6:.2f}M / out {u['output_tokens'] / 1e6:.2f}M)",
+                  action="reset_budget_meter")
 
 
 def _probe_database(db, settings):
@@ -268,8 +275,10 @@ def run_health_checks(db, settings: Settings) -> dict:
 def _reset_budget_meter(db, settings):
     state = risk_manager.get_state(db)
     state.claude_spend_usd_this_month = 0.0
+    state.claude_input_tokens_this_month = 0
+    state.claude_output_tokens_this_month = 0
     db.commit()
-    return "Licznik wydatku Claude wyzerowany — automat znów może pytać Claude w tym miesiącu."
+    return "Licznik tokenów/wydatku wyzerowany — 'zostało' wraca do pełnego budżetu, automat znów może pytać Claude."
 
 
 def _reset_resume_alpaca(db, settings):

@@ -260,6 +260,10 @@ export const api = {
   }) => apiFetch<Trade>("/api/control/manual-trade", { method: "POST", body: JSON.stringify(body) }),
   sellAll: (symbol: string, venue: "alpaca" | "extended" = "alpaca") =>
     apiFetch<Trade>(`/api/control/sell-all?symbol=${encodeURIComponent(symbol)}&venue=${venue}`, { method: "POST" }),
+  setBudget: (amount: number) =>
+    apiFetch<{ claude_budget: ClaudeBudget }>(`/api/control/set-budget?amount=${amount}`, { method: "POST" }),
+  resetBudgetMeter: () =>
+    apiFetch<{ claude_budget: ClaudeBudget }>("/api/control/reset-budget-meter", { method: "POST" }),
   shareLink: () => apiFetch<{ enabled: boolean; token: string }>("/api/control/share-link"),
   claudeEdge: (venue: string = "alpaca") =>
     apiFetch<ClaudeEdge>(withShare(`/api/claude-edge?venue=${venue}`)),
