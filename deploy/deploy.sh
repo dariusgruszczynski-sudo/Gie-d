@@ -43,33 +43,41 @@ apply_knobs() { # apply_knobs FILE
   local f="$1"
   [ -f "$f" ] || { echo "   (pomijam $f -- brak pliku)"; return 0; }
   echo "==> Ustawiam knoby w $f"
-  # Kadencja / agresja
-  setenv POLL_INTERVAL_MINUTES 15 "$f"
+  # --- STRATEGIA POZYCYJNA (dzienna) -- 2026-07-28 ---
+  setenv SIGNAL_TIMEFRAME 1d "$f"                 # świece dzienne (jak backtest)
+  setenv POLL_INTERVAL_MINUTES 30 "$f"           # co 30 min: mechaniczne wyjścia
   setenv EXTENDED_POLL_INTERVAL_MINUTES 30 "$f"
-  setenv PRICE_MOVE_TRIGGER_PCT 1.5 "$f"
-  # Oszczędność tokenów poza sesją: Claude w nodze POZA SESJĄ tylko na
-  # katalizatorze (news / mocny ruch), bez rutynowego heartbeatu.
+  setenv FULL_ANALYSIS_EVERY_MINUTES 0 "$f"      # bez zegarowego heartbeatu
+  setenv PRICE_MOVE_TRIGGER_PCT 1.5 "$f"         # Claude budzi się na ruchu >=1.5%
   setenv EXTENDED_PRICE_MOVE_TRIGGER_PCT 3.0 "$f"
   setenv EXTENDED_FULL_ANALYSIS_EVERY_MINUTES 0 "$f"
-  setenv FULL_ANALYSIS_EVERY_MINUTES 30 "$f"
-  setenv MAX_POSITION_PCT 90 "$f"
-  # Zdjęty kaganiec (zostają tylko pasy bezpieczeństwa w kodzie)
-  setenv CLAUDE_PAUSE_TRADING_AT_BUDGET true "$f"
-  setenv CLAUDE_ESCALATION_ENABLED false "$f"
-  setenv MIN_BUY_CONFIDENCE 0.55 "$f"
+  # Trzymanie pozycyjne + szerokie stopy (koniec whipsawu)
+  setenv MIN_HOLD_MINUTES 1440 "$f"              # min. dzień (stop-loss i tak zawsze działa)
+  setenv HARD_TAKE_PROFIT_PCT 0 "$f"             # brak twardego TP -- zwycięzcy biegną
+  setenv STOP_LOSS_MIN_PCT 3.0 "$f"
+  setenv TRAILING_STOP_FRAC 0.6 "$f"
+  # Selektywność + koncentracja
+  setenv MIN_BUY_CONFIDENCE 0.6 "$f"
   setenv MAX_CONCURRENT_POSITIONS 4 "$f"
+  setenv MAX_NEW_POSITIONS_PER_DAY 2 "$f"
+  setenv MAX_POSITION_PCT 90 "$f"
   setenv ENTRY_FILTER_ENABLED true "$f"
-  setenv MAX_NEW_POSITIONS_PER_DAY 4 "$f"
-  setenv MIN_HOLD_MINUTES 90 "$f"
   setenv AUTO_DEMOTE_ENABLED false "$f"
-  # CLAUDE_MONTHLY_BUDGET_USD celowo NIE wymuszane -- Ty ustawiasz limit tokenów
-  # w .env (przy niskim/dzielonym kredycie deploy nie może go zresetować w górę).
-  # Blackout newsów (bezpieczeństwo: brak danych = stop nowych wejść + alarm)
-  setenv NEWS_BLACKOUT_HALT_ENABLED true "$f"
-  setenv NEWS_MIN_HEADLINES 3 "$f"
-  # Dynamiczne uniwersum (whitelista zbędna)
+  # Reżim: twarda gotówka w risk-off (adaptive off -> gate on)
+  setenv ADAPTIVE_RISK_ENABLED false "$f"
+  setenv REGIME_GATE_ENABLED true "$f"
+  setenv DEFENSIVE_SYMBOLS GLD,TLT "$f"
+  # Uniwersum jakości; strukturalni przegrani na czarnej liście
+  setenv TRADING_WHITELIST SPY,QQQ,AAPL,MSFT,NVDA,AMZN,GOOGL,META,SMH,GLD,TLT "$f"
+  setenv SYMBOL_BLACKLIST TQQQ,SQQQ,SOXL,SOXS,TNA,TZA,SPXL,SPXS,UPRO,SPXU,UDOW,SDOW,TMF,TMV,LABU,LABD,YINN,YANG,NUGT,DUST,JNUG,JDST,BOIL,KOLD,UVXY,SVXY,VIXY,UVIX,SVIX,SH,XLE,XLU,XLF,XLP,XLI "$f"
   setenv DYNAMIC_UNIVERSE_ENABLED true "$f"
   setenv UNIVERSE_MAX_SYMBOLS 24 "$f"
+  # Tokeny: NIE haltujemy na brak (właściciel auto-doładowuje). Budżet z .env.
+  setenv CLAUDE_PAUSE_TRADING_AT_BUDGET false "$f"
+  setenv CLAUDE_ESCALATION_ENABLED false "$f"
+  # Bezpieczeństwo danych: brak newsów = stop nowych wejść + alarm.
+  setenv NEWS_BLACKOUT_HALT_ENABLED true "$f"
+  setenv NEWS_MIN_HEADLINES 3 "$f"
 }
 
 apply_knobs .env

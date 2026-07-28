@@ -42,6 +42,10 @@ def _maybe_alert_low_budget(db: Session, settings: Settings) -> None:
     """Proaktywny push, gdy ZOSTAŁO <= claude_low_budget_alert_pct budżetu (i
     drugi, gdy $0). Odpala raz na poziom w miesiącu; re-arm po resecie miesiąca
     lub gdy 'zostało' znów urośnie powyżej progu (podniesienie budżetu/dosyp)."""
+    # Gdy budżet NIE haltuje handlu (właściciel auto-doładowuje tokeny), alarm o
+    # "wyczerpaniu" byłby mylący i zbędny -- nie ostrzegamy.
+    if not settings.claude_pause_trading_at_budget:
+        return
     bs = budget_tracker.get_budget_status(db, settings)
     budget = bs["claude_monthly_budget_usd"]
     if budget <= 0:

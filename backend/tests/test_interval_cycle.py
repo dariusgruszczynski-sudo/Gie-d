@@ -329,7 +329,7 @@ def test_low_budget_alert_fires_once_at_threshold_then_at_zero(db_session, monke
     bez re-firowania na tym samym poziomie."""
     from app.services import budget_tracker, trading_engine
 
-    s = _prod_like_settings().model_copy(update={"claude_monthly_budget_usd": 100.0, "claude_low_budget_alert_pct": 10.0})
+    s = _prod_like_settings().model_copy(update={"claude_monthly_budget_usd": 100.0, "claude_low_budget_alert_pct": 10.0, "claude_pause_trading_at_budget": True})
     alarms = []
     monkeypatch.setattr(trading_engine.push_notifier, "send_alarm", lambda db, st, **kw: alarms.append(kw.get("tag")))
     trading_engine._low_budget_alert.update(month="", level=None)  # zbij stan

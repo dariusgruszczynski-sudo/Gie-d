@@ -117,6 +117,8 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         # dashboard show a single account total instead of two double-counted
         # per-engine "portfolio" values.
         "account": account,
+        # Alfa vs trzymanie SPY -- czy bot bije zwykłe DCA w indeks.
+        "alpha_vs_spy": _alpha_view(db, settings, account),
         # Read-only share link enabled? (token itself never leaves the server.)
         "share_enabled": bool(settings.share_token),
         # Exact per-engine tuning (Centrum Sterowania): every live knob, not
@@ -212,6 +214,34 @@ def _account_view(db: Session) -> dict | None:
         "equity_positions_value": round(equity_positions_value, 2),
         "extended_positions_value": round(extended_positions_value, 2),
         "total_value": round(cash + equity_positions_value + extended_positions_value, 2),
+    }
+
+
+def _alpha_view(db: Session, settings: Settings, account: dict | None) -> dict | None:
+    """Alfa vs zwykłe trzymanie benchmarku (SPY): czy bot bije DCA w indeks.
+    benchmark_value = ile byłbyś wart, gdybyś tę samą bazę trzymał w SPY od
+    baseline'u; alpha = konto − to. None dopóki nie ma baseline'u/ceny SPY."""
+    if account is None:
+        return None
+    state = risk_manager.get_state(db)
+    if getattr(state, "benchmark_start_price", 0) <= 0 or getattr(state, "benchmark_start_value", 0) <= 0:
+        return None
+    snap = _latest_snapshot(db, "alpaca")
+    spy_now = None
+    if snap:
+        try:
+            spy_now = json.loads(snap.prices_json or "{}").get(settings.benchmark_symbol)
+        except (TypeError, ValueError):
+            spy_now = None
+    if not spy_now:
+        return None
+    bench_value = state.benchmark_start_value * (spy_now / state.benchmark_start_price)
+    alpha_usd = account["total_value"] - bench_value
+    return {
+        "benchmark": settings.benchmark_symbol,
+        "benchmark_value": round(bench_value, 2),
+        "alpha_usd": round(alpha_usd, 2),
+        "alpha_pct": round(alpha_usd / bench_value * 100, 2) if bench_value > 0 else None,
     }
 
 

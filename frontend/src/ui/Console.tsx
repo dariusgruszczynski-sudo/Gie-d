@@ -182,18 +182,6 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
   const pozaCount = positions.filter((p) => p.leg === "poza").length;
 
   const [notes, setNotes] = useState<Record<string, string>>({});
-  const [budgetInput, setBudgetInput] = useState("");
-  const [budgetBusy, setBudgetBusy] = useState(false);
-  async function saveBudget() {
-    const v = parseFloat(budgetInput);
-    if (!isFinite(v) || v < 0) return;
-    setBudgetBusy(true);
-    try { await api.setBudget(v); setBudgetInput(""); onChanged(); } finally { setBudgetBusy(false); }
-  }
-  async function resetMeter() {
-    setBudgetBusy(true);
-    try { await api.resetBudgetMeter(); onChanged(); } finally { setBudgetBusy(false); }
-  }
   const hasA = !!alpaca?.current, hasE = !!extended?.current;
   useEffect(() => {
     let dead = false;
@@ -231,32 +219,6 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
 
       {status.is_halted && status.halted_reason && <div className="gd-halt">⛔ {status.halted_reason}</div>}
 
-      {status.claude_budget && (
-        <div className={`gd-tokens ${status.claude_budget.exhausted ? "out" : status.claude_budget.remaining_usd < status.claude_budget.budget_usd * 0.2 ? "low" : ""}`}>
-          <span className="gd-tokens-l">Tokeny AI — zużyte (odczyt z API)</span>
-          <span className="gd-tokens-v">
-            {(status.claude_budget.total_tokens / 1e6).toFixed(2)}M
-            <small> in {(status.claude_budget.input_tokens / 1e6).toFixed(2)}M / out {(status.claude_budget.output_tokens / 1e6).toFixed(2)}M · {money(status.claude_budget.spent_usd)}</small>
-          </span>
-          {status.claude_budget.exhausted ? (
-            <span className="gd-tokens-tag out">⛔ HALT — budżet wyczerpany</span>
-          ) : status.claude_budget.halt_at_zero ? (
-            <span className="gd-tokens-tag">zostało {money(status.claude_budget.remaining_usd)} · halt przy $0</span>
-          ) : (
-            <span className="gd-tokens-tag warn">auto-halt WYŁ.</span>
-          )}
-          {!isReadOnly && (
-            <div className="gd-tokens-ctl">
-              <input className="gd-inp" type="number" min="0" step="1" inputMode="decimal"
-                placeholder={`budżet $ (teraz ${status.claude_budget.budget_usd})`}
-                value={budgetInput} onChange={(e) => setBudgetInput(e.target.value)} disabled={budgetBusy} />
-              <button className="gd-btn" onClick={saveBudget} disabled={budgetBusy || budgetInput === ""}>Zapisz budżet</button>
-              <button className="gd-btn" onClick={resetMeter} disabled={budgetBusy}>Reset licznika</button>
-            </div>
-          )}
-        </div>
-      )}
-
       <div className="gd-hero">
         <div className="gd-hero-label">Wartość konta</div>
         <div className="gd-hero-val">{acc ? money(total) : "…"}</div>
@@ -274,10 +236,15 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
           </span>
         </div>
         <div className="gd-pnl-item big">
-          <span className="gd-pnl-l">Netto (po koszcie AI)</span>
-          <span className={`gd-pnl-v ${status.net_result_usd >= 0 ? "gd-up" : "gd-down"}`}>
-            {status.net_result_usd >= 0 ? "+" : ""}{money(status.net_result_usd)}
-          </span>
+          <span className="gd-pnl-l">vs trzymanie SPY (alfa)</span>
+          {status.alpha_vs_spy ? (
+            <span className={`gd-pnl-v ${status.alpha_vs_spy.alpha_usd >= 0 ? "gd-up" : "gd-down"}`}>
+              {status.alpha_vs_spy.alpha_usd >= 0 ? "+" : ""}{money(status.alpha_vs_spy.alpha_usd)}
+              {status.alpha_vs_spy.alpha_pct !== null && <small> ({status.alpha_vs_spy.alpha_pct >= 0 ? "+" : ""}{status.alpha_vs_spy.alpha_pct.toFixed(1)}%)</small>}
+            </span>
+          ) : (
+            <span className="gd-pnl-v" style={{ color: "var(--dim)" }}>—</span>
+          )}
         </div>
         <div className="gd-pnl-item">
           <span className="gd-pnl-l">Dziś</span>

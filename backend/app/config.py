@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     # tokenów załadowałeś), automat PRZESTAJE pytać Claude i otwierać nowe
     # pozycje. Mechaniczne wyjścia (stop/trailing) i tak biegną, więc otwarte
     # pozycje zostają chronione. Licznik "zostało $" jest na Konsoli na żywo.
-    claude_pause_trading_at_budget: bool = True
+    claude_pause_trading_at_budget: bool = False
 
     alpaca_api_key: str = ""
     alpaca_api_secret: str = ""
@@ -156,7 +156,7 @@ class Settings(BaseSettings):
     # min_pct, max_pct). Set stop_loss_vol_mult=0 to disable and fall back to
     # the fixed stop_loss_pct above.
     stop_loss_vol_mult: float = 6.0
-    stop_loss_min_pct: float = 2.5
+    stop_loss_min_pct: float = 3.0
     stop_loss_max_pct: float = 12.0
     # After a stop-loss cuts a position, block re-buying that same coin for
     # this many minutes -- stops the bot from "piłowanie" (buy top -> stop ->
@@ -177,7 +177,7 @@ class Settings(BaseSettings):
     # urośnie o >= tyle procent od wejścia, BIERZEMY cały zysk od razu -- żeby
     # mocny ruch nie „odjechał" z powrotem czekając aż trailing się uzbroi. To
     # odpowiedź na "indeks na +X% a nie sprzedany". 0 wyłącza (czysty trailing).
-    hard_take_profit_pct: float = 8.0
+    hard_take_profit_pct: float = 0.0
     # Pozycje, których automat NIE otworzył sam (były na koncie wcześniej albo
     # kupione ręcznie) nie mają zapisanej ceny wejścia -> dotąd mechaniczny stop
     # je pomijał (żadnej ochrony). Gdy włączone, taka "adoptowana" pozycja i tak
@@ -195,7 +195,7 @@ class Settings(BaseSettings):
     # trailing_stop_frac. Set reward_risk_ratio=0 to fall back to the fixed
     # take_profit_pct / trailing_stop_pct above.
     reward_risk_ratio: float = 2.0
-    trailing_stop_frac: float = 0.5
+    trailing_stop_frac: float = 0.6
     # Partial profit-taking: once a position reaches +partial_take_profit_r *
     # stop_dist, sell partial_take_profit_frac of it and let the rest run under
     # the trailing stop. This books a realized WIN (take-profit alone almost
@@ -212,14 +212,14 @@ class Settings(BaseSettings):
     # 0.40 -> 0.0 (2026-07-22, "zdjąć kaganiec"): próg pewności ZDJĘTY -- to
     # Claude decyduje, czy wejść, nie sztywny próg. Ochrona kapitału zostaje w
     # mechanicznych wyjściach i w ryzyku per-transakcja (risk_per_trade_pct).
-    min_buy_confidence: float = 0.55
+    min_buy_confidence: float = 0.6
     # Cap on NEW automated BUY entries per venue per calendar day -- stops a
     # small account churning on many low-edge entries. 0 disables (bez limitu).
-    max_new_positions_per_day: int = 4
+    max_new_positions_per_day: int = 2
     # Minimum holding time (minutes) before a NON-stop mechanical exit (trailing
     # / take-profit / partial) may fire. The hard stop-loss is ALWAYS allowed.
     # Kills in-and-out round trips that only pay the spread. 0 disables (bez limitu wyjść).
-    min_hold_minutes: int = 90
+    min_hold_minutes: int = 1440
     # --- Filtr konfluencji wejść (Tier 1: przewaga wejścia) -----------------
     # Entry edge (win rate) is the FIRST-ORDER driver of profit -- exit geometry
     # is second-order -- so a BUY must clear a transparent confluence of trend +
@@ -296,11 +296,11 @@ class Settings(BaseSettings):
     # w defensywie. Gdy włączone, zastępuje sztywną bramkę risk-off płynnym
     # zjazdem parametrów (silnik dalej handluje, tylko konserwatywnie), więc
     # regime_gate_enabled / crypto_regime_gate_enabled są wtedy pomijane.
-    adaptive_risk_enabled: bool = True
+    adaptive_risk_enabled: bool = False
 
     regime_gate_enabled: bool = True
     regime_vix_risk_off: float = 25.0
-    defensive_symbols: str = "GLD,TLT,SH"
+    defensive_symbols: str = "GLD,TLT"
     # --- POZA SESJĄ: regime read ---------------------------------------------
     # The extended-hours leg trades the SAME US market as the regular session
     # (just pre-/after-market), so it reads the SAME equity regime (SPY trend +
@@ -336,7 +336,7 @@ class Settings(BaseSettings):
     # Roster changes are safe: check_take_profit_stop_loss() force-closes any
     # held position whose symbol is no longer on this list, so trimming/adding
     # names never orphans a position.
-    trading_whitelist: str = "SPY,QQQ,AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,GLD,TLT,SH"
+    trading_whitelist: str = "SPY,QQQ,AAPL,MSFT,NVDA,AMZN,GOOGL,META,SMH,GLD,TLT"
 
     # --- Dynamiczne uniwersum: whitelista przestaje być klatką ----------------
     # 2026-07-22 (decyzja właściciela): "whitelista zbędna -- Claude patrzy na
@@ -354,8 +354,12 @@ class Settings(BaseSettings):
     # i odwrotne ETP (dzienny rebalans -> zabójcze na dłuższym trzymaniu), których
     # mechaniczny stop i tak nie ochroni sensownie na małym koncie.
     symbol_blacklist: str = (
+        # Lewarowane / odwrotne ETP.
         "TQQQ,SQQQ,SOXL,SOXS,TNA,TZA,SPXL,SPXS,UPRO,SPXU,UDOW,SDOW,TMF,TMV,"
-        "LABU,LABD,YINN,YANG,NUGT,DUST,JNUG,JDST,BOIL,KOLD,UVXY,SVXY,VIXY,UVIX,SVIX"
+        "LABU,LABD,YINN,YANG,NUGT,DUST,JNUG,JDST,BOIL,KOLD,UVXY,SVXY,VIXY,UVIX,SVIX,"
+        # 2026-07-28: strukturalni przegrani z live (churn, ujemna trafność):
+        # SH (short S&P), sektorowe ETF-y mielone w kółko.
+        "SH,XLE,XLU,XLF,XLP,XLI"
     )
     # Benchmark the whole strategy against simply buying and holding this
     # ticker -- if the bot can't beat holding SPY, it isn't earning its
@@ -382,7 +386,7 @@ class Settings(BaseSettings):
     # godzinach, MACD/RSI też godzinowe -- łapie mniejsze, częstsze ruchy w
     # ciągu dnia. To teren NIEzwalidowany backtestem na tym interwale -- więcej
     # transakcji, ale i więcej szumu/kosztu spreadu; obserwuj wyniki.
-    signal_timeframe: str = "1h"
+    signal_timeframe: str = "1d"
 
     # Akcje US: poll co 15 min (zrównany z nogą POZA SESJĄ, 2026-07-22) -- na
     # sygnale 1h (LIVE) szybszy puls łapie wejścia/wyjścia bliżej ruchu ceny.
@@ -394,7 +398,7 @@ class Settings(BaseSettings):
     # rotacje bliżej ruchu; koszt świadomie zaakceptowany ("nawet za cenę
     # tokenów"). Martwy tik i tak jest tani (pełna analiza dalej bramkowana
     # wyzwalaczem), a budżet miesięczny podniesiony niżej.
-    poll_interval_minutes: int = 15
+    poll_interval_minutes: int = 30
     # 3.0 -> 1.5 (2026-07-22): niższy próg budzi Claude częściej na realnym
     # ruchu, spójnie z grą aktywną/agresywną. Sito wejścia jest już wyłączone,
     # więc więcej analiz przekłada się na realne rotacje, nie tylko odrzucenia.
@@ -405,7 +409,7 @@ class Settings(BaseSettings):
     # idle through an entire quiet session. 0 disables the heartbeat.
     # 120 -> 30 (2026-07-22): PM-mode gra często, więc heartbeat co 30 min daje
     # regularny pełny przegląd portfela nawet bez ostrego ruchu.
-    full_analysis_every_minutes: int = 30
+    full_analysis_every_minutes: int = 0
     # US stocks/ETFs trade the regular session only (9:30-16:00 ET). Pre-market
     # and after-hours were removed: on a small account a position slice is
     # smaller than one whole share (extended hours reject fractional/notional

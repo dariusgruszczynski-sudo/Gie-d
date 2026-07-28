@@ -64,6 +64,8 @@ export interface StatusResponse {
   claude_budget: ClaudeBudget;
   // The ONE Alpaca account shared by both engines (cash counted once).
   account: AccountView | null;
+  // Alfa vs trzymanie SPY (czy bijemy zwykłe DCA w indeks); null bez baseline'u.
+  alpha_vs_spy: { benchmark: string; benchmark_value: number; alpha_usd: number; alpha_pct: number | null } | null;
   // Read-only share link enabled on the server (token stays server-side).
   share_enabled: boolean;
   // Honest bottom line: realized P&L across BOTH engines (one account) and
