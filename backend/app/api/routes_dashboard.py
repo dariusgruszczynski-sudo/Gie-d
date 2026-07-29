@@ -75,7 +75,7 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
     # naive "latest snapshot" was almost always the extended-only total, compared
     # against a day_start_value baselined on the (much larger) equities total:
     # a purely cosmetic scope mismatch that showed a large, entirely fake loss.
-    account = _account_view(db)
+    account = _account_view(db, settings)
 
     day_pnl_pct = None
     week_pnl_pct = None
@@ -119,7 +119,7 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "account": account,
         # Ile ZAROBIŁ/STRACIŁ sam automat (odporne na wpłaty): zrealizowany +
         # niezrealizowany P&L z transakcji.
-        "trading_pnl": _trading_pnl_view(db),
+        "trading_pnl": _trading_pnl_view(db, settings),
         # Alfa vs trzymanie SPY -- czy bot bije zwykłe DCA w indeks.
         "alpha_vs_spy": _alpha_view(db, settings, account),
         # Read-only share link enabled? (token itself never leaves the server.)
@@ -196,7 +196,7 @@ def _latest_snapshot(db: Session, venue: str) -> PortfolioSnapshot | None:
     ).scalar_one_or_none()
 
 
-def _account_view(db: Session) -> dict | None:
+def _account_view(db: Session, settings: Settings | None = None) -> dict | None:
     """The ONE Alpaca account, not two portfolios: both engines share a single
     cash balance and hold positions in the same account. Each per-venue snapshot
     records the SAME account cash plus only that engine's positions, so naively
@@ -204,7 +204,11 @@ def _account_view(db: Session) -> dict | None:
     true account here: cash counted ONCE + each engine's position value
     (snapshot total minus that shared cash)."""
     a = _latest_snapshot(db, "alpaca")
-    c = _latest_snapshot(db, "extended")
+    # Jeden silnik: gdy POZA SESJĄ wyłączona, WSZYSTKIE pozycje należą do portfela
+    # sesji (po migracji przy starcie). Nie czytamy zamrożonego snapshotu extended
+    # -- inaczej ta sama pozycja policzyłaby się podwójnie (raz w alpaca, raz w
+    # nieodświeżanym extended).
+    c = _latest_snapshot(db, "extended") if (settings or get_settings()).extended_enabled else None
     if a is None and c is None:
         return None
     # Cash is identical in both snapshots; take it from the freshest one.
@@ -220,14 +224,17 @@ def _account_view(db: Session) -> dict | None:
     }
 
 
-def _trading_pnl_view(db: Session) -> dict:
+def _trading_pnl_view(db: Session, settings: Settings | None = None) -> dict:
     """Ile ZAROBIŁ/STRACIŁ sam automat -- ODPORNE na wpłaty. Wpłata dodaje
     gotówkę, nie tworzy transakcji, więc nie rusza tej liczby. To jest czysty
     wynik handlu = zrealizowany (z zamkniętych) + niezrealizowany (papierowy na
     otwartych pozycjach)."""
     realized = scorecard.total_realized_pnl(db)
     unrealized = 0.0
-    for venue in ("alpaca", "extended"):
+    # Gdy POZA SESJĄ wyłączona, cały kapitał jest w portfelu sesji -- pomijamy
+    # zamrożony snapshot extended, żeby nie liczyć pozycji podwójnie.
+    venues = ("alpaca", "extended") if (settings or get_settings()).extended_enabled else ("alpaca",)
+    for venue in venues:
         snap = _latest_snapshot(db, venue)
         if snap is None:
             continue
@@ -481,7 +488,7 @@ def get_widget(db: Session = Depends(get_db), settings: Settings = Depends(get_s
     request (the full /api/portfolio series was too heavy to load reliably in
     the widget sandbox)."""
     state = risk_manager.get_state(db)
-    account = _account_view(db)
+    account = _account_view(db, settings)
     net = _net_result_view(db, settings)
 
     # Day P&L vs the TRUE combined account total (cash once + both engines'

@@ -20,7 +20,9 @@ def test_account_view_counts_shared_cash_once(db_session):
     db_session.add(PortfolioSnapshot(timestamp=now, total_value_usdt=130.0, usdt_balance=100.0, venue="extended"))
     db_session.commit()
 
-    acc = _account_view(db_session)
+    # Dwa silniki włączone -- ten test bada właśnie sumowanie obu nóg.
+    from app.config import Settings
+    acc = _account_view(db_session, Settings(extended_enabled=True))
     assert acc["cash"] == 100.0
     assert acc["equity_positions_value"] == 50.0
     assert acc["extended_positions_value"] == 30.0

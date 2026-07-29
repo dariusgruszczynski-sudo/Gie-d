@@ -329,7 +329,7 @@ def test_compute_portfolio_records_held_extended_qty(db_session, settings):
     as 0 (which would hide it and zero its value on the dashboard)."""
     from app.models import PortfolioSnapshot
 
-    extended_settings = settings.model_copy(update={"extended_whitelist": "BTCUSD,ETHUSD"})
+    extended_settings = settings.model_copy(update={"extended_whitelist": "BTCUSD,ETHUSD", "extended_enabled": True})
     broker = FakeAlpaca(
         prices={"BTCUSD": 50000.0, "ETHUSD": 3000.0},
         balances={"USD": 500.0, "BTCUSD": 0.01, "ETHUSD": 0.0},
@@ -369,7 +369,8 @@ def test_dual_listed_ticker_not_double_counted(db_session, settings):
     extended snapshot each counted the same shared Alpaca position."""
     from app.api.routes_dashboard import _account_view
 
-    s = settings.model_copy(update={"trading_whitelist": "SPY,XLF", "extended_whitelist": "XLF,GDX"})
+    # Dwa silniki włączone -- to jest właśnie scenariusz, który ten test bada.
+    s = settings.model_copy(update={"trading_whitelist": "SPY,XLF", "extended_whitelist": "XLF,GDX", "extended_enabled": True})
     broker = FakeAlpaca(
         prices={"SPY": 500.0, "XLF": 40.0, "GDX": 30.0},
         balances={"USD": 100.0, "SPY": 0.0, "XLF": 2.0, "GDX": 0.0},  # holds 2 XLF = $80
@@ -377,7 +378,7 @@ def test_dual_listed_ticker_not_double_counted(db_session, settings):
     trading_engine.compute_portfolio(db_session, s, broker, venue="alpaca")
     trading_engine.compute_portfolio(db_session, s, broker, venue="extended", whitelist=s.extended_whitelist_symbols)
 
-    acct = _account_view(db_session)
+    acct = _account_view(db_session, s)
     # cash 100 + XLF 80 counted ONCE == 180 (the bug made this 260).
     assert acct["total_value"] == 180.0
     # No ledger for XLF -> classified by whitelist membership -> extended leg.
@@ -410,6 +411,35 @@ def test_owned_ticker_stays_on_the_leg_that_opened_it(db_session, settings):
     assert acct["equity_positions_value"] == 80.0  # valued on SESJA (owner)
     assert acct["extended_positions_value"] == 0.0
     assert trading_engine.venue_for_holding(db_session, "XLF", s) == "alpaca"
+
+
+def test_migrate_extended_into_session_moves_ownership(db_session, settings):
+    """Wyłączenie POZA SESJĄ nie może osierocić kapitału: pozycja otwarta przez
+    nogę extended musi trafić do portfela sesji (alpaca) z zachowaną ceną wejścia,
+    żeby silnik sesyjny nią zarządzał zamiast zostawić ją bez ochrony."""
+    from app.models import Trade, TradeMode
+
+    db_session.add(
+        Trade(symbol="GDX", side="BUY", quantity=3.0, price=30.0, usdt_value=90.0, mode=TradeMode.LIVE, venue="extended")
+    )
+    db_session.commit()
+
+    # Przed migracją: GDX należy do nogi extended (ma tam cenę wejścia).
+    assert trading_engine.average_cost_basis(db_session, "GDX", venue="extended") == 30.0
+    assert trading_engine.average_cost_basis(db_session, "GDX", venue="alpaca") is None
+    assert trading_engine.venue_for_holding(db_session, "GDX", settings) == "extended"
+
+    moved = trading_engine.migrate_extended_into_session(db_session)
+    assert moved == 1
+
+    # Po migracji: własność (i cena wejścia) są na nodze sesji -- silnik sesyjny
+    # ją adoptuje z realnym wejściem, a nie jako pozycję bez stopa.
+    assert trading_engine.average_cost_basis(db_session, "GDX", venue="extended") is None
+    assert trading_engine.average_cost_basis(db_session, "GDX", venue="alpaca") == 30.0
+    assert trading_engine.venue_for_holding(db_session, "GDX", settings) == "alpaca"
+
+    # Idempotentne: drugi przebieg nie ma już nic do przeniesienia.
+    assert trading_engine.migrate_extended_into_session(db_session) == 0
 
 
 def test_whitelist_rejects_symbol_not_in_four_ticker_list(db_session, settings):
@@ -1617,11 +1647,12 @@ def test_compute_portfolio_split_uses_live_db_whitelist(db_session, settings):
     from app.services import whitelist_review
 
     # SMH is NOT in the config seed; put it on the live DB whitelist.
+    s = settings.model_copy(update={"extended_enabled": True})
     whitelist_review.set_extended_whitelist(db_session, ["SMH"])
     broker = FakeAlpaca(prices={"SMH": 30.0, "SPY": 500.0}, balances={"USD": 100.0, "SMH": 2.0, "SPY": 1.0})
 
-    ext = trading_engine.compute_portfolio(db_session, settings, broker, venue="extended", whitelist=["SMH"])
-    reg = trading_engine.compute_portfolio(db_session, settings, broker, venue="alpaca", whitelist=settings.whitelist_symbols)
+    ext = trading_engine.compute_portfolio(db_session, s, broker, venue="extended", whitelist=["SMH"])
+    reg = trading_engine.compute_portfolio(db_session, s, broker, venue="alpaca", whitelist=s.whitelist_symbols)
 
     assert ext["balances"].get("SMH") == 2.0            # extended leg owns SMH
     assert "SMH" not in reg["balances"]                 # regular leg must NOT see it

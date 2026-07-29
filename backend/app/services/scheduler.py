@@ -11,7 +11,7 @@ from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.push_notifier import send_daily_summary_push
 from app.services.strategy_profiles import effective_settings
-from app.services.trading_engine import build_alpaca_universe, compute_and_cache_regime, compute_portfolio, run_cycle
+from app.services.trading_engine import build_alpaca_universe, compute_and_cache_regime, compute_portfolio, migrate_extended_into_session, run_cycle
 from app.services.whitelist_review import get_extended_whitelist, run_whitelist_review
 
 logger = logging.getLogger(__name__)
@@ -171,6 +171,16 @@ def prime_portfolio_snapshots() -> None:
     settings = get_settings()
     db = SessionLocal()
     try:
+        # Jeden silnik: gdy POZA SESJĄ jest wyłączona, przenieś jej pozycje do
+        # portfela sesji ZANIM zrobimy startowy snapshot -- wtedy pierwszy
+        # snapshot alpaca już obejmuje te (teraz sesyjne) pozycje, a silnik
+        # sesyjny zajmie się nimi po otwarciu rynku. To jedno konto Alpaca, więc
+        # nic się nie przelewa; to tylko zmiana właściciela pozycji.
+        if not settings.extended_enabled:
+            try:
+                migrate_extended_into_session(db)
+            except Exception:
+                logger.warning("Migracja POZA SESJĄ -> sesja nie powiodła się (spróbuję przy następnym starcie)", exc_info=True)
         try:
             compute_portfolio(
                 db, settings, AlpacaClient(settings),

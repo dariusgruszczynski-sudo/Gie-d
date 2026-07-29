@@ -440,7 +440,59 @@ def venue_for_holding(
         return "extended"
     if average_cost_basis(db, symbol, venue="alpaca") is not None:
         return "alpaca"
+    # Jeden silnik: gdy POZA SESJĄ wyłączona, każda pozycja bez własnej historii
+    # w księdze należy do portfela sesji -- inaczej nazwa z extended-whitelisty
+    # zostałaby przypisana do martwej nogi i zniknęłaby z konta / spod zarządzania.
+    if not settings.extended_enabled:
+        return "alpaca"
     return "extended" if symbol in extended_syms else "alpaca"
+
+
+def migrate_extended_into_session(db: Session) -> int:
+    """Fold the POZA SESJĄ (extended) book into the SESJA (alpaca) book when the
+    extended engine is turned off. It's ONE Alpaca account, so NO money moves --
+    the cash and shares are already there; this only re-attributes OWNERSHIP so
+    the (now sole) session engine ADOPTS and manages those positions instead of
+    leaving them orphaned once the extended job stops running.
+
+    What it does:
+      * Re-tags every extended trade to the alpaca leg -- so venue_for_holding
+        assigns those holdings to the session book WITH their real cost basis
+        (full stop-loss-from-entry + trailing), not as entry-less "adopted"
+        positions.
+      * Merges the extended protective per-cycle state (trailing peaks, stop
+        cooldowns, partial-take-profit marks, stop-loss streaks) into the alpaca
+        columns (alpaca wins on any key clash) so protection stays continuous.
+
+    The session engine then HANDLES the moved positions on its next regular-hours
+    cycle: mechanical exits run every poll, and Claude re-evaluates them on the
+    next trigger (holds quality, trims/exits the churned/blacklisted ETFs).
+
+    Idempotent: once no extended trades remain this is a no-op. Returns the
+    number of trades migrated."""
+    ext_trades = db.execute(select(Trade).where(Trade.venue == "extended")).scalars().all()
+    if not ext_trades:
+        return 0
+    state = risk_manager.get_state(db)
+    for kind in ("peaks", "cooldowns", "partial", "streak"):
+        a_col = _state_col(kind, "alpaca")
+        e_col = _state_col(kind, "extended")
+        try:
+            a_map = json.loads(getattr(state, a_col) or "{}")
+            e_map = json.loads(getattr(state, e_col) or "{}")
+        except (TypeError, ValueError):
+            continue
+        merged = {**e_map, **a_map}  # equities keeps its own value on any clash
+        setattr(state, a_col, json.dumps(merged))
+        setattr(state, e_col, "{}")
+    for t in ext_trades:
+        t.venue = "alpaca"
+    db.commit()
+    logger.info(
+        "POZA SESJĄ wyłączona: przeniesiono %d transakcji do portfela sesji (alpaca) "
+        "-- silnik sesyjny przejmuje te pozycje.", len(ext_trades)
+    )
+    return len(ext_trades)
 
 
 def _set_stop_loss_cooldown(db: Session, symbol: str, minutes: int, *, venue: str = "alpaca") -> None:
