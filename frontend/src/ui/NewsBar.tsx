@@ -26,9 +26,11 @@ export function NewsBar() {
         <div className="gd-news-track">
           {row.map((n, i) => (
             <span className="gd-news-item" key={i}>
-              {n.tickers.length > 0 && <b className="gd-news-tk">{n.tickers[0]}</b>}
+              <span className="gd-news-head">
+                {n.tickers.length > 0 && <b className="gd-news-tk">{n.tickers[0]}</b>}
+                {n.source && <em className="src">{n.source}</em>}
+              </span>
               <span className="t">{n.title}</span>
-              {n.source && <em className="src">{n.source}</em>}
             </span>
           ))}
         </div>

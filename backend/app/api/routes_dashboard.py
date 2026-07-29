@@ -321,12 +321,24 @@ def get_portfolio(
 
     # Average entry price per currently-held base asset ("BTC" -> 61234.5), so
     # the dashboard can show per-position unrealized P&L. Keyed by base asset to
-    # match balances_json.
+    # match balances_json. IMPORTANT: cover every ACTUALLY-HELD symbol, not just
+    # the static whitelist -- a position bought from the dynamic universe (or an
+    # ETF adopted from the extended leg) sits OUTSIDE trading_whitelist, so a
+    # whitelist-only loop left it without an entry price and the dashboard showed
+    # no +/- on it. Union: held bases (from the latest snapshot) ∪ whitelist.
+    held_bases: set[str] = set()
+    if current is not None:
+        try:
+            held_bases = {b for b, q in json.loads(current.get("balances_json") or "{}").items() if q and q > 0}
+        except (TypeError, ValueError):
+            held_bases = set()
+    q = settings.quote_currency
+    lookup = set(whitelist) | {b + q for b in held_bases} | held_bases
     cost_basis: dict[str, float] = {}
-    for symbol in whitelist:
+    for symbol in lookup:
         basis = average_cost_basis(db, symbol, venue=venue)
         if basis is not None:
-            base = symbol[: -len(settings.quote_currency)] if symbol.endswith(settings.quote_currency) else symbol
+            base = symbol[: -len(q)] if symbol.endswith(q) else symbol
             cost_basis[base] = round(basis, 6)
 
     # Scorecard vs buy-and-hold benchmark, computed from the latest snapshot's

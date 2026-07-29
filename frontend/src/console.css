@@ -418,16 +418,18 @@
   gap: 10px;
   padding: 8px 12px;
   white-space: nowrap;
-  animation: gd-news 95s linear infinite;
+  animation: gd-news 130s linear infinite;
 }
 .gd-news:hover .gd-news-track { animation-play-state: paused; }
 @keyframes gd-news { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-/* Uniform, pretty chips: every headline the same size, one clean line. */
+/* Szersze chipy: cały nagłówek widoczny, zawinięty do maks. 2 linii (nie ucinany
+   w połowie zdania). Ticker + źródło u góry, tytuł pod spodem. */
 .gd-news-item {
   display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  width: 300px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 460px;
   box-sizing: border-box;
   padding: 8px 12px;
   border: 1px solid var(--line);
@@ -435,12 +437,15 @@
   background: rgba(255, 255, 255, 0.025);
 }
 .gd-news-item .t {
-  flex: 1;
   min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
   font-size: 0.8rem;
+  line-height: 1.25;
   color: var(--txt);
 }
 .gd-news-item .src {
@@ -459,6 +464,7 @@
   white-space: nowrap;
 }
 .gd-news-tk { flex: 0 0 auto; color: var(--ink); background: var(--amber); font-weight: 800; font-size: 0.58rem; padding: 3px 6px; border-radius: 6px; }
+.gd-news-head { display: flex; align-items: center; gap: 8px; }
 
 /* Per-leg brain card ---------------------------------------------------------- */
 .gd-brain {
@@ -530,6 +536,7 @@
 .gd-pnl-l { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); font-weight: 700; }
 .gd-pnl-v { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; font-size: 1.35rem; }
 .gd-pnl-item.big .gd-pnl-v { font-size: 1.75rem; }
+.gd-pnl-sub { font-size: 0.62rem; line-height: 1.25; color: var(--muted); font-weight: 500; }
 
 /* ---- Ręczne sterowanie budżetem tokenów (na liczniku) ---- */
 .gd-tokens-ctl { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; margin-top: 6px; }

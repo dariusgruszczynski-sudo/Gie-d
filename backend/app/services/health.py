@@ -328,8 +328,29 @@ def _reset_rebaseline_pnl(db, settings):
     # Re-anchor the drawdown peak too, so a deposit doesn't inflate the peak and
     # make a later, normal dip look like a halt-worthy drawdown.
     state.peak_account_value = total
+    # Re-anchor the SPY benchmark as well. alpha = konto - (SPY od baseline'u):
+    # a deposit jumps the account total but NOT the benchmark, so without this a
+    # wpłata would fake an equal "outperformance vs SPY". Restart the comparison
+    # from now (like the day/week windows): baseline value = current total,
+    # baseline SPY price = current SPY. Alpha startuje od zera od tej wpłaty.
+    from app.api.routes_dashboard import _latest_snapshot  # lazy: avoid import cycle
+
+    snap = _latest_snapshot(db, "alpaca")
+    spy_now = None
+    if snap is not None:
+        try:
+            import json
+
+            spy_now = json.loads(snap.prices_json or "{}").get(settings.benchmark_symbol)
+        except (TypeError, ValueError):
+            spy_now = None
+    if spy_now and spy_now > 0:
+        state.benchmark_start_value = total
+        state.benchmark_start_price = spy_now
+        state.benchmark_start_date = today
     db.commit()
-    return f"P&L przeliczony od nowa — baseline dnia/tygodnia i szczyt = ${total:,.2f}. Zysk dziś startuje od zera."
+    bench_note = "" if (spy_now and spy_now > 0) else " (benchmark SPY nietknięty — brak ceny SPY w ostatnim snapshocie; odśwież snapshoty i powtórz)"
+    return f"P&L przeliczony od nowa — baseline dnia/tygodnia, szczyt i benchmark SPY = ${total:,.2f}. Zysk i alfa startują od zera.{bench_note}"
 
 
 RESET_ACTIONS = {

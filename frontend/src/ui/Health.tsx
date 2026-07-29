@@ -7,7 +7,7 @@ const ACTION_LABEL: Record<string, string> = {
   clear_halt: "Zdejmij halt",
   refresh_snapshots: "Odśwież snapshoty",
   restart_scheduler: "Restart schedulera",
-  rebaseline_pnl: "Wyzeruj P&L",
+  rebaseline_pnl: "Wpłata/wypłata — przelicz P&L",
   reset_budget_meter: "Wyzeruj licznik tokenów",
 };
 

@@ -248,14 +248,24 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
           </span>
         </div>
         <div className="gd-pnl-item">
-          <span className="gd-pnl-l">vs trzymanie SPY (alfa)</span>
+          <span className="gd-pnl-l">Bot vs samo trzymanie SPY</span>
           {status.alpha_vs_spy ? (
-            <span className={`gd-pnl-v ${status.alpha_vs_spy.alpha_usd >= 0 ? "gd-up" : "gd-down"}`}>
-              {status.alpha_vs_spy.alpha_usd >= 0 ? "+" : ""}{money(status.alpha_vs_spy.alpha_usd)}
-              {status.alpha_vs_spy.alpha_pct !== null && <small> ({status.alpha_vs_spy.alpha_pct >= 0 ? "+" : ""}{status.alpha_vs_spy.alpha_pct.toFixed(1)}%)</small>}
-            </span>
+            <>
+              <span className={`gd-pnl-v ${status.alpha_vs_spy.alpha_usd >= 0 ? "gd-up" : "gd-down"}`}>
+                {status.alpha_vs_spy.alpha_usd >= 0 ? "+" : ""}{money(status.alpha_vs_spy.alpha_usd)}
+                {status.alpha_vs_spy.alpha_pct !== null && <small> ({status.alpha_vs_spy.alpha_pct >= 0 ? "+" : ""}{status.alpha_vs_spy.alpha_pct.toFixed(1)}%)</small>}
+              </span>
+              <span className="gd-pnl-sub">
+                {status.alpha_vs_spy.alpha_usd >= 0
+                  ? "bot zarobił tyle WIĘCEJ, niż gdybyś to samo trzymał w SPY"
+                  : "bot jest tyle W TYLE za zwykłym trzymaniem SPY"}
+              </span>
+            </>
           ) : (
-            <span className="gd-pnl-v" style={{ color: "var(--dim)" }}>—</span>
+            <>
+              <span className="gd-pnl-v" style={{ color: "var(--dim)" }}>—</span>
+              <span className="gd-pnl-sub">porównanie ruszy, gdy będzie cena SPY i punkt startowy</span>
+            </>
           )}
         </div>
       </div>
