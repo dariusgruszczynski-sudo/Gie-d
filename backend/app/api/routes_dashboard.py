@@ -117,6 +117,9 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         # dashboard show a single account total instead of two double-counted
         # per-engine "portfolio" values.
         "account": account,
+        # Ile ZAROBIŁ/STRACIŁ sam automat (odporne na wpłaty): zrealizowany +
+        # niezrealizowany P&L z transakcji.
+        "trading_pnl": _trading_pnl_view(db),
         # Alfa vs trzymanie SPY -- czy bot bije zwykłe DCA w indeks.
         "alpha_vs_spy": _alpha_view(db, settings, account),
         # Read-only share link enabled? (token itself never leaves the server.)
@@ -214,6 +217,38 @@ def _account_view(db: Session) -> dict | None:
         "equity_positions_value": round(equity_positions_value, 2),
         "extended_positions_value": round(extended_positions_value, 2),
         "total_value": round(cash + equity_positions_value + extended_positions_value, 2),
+    }
+
+
+def _trading_pnl_view(db: Session) -> dict:
+    """Ile ZAROBIŁ/STRACIŁ sam automat -- ODPORNE na wpłaty. Wpłata dodaje
+    gotówkę, nie tworzy transakcji, więc nie rusza tej liczby. To jest czysty
+    wynik handlu = zrealizowany (z zamkniętych) + niezrealizowany (papierowy na
+    otwartych pozycjach)."""
+    realized = scorecard.total_realized_pnl(db)
+    unrealized = 0.0
+    for venue in ("alpaca", "extended"):
+        snap = _latest_snapshot(db, venue)
+        if snap is None:
+            continue
+        try:
+            balances = json.loads(snap.balances_json or "{}")
+            prices = json.loads(snap.prices_json or "{}")
+        except (TypeError, ValueError):
+            continue
+        for base, qty in balances.items():
+            if not qty or qty <= 0:
+                continue
+            price = prices.get(base)
+            if price is None:
+                continue
+            basis = average_cost_basis(db, base, venue=venue)
+            if basis:
+                unrealized += (price - basis) * qty
+    return {
+        "realized_usd": round(realized, 2),
+        "unrealized_usd": round(unrealized, 2),
+        "total_usd": round(realized + unrealized, 2),
     }
 
 

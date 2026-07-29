@@ -229,13 +229,25 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
       </div>
 
       <div className="gd-pnl">
-        <div className="gd-pnl-item big">
-          <span className="gd-pnl-l">Zysk / strata (zrealizowany)</span>
-          <span className={`gd-pnl-v ${status.realized_pnl_usd >= 0 ? "gd-up" : "gd-down"}`}>
-            {status.realized_pnl_usd >= 0 ? "+" : ""}{money(status.realized_pnl_usd)}
+        <div className="gd-pnl-item big" style={{ gridColumn: "1 / -1" }}>
+          <span className="gd-pnl-l">💰 Zysk automatu — ile bot zarobił/stracił (bez Twoich wpłat)</span>
+          <span className={`gd-pnl-v xl ${status.trading_pnl.total_usd >= 0 ? "gd-up" : "gd-down"}`}>
+            {status.trading_pnl.total_usd >= 0 ? "+" : ""}{money(status.trading_pnl.total_usd)}
           </span>
         </div>
-        <div className="gd-pnl-item big">
+        <div className="gd-pnl-item">
+          <span className="gd-pnl-l">Zrealizowany (zamknięte)</span>
+          <span className={`gd-pnl-v ${status.trading_pnl.realized_usd >= 0 ? "gd-up" : "gd-down"}`}>
+            {status.trading_pnl.realized_usd >= 0 ? "+" : ""}{money(status.trading_pnl.realized_usd)}
+          </span>
+        </div>
+        <div className="gd-pnl-item">
+          <span className="gd-pnl-l">Otwarte (papierowy)</span>
+          <span className={`gd-pnl-v ${status.trading_pnl.unrealized_usd >= 0 ? "gd-up" : "gd-down"}`}>
+            {status.trading_pnl.unrealized_usd >= 0 ? "+" : ""}{money(status.trading_pnl.unrealized_usd)}
+          </span>
+        </div>
+        <div className="gd-pnl-item">
           <span className="gd-pnl-l">vs trzymanie SPY (alfa)</span>
           {status.alpha_vs_spy ? (
             <span className={`gd-pnl-v ${status.alpha_vs_spy.alpha_usd >= 0 ? "gd-up" : "gd-down"}`}>
@@ -245,18 +257,6 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
           ) : (
             <span className="gd-pnl-v" style={{ color: "var(--dim)" }}>—</span>
           )}
-        </div>
-        <div className="gd-pnl-item">
-          <span className="gd-pnl-l">Dziś</span>
-          <span className={`gd-pnl-v ${(status.day_pnl_pct ?? 0) >= 0 ? "gd-up" : "gd-down"}`}>
-            {status.day_pnl_pct !== null ? pct(status.day_pnl_pct) : "—"}
-          </span>
-        </div>
-        <div className="gd-pnl-item">
-          <span className="gd-pnl-l">Tydzień</span>
-          <span className={`gd-pnl-v ${(status.week_pnl_pct ?? 0) >= 0 ? "gd-up" : "gd-down"}`}>
-            {status.week_pnl_pct !== null ? pct(status.week_pnl_pct) : "—"}
-          </span>
         </div>
       </div>
 
