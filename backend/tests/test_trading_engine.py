@@ -506,6 +506,32 @@ def test_average_cost_basis_none_when_flat(db_session, settings):
     assert trading_engine.average_cost_basis(db_session, "SPY") is None
 
 
+def test_position_opened_at_tracks_current_holding(db_session, settings):
+    """'Ile dni trzymana' liczy się od otwarcia BIEŻĄCEGO ciągu pozycji: pełne
+    zamknięcie zeruje licznik, a wcześniejsze zamknięte round-tripy się nie liczą."""
+    from datetime import datetime, timedelta, timezone
+    from app.models import Trade, TradeMode
+
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    # Round trip 1: kup t0, sprzedaj całość t1 (zamknięte -> nie liczy się).
+    db_session.add(Trade(timestamp=base, symbol="SPY", side="BUY", quantity=1.0, price=100.0, usdt_value=100.0, mode=TradeMode.LIVE, venue="alpaca"))
+    db_session.add(Trade(timestamp=base + timedelta(days=1), symbol="SPY", side="SELL", quantity=1.0, price=105.0, usdt_value=105.0, mode=TradeMode.LIVE, venue="alpaca"))
+    # Bieżąca pozycja otwarta t2 (dokupienie t3 nie przesuwa otwarcia).
+    reopen = base + timedelta(days=5)
+    db_session.add(Trade(timestamp=reopen, symbol="SPY", side="BUY", quantity=1.0, price=110.0, usdt_value=110.0, mode=TradeMode.LIVE, venue="alpaca"))
+    db_session.add(Trade(timestamp=base + timedelta(days=6), symbol="SPY", side="BUY", quantity=1.0, price=112.0, usdt_value=112.0, mode=TradeMode.LIVE, venue="alpaca"))
+    db_session.commit()
+
+    got = trading_engine.position_opened_at(db_session, "SPY")
+    # Kolumna czasu bywa naiwna w bazie testowej -- porównaj bez strefy.
+    assert got is not None
+    assert got.replace(tzinfo=None) == reopen.replace(tzinfo=None)
+
+
+def test_position_opened_at_none_when_flat(db_session, settings):
+    assert trading_engine.position_opened_at(db_session, "SPY") is None
+
+
 def test_fixed_take_profit_sells_when_price_rises(db_session, settings):
     fixed = settings.model_copy(update={"trailing_stop_enabled": False})
     broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})

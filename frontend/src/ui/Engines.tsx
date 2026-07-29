@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, Decision, PortfolioResponse, StatusResponse, Trade } from "../api/client";
+import { api, Decision, PortfolioResponse, PositionPlan, StatusResponse, Trade } from "../api/client";
 import { DecRow, extract, PosRow, RegimeChip } from "./Console";
 import { ago, EquityBand, money, money0 } from "./kit";
 
@@ -25,12 +25,12 @@ export function Engines({ status, alpaca, extended, trades, extendedTrades, deci
   const positions = extract(portfolio, leg);
   const legDecisions = decisions.filter((d) => (d.venue ?? "alpaca") === venue);
 
-  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [plans, setPlans] = useState<Record<string, PositionPlan>>({});
   useEffect(() => {
     let dead = false;
     (async () => {
-      try { const r = await api.positionPlans(venue); const m: Record<string, string> = {}; r.positions.forEach((pp) => (m[pp.asset] = pp.note)); if (!dead) setNotes(m); }
-      catch { if (!dead) setNotes({}); }
+      try { const r = await api.positionPlans(venue); const m: Record<string, PositionPlan> = {}; r.positions.forEach((pp) => (m[pp.asset] = pp)); if (!dead) setPlans(m); }
+      catch { if (!dead) setPlans({}); }
     })();
     return () => { dead = true; };
   }, [venue, positions.length]);
@@ -79,7 +79,7 @@ export function Engines({ status, alpaca, extended, trades, extendedTrades, deci
 
       <div className="gd-sec"><h3>Pozycje</h3></div>
       {positions.length ? (
-        <div className="gd-pos">{positions.map((p) => <PosRow key={p.asset} p={p} note={notes[p.asset]} onChanged={onChanged} />)}</div>
+        <div className="gd-pos">{positions.map((p) => <PosRow key={p.asset} p={p} plan={plans[p.asset]} onChanged={onChanged} />)}</div>
       ) : <p className="gd-empty">Brak pozycji na tej nodze.</p>}
 
       <div className="gd-sec"><h3>Ostatnie transakcje</h3></div>

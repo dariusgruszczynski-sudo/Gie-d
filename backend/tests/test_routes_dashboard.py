@@ -34,6 +34,47 @@ def test_account_view_none_when_no_snapshots(db_session):
     assert _account_view(db_session) is None
 
 
+def test_portfolio_cost_basis_covers_non_whitelist_held(db_session, settings):
+    """+/- na pozycji: cena wejścia musi się policzyć dla KAŻDEJ trzymanej nazwy,
+    także spoza statycznej whitelisty (np. z dynamicznego uniwersum). Wcześniej
+    pętla szła tylko po whiteliście, więc taka pozycja nie pokazywała zysku."""
+    from app.models import Trade, TradeMode
+
+    now = datetime.now(timezone.utc)
+    # TSLA nie jest w domyślnej trading_whitelist -- kupione z uniwersum.
+    db_session.add(Trade(timestamp=now, symbol="TSLA", side="BUY", quantity=2.0, price=200.0,
+                         usdt_value=400.0, mode=TradeMode.LIVE, venue="alpaca"))
+    db_session.add(PortfolioSnapshot(timestamp=now, total_value_usdt=550.0, usdt_balance=50.0,
+                                     balances_json=json.dumps({"TSLA": 2.0}),
+                                     prices_json=json.dumps({"TSLA": 250.0}), venue="alpaca"))
+    db_session.commit()
+
+    body = get_portfolio(limit=200, venue="alpaca", db=db_session, settings=settings)
+    assert body["cost_basis"].get("TSLA") == 200.0
+
+
+def test_pnl_series_is_deposit_proof(db_session, settings):
+    """Krzywa 'Zysk automatu w czasie' nie może skakać przy wpłacie: przy tych
+    samych pozycjach i cenach, sam wzrost gotówki (dopłata) nie zmienia P&L."""
+    from app.models import Trade, TradeMode
+
+    t0 = datetime.now(timezone.utc) - timedelta(hours=2)
+    db_session.add(Trade(timestamp=t0, symbol="SPY", side="BUY", quantity=1.0, price=100.0,
+                         usdt_value=100.0, mode=TradeMode.LIVE, venue="alpaca"))
+    # Snapshot 1: cash 100. Snapshot 2: cash 400 (wpłata +300), te same pozycje/ceny.
+    db_session.add(PortfolioSnapshot(timestamp=t0 + timedelta(hours=1), total_value_usdt=210.0, usdt_balance=100.0,
+                                     balances_json=json.dumps({"SPY": 1.0}),
+                                     prices_json=json.dumps({"SPY": 110.0}), venue="alpaca"))
+    db_session.add(PortfolioSnapshot(timestamp=t0 + timedelta(hours=2), total_value_usdt=510.0, usdt_balance=400.0,
+                                     balances_json=json.dumps({"SPY": 1.0}),
+                                     prices_json=json.dumps({"SPY": 110.0}), venue="alpaca"))
+    db_session.commit()
+
+    body = get_portfolio(limit=200, venue="alpaca", db=db_session, settings=settings)
+    # Unrealized = (110-100)*1 = 10 na OBU snapshotach -- wpłata nic nie zmienia.
+    assert body["pnl_history"] == [10.0, 10.0]
+
+
 def test_status_net_result_is_realized_pnl_minus_claude_spend(db_session, settings):
     """The honest bottom line: realized P&L across BOTH engines minus what
     Claude has actually cost this month -- not brutto P&L."""

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { api, Decision, isReadOnly, MarketRegime, PortfolioResponse, StatusResponse } from "../api/client";
+import { api, Decision, isReadOnly, MarketRegime, PortfolioResponse, PositionPlan, StatusResponse } from "../api/client";
 import { useCountUp } from "../hooks/useCountUp";
-import { ago, EquityBand, money, money0, pct, TickerTape } from "./kit";
+import { ago, EquityBand, money, money0, pct, PnlBand, TickerTape } from "./kit";
 import { NewsBar } from "./NewsBar";
 
 export type Leg = "sesja" | "poza";
@@ -107,10 +107,16 @@ function NowStrip({ status }: { status: StatusResponse }) {
   );
 }
 
-export function PosRow({ p, note, onChanged }: { p: Pos; note?: string; onChanged?: () => void }) {
+export function PosRow({ p, plan, note, onChanged }: { p: Pos; plan?: PositionPlan; note?: string; onChanged?: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
   const up = (p.pnlPct ?? 0) >= 0;
   const mag = Math.min(100, Math.abs(p.pnlPct ?? 0) * 8);
+  const noteText = plan?.note ?? note;
+  const entry = plan?.basis ?? p.entry;
+  const days = plan?.days_held;
+  const daysLabel = days === null || days === undefined ? null : days === 0 ? "dziś" : days === 1 ? "1 dzień" : `${days} dni`;
+  const hasCard = !!(plan && (daysLabel || entry || plan.stop_price || plan.target_price || plan.thesis));
   async function sell() {
     if (!window.confirm(`Sprzedać CAŁĄ pozycję ${p.asset} (~${money(p.value)})? Realne zlecenie.`)) return;
     setBusy(true);
@@ -121,8 +127,11 @@ export function PosRow({ p, note, onChanged }: { p: Pos; note?: string; onChange
       <div className="gd-pos-tk">
         <span className={`gd-leg-dot ${p.leg}`} />
         <div>
-          <b>{p.asset}</b>
-          {note && <div className="gd-pos-plan">{note}</div>}
+          <b>{p.asset}</b>{daysLabel && <span className="gd-pos-days">· trzymana {daysLabel}</span>}
+          {noteText && <div className="gd-pos-plan">{noteText}</div>}
+          {hasCard && (
+            <button className="gd-pos-more" onClick={() => setOpen((v) => !v)}>{open ? "ukryj plan ▲" : "plan pozycji ▾"}</button>
+          )}
         </div>
       </div>
       <div className="gd-pos-fig">
@@ -135,6 +144,17 @@ export function PosRow({ p, note, onChanged }: { p: Pos; note?: string; onChange
       <div className="gd-pos-bar">
         <span style={{ width: `${mag}%`, background: up ? "var(--mint)" : "var(--rose)", marginLeft: up ? "50%" : `${50 - mag}%` }} />
       </div>
+      {hasCard && open && (
+        <div className="gd-pos-card">
+          <div className="gd-pos-levels">
+            {entry ? <span><i>wejście</i><b>{money(entry)}</b></span> : null}
+            {plan?.stop_price ? <span><i>stop</i><b className="gd-down">{money(plan.stop_price)}</b></span> : null}
+            {plan?.target_price ? <span><i>cel</i><b className="gd-up">{money(plan.target_price)}</b></span> : null}
+            {daysLabel ? <span><i>trzymana</i><b>{daysLabel}</b></span> : null}
+          </div>
+          {plan?.thesis && <div className="gd-pos-thesis">„{plan.thesis}"</div>}
+        </div>
+      )}
     </div>
   );
 }
@@ -181,19 +201,19 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
   const sesjaCount = positions.filter((p) => p.leg === "sesja").length;
   const pozaCount = positions.filter((p) => p.leg === "poza").length;
 
-  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [plans, setPlans] = useState<Record<string, PositionPlan>>({});
   const hasA = !!alpaca?.current, hasE = !!extended?.current;
   useEffect(() => {
     let dead = false;
     (async () => {
-      const map: Record<string, string> = {};
+      const map: Record<string, PositionPlan> = {};
       const legs: Array<[Leg, "alpaca" | "extended"]> = [];
       if (hasA) legs.push(["sesja", "alpaca"]);
       if (hasE) legs.push(["poza", "extended"]);
       await Promise.all(legs.map(async ([leg, venue]) => {
-        try { const r = await api.positionPlans(venue); r.positions.forEach((pp) => (map[`${leg}:${pp.asset}`] = pp.note)); } catch { /* best effort */ }
+        try { const r = await api.positionPlans(venue); r.positions.forEach((pp) => (map[`${leg}:${pp.asset}`] = pp)); } catch { /* best effort */ }
       }));
-      if (!dead) setNotes(map);
+      if (!dead) setPlans(map);
     })();
     return () => { dead = true; };
   }, [hasA, hasE, invested]);
@@ -270,7 +290,14 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
         </div>
       </div>
 
-      <div className="gd-band"><EquityBand history={alpaca?.history ?? []} /></div>
+      <div className="gd-bandgrp">
+        <div className="gd-band-h">Zysk automatu w czasie <small>bez Twoich wpłat — czysty wynik handlu</small></div>
+        <div className="gd-band"><PnlBand series={alpaca?.pnl_history ?? []} /></div>
+      </div>
+      <div className="gd-bandgrp">
+        <div className="gd-band-h">Wartość konta w czasie <small>razem z wpłatami</small></div>
+        <div className="gd-band"><EquityBand history={alpaca?.history ?? []} /></div>
+      </div>
 
       <div className={`gd-lanes${status.extended_enabled ? "" : " gd-lanes-solo"}`}>
         <Lane leg="sesja" name={status.extended_enabled ? "SESJA · Akcje US" : "Silnik pozycyjny · Akcje US"}
@@ -287,7 +314,7 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
       <div className="gd-sec"><h3>Otwarte pozycje</h3><span className="gd-sec-note">{money(invested)} w grze</span></div>
       {positions.length ? (
         <div className="gd-pos">
-          {positions.map((p) => <PosRow key={`${p.leg}:${p.asset}`} p={p} note={notes[`${p.leg}:${p.asset}`]} onChanged={onChanged} />)}
+          {positions.map((p) => <PosRow key={`${p.leg}:${p.asset}`} p={p} plan={plans[`${p.leg}:${p.asset}`]} onChanged={onChanged} />)}
         </div>
       ) : <p className="gd-empty">Brak otwartych pozycji — gotówka czeka na wejścia.</p>}
 

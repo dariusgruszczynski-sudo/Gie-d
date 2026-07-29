@@ -151,6 +151,9 @@ export interface PortfolioResponse {
   cost_basis: Record<string, number>;
   // Strategy scorecard vs buy-and-hold benchmark (null on a fresh account).
   scorecard: Scorecard | null;
+  // Deposit-proof P&L curve aligned 1:1 with `history`: realized+unrealized at
+  // each snapshot, so it doesn't jump when you top the account up.
+  pnl_history?: number[];
   venue?: string;
 }
 
@@ -332,6 +335,11 @@ export interface PositionPlan {
   trailing_dist_pct: number;
   action: "hold" | "near_stop" | "partial_ready" | "trailing_protected" | "adopted";
   note: string;
+  // Strategia pozycyjna: kontekst "po co trzymamy".
+  days_held: number | null;
+  stop_price: number | null;
+  target_price: number | null;
+  thesis: string | null;
 }
 
 export interface PositionPlansResponse {

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -15,7 +16,7 @@ from app.serialization import serialize
 from app.services import budget_tracker, market_hours, risk_manager, scorecard, shadow_analysis
 from app.services.alpaca_client import AlpacaClient
 from app.services.strategy_profiles import effective_settings
-from app.services.trading_engine import _state_col, average_cost_basis, describe_position_plan
+from app.services.trading_engine import _state_col, average_cost_basis, describe_position_plan, position_opened_at
 from app.services.whitelist_review import get_extended_whitelist
 
 logger = logging.getLogger(__name__)
@@ -287,6 +288,63 @@ def _alpha_view(db: Session, settings: Settings, account: dict | None) -> dict |
     }
 
 
+def _trading_pnl_series(db: Session, venue: str, rows_asc: list) -> list[float]:
+    """Deposit-proof P&L curve: for each snapshot, realized(up to that moment) +
+    unrealized(at that moment) -- the pure trading result over time, WITHOUT the
+    jumps a deposit puts into the account-value curve. Walked incrementally over
+    the venue's trade ledger (O(snapshots + trades)), so it stays cheap."""
+    trades = db.execute(
+        select(Trade).where(Trade.venue == venue).order_by(Trade.timestamp.asc())
+    ).scalars().all()
+    q = get_settings().quote_currency
+    qty_by: dict[str, float] = {}
+    cost_by: dict[str, float] = {}
+    realized = 0.0
+    i = 0
+    series: list[float] = []
+    for snap in rows_asc:
+        ts = snap.timestamp
+        while i < len(trades) and trades[i].timestamp <= ts:
+            t = trades[i]
+            sym = t.symbol
+            if t.side.upper() == "BUY":
+                qty_by[sym] = qty_by.get(sym, 0.0) + t.quantity
+                cost_by[sym] = cost_by.get(sym, 0.0) + t.usdt_value
+            else:
+                held = qty_by.get(sym, 0.0)
+                if held > 1e-12:
+                    avg = cost_by[sym] / held
+                    sell_qty = min(t.quantity, held)
+                    realized += (t.price - avg) * sell_qty
+                    cost_by[sym] -= avg * sell_qty
+                    qty_by[sym] = held - sell_qty
+                    if qty_by[sym] <= 1e-12:
+                        qty_by[sym] = 0.0
+                        cost_by[sym] = 0.0
+            i += 1
+        unreal = 0.0
+        try:
+            balances = json.loads(snap.balances_json or "{}")
+            prices = json.loads(snap.prices_json or "{}")
+        except (TypeError, ValueError):
+            balances, prices = {}, {}
+        for base, qraw in balances.items():
+            held = float(qraw or 0.0)
+            if held <= 0:
+                continue
+            sym = base if base in qty_by else (base + q if (base + q) in qty_by else base)
+            held_ledger = qty_by.get(sym, 0.0)
+            if held_ledger <= 1e-12:
+                continue
+            avg = cost_by[sym] / held_ledger
+            price = prices.get(base) if prices.get(base) is not None else prices.get(base + q)
+            if price is None:
+                continue
+            unreal += (price - avg) * held
+        series.append(round(realized + unreal, 2))
+    return series
+
+
 @router.get("/portfolio")
 def get_portfolio(
     limit: int = Query(200, le=2000),
@@ -359,6 +417,7 @@ def get_portfolio(
         "inception": inception,
         "cost_basis": cost_basis,
         "scorecard": card,
+        "pnl_history": _trading_pnl_series(db, venue, list(reversed(rows))),
         "venue": venue,
     }
 
@@ -446,16 +505,47 @@ def get_position_plans(venue: str = "alpaca", db: Session = Depends(get_db), set
         basis = average_cost_basis(db, full, venue=venue)
         peak = float(peaks.get(asset) or peaks.get(full) or price)
         plan = describe_position_plan(eff, basis=basis, price=price, peak=peak)
+        # Strategia pozycyjna: pokaż "po co trzymamy" -- ile dni w pozycji,
+        # poziomy wejścia/stop/cel i tezę Claude'a z ostatniego kupna.
+        opened = position_opened_at(db, full, venue=venue)
+        days_held = None
+        if opened is not None:
+            delta = datetime.now(timezone.utc) - (opened if opened.tzinfo else opened.replace(tzinfo=timezone.utc))
+            days_held = max(0, delta.days)
+        stop_price = None
+        target_price = None
+        if basis and basis > 0:
+            stop_price = round(basis * (1 - plan["stop_pct"] / 100), 4)
+            arm = plan.get("take_profit_arm_pct") or 0
+            if arm > 0:
+                target_price = round(basis * (1 + arm / 100), 4)
         out.append({
             "asset": asset,
             "qty": qty,
             "basis": round(basis, 4) if basis else None,
             "price": round(price, 4),
             "value": round(value, 2),
+            "days_held": days_held,
+            "stop_price": stop_price,
+            "target_price": target_price,
+            "thesis": _latest_thesis(db, full, venue),
             **plan,
         })
     out.sort(key=lambda p: p["value"], reverse=True)
     return {"venue": venue, "positions": out}
+
+
+def _latest_thesis(db: Session, symbol: str, venue: str) -> str | None:
+    """Teza Claude'a z ostatniego KUPNA tej nazwy -- 'po co ją mamy'. Skrócona."""
+    row = db.execute(
+        select(Trade)
+        .where(Trade.symbol == symbol, Trade.venue == venue, Trade.side.ilike("BUY"))
+        .order_by(Trade.timestamp.desc())
+        .limit(1)
+    ).scalars().first()
+    if row is not None and row.decision is not None and row.decision.reasoning:
+        return row.decision.reasoning[:220]
+    return None
 
 
 def _widget_positions(db: Session, settings: Settings, venue: str) -> list[dict]:

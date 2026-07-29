@@ -14,7 +14,7 @@ type View = "console" | "engines" | "journal" | "news" | "control" | "health";
 
 const NAV: Array<{ key: View; label: string; icon: "console" | "engines" | "control" | "pulse" | "news" | "journal" }> = [
   { key: "console", label: "Konsola", icon: "console" },
-  { key: "engines", label: "Silniki", icon: "engines" },
+  { key: "engines", label: "Silnik", icon: "engines" },
   { key: "journal", label: "Dziennik", icon: "journal" },
   { key: "news", label: "Newsy", icon: "news" },
   { key: "control", label: "Steruj", icon: "control" },

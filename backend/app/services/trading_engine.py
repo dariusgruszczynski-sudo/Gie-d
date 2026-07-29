@@ -568,6 +568,29 @@ def last_entry_time(db: Session, symbol: str, *, venue: str = "alpaca") -> datet
     return row.timestamp if row else None
 
 
+def position_opened_at(db: Session, symbol: str, *, venue: str = "alpaca") -> datetime | None:
+    """When the CURRENT continuous holding of `symbol` began -- the BUY that took
+    it from flat (qty 0) to positive, ignoring earlier round trips that were fully
+    closed. Drives 'ile dni trzymana' on the position card. None if not held /
+    no trade history (e.g. a hand-bought or pre-existing position)."""
+    trades = db.execute(
+        select(Trade).where(Trade.symbol == symbol, Trade.venue == venue).order_by(Trade.timestamp.asc())
+    ).scalars().all()
+    qty = 0.0
+    opened: datetime | None = None
+    for t in trades:
+        if t.side.upper() == "BUY":
+            if qty <= 1e-12:
+                opened = t.timestamp
+            qty += t.quantity
+        else:
+            qty -= min(t.quantity, qty)
+            if qty <= 1e-12:
+                qty = 0.0
+                opened = None
+    return opened
+
+
 def _within_min_hold(db: Session, symbol: str, settings: Settings, *, venue: str = "alpaca") -> bool:
     """True if `symbol` was bought too recently for a non-stop exit to fire."""
     if settings.min_hold_minutes <= 0:

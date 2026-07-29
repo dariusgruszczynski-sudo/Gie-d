@@ -134,6 +134,10 @@
 
 /* equity band ---------------------------------------------------------------- */
 .gd-band { margin: 20px 0 26px; height: 116px; position: relative; }
+.gd-bandgrp { margin-bottom: 8px; }
+.gd-bandgrp .gd-band { margin: 6px 0 18px; }
+.gd-band-h { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.gd-band-h small { display: block; margin-top: 2px; text-transform: none; letter-spacing: 0; font-size: 0.66rem; color: var(--dim); font-weight: 500; }
 .gd-band svg { width: 100%; height: 100%; display: block; overflow: visible; }
 .gd-band-empty { display: flex; align-items: center; height: 100%; color: var(--dim); font-size: 0.85rem; }
 
@@ -191,6 +195,14 @@
 .gd-pos-fig .pct { font-size: 0.8rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .gd-pos-bar { grid-column: 1 / -1; height: 3px; border-radius: 3px; background: rgba(255,255,255,0.06); overflow: hidden; }
 .gd-pos-bar span { display: block; height: 100%; border-radius: 3px; }
+.gd-pos-days { font-size: 0.68rem; color: var(--muted); font-weight: 600; margin-left: 6px; }
+.gd-pos-more { display: inline-block; margin-top: 3px; padding: 0; border: none; background: none; color: var(--mint); font-size: 0.68rem; font-weight: 700; cursor: pointer; }
+.gd-pos-card { grid-column: 1 / -1; margin-top: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,0.025); }
+.gd-pos-levels { display: flex; flex-wrap: wrap; gap: 16px; }
+.gd-pos-levels span { display: flex; flex-direction: column; gap: 1px; }
+.gd-pos-levels i { font-style: normal; font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); font-weight: 700; }
+.gd-pos-levels b { font-size: 0.9rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.gd-pos-thesis { margin-top: 8px; font-size: 0.74rem; line-height: 1.35; color: var(--muted); font-style: italic; }
 
 .gd-sell { border: 1px solid color-mix(in srgb, var(--rose) 40%, transparent); background: transparent; color: var(--rose); font-size: 0.72rem; font-weight: 700; padding: 6px 12px; border-radius: 999px; cursor: pointer; }
 .gd-sell:hover:not(:disabled) { background: color-mix(in srgb, var(--rose) 12%, transparent); }

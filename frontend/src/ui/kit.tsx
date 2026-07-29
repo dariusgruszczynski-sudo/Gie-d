@@ -59,6 +59,41 @@ export function EquityBand({ history }: { history: PortfolioSnapshot[] }) {
   );
 }
 
+/** Deposit-proof P&L curve: plots a signed series (can go negative) with a
+ *  zero reference line, so "Zysk automatu w czasie" reads as profit above / loss
+ *  below the line -- unlike the account-value band, a top-up doesn't move it. */
+export function PnlBand({ series }: { series: number[] }) {
+  const vals = series.filter((v) => Number.isFinite(v));
+  if (vals.length < 2) return <div className="gd-band-empty">Zbieram krzywą zysku…</div>;
+  const w = 1000, h = 116, pad = 6;
+  const min = Math.min(...vals, 0);
+  const max = Math.max(...vals, 0);
+  const range = max - min || 1;
+  const up = vals[vals.length - 1] >= 0;
+  const col = up ? "var(--mint)" : "var(--rose)";
+  const x = (i: number) => pad + (i / (vals.length - 1)) * (w - 2 * pad);
+  const y = (v: number) => h - pad - ((v - min) / range) * (h - 2 * pad);
+  const line = vals.map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const area = `${line} L${x(vals.length - 1).toFixed(1)},${h} L${x(0).toFixed(1)},${h} Z`;
+  const zy = y(0);
+  const lx = x(vals.length - 1), ly = y(vals[vals.length - 1]);
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="gdPnlFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={col} stopOpacity="0.28" />
+          <stop offset="100%" stopColor={col} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#gdPnlFill)" className="gd-band-area" />
+      <line x1={pad} y1={zy} x2={w - pad} y2={zy} stroke="var(--line)" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+      <path d={line} fill="none" stroke={col} strokeWidth="2.4" vectorEffect="non-scaling-stroke" pathLength={1} className="gd-line" />
+      <circle cx={lx} cy={ly} r="9" fill={col} opacity="0.22" className="gd-band-halo" />
+      <circle cx={lx} cy={ly} r="3.4" fill={col} />
+    </svg>
+  );
+}
+
 /** Scrolling ticker tape of the tradable universe (both legs), with live last
  *  prices when the latest snapshot has them — a continuous "video" band. */
 export function TickerTape({ sesja, poza, prices }: { sesja: string[]; poza: string[]; prices: Record<string, number> }) {
