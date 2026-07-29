@@ -14,13 +14,16 @@ function useAction() {
 
 function LegControls({ status, onChanged }: { status: StatusResponse; onChanged: () => void }) {
   const a = useAction();
+  // Jeden silnik: gdy POZA SESJĄ wyłączona, pokazujemy tylko silnik pozycyjny.
   const legs: Array<{ v: "alpaca" | "extended"; name: string; paused: boolean; on: boolean }> = [
-    { v: "alpaca", name: "SESJA · Akcje US", paused: status.is_paused, on: true },
-    { v: "extended", name: "POZA SESJĄ · ETF", paused: status.extended_paused, on: status.extended_enabled },
+    { v: "alpaca", name: status.extended_enabled ? "SESJA · Akcje US" : "Silnik pozycyjny · Akcje US", paused: status.is_paused, on: true },
+    ...(status.extended_enabled
+      ? [{ v: "extended" as const, name: "POZA SESJĄ · ETF", paused: status.extended_paused, on: status.extended_enabled }]
+      : []),
   ];
   return (
     <div className="gd-card">
-      <h4>Silniki</h4>
+      <h4>{status.extended_enabled ? "Silniki" : "Silnik"}</h4>
       {legs.map((l) => (
         <div key={l.v} style={{ marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -108,13 +111,15 @@ function ManualTrade({ status, onChanged }: { status: StatusResponse; onChanged:
   return (
     <div className="gd-card">
       <h4>Ręczna transakcja</h4>
-      <div className="gd-field">
-        <label>Noga</label>
-        <select value={venue} onChange={(e) => { const v = e.target.value as "alpaca" | "extended"; setVenue(v); setSymbol((v === "extended" ? status.extended_whitelist : status.whitelist)[0] ?? ""); }}>
-          <option value="alpaca">SESJA · Akcje US</option>
-          <option value="extended">POZA SESJĄ · ETF</option>
-        </select>
-      </div>
+      {status.extended_enabled && (
+        <div className="gd-field">
+          <label>Noga</label>
+          <select value={venue} onChange={(e) => { const v = e.target.value as "alpaca" | "extended"; setVenue(v); setSymbol((v === "extended" ? status.extended_whitelist : status.whitelist)[0] ?? ""); }}>
+            <option value="alpaca">SESJA · Akcje US</option>
+            <option value="extended">POZA SESJĄ · ETF</option>
+          </select>
+        </div>
+      )}
       <div className="gd-field">
         <label>Instrument</label>
         <select value={symbol} onChange={(e) => setSymbol(e.target.value)}>

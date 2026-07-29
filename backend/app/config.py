@@ -215,11 +215,19 @@ class Settings(BaseSettings):
     min_buy_confidence: float = 0.6
     # Cap on NEW automated BUY entries per venue per calendar day -- stops a
     # small account churning on many low-edge entries. 0 disables (bez limitu).
-    max_new_positions_per_day: int = 2
+    # 2026-07-29 (właściciel: "zwiększ limit wejść/wyjść"): 2 -> 5. Jeden silnik
+    # (POZA SESJĄ wyłączona) obsługuje teraz cały handel, więc luzujemy pułap
+    # wejść, żeby Claude mógł realnie rotować portfel w ciągu dnia, a nie siedzieć
+    # na 2 wejściach. Ochrona kapitału zostaje w stopach i risk_per_trade_pct.
+    max_new_positions_per_day: int = 5
     # Minimum holding time (minutes) before a NON-stop mechanical exit (trailing
     # / take-profit / partial) may fire. The hard stop-loss is ALWAYS allowed.
     # Kills in-and-out round trips that only pay the spread. 0 disables (bez limitu wyjść).
-    min_hold_minutes: int = 1440
+    # 2026-07-29 (właściciel: "zwiększ limit wejść/wyjść"): 1440 (1 dzień) -> 240
+    # (4h). Pozwala domknąć zysk/wyjść tego samego dnia, gdy setup się realizuje
+    # lub psuje, zamiast czekać obowiązkowo dobę -- ale wciąż blokuje wejścia-
+    # wyjścia w kilka minut, które płacą tylko spread.
+    min_hold_minutes: int = 240
     # --- Filtr konfluencji wejść (Tier 1: przewaga wejścia) -----------------
     # Entry edge (win rate) is the FIRST-ORDER driver of profit -- exit geometry
     # is second-order -- so a BUY must clear a transparent confluence of trend +
@@ -273,7 +281,10 @@ class Settings(BaseSettings):
     # -- Claude sam dobiera koncentrację. UWAGA: backtest 20-letni faworyzował
     # skupienie (4 > 6 > 8) i playbook uczy "wiele nazw tech = jeden zakład",
     # więc Claude ma wiedzę, by nie rozdrabniać -- ale decyzja jest jego.
-    max_concurrent_positions: int = 4
+    # 2026-07-29 (właściciel: "zwiększ limit wejść/wyjść"): 4 -> 8. Jeden silnik
+    # obsługuje cały portfel, więc dajemy Claude więcej miejsca na równoległe
+    # pozycje/rotację; skupienie w najlepszych setupach zostaje jego decyzją.
+    max_concurrent_positions: int = 8
     # Wide-spread / thinner names (inverse ETFs, small caps, sector/bond ETFs):
     # every round trip pays more spread, so their edge must be larger. Haircut
     # their BUY size by high_spread_size_scale (1.0 = no haircut).

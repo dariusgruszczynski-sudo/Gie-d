@@ -75,13 +75,15 @@ export function Journal({ decisions, status }: { decisions: Decision[]; status: 
     <div className="gd-view">
       <div className="gd-topline">
         <span className="gd-kicker">Dziennik · co bot robi i zamierza</span>
-        <div className="gd-seg">
-          {(["all", "alpaca", "extended"] as const).map((v) => (
-            <button key={v} className={`gd-seg-b ${venue === v ? "on" : ""}`} onClick={() => setVenue(v)}>
-              {v === "all" ? "Wszystko" : v === "alpaca" ? "Akcje US" : "Poza sesją"}
-            </button>
-          ))}
-        </div>
+        {status.extended_enabled && (
+          <div className="gd-seg">
+            {(["all", "alpaca", "extended"] as const).map((v) => (
+              <button key={v} className={`gd-seg-b ${venue === v ? "on" : ""}`} onClick={() => setVenue(v)}>
+                {v === "all" ? "Wszystko" : v === "alpaca" ? "Akcje US" : "Poza sesją"}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="gd-newsgrp-h">Co zamierza z otwartymi pozycjami</div>

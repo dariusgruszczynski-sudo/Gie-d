@@ -46,7 +46,7 @@ export function Engines({ status, alpaca, extended, trades, extendedTrades, deci
 
   return (
     <div className="gd-view">
-      <LegToggle venue={venue} setVenue={setVenue} />
+      <LegToggle venue={venue} setVenue={setVenue} extendedEnabled={status.extended_enabled} />
       <div className={`gd-lane gd-lane-${leg}`} style={{ cursor: "default", marginBottom: 4 }}>
         <div className="gd-lane-head">
           <span className="gd-lane-name">{isExt ? "POZA SESJĄ · pre & after-market" : "SESJA · sesja dzienna"}</span>
@@ -103,7 +103,16 @@ export function Engines({ status, alpaca, extended, trades, extendedTrades, deci
   );
 }
 
-function LegToggle({ venue, setVenue }: { venue: "alpaca" | "extended"; setVenue: (v: "alpaca" | "extended") => void }) {
+function LegToggle({ venue, setVenue, extendedEnabled }: { venue: "alpaca" | "extended"; setVenue: (v: "alpaca" | "extended") => void; extendedEnabled?: boolean }) {
+  // Jeden silnik: gdy POZA SESJĄ wyłączona, nie pokazujemy przełącznika nóg --
+  // jest tylko silnik pozycyjny (sesja regularna).
+  if (!extendedEnabled) {
+    return (
+      <div className="gd-topline">
+        <span className="gd-kicker">Silnik pozycyjny · Akcje US</span>
+      </div>
+    );
+  }
   return (
     <div className="gd-topline">
       <span className="gd-kicker">Silniki</span>

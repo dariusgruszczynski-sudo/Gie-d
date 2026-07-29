@@ -208,7 +208,7 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
 
   return (
     <div className="gd-view">
-      <TickerTape sesja={status.whitelist} poza={status.extended_whitelist} prices={livePrices} />
+      <TickerTape sesja={status.whitelist} poza={status.extended_enabled ? status.extended_whitelist : []} prices={livePrices} />
       <NewsBar />
       <div className="gd-topline">
         <span className="gd-kicker">Konsola · {new Date().toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })}</span>
@@ -262,11 +262,14 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
 
       <div className="gd-band"><EquityBand history={alpaca?.history ?? []} /></div>
 
-      <div className="gd-lanes">
-        <Lane leg="sesja" name="SESJA · Akcje US" value={sesjaVal} count={sesjaCount} regime={status.market_regime}
+      <div className={`gd-lanes${status.extended_enabled ? "" : " gd-lanes-solo"}`}>
+        <Lane leg="sesja" name={status.extended_enabled ? "SESJA · Akcje US" : "Silnik pozycyjny · Akcje US"}
+          value={sesjaVal} count={sesjaCount} regime={status.market_regime}
           live={usLive} stateText={status.is_halted ? "HALT" : status.is_paused ? "STOP" : "gra"} onClick={() => onLeg("us")} />
-        <Lane leg="poza" name="POZA SESJĄ · ETF" value={pozaVal} count={pozaCount} regime={status.extended_market_regime}
-          live={extLive} stateText={!status.extended_enabled ? "wył." : status.extended_paused ? "STOP" : "gra"} onClick={() => onLeg("extended")} />
+        {status.extended_enabled && (
+          <Lane leg="poza" name="POZA SESJĄ · ETF" value={pozaVal} count={pozaCount} regime={status.extended_market_regime}
+            live={extLive} stateText={status.extended_paused ? "STOP" : "gra"} onClick={() => onLeg("extended")} />
+        )}
       </div>
 
       <NowStrip status={status} />
