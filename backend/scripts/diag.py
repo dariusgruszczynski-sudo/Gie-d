@@ -12,15 +12,21 @@ Nic nie zleca -- czyta tylko bazę i liczy to samo, co dashboard.
 """
 import collections
 import json
+import os
+import sys
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+# Pozwól odpalać zarówno `python -m scripts.diag`, jak i `python scripts/diag.py`
+# z katalogu /app -- w tym drugim przypadku pakiet `app` nie jest na ścieżce.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.config import get_settings
-from app.db import SessionLocal
-from app.models import Decision, PortfolioSnapshot, Trade
-from app.services import scorecard
-from app.services.trading_engine import average_cost_basis, position_opened_at
+from sqlalchemy import select  # noqa: E402
+
+from app.config import get_settings  # noqa: E402
+from app.db import SessionLocal  # noqa: E402
+from app.models import Decision, PortfolioSnapshot, Trade  # noqa: E402
+from app.services import scorecard  # noqa: E402
+from app.services.trading_engine import average_cost_basis, position_opened_at  # noqa: E402
 
 
 def _fmt(x):
