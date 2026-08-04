@@ -223,16 +223,35 @@ export interface ClaudeEdge {
   with_claude: ClaudeEdgeSide;
 }
 
+// Twardy timeout na KAŻDE zapytanie. Bez tego zawieszone połączenie (typowe na
+// mobilnej sieci) wisi w nieskończoność i zajmuje jeden z ~6 slotów połączeń,
+// które iOS daje na host -- kilka takich i apka nie dobija się już do NICZEGO
+// ("panel bez bebechów"). AbortController ubija zawieszkę, zwalnia slot, a pętla
+// odświeżania sama ponawia i dociąga dane, gdy serwer odpowie.
+const REQUEST_TIMEOUT_MS = 12000;
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`${res.status}: ${body}`);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(path, {
+      headers: { "Content-Type": "application/json" },
+      ...init,
+      signal: ctrl.signal,
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`${res.status}: ${body}`);
+    }
+    return res.json() as Promise<T>;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      throw new Error("timeout: serwer nie odpowiedział w 12s");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
-  return res.json() as Promise<T>;
 }
 
 export const api = {

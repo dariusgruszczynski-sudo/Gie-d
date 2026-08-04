@@ -49,14 +49,21 @@ export default function App() {
 
   const refresh = useCallback(async () => {
     try {
-      const [s, p, t, d] = await Promise.all([api.status(), api.portfolio("alpaca"), api.trades("alpaca"), api.decisions()]);
-      setStatus(s); setPortfolio(p); setTrades(t); setDecisions(d);
-      failCount.current = 0; setError(null); setReconnecting(false);
+      // Status NAJPIERW i osobno -- to on wypełnia dashboard głównymi liczbami.
+      // Dzięki temu, gdy cięższe zapytania (portfolio/trades) są wolne albo
+      // padną, "bebechy" i tak się pokazują, zamiast pustego panelu.
+      const s = await api.status();
+      setStatus(s); setError(null); setReconnecting(false);
+      if (!s.extended_enabled) { setExtendedPortfolio(null); setExtendedTrades([]); }
+
+      const [p, t, d] = await Promise.all([api.portfolio("alpaca"), api.trades("alpaca"), api.decisions()]);
+      setPortfolio(p); setTrades(t); setDecisions(d);
+      failCount.current = 0;
 
       if (s.extended_enabled) {
         const [cp, ct] = await Promise.all([api.portfolio("extended"), api.trades("extended")]);
         setExtendedPortfolio(cp); setExtendedTrades(ct);
-      } else { setExtendedPortfolio(null); setExtendedTrades([]); }
+      }
 
       // Popup + dźwięk przy ŚWIEŻEJ transakcji (kupno/sprzedaż). Pierwsze
       // odświeżenie tylko zapamiętuje stan (nie wyskakuje na cały backlog).
