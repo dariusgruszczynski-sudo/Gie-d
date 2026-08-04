@@ -9,7 +9,7 @@
  */
 // Bump on asset changes (new icons/theme) so the activate handler purges the
 // old cache and clients re-fetch the fixed-name assets (icons, favicon).
-const CACHE = "gield-v5";
+const CACHE = "gield-v6";
 const SHELL = ["/", "/index.html"];
 
 self.addEventListener("install", (event) => {
@@ -73,9 +73,20 @@ self.addEventListener("fetch", (event) => {
   // Live data + SSE stream: always go to the network, never cache.
   if (url.pathname.startsWith("/api")) return;
 
-  // Page loads: network-first, fall back to the cached shell when offline.
+  // Page loads: network-first, and REFRESH the cached shell on every success so
+  // the offline fallback NEVER points to an old JS hash the server has already
+  // replaced (that stale index -> dead asset -> white screen was the bug). Only
+  // fall back to cache when the network genuinely fails (offline).
   if (req.mode === "navigate") {
-    event.respondWith(fetch(req).catch(() => caches.match("/index.html")));
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put("/index.html", copy)).catch(() => {});
+          return res;
+        })
+        .catch(() => caches.match("/index.html").then((hit) => hit || caches.match("/")))
+    );
     return;
   }
 
