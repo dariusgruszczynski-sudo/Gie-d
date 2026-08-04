@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -26,10 +27,15 @@ FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "static")
 async def lifespan(app: FastAPI):
     init_db()
     init_session_secret()
-    # One read-only snapshot per venue so the dashboard shows the account right
-    # away (no "oczekiwanie na dane" until the first poll / after a reset).
-    prime_portfolio_snapshots()
     start_scheduler()
+    # Priming (snapshot z brokera + odczyt reżimu) robi BLOKUJĄCE wywołania
+    # sieciowe i potrafi trwać dziesiątki sekund. NIE wolno nim blokować startu
+    # serwera: lifespan-startup biegnie PRZED rozpoczęciem obsługi żądań, więc
+    # dopóki priming nie skończy, apka nie oddaje ani /api/status, ani plików --
+    # to była przyczyna "panel bez bebechów" po każdym restarcie. Odpalamy w tle
+    # (osobny wątek, żeby nie zablokować pętli zdarzeń); snapshoty dojdą za chwilę,
+    # a dashboard i tak od razu pokazuje ostatni znany stan z bazy.
+    threading.Thread(target=prime_portfolio_snapshots, name="prime", daemon=True).start()
     yield
     stop_scheduler()
 
