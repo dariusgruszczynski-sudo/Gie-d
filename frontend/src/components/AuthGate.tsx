@@ -12,19 +12,36 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (isReadOnly) return;
+    let dead = false;
+    // TWARDY timeout: bez niego zawieszony /api/status trzyma fazę na "checking"
+    // w NIESKOŃCZONOŚĆ, a AuthGate zwraca null => biały ekran na zawsze. Po
+    // timeoucie wpuszczamy do apki (401 i tak wyświetli logowanie w środku, a
+    // realny problem sieci pokaże baner "ponawiam"), zamiast trzymać pusty ekran.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
     (async () => {
       try {
-        const res = await fetch(withShare("/api/status"));
-        setPhase(res.ok ? "authenticated" : "login");
+        const res = await fetch(withShare("/api/status"), { signal: ctrl.signal });
+        if (!dead) setPhase(res.ok ? "authenticated" : "login");
       } catch {
-        // Network error unrelated to auth -- don't trap the user behind a
-        // login screen; let the rest of the app surface the real problem.
-        setPhase("authenticated");
+        // Timeout albo błąd sieci (nie auth) -- nie zamykaj użytkownika w pustym
+        // ekranie; wpuść dalej, reszta apki pokaże prawdziwy problem.
+        if (!dead) setPhase("authenticated");
+      } finally {
+        clearTimeout(timer);
       }
     })();
+    return () => { dead = true; clearTimeout(timer); ctrl.abort(); };
   }, []);
 
-  if (phase === "checking") return null;
+  // "checking" pokazuje widoczny loader, NIGDY pustego ekranu.
+  if (phase === "checking") {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#7c8aa2", fontFamily: "system-ui, sans-serif", fontSize: 14 }}>
+        Łączę z automatem…
+      </div>
+    );
+  }
   if (phase === "login") return <LoginScreen onSuccess={() => setPhase("booting")} />;
   if (phase === "booting") return <BrandLoader onComplete={() => setPhase("authenticated")} />;
   return <>{children}</>;
