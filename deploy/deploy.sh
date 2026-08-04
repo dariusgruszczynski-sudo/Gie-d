@@ -31,6 +31,15 @@ git checkout "$BRANCH"
 git reset --hard "origin/$BRANCH"   # .env jest w .gitignore, więc go NIE rusza
 echo "==> Kod na: $(git rev-parse --short HEAD) $(git log -1 --format=%s)"
 
+# WAŻNE (fix jednokomitowego opóźnienia knobów): ten skrypt WŁAŚNIE sam siebie
+# nadpisał przez git reset, ale bash wykonuje dalej STARĄ wersję z pamięci -- więc
+# apply_knobs poniżej brałby wartości z POPRZEDNIEGO commita. Re-exec świeżej
+# wersji RAZ, żeby knoby i build biegły z AKTUALNEGO kodu.
+if [ -z "${GIELD_DEPLOY_REEXEC:-}" ]; then
+  export GIELD_DEPLOY_REEXEC=1
+  exec bash "$ROOT/deploy/deploy.sh" "$@"
+fi
+
 # --- 2) .env: wymuś nie-sekretne knoby (idempotentnie) ---------------------
 setenv() { # setenv KEY VALUE FILE
   local k="$1" v="$2" f="$3"
@@ -48,7 +57,7 @@ apply_knobs() { # apply_knobs FILE
   setenv POLL_INTERVAL_MINUTES 30 "$f"           # co 30 min: mechaniczne wyjścia
   setenv EXTENDED_POLL_INTERVAL_MINUTES 30 "$f"
   setenv FULL_ANALYSIS_EVERY_MINUTES 0 "$f"      # bez zegarowego heartbeatu
-  setenv PRICE_MOVE_TRIGGER_PCT 1.5 "$f"         # Claude budzi się na ruchu >=1.5%
+  setenv PRICE_MOVE_TRIGGER_PCT 3.0 "$f"         # anty-churn: budzenie na >=3% (mniej reaktywnej sprzedaży)
   setenv EXTENDED_PRICE_MOVE_TRIGGER_PCT 3.0 "$f"
   setenv EXTENDED_FULL_ANALYSIS_EVERY_MINUTES 0 "$f"
   # JEDEN SILNIK: noga POZA SESJĄ (extended/after-hours) WYŁĄCZONA -- cały handel
@@ -59,7 +68,6 @@ apply_knobs() { # apply_knobs FILE
   setenv HARD_TAKE_PROFIT_PCT 0 "$f"             # brak twardego TP -- zwycięzcy biegną
   setenv STOP_LOSS_MIN_PCT 3.0 "$f"
   setenv TRAILING_STOP_FRAC 0.6 "$f"
-  setenv PRICE_MOVE_TRIGGER_PCT 3.0 "$f"         # mniej reaktywnego budzenia/sprzedaży (anty-churn + tokeny)
   # Selektywność + koncentracja (dane 2026-08-04: 14% trafności -> mniej, lepiej)
   setenv MIN_BUY_CONFIDENCE 0.6 "$f"
   setenv MAX_CONCURRENT_POSITIONS 8 "$f"
@@ -104,12 +112,32 @@ done
 export GIT_SHA="$(git rev-parse --short HEAD)"
 export BUILD_TIME="$(date -u +%Y-%m-%dT%H:%MZ)"
 echo "==> Przebudowuję i restartuję kontenery (prod + staging) -- wersja $GIT_SHA"
-docker compose up -d --build
+# Buildkit potrafi rzucić przejściowym "rpc error: EOF" (dwa obrazy naraz na
+# ciaśniejszej maszynie). Najpierw pewny PROD (app), potem staging; każdy z
+# retry, żeby jedna czkawka nie wywalała deployu i nie zostawiała starej wersji.
+build_with_retry() { # build_with_retry SERVICE
+  local svc="$1" ok=0 i
+  for i in 1 2 3; do
+    if docker compose up -d --build "$svc"; then ok=1; break; fi
+    echo "   build '$svc' próba $i nieudana (buildkit?) -- ponawiam za 6s..."; sleep 6
+  done
+  [ "$ok" = 1 ]
+}
+build_with_retry app || { echo "!! PROD build nieudany po 3 próbach -- zostaje poprzednia wersja"; exit 1; }
+build_with_retry app-staging || echo "   UWAGA: staging build nieudany -- prod działa, staging pominięty."
 
 # --- 4) Health -------------------------------------------------------------
 echo "==> Status kontenerów"
 docker compose ps
 echo "==> Czekam na start i sprawdzam health (prod :8000)"
-sleep 6
-curl -fsS localhost:8000/api/status >/dev/null && echo "   OK: /api/status odpowiada" || echo "   UWAGA: /api/status nie odpowiada jeszcze -- sprawdź: docker compose logs -f app"
-echo "==> Gotowe. Health board: localhost:8000/api/health  |  dashboard: :8000 (prod), :8092 (staging)"
+health_ok=0
+for i in 1 2 3 4 5 6; do
+  sleep 4
+  if curl -fsS localhost:8000/api/status >/dev/null 2>&1; then health_ok=1; break; fi
+done
+[ "$health_ok" = 1 ] && echo "   OK: /api/status odpowiada" || echo "   UWAGA: /api/status nie odpowiada po ~24s -- sprawdź: docker compose logs -f app"
+# Zapisz OSTATNIO UDANY commit (po udanym buildzie proda). autopull porównuje
+# do tego pliku, nie do HEAD -- więc nieudany build (który i tak przesunął HEAD)
+# zostanie PONOWIONY przy następnym cyklu zamiast być uznany za wdrożony.
+git rev-parse HEAD > "$ROOT/.last_deployed_sha"
+echo "==> Gotowe (wdrożono $(git rev-parse --short HEAD)). Dashboard: :8000 (prod), :8092 (staging)"

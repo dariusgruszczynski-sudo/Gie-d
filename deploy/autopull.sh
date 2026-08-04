@@ -23,15 +23,19 @@ LOG() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 # Zaciągnij referencje bez zmiany plików.
 git fetch --quiet origin "$BRANCH" || { LOG "fetch nieudany -- pomijam ten cykl"; exit 0; }
 
-LOCAL="$(git rev-parse HEAD 2>/dev/null || echo none)"
 REMOTE="$(git rev-parse "origin/$BRANCH")"
+# Porównujemy do OSTATNIO UDANIE WDROŻONEGO commita (plik pisany przez deploy.sh
+# dopiero po udanym buildzie), a NIE do HEAD. Bo deploy.sh robi git reset --hard
+# ZANIM zbuduje -- gdyby build padł, HEAD i tak by się przesunął i porównanie do
+# HEAD uznałoby wdrożenie za zrobione (i nigdy by nie ponowiło). Plik = prawda.
+DEPLOYED="$(cat "$ROOT/.last_deployed_sha" 2>/dev/null || echo none)"
 
-if [ "$LOCAL" = "$REMOTE" ]; then
-  # Brak nowych commitów -- cisza (nie spamuj logu przy każdym cyklu).
+if [ "$DEPLOYED" = "$REMOTE" ]; then
+  # Najnowsze już wdrożone -- cisza (nie spamuj logu przy każdym cyklu).
   exit 0
 fi
 
-LOG "Nowa wersja na $BRANCH: $LOCAL -> $REMOTE. Wdrażam."
+LOG "Nowa/niewdrożona wersja na $BRANCH: wdrożone=${DEPLOYED:0:7} -> zdalne=${REMOTE:0:7}. Wdrażam."
 # deploy.sh sam robi checkout/reset --hard + build + restart + health-check.
 if ./deploy/deploy.sh; then
   LOG "Deploy OK -> $(git rev-parse --short HEAD) $(git log -1 --format=%s)"

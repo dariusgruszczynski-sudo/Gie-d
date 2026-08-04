@@ -13,3 +13,6 @@ backend/static/
 .pytest_cache/
 .DS_Store
 tsconfig.tsbuildinfo
+
+# Server-local: ostatnio udanie wdrożony commit (autopull)
+.last_deployed_sha
