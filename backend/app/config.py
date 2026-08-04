@@ -219,7 +219,11 @@ class Settings(BaseSettings):
     # (POZA SESJĄ wyłączona) obsługuje teraz cały handel, więc luzujemy pułap
     # wejść, żeby Claude mógł realnie rotować portfel w ciągu dnia, a nie siedzieć
     # na 2 wejściach. Ochrona kapitału zostaje w stopach i risk_per_trade_pct.
-    max_new_positions_per_day: int = 5
+    # 2026-08-04 (dane live: cap 5 dobijany co dzień, 85 zablokowanych BUY, gotówka
+    # bezczynna): 5 -> 8. Pozwala rozdysponować leżącą gotówkę zamiast blokować
+    # połowę zamierzeń Claude'a. To NIE jest lekarstwo na przewagę (28% trafności
+    # to problem jakości wejść, nie ich liczby) -- to uwolnienie kapitału.
+    max_new_positions_per_day: int = 8
     # Minimum holding time (minutes) before a NON-stop mechanical exit (trailing
     # / take-profit / partial) may fire. The hard stop-loss is ALWAYS allowed.
     # Kills in-and-out round trips that only pay the spread. 0 disables (bez limitu wyjść).
@@ -284,7 +288,10 @@ class Settings(BaseSettings):
     # 2026-07-29 (właściciel: "zwiększ limit wejść/wyjść"): 4 -> 8. Jeden silnik
     # obsługuje cały portfel, więc dajemy Claude więcej miejsca na równoległe
     # pozycje/rotację; skupienie w najlepszych setupach zostaje jego decyzją.
-    max_concurrent_positions: int = 8
+    # 2026-08-04 (dane live: wszystkie 8 slotów zajęte, gotówka leży): 8 -> 10.
+    # Umiarkowany krok, żeby uwolnić bezczynny kapitał -- NIE do dust-owych
+    # pozycji: backtest wciąż faworyzuje skupienie, więc nie idziemy wysoko.
+    max_concurrent_positions: int = 10
     # Wide-spread / thinner names (inverse ETFs, small caps, sector/bond ETFs):
     # every round trip pays more spread, so their edge must be larger. Haircut
     # their BUY size by high_spread_size_scale (1.0 = no haircut).

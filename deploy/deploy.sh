@@ -61,8 +61,8 @@ apply_knobs() { # apply_knobs FILE
   setenv TRAILING_STOP_FRAC 0.6 "$f"
   # Selektywność + koncentracja (limity wejść/wyjść zwiększone -- jeden silnik)
   setenv MIN_BUY_CONFIDENCE 0.6 "$f"
-  setenv MAX_CONCURRENT_POSITIONS 8 "$f"
-  setenv MAX_NEW_POSITIONS_PER_DAY 5 "$f"
+  setenv MAX_CONCURRENT_POSITIONS 10 "$f"
+  setenv MAX_NEW_POSITIONS_PER_DAY 8 "$f"
   setenv MAX_POSITION_PCT 90 "$f"
   setenv ENTRY_FILTER_ENABLED true "$f"
   setenv AUTO_DEMOTE_ENABLED false "$f"
@@ -75,9 +75,13 @@ apply_knobs() { # apply_knobs FILE
   setenv SYMBOL_BLACKLIST TQQQ,SQQQ,SOXL,SOXS,TNA,TZA,SPXL,SPXS,UPRO,SPXU,UDOW,SDOW,TMF,TMV,LABU,LABD,YINN,YANG,NUGT,DUST,JNUG,JDST,BOIL,KOLD,UVXY,SVXY,VIXY,UVIX,SVIX,SH,XLE,XLU,XLF,XLP,XLI "$f"
   setenv DYNAMIC_UNIVERSE_ENABLED true "$f"
   setenv UNIVERSE_MAX_SYMBOLS 24 "$f"
-  # Tokeny: NIE haltujemy na brak (właściciel auto-doładowuje). Budżet z .env.
+  # Tokeny: NIE haltujemy na brak (właściciel auto-doładowuje). Budżet to tylko
+  # kotwica licznika "zostało $" na UI (pauza i tak wyłączona). Prod .env miał
+  # zostawiony testowy CLAUDE_MONTHLY_BUDGET_USD=1, przez co licznik pokazywał
+  # "wyczerpany" -- ustawiamy sensowną wartość wyświetlania (zmień, gdy chcesz).
   setenv CLAUDE_PAUSE_TRADING_AT_BUDGET false "$f"
   setenv CLAUDE_ESCALATION_ENABLED false "$f"
+  setenv CLAUDE_MONTHLY_BUDGET_USD 150 "$f"
   # Bezpieczeństwo danych: brak newsów = stop nowych wejść + alarm.
   setenv NEWS_BLACKOUT_HALT_ENABLED true "$f"
   setenv NEWS_MIN_HEADLINES 3 "$f"

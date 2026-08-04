@@ -14,7 +14,7 @@ import collections
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 # Pozwól odpalać zarówno `python -m scripts.diag`, jak i `python scripts/diag.py`
 # z katalogu /app -- w tym drugim przypadku pakiet `app` nie jest na ścieżce.
@@ -33,6 +33,39 @@ def _fmt(x):
     return f"${x:,.2f}"
 
 
+def _realized_since(trades, cutoff):
+    """Zrealizowany P&L i trafność liczone TYLKO dla sprzedaży po `cutoff`
+    (ale z poprawną średnią ceną walkowaną od początku historii). Pozwala oddzielić
+    wynik NOWEJ, zdyscyplinowanej strategii od starego churnu."""
+    qty_by, cost_by = {}, {}
+    realized, wins, losses = 0.0, 0, 0
+    for t in trades:
+        sym = t.symbol
+        if t.side.upper() == "BUY":
+            qty_by[sym] = qty_by.get(sym, 0.0) + t.quantity
+            cost_by[sym] = cost_by.get(sym, 0.0) + t.usdt_value
+        else:
+            held = qty_by.get(sym, 0.0)
+            if held <= 1e-12:
+                continue
+            avg = cost_by[sym] / held
+            sell_qty = min(t.quantity, held)
+            pnl = (t.price - avg) * sell_qty
+            ts = t.timestamp if t.timestamp.tzinfo else t.timestamp.replace(tzinfo=timezone.utc)
+            if ts >= cutoff:
+                realized += pnl
+                if pnl >= 0:
+                    wins += 1
+                else:
+                    losses += 1
+            cost_by[sym] -= avg * sell_qty
+            qty_by[sym] = held - sell_qty
+            if qty_by[sym] <= 1e-12:
+                qty_by[sym] = 0.0
+                cost_by[sym] = 0.0
+    return realized, wins, losses
+
+
 def main():
     s = get_settings()
     db = SessionLocal()
@@ -48,8 +81,19 @@ def main():
         print("WYNIKI GIELDAREK")
         print("=" * 64)
         print(f"Transakcji: {len(trades)}  (kupno {len(buys)} / sprzedaż {len(sells)})")
-        print(f"Zrealizowany P&L: {_fmt(realized)}  | zamknięte: {closed}  "
+        print(f"Zrealizowany P&L (CAŁE ŻYCIE): {_fmt(realized)}  | zamknięte: {closed}  "
               f"| trafność: {win_rate:.0f}%  ({wins} W / {losses} L)")
+
+        # Podział na epoki: stara strategia (churn) vs nowa (pozycyjna). To
+        # kluczowe -- lifetime miesza oba, a decyzja o limitach zależy od tego,
+        # czy NOWA strategia realnie zarabia.
+        now = datetime.now(timezone.utc)
+        for label, days in (("OSTATNIE 7 DNI", 7), ("OSTATNIE 30 DNI", 30)):
+            r, w, l = _realized_since(trades, now - timedelta(days=days))
+            c = w + l
+            wr = (w / c * 100) if c else 0.0
+            print(f"Zrealizowany P&L ({label}): {_fmt(r)}  | zamknięte: {c}  "
+                  f"| trafność: {wr:.0f}%  ({w} W / {l} L)")
 
         # --- Pozycje otwarte + papierowy P&L ---
         snap = db.execute(
