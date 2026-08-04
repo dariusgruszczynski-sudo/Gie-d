@@ -97,6 +97,9 @@
 .gd-nav svg { width: 20px; height: 20px; flex: 0 0 auto; }
 .gd-nav-sp { flex: 1; }
 .gd-rail-foot { margin-top: auto; font-size: 0.62rem; color: var(--dim-2); padding: 8px 14px 0; }
+.gd-build { display: block; margin-top: 3px; font-variant-numeric: tabular-nums; opacity: 0.7; }
+.gd-verline { font-size: 0.72rem; color: var(--muted); margin: 6px 0 10px; font-variant-numeric: tabular-nums; }
+.gd-verline b { color: var(--txt); }
 
 .gd-main {
   margin-left: var(--rail-w);

@@ -1,7 +1,13 @@
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime, timezone
+
+# Stempel wersji wstrzyknięty przy buildzie (Dockerfile ARG -> ENV). Pozwala
+# apce pokazać, JAKI kod realnie działa, żeby nie zgadywać "czy się wdrożyło".
+BUILD_SHA = os.getenv("GIT_SHA", "dev")
+BUILD_TIME = os.getenv("BUILD_TIME", "")
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -131,6 +137,9 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
             "alpaca": _engine_profile_view(settings, "alpaca"),
             "extended": _engine_profile_view(settings, "extended"),
         },
+        # Stempel wersji: jaki kod realnie działa (SHA + czas buildu).
+        "build_sha": BUILD_SHA,
+        "build_time": BUILD_TIME,
         **_serialize_session_info(settings),
         **_net_result_view(db, settings),
     }

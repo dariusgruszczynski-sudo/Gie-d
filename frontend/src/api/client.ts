@@ -77,6 +77,9 @@ export interface StatusResponse {
   // Every live tuning knob per venue, resolved through the same
   // effective_settings() the engine itself runs with -- exact, not a guess.
   profiles: { alpaca: EngineProfile; extended: EngineProfile };
+  // Stempel wersji: jaki kod realnie działa na serwerze (SHA + czas buildu).
+  build_sha: string;
+  build_time: string;
   claude_monthly_budget_usd: number;
   claude_spend_usd_this_month: number;
   claude_budget_remaining_usd: number;

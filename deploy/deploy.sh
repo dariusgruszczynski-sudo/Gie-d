@@ -99,7 +99,11 @@ for K in ALPHA_VANTAGE_API_KEY NEWSAPI_API_KEY SERPAPI_API_KEY; do
 done
 
 # --- 3) Build + restart ----------------------------------------------------
-echo "==> Przebudowuję i restartuję kontenery (prod + staging)"
+# Stempel wersji do obrazu: apka pokaże ten sam SHA co niżej, więc jednym
+# spojrzeniem widać, czy na serwerze działa najnowszy kod.
+export GIT_SHA="$(git rev-parse --short HEAD)"
+export BUILD_TIME="$(date -u +%Y-%m-%dT%H:%MZ)"
+echo "==> Przebudowuję i restartuję kontenery (prod + staging) -- wersja $GIT_SHA"
 docker compose up -d --build
 
 # --- 4) Health -------------------------------------------------------------

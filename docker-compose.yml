@@ -1,7 +1,11 @@
 services:
   # PRODUKCJA -- gra na ŻYWYM koncie Alpaca (klucze w .env). Nie ruszać.
   app:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
+        BUILD_TIME: ${BUILD_TIME:-}
     ports:
       - "8000:8000"
     env_file:
@@ -26,7 +30,11 @@ services:
   # Uruchamiaj razem z produkcją: `docker compose up -d --build`.
   # Albo sam staging: `docker compose up -d --build app-staging`.
   app-staging:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
+        BUILD_TIME: ${BUILD_TIME:-}
     ports:
       - "8092:8000"
     env_file:

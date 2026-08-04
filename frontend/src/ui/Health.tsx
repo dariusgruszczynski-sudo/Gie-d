@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, HealthReport, isReadOnly } from "../api/client";
+import { api, HealthReport, isReadOnly, StatusResponse } from "../api/client";
 
 const ACTION_LABEL: Record<string, string> = {
   resume_alpaca: "Wznów SESJA",
@@ -11,7 +11,7 @@ const ACTION_LABEL: Record<string, string> = {
   reset_budget_meter: "Wyzeruj licznik tokenów",
 };
 
-export function Health() {
+export function Health({ status }: { status: StatusResponse | null }) {
   const [rep, setRep] = useState<HealthReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -46,6 +46,12 @@ export function Health() {
           <button className="gd-btn" disabled={busy} onClick={load}>{busy ? "…" : "Odśwież"}</button>
         </div>
       </div>
+      {status?.build_sha && (
+        <div className="gd-verline">
+          Wersja na serwerze: <b>{status.build_sha}</b>
+          {status.build_time && <span> · zbudowano {status.build_time} UTC</span>}
+        </div>
+      )}
       {msg && <div className="gd-ribbon">{msg}</div>}
       {!rep ? <p className="gd-empty">Sprawdzam…</p> : (
         <div className="gd-hl">

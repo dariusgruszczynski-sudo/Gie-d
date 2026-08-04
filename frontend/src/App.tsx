@@ -158,7 +158,14 @@ export default function App() {
             <Icon name="pulse" />
             <span className="gd-nav-label">{muted ? "Dźwięk: off" : "Dźwięk: on"}</span>
           </button>
-          <div className="gd-rail-foot">{status ? (status.mode === "live" ? "LIVE · realne środki" : "PAPER") : "łączę…"}</div>
+          <div className="gd-rail-foot">
+            {status ? (status.mode === "live" ? "LIVE · realne środki" : "PAPER") : "łączę…"}
+            {status?.build_sha && (
+              <span className="gd-build" title={status.build_time ? `zbudowano ${status.build_time} UTC` : "wersja kodu"}>
+                wersja {status.build_sha}
+              </span>
+            )}
+          </div>
         </nav>
 
         <main className="gd-main">
@@ -180,7 +187,7 @@ export default function App() {
             ) : view === "control" ? (
               <Control status={status} onChanged={refresh} />
             ) : (
-              <Health />
+              <Health status={status} />
             )}
           </div>
         </main>
