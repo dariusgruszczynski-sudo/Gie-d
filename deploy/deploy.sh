@@ -55,14 +55,15 @@ apply_knobs() { # apply_knobs FILE
   # prowadzi jeden zdyscyplinowany silnik pozycyjny (sesja regularna).
   setenv EXTENDED_ENABLED false "$f"
   # Trzymanie pozycyjne + szerokie stopy (koniec whipsawu)
-  setenv MIN_HOLD_MINUTES 240 "$f"              # min. 4h (stop-loss i tak zawsze działa)
+  setenv MIN_HOLD_MINUTES 2880 "$f"             # min. 2 dni -- koniec churnu (stop-loss i tak działa)
   setenv HARD_TAKE_PROFIT_PCT 0 "$f"             # brak twardego TP -- zwycięzcy biegną
   setenv STOP_LOSS_MIN_PCT 3.0 "$f"
   setenv TRAILING_STOP_FRAC 0.6 "$f"
-  # Selektywność + koncentracja (limity wejść/wyjść zwiększone -- jeden silnik)
+  setenv PRICE_MOVE_TRIGGER_PCT 3.0 "$f"         # mniej reaktywnego budzenia/sprzedaży (anty-churn + tokeny)
+  # Selektywność + koncentracja (dane 2026-08-04: 14% trafności -> mniej, lepiej)
   setenv MIN_BUY_CONFIDENCE 0.6 "$f"
-  setenv MAX_CONCURRENT_POSITIONS 10 "$f"
-  setenv MAX_NEW_POSITIONS_PER_DAY 8 "$f"
+  setenv MAX_CONCURRENT_POSITIONS 8 "$f"
+  setenv MAX_NEW_POSITIONS_PER_DAY 5 "$f"
   setenv MAX_POSITION_PCT 90 "$f"
   setenv ENTRY_FILTER_ENABLED true "$f"
   setenv AUTO_DEMOTE_ENABLED false "$f"

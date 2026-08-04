@@ -220,18 +220,22 @@ class Settings(BaseSettings):
     # wejść, żeby Claude mógł realnie rotować portfel w ciągu dnia, a nie siedzieć
     # na 2 wejściach. Ochrona kapitału zostaje w stopach i risk_per_trade_pct.
     # 2026-08-04 (dane live: cap 5 dobijany co dzień, 85 zablokowanych BUY, gotówka
-    # bezczynna): 5 -> 8. Pozwala rozdysponować leżącą gotówkę zamiast blokować
-    # połowę zamierzeń Claude'a. To NIE jest lekarstwo na przewagę (28% trafności
-    # to problem jakości wejść, nie ich liczby) -- to uwolnienie kapitału.
-    max_new_positions_per_day: int = 8
+    # bezczynna): 5 -> 8. [COFNIĘTE tego samego dnia -- patrz niżej.]
+    # 2026-08-04, PODZIAŁ NA EPOKI: ostatnie 7 dni = trafność 14% (3W/19L),
+    # −$6.58. Więcej wejść przy 14% trafności = szybsze przepalanie, nie zysk.
+    # Cofam podniesienie 8 -> 5. Problemem NIE jest liczba wejść, tylko churn i
+    # brak przewagi -- atakujemy to niżej (min_hold + próg budzenia).
+    max_new_positions_per_day: int = 5
     # Minimum holding time (minutes) before a NON-stop mechanical exit (trailing
     # / take-profit / partial) may fire. The hard stop-loss is ALWAYS allowed.
     # Kills in-and-out round trips that only pay the spread. 0 disables (bez limitu wyjść).
-    # 2026-07-29 (właściciel: "zwiększ limit wejść/wyjść"): 1440 (1 dzień) -> 240
-    # (4h). Pozwala domknąć zysk/wyjść tego samego dnia, gdy setup się realizuje
-    # lub psuje, zamiast czekać obowiązkowo dobę -- ale wciąż blokuje wejścia-
-    # wyjścia w kilka minut, które płacą tylko spread.
-    min_hold_minutes: int = 240
+    # 2026-07-29 (właściciel: "zwiększ limit wejść/wyjść"): 1440 (1 dzień) -> 240 (4h).
+    # 2026-08-04 (dane: 22 zamknięcia/tydzień, trafność 14% -- to CHURN, nie
+    # trzymanie pozycji): 240 -> 2880 (2 dni). "Strategia pozycyjna" z 4h min-hold
+    # to nie strategia pozycyjna -- pozwalała zamykać tego samego dnia i mieliła
+    # kapitał na spreadzie. 2 dni wymuszają realne trzymanie; twardy stop-loss i
+    # tak zawsze chroni, więc złej pozycji nie trzymamy w nieskończoność.
+    min_hold_minutes: int = 2880
     # --- Filtr konfluencji wejść (Tier 1: przewaga wejścia) -----------------
     # Entry edge (win rate) is the FIRST-ORDER driver of profit -- exit geometry
     # is second-order -- so a BUY must clear a transparent confluence of trend +
@@ -288,10 +292,10 @@ class Settings(BaseSettings):
     # 2026-07-29 (właściciel: "zwiększ limit wejść/wyjść"): 4 -> 8. Jeden silnik
     # obsługuje cały portfel, więc dajemy Claude więcej miejsca na równoległe
     # pozycje/rotację; skupienie w najlepszych setupach zostaje jego decyzją.
-    # 2026-08-04 (dane live: wszystkie 8 slotów zajęte, gotówka leży): 8 -> 10.
-    # Umiarkowany krok, żeby uwolnić bezczynny kapitał -- NIE do dust-owych
-    # pozycji: backtest wciąż faworyzuje skupienie, więc nie idziemy wysoko.
-    max_concurrent_positions: int = 10
+    # 2026-08-04: 8 -> 10 (uwolnić gotówkę), COFNIĘTE tego samego dnia po podziale
+    # na epoki (trafność 14%): przy ujemnej przewadze więcej równoległych pozycji
+    # = więcej strat. Wracamy do 8 i skupiamy się na jakości, nie liczbie.
+    max_concurrent_positions: int = 8
     # Wide-spread / thinner names (inverse ETFs, small caps, sector/bond ETFs):
     # every round trip pays more spread, so their edge must be larger. Haircut
     # their BUY size by high_spread_size_scale (1.0 = no haircut).
@@ -417,10 +421,12 @@ class Settings(BaseSettings):
     # tokenów"). Martwy tik i tak jest tani (pełna analiza dalej bramkowana
     # wyzwalaczem), a budżet miesięczny podniesiony niżej.
     poll_interval_minutes: int = 30
-    # 3.0 -> 1.5 (2026-07-22): niższy próg budzi Claude częściej na realnym
-    # ruchu, spójnie z grą aktywną/agresywną. Sito wejścia jest już wyłączone,
-    # więc więcej analiz przekłada się na realne rotacje, nie tylko odrzucenia.
-    price_move_trigger_pct: float = 1.5
+    # 3.0 -> 1.5 (2026-07-22): niższy próg budzi Claude częściej na realnym ruchu.
+    # 2026-08-04: 1.5 -> 3.0. Budzenie na 1.5% skłaniało Claude do REAKTYWNEJ
+    # sprzedaży na szumie (47 SELL w 300 decyzji) -> churn i 14% trafności. Wyższy
+    # próg = mniej reaktywnego mielenia, pozycje mają czas zadziałać, a przy okazji
+    # spada koszt tokenów (był ~$40/mies -- za dużo jak na to konto).
+    price_move_trigger_pct: float = 3.0
     # Heartbeat: force a full Claude analysis at least this often during
     # tradable hours, even when no price crossed the trigger threshold --
     # otherwise the bot only ever looks at the market on spikes and can sit

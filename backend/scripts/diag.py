@@ -155,6 +155,43 @@ def main():
             else:
                 print(f"  WNIOSEK: limit bywa osiągany ({hit} dni) -> podniesienie MOŻE pomóc.")
 
+        # --- KTÓRE NAZWY KRWAWIĄ (per-symbol) -- szukamy strukturalnego winowajcy ---
+        sym_stats = {}
+        qb, cb = {}, {}
+        for t in trades:
+            sym = t.symbol
+            if t.side.upper() == "BUY":
+                qb[sym] = qb.get(sym, 0.0) + t.quantity
+                cb[sym] = cb.get(sym, 0.0) + t.usdt_value
+            else:
+                held = qb.get(sym, 0.0)
+                if held <= 1e-12:
+                    continue
+                avg = cb[sym] / held
+                sq = min(t.quantity, held)
+                pnl = (t.price - avg) * sq
+                st = sym_stats.setdefault(sym, {"pnl": 0.0, "w": 0, "l": 0})
+                st["pnl"] += pnl
+                st["w" if pnl >= 0 else "l"] += 1
+                cb[sym] -= avg * sq
+                qb[sym] = held - sq
+                if qb[sym] <= 1e-12:
+                    qb[sym] = cb[sym] = 0.0
+        print("\n" + "=" * 64)
+        print("KTÓRE NAZWY KRWAWIĄ (zrealizowany P&L per symbol)")
+        print("=" * 64)
+        ranked = sorted(sym_stats.items(), key=lambda kv: kv[1]["pnl"])
+        for sym, st in ranked[:10]:
+            c = st["w"] + st["l"]
+            wr = (st["w"] / c * 100) if c else 0.0
+            print(f"  {sym:6}  {_fmt(st['pnl']):>9}  ({c} zamk., {wr:.0f}% traf.)")
+        if len(ranked) > 10:
+            print("  ...")
+            for sym, st in ranked[-3:]:
+                c = st["w"] + st["l"]
+                wr = (st["w"] / c * 100) if c else 0.0
+                print(f"  {sym:6}  {_fmt(st['pnl']):>9}  ({c} zamk., {wr:.0f}% traf.)")
+
         # --- DLACZEGO mało wejść: odrzucenia i decyzje ---
         recent = db.execute(
             select(Decision).order_by(Decision.timestamp.desc()).limit(300)
