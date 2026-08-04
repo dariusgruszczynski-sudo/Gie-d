@@ -240,21 +240,19 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
       {status.is_halted && status.halted_reason && <div className="gd-halt">⛔ {status.halted_reason}</div>}
 
       <div className="gd-hero">
-        <div className="gd-hero-label">Wartość konta</div>
-        <div className="gd-hero-val">{acc ? money(total) : "…"}</div>
+        <div className="gd-hero-label">💰 Zysk automatu · ile bot dorobił (bez Twoich wpłat)</div>
+        <div className={`gd-hero-val ${status.trading_pnl.total_usd >= 0 ? "gd-up" : "gd-down"}`}>
+          {acc ? `${status.trading_pnl.total_usd >= 0 ? "+" : ""}${money(status.trading_pnl.total_usd)}` : "…"}
+        </div>
         <div className="gd-hero-deltas">
+          <span className="gd-delta">{acc ? money(total) : "…"}<small>wartość konta</small></span>
           <span className="gd-delta" style={{ color: "var(--dim)" }}>{money0(cash)}<small>gotówka</small></span>
           <span className="gd-delta" style={{ color: "var(--dim)" }}>{invPct}%<small>w grze</small></span>
         </div>
       </div>
 
+      <div className="gd-pnl-head">Na co składa się Zysk automatu: <b>zrealizowany + otwarte (papierowy)</b></div>
       <div className="gd-pnl">
-        <div className="gd-pnl-item big" style={{ gridColumn: "1 / -1" }}>
-          <span className="gd-pnl-l">💰 Zysk automatu — ile bot zarobił/stracił (bez Twoich wpłat)</span>
-          <span className={`gd-pnl-v xl ${status.trading_pnl.total_usd >= 0 ? "gd-up" : "gd-down"}`}>
-            {status.trading_pnl.total_usd >= 0 ? "+" : ""}{money(status.trading_pnl.total_usd)}
-          </span>
-        </div>
         <div className="gd-pnl-item">
           <span className="gd-pnl-l">Zrealizowany (zamknięte)</span>
           <span className={`gd-pnl-v ${status.trading_pnl.realized_usd >= 0 ? "gd-up" : "gd-down"}`}>

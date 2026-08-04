@@ -330,6 +330,9 @@
   animation: gd-sheen 7s linear infinite;
 }
 @keyframes gd-sheen { from { background-position: 200% center; } to { background-position: -60% center; } }
+/* Hero pokazuje "Zysk automatu" -> zielono/czerwono (z zachowaniem sheenu). */
+.gd-hero-val.gd-up { background: linear-gradient(100deg, var(--mint) 34%, #d6fff0 50%, var(--mint) 66%); }
+.gd-hero-val.gd-down { background: linear-gradient(100deg, var(--rose) 34%, #ffd6de 50%, var(--rose) 66%); }
 
 /* Lanes: a light sweep on hover. */
 .gd-lane::after {
@@ -357,6 +360,9 @@
 @media (prefers-reduced-motion: reduce) {
   .gd-brand-mark, .gd-tape-track, .gd-line, .gd-band-area, .gd-band-halo, .gd-hero-val, .gd-dec, .gd-pos-row { animation: none; }
   .gd-hero-val { color: var(--txt); -webkit-text-fill-color: var(--txt); }
+  /* Bez ruchu i tak sygnalizuj zysk/stratę kolorem. */
+  .gd-hero-val.gd-up { color: var(--mint); -webkit-text-fill-color: var(--mint); }
+  .gd-hero-val.gd-down { color: var(--rose); -webkit-text-fill-color: var(--rose); }
 }
 
 /* =============================================================================
@@ -542,8 +548,10 @@
 .gd-tokens-tag.out { color: var(--red); background: color-mix(in srgb, var(--red) 16%, transparent); }
 
 /* ---- Panel Zyski / Straty (Konsola) ---- */
+.gd-pnl-head { font-size: 0.72rem; color: var(--muted); margin: 14px 0 4px; }
+.gd-pnl-head b { color: var(--txt); font-weight: 700; }
 .gd-pnl { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 8px 0 22px; }
-@media (min-width: 720px) { .gd-pnl { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 720px) { .gd-pnl { grid-template-columns: repeat(3, 1fr); } }
 .gd-pnl-item { padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 255, 255, 0.025); display: flex; flex-direction: column; gap: 5px; }
 .gd-pnl-l { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); font-weight: 700; }
 .gd-pnl-v { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; font-size: 1.35rem; }
