@@ -31,14 +31,13 @@ router = APIRouter(prefix="/api", tags=["dashboard"])
 
 
 def _serialize_session_info(settings: Settings) -> dict:
-    """Best-effort -- /api/status is polled every ~15s by every open dashboard
-    tab and must keep working even if Alpaca's calendar endpoint is briefly
-    unavailable, so a failure here degrades to omitting the session fields
-    rather than 500ing the whole endpoint."""
-    try:
-        info = market_hours.get_session_info(AlpacaClient(settings))
-    except Exception:
-        logger.warning("Failed to compute market session info for /api/status", exc_info=True)
+    """/api/status jest odpytywane co ~15s przez KAŻDĄ otwartą zakładkę, więc NIE
+    MOŻE robić synchronicznego wywołania Alpaca -- to potrafiło trwać do 15s
+    (timeout klienta) przy zimnym cache/wolnym brokerze i przekraczało 12s timeout
+    apki ("auto sprawdzenie nie działa"). Czytamy WYŁĄCZNIE z cache (bez brokera);
+    cache grzeje w tle scheduler/prime. Zimny cache -> pola null (UI pokaże '—')."""
+    info = market_hours.cached_session_info()
+    if info is None:
         return {"market_session": None, "session_bounds": None}
 
     return {

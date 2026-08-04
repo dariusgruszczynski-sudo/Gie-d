@@ -7,6 +7,7 @@ from app.config import get_settings
 from app.db import SessionLocal
 from app.services.alpaca_client import AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
+from app.services import market_hours
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.push_notifier import send_daily_summary_push
@@ -89,6 +90,12 @@ def _regime_job() -> None:
     settings = get_settings()
     db = SessionLocal()
     try:
+        # Grzej cache sesji rynkowej w TLE, żeby /api/status nigdy nie musiało
+        # dzwonić do Alpaca synchronicznie (patrz _serialize_session_info).
+        try:
+            market_hours.get_session_info(AlpacaClient(settings), force_refresh=True)
+        except Exception:
+            logger.warning("Session-info warmup failed", exc_info=True)
         market_ctx = MarketContextClient()
         try:
             compute_and_cache_regime(

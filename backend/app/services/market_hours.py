@@ -98,6 +98,15 @@ def compute_session_info(now_et: datetime, calendar: list[dict]) -> SessionInfo:
     )
 
 
+def cached_session_info() -> SessionInfo | None:
+    """Zwraca OSTATNIO policzoną sesję z cache BEZ wywołania brokera -- albo None,
+    jeśli cache jest jeszcze pusty (świeży start). Do użycia na gorących,
+    często-odpytywanych ścieżkach (np. /api/status polls co 15s przez każdą
+    zakładkę), które NIE MOGĄ blokować się na (do 15s) wywołaniu Alpaca. Cache
+    grzeje w tle scheduler/prime przez get_session_info()."""
+    return _cache
+
+
 def get_session_info(broker: AlpacaClient, *, force_refresh: bool = False) -> SessionInfo:
     global _cache, _cache_computed_at
     now = datetime.now(timezone.utc)
