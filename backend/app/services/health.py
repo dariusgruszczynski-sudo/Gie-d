@@ -353,7 +353,29 @@ def _reset_rebaseline_pnl(db, settings):
     return f"P&L przeliczony od nowa — baseline dnia/tygodnia, szczyt i benchmark SPY = ${total:,.2f}. Zysk i alfa startują od zera.{bench_note}"
 
 
+def _reset_restart_app(db, settings):
+    """Twardy restart CAŁEJ aplikacji bez SSH: ubijamy własny proces (SIGTERM),
+    a Docker (restart: unless-stopped w docker-compose.yml) podnosi kontener z
+    powrotem w kilka sekund. To czyści zawieszone stany (np. zacinający się
+    guzik / wiszący wątek). Zabójstwo odpalamy z KRÓTKIM opóźnieniem w osobnym
+    wątku, żeby ta odpowiedź HTTP zdążyła wrócić do przeglądarki PRZED zejściem
+    procesu. Otwarte pozycje są bezpieczne -- stan siedzi w bazie (wolumen),
+    a scheduler wstaje od nowa po restarcie."""
+    import os
+    import signal
+    import threading
+    import time
+
+    def _die():
+        time.sleep(1.2)
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    threading.Thread(target=_die, daemon=True).start()
+    return "Restartuję aplikację… wróci za ~10 s. Odśwież stronę za chwilę."
+
+
 RESET_ACTIONS = {
+    "restart_app": _reset_restart_app,
     "reset_budget_meter": _reset_budget_meter,
     "resume_alpaca": _reset_resume_alpaca,
     "resume_extended": _reset_resume_extended,

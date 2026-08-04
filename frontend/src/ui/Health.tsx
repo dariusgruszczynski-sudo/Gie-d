@@ -24,11 +24,27 @@ export function Health() {
     catch (e) { setMsg(String(e)); } finally { setBusy(false); }
   }
 
+  async function restartApp() {
+    if (!window.confirm("Zrestartować całą aplikację? Wróci za ~10 s. Otwarte pozycje są bezpieczne (stan w bazie).")) return;
+    setBusy(true); setMsg(null);
+    try {
+      const r = await api.healthReset("restart_app");
+      setMsg((r as { message?: string }).message ?? "Restartuję…");
+    } catch (e) {
+      setMsg(String(e));
+    }
+    // Apka schodzi na ~10 s -- przeładuj stronę, gdy wróci, żeby wyczyścić UI.
+    setTimeout(() => window.location.reload(), 12000);
+  }
+
   return (
     <div className="gd-view">
       <div className="gd-topline">
         <span className="gd-kicker">Puls systemu {rep ? `· ${rep.counts?.ok ?? 0} OK` : ""}</span>
-        <button className="gd-btn" disabled={busy} onClick={load}>{busy ? "…" : "Odśwież"}</button>
+        <div className="gd-btnrow">
+          {!isReadOnly && <button className="gd-btn warn" disabled={busy} onClick={restartApp}>⟳ Restart aplikacji</button>}
+          <button className="gd-btn" disabled={busy} onClick={load}>{busy ? "…" : "Odśwież"}</button>
+        </div>
       </div>
       {msg && <div className="gd-ribbon">{msg}</div>}
       {!rep ? <p className="gd-empty">Sprawdzam…</p> : (
