@@ -229,10 +229,15 @@ export interface ClaudeEdge {
 // ("panel bez bebechów"). AbortController ubija zawieszkę, zwalnia slot, a pętla
 // odświeżania sama ponawia i dociąga dane, gdy serwer odpowie.
 const REQUEST_TIMEOUT_MS = 12000;
+// Akcje, które z natury trwają długo (pełny cykl = analiza Claude + broker,
+// ręczna transakcja, odświeżenie z brokera) dostają DŁUŻSZY limit -- 12s to za
+// mało na wywołanie Claude i zwracało "serwer nie odpowiedział w 12s" na
+// "Przemyśl teraz". Odczyty dashboardu zostają na krótkim 12s.
+const LONG_TIMEOUT_MS = 90000;
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+async function apiFetch<T>(path: string, init?: RequestInit, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<T> {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(path, {
       headers: { "Content-Type": "application/json" },
@@ -246,7 +251,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     return res.json() as Promise<T>;
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") {
-      throw new Error("timeout: serwer nie odpowiedział w 12s");
+      throw new Error(`timeout: serwer nie odpowiedział w ${Math.round(timeoutMs / 1000)}s`);
     }
     throw e;
   } finally {
@@ -268,7 +273,7 @@ export const api = {
   pause: (venue: string = "alpaca") => apiFetch<unknown>(`/api/control/pause?venue=${venue}`, { method: "POST" }),
   resume: (venue: string = "alpaca") => apiFetch<unknown>(`/api/control/resume?venue=${venue}`, { method: "POST" }),
   runCycleNow: (venue: string = "alpaca") =>
-    apiFetch<unknown>(`/api/control/run-cycle-now?venue=${venue}`, { method: "POST" }),
+    apiFetch<unknown>(`/api/control/run-cycle-now?venue=${venue}`, { method: "POST" }, LONG_TIMEOUT_MS),
   refreshPortfolio: (venue: string = "alpaca") =>
     apiFetch<{
       total_value: number;
@@ -277,7 +282,7 @@ export const api = {
       prices: Record<string, number>;
       failed_symbols: string[];
       quote_currency: string;
-    }>(`/api/control/refresh-portfolio?venue=${venue}`, { method: "POST" }),
+    }>(`/api/control/refresh-portfolio?venue=${venue}`, { method: "POST" }, LONG_TIMEOUT_MS),
   sendReportNow: () => apiFetch<{ message: string }>("/api/control/send-report-now", { method: "POST" }),
   restart: () => apiFetch<{ message: string }>("/api/control/restart", { method: "POST" }),
   manualTrade: (body: {
@@ -286,9 +291,9 @@ export const api = {
     usdt_amount?: number;
     quantity?: number;
     venue?: "alpaca" | "extended";
-  }) => apiFetch<Trade>("/api/control/manual-trade", { method: "POST", body: JSON.stringify(body) }),
+  }) => apiFetch<Trade>("/api/control/manual-trade", { method: "POST", body: JSON.stringify(body) }, LONG_TIMEOUT_MS),
   sellAll: (symbol: string, venue: "alpaca" | "extended" = "alpaca") =>
-    apiFetch<Trade>(`/api/control/sell-all?symbol=${encodeURIComponent(symbol)}&venue=${venue}`, { method: "POST" }),
+    apiFetch<Trade>(`/api/control/sell-all?symbol=${encodeURIComponent(symbol)}&venue=${venue}`, { method: "POST" }, LONG_TIMEOUT_MS),
   setBudget: (amount: number) =>
     apiFetch<{ claude_budget: ClaudeBudget }>(`/api/control/set-budget?amount=${amount}`, { method: "POST" }),
   resetBudgetMeter: () =>
