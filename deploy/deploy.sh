@@ -111,6 +111,14 @@ done
 # spojrzeniem widać, czy na serwerze działa najnowszy kod.
 export GIT_SHA="$(git rev-parse --short HEAD)"
 export BUILD_TIME="$(date -u +%Y-%m-%dT%H:%MZ)"
+# KLUCZOWE: HTTPS obsługuje kontener Caddy z docker-compose.caddy.yml. Jeśli
+# deploy uruchamia compose BEZ tego pliku, Caddy staje się "sierotą": każdy
+# `up -d --build` przerabia sieć proda i ROZŁĄCZA Caddy od apki -> publiczny
+# adres pada mimo działającego backendu (białe/czarne ekrany, "nie można
+# połączyć"). Dlatego KAŻDA komenda compose obejmuje oba pliki, gdy Caddy jest
+# obecny -- app i Caddy są zarządzane jako jeden projekt i nigdy się nie rozjadą.
+COMPOSE="docker compose -f docker-compose.yml"
+[ -f "$ROOT/deploy/docker-compose.caddy.yml" ] && COMPOSE="$COMPOSE -f $ROOT/deploy/docker-compose.caddy.yml"
 echo "==> Przebudowuję i restartuję kontenery (prod + staging) -- wersja $GIT_SHA"
 # Buildkit potrafi rzucić przejściowym "rpc error: EOF" (dwa obrazy naraz na
 # ciaśniejszej maszynie). Najpierw pewny PROD (app), potem staging; każdy z
@@ -118,17 +126,19 @@ echo "==> Przebudowuję i restartuję kontenery (prod + staging) -- wersja $GIT_
 build_with_retry() { # build_with_retry SERVICE
   local svc="$1" ok=0 i
   for i in 1 2 3; do
-    if docker compose up -d --build "$svc"; then ok=1; break; fi
+    if $COMPOSE up -d --build "$svc"; then ok=1; break; fi
     echo "   build '$svc' próba $i nieudana (buildkit?) -- ponawiam za 6s..."; sleep 6
   done
   [ "$ok" = 1 ]
 }
 build_with_retry app || { echo "!! PROD build nieudany po 3 próbach -- zostaje poprzednia wersja"; exit 1; }
 build_with_retry app-staging || echo "   UWAGA: staging build nieudany -- prod działa, staging pominięty."
+# Upewnij się, że Caddy (HTTPS) stoi i jest na aktualnej sieci proda.
+$COMPOSE up -d caddy 2>/dev/null || echo "   (Caddy pominięty -- brak pliku caddy albo portów 80/443)"
 
 # --- 4) Health -------------------------------------------------------------
 echo "==> Status kontenerów"
-docker compose ps
+$COMPOSE ps
 echo "==> Czekam na start i sprawdzam health (prod :8000)"
 # "Zdrowy" = serwer ZWRACA jakikolwiek kod HTTP (200 = OK, 401 = działa, tylko za
 # loginem -- bo /api/status jest chronione, a curl z serwera nie ma sesji). Tylko
