@@ -130,12 +130,17 @@ build_with_retry app-staging || echo "   UWAGA: staging build nieudany -- prod d
 echo "==> Status kontenerów"
 docker compose ps
 echo "==> Czekam na start i sprawdzam health (prod :8000)"
-health_ok=0
+# "Zdrowy" = serwer ZWRACA jakikolwiek kod HTTP (200 = OK, 401 = działa, tylko za
+# loginem -- bo /api/status jest chronione, a curl z serwera nie ma sesji). Tylko
+# BRAK odpowiedzi (000 = nie słucha / timeout) to realny problem. Wcześniej
+# curl -f traktował 401 jako błąd i fałszywie krzyczał "nie odpowiada".
+health_code=000
 for i in 1 2 3 4 5 6; do
   sleep 4
-  if curl -fsS localhost:8000/api/status >/dev/null 2>&1; then health_ok=1; break; fi
+  health_code="$(curl -s -m 5 -o /dev/null -w "%{http_code}" localhost:8000/api/status 2>/dev/null || echo 000)"
+  [ "$health_code" != "000" ] && break
 done
-[ "$health_ok" = 1 ] && echo "   OK: /api/status odpowiada" || echo "   UWAGA: /api/status nie odpowiada po ~24s -- sprawdź: docker compose logs -f app"
+[ "$health_code" != "000" ] && echo "   OK: serwer odpowiada (HTTP $health_code)" || echo "   UWAGA: brak odpowiedzi po ~24s -- sprawdź: docker compose logs -f app"
 # Zapisz OSTATNIO UDANY commit (po udanym buildzie proda). autopull porównuje
 # do tego pliku, nie do HEAD -- więc nieudany build (który i tak przesunął HEAD)
 # zostanie PONOWIONY przy następnym cyklu zamiast być uznany za wdrożony.
