@@ -592,6 +592,7 @@ def get_widget(db: Session = Depends(get_db), settings: Settings = Depends(get_s
     state = risk_manager.get_state(db)
     account = _account_view(db, settings)
     net = _net_result_view(db, settings)
+    trading_pnl = _trading_pnl_view(db, settings)
 
     # Day P&L vs the TRUE combined account total (cash once + both engines'
     # positions), NOT the latest single-venue snapshot -- extended polls far more
@@ -626,6 +627,11 @@ def get_widget(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "total": account["total_value"] if account else None,
         "cash": account["cash"] if account else None,
         "day_pnl_pct": day_pnl_pct,
+        # "Zysk automatu" -- TEN SAM deposit-proof wskaźnik co na Konsoli
+        # (zrealizowany + papierowy, bez wpłat), żeby widżet i apka pokazywały
+        # to samo. net_result_usd zostaje dla zgodności wstecznej, ale widżet go
+        # już nie wyświetla (mylił: realized - koszt AI).
+        "trading_pnl_usd": trading_pnl["total_usd"],
         "net_result_usd": net["net_result_usd"],
         # Live estimated Claude budget remaining ($) -- if the budget is set to
         # what was loaded on the console, this tracks the real balance directionally.

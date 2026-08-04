@@ -1,6 +1,6 @@
-// GielDarek — widget iPhone (Scriptable), styl Apple Fitness: trzy współśrodkowe
-// pierścienie aktywności = skład konta (SESJA / POZA / Gotówka), duże liczby,
-// legenda z kropkami, wykres. Ciągnie GET /api/widget?share=... (tylko odczyt).
+// GielDarek — widget iPhone (Scriptable), styl Apple Fitness: pierścienie
+// aktywności = skład konta (W grze / Gotówka), duże liczby, legenda z kropkami
+// (w tym "Zysk automatu"), wykres. Ciągnie GET /api/widget?share=... (tylko odczyt).
 // (Widżety iOS nie animują się na żywo — system je odświeża; tu stawiamy na
 //  bogaty, żywy wygląd: pierścienie z poświatą, gradientowy wykres.)
 // =============================================================================
@@ -228,9 +228,13 @@ async function build() {
   const positions = d.positions || [];
   let sesja = 0, poza = 0;
   for (const p of positions) { if (p.leg === "extended") poza += p.value || 0; else sesja += p.value || 0; }
+  const invested = sesja + poza;               // jeden silnik: wszystko "w grze"
   const cash = d.cash || 0;
-  const total = d.total || sesja + poza + cash || 1;
+  const total = d.total || invested + cash || 1;
   const up = isUp(d.day_pnl_pct);
+  const pnl = d.trading_pnl_usd;               // "Zysk automatu" (bez wpłat) -- jak w apce
+  const pnlStr = (pnl === null || pnl === undefined) ? "—" : (pnl >= 0 ? "+" : "") + fmtUsd(pnl, 0);
+  const pnlHex = (pnl === null || pnl === undefined || pnl >= 0) ? HEX.mint : HEX.rose;
 
   header(w, d.mode);
   w.addSpacer(small ? 8 : 10);
@@ -239,11 +243,11 @@ async function build() {
   const hero = w.addStack();
   hero.centerAlignContent();
   const ringSize = small ? 82 : large ? 116 : 98;
-  const rings = [
-    { frac: sesja / total, color: HEX.mint },
-    { frac: poza / total, color: HEX.amber },
-    { frac: cash / total, color: HEX.blue },
-  ];
+  // Jeden silnik: dwa pierścienie -- W grze (pozycje) i Gotówka. Gdyby kiedyś
+  // wróciła noga POZA SESJĄ (poza>0), dokładamy bursztynowy pierścień.
+  const rings = poza > 0.5
+    ? [{ frac: sesja / total, color: HEX.mint }, { frac: poza / total, color: HEX.amber }, { frac: cash / total, color: HEX.blue }]
+    : [{ frac: invested / total, color: HEX.mint }, { frac: cash / total, color: HEX.blue }];
   const img = hero.addImage(drawRings(ringSize, rings));
   img.imageSize = new Size(ringSize, ringSize);
   hero.addSpacer(small ? 11 : 15);
@@ -265,15 +269,21 @@ async function build() {
 
   if (small) { w.addSpacer(); return w; }
 
-  // LEGEND (like Move / Exercise / Stand)
+  // LEGEND: W grze / Gotówka / Zysk automatu (ten sam wskaźnik co w apce).
   w.addSpacer(12);
   const leg = w.addStack();
   leg.centerAlignContent();
-  legendItem(leg, HEX.mint, "Sesja", fmtUsd(sesja, 0));
-  leg.addSpacer();
-  legendItem(leg, HEX.amber, "Poza", fmtUsd(poza, 0));
+  if (poza > 0.5) {
+    legendItem(leg, HEX.mint, "Sesja", fmtUsd(sesja, 0));
+    leg.addSpacer();
+    legendItem(leg, HEX.amber, "Poza", fmtUsd(poza, 0));
+  } else {
+    legendItem(leg, HEX.mint, "W grze", fmtUsd(invested, 0));
+  }
   leg.addSpacer();
   legendItem(leg, HEX.blue, "Gotówka", fmtUsd(cash, 0));
+  leg.addSpacer();
+  legendItem(leg, pnlHex, "Zysk automatu", pnlStr);
 
   // SPARK
   w.addSpacer(12);
