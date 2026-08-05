@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, Decision, EngineProfile, isReadOnly, MarketRegime, PortfolioResponse, PositionPlan, StatusResponse } from "../api/client";
+import { api, Decision, EngineProfile, isReadOnly, MarketRegime, PortfolioResponse, PositionPlan, SellPlan, SellState, StatusResponse } from "../api/client";
 import { useCountUp } from "../hooks/useCountUp";
 import { ago, EquityBand, money, money0, pct, PnlBand, TickerTape } from "./kit";
 import { NewsBar } from "./NewsBar";
@@ -212,9 +212,36 @@ function MarketWeather({ r }: { r: MarketRegime | null }) {
   );
 }
 
-/* Position as a JOURNEY: stop ── entry ── [current] ── target, with a status
-   badge that reflects the exit strategy (ripe to take profit / locked by
-   min-hold / near stop). Directly shows "there's a profit, take it". */
+/* Wygląd kafla „KIEDY SPRZEDAM" per stan planu wyjścia. */
+const SELL_UI: Record<SellState, { cls: string; icon: string; label: string }> = {
+  sell_now: { cls: "sellnow", icon: "🟢", label: "sprzedaję" },
+  profit_ready: { cls: "ripe", icon: "🟢", label: "zysk do wzięcia" },
+  climbing: { cls: "climb", icon: "↗", label: "rośnie" },
+  locked: { cls: "locked", icon: "🔒", label: "anty-churn" },
+  waiting: { cls: "wait", icon: "⏳", label: "czekam" },
+  near_stop: { cls: "stop", icon: "⚠", label: "blisko stopu" },
+};
+
+/* "KIEDY SPRZEDAM" — miarka + jednozdaniowy plan wyjścia dla jednej pozycji.
+   Wypełnienie miarki = jak blisko wyzwalacza sprzedaży (zysk→cel / strata→stop). */
+function SellGauge({ sp }: { sp: SellPlan }) {
+  const ui = SELL_UI[sp.state];
+  const w = Math.max(3, Math.min(100, sp.progress_pct));
+  return (
+    <div className={`gd-sell-plan ${ui.cls}`}>
+      <div className="gd-sp-head">
+        <span className="gd-sp-eyebrow">Kiedy sprzedam</span>
+        <span className="gd-sp-when">{sp.when}</span>
+      </div>
+      <div className="gd-sp-headline"><span className="gd-sp-ico">{ui.icon}</span>{sp.headline}</div>
+      <div className="gd-sp-gauge"><span style={{ width: `${w}%` }} /></div>
+    </div>
+  );
+}
+
+/* Position as a JOURNEY: stop ── entry ── [current] ── target, plus the
+   "kiedy sprzedam" gauge that says WHEN and WHY the bot will close it. Directly
+   answers the owner's worry: "there's a profit — why are you still holding?" */
 export function PositionCard({ p, plan, bypassPct, onChanged }: {
   p: Pos; plan?: PositionPlan; bypassPct: number; onChanged?: () => void;
 }) {
@@ -229,12 +256,11 @@ export function PositionCard({ p, plan, bypassPct, onChanged }: {
   const days = plan?.days_held;
   const daysLabel = days === null || days === undefined ? null : days === 0 ? "dziś" : days === 1 ? "1 dzień" : `${days} dni`;
 
-  const ripe = bypassPct > 0 && gain >= bypassPct;
-  const nearStop = stop !== null && cur <= stop * 1.015;
-  const badge = nearStop ? { t: "⚠ blisko stopu", cls: "stop" }
-    : ripe ? { t: "🟢 zysk do wzięcia", cls: "ripe" }
-    : up ? { t: "↗ na plusie — trzymam", cls: "hold" }
-    : { t: "trzymam — czekam na ruch", cls: "flat" };
+  const sp = plan?.sell_plan;
+  // Highlight the card by its exit state (falls back to raw gain if no plan yet).
+  const stateCls = sp ? SELL_UI[sp.state].cls : up ? "climb" : "wait";
+  const ripe = sp ? (sp.state === "profit_ready" || sp.state === "sell_now") : (bypassPct > 0 && gain >= bypassPct);
+  const nearStop = sp ? sp.state === "near_stop" : (stop !== null && cur <= stop * 1.015);
 
   // Track scale: stop → target (fall back to a band around entry/current).
   const lo = stop ?? (entry ? entry * 0.94 : cur * 0.94);
@@ -251,18 +277,20 @@ export function PositionCard({ p, plan, bypassPct, onChanged }: {
   }
 
   return (
-    <div className={`gd-pcard${ripe ? " ripe" : ""}${nearStop ? " danger" : ""}`}>
+    <div className={`gd-pcard st-${stateCls}${ripe ? " ripe" : ""}${nearStop ? " danger" : ""}`}>
       <div className="gd-pcard-top">
         <div className="gd-pcard-id">
           <b className="gd-pcard-sym">{p.asset}</b>
           {daysLabel && <span className="gd-pcard-days">{daysLabel}</span>}
-          <span className={`gd-pcard-badge ${badge.cls}`}>{badge.t}</span>
+          {sp && <span className={`gd-pcard-badge ${SELL_UI[sp.state].cls}`}>{SELL_UI[sp.state].icon} {SELL_UI[sp.state].label}</span>}
         </div>
         <div className="gd-pcard-fig">
           <span className="gd-pcard-val">{money(p.value)}</span>
           <span className={`gd-pcard-pct ${up ? "gd-up" : "gd-down"}`}>{p.pnlPct !== null ? pct(p.pnlPct) : "—"}</span>
         </div>
       </div>
+
+      {sp && <SellGauge sp={sp} />}
 
       <div className="gd-track">
         <div className="gd-track-line" />
@@ -276,22 +304,58 @@ export function PositionCard({ p, plan, bypassPct, onChanged }: {
       <div className="gd-pcard-foot">
         <span className="gd-pcard-lv">wejście <b>{entry ? money(entry) : "—"}</b> · teraz <b>{money(cur)}</b>{target ? <> · cel <b>{money(target)}</b></> : null}</span>
         <div className="gd-pcard-actions">
-          {plan?.thesis && <button className="gd-pcard-why" onClick={() => setOpen((v) => !v)}>{open ? "ukryj ▲" : "po co? ▾"}</button>}
+          {(sp?.detail || plan?.thesis) && <button className="gd-pcard-why" onClick={() => setOpen((v) => !v)}>{open ? "ukryj ▲" : "szczegóły ▾"}</button>}
           {!isReadOnly && onChanged && <button className="gd-sell" disabled={busy} onClick={sell}>{busy ? "…" : "Sprzedaj"}</button>}
         </div>
       </div>
-      {open && plan?.thesis && <div className="gd-pcard-thesis">„{plan.thesis}"</div>}
+      {open && (
+        <div className="gd-pcard-detail">
+          {sp?.detail && <div className="gd-pcard-plan">{sp.detail}</div>}
+          {plan?.thesis && <div className="gd-pcard-thesis">„{plan.thesis}"</div>}
+        </div>
+      )}
     </div>
   );
 }
 
-export function Console({ status, alpaca, extended, decisions, onLeg, onChanged }: {
+/* Duży animowany kafel statystyki (deska rozdzielcza — screen 1). */
+function StatCard({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "up" | "down" | "neu" }) {
+  return (
+    <div className={`gd-stat ${tone ?? "neu"}`}>
+      <span className="gd-stat-l">{label}</span>
+      <b className="gd-stat-v">{value}</b>
+      {sub && <span className="gd-stat-sub">{sub}</span>}
+    </div>
+  );
+}
+
+/* Pierścień skuteczności (win-rate) — animowany SVG donut. */
+function WinRing({ pct: p, wins, losses }: { pct: number | null; wins: number; losses: number }) {
+  const v = p ?? 0;
+  const r = 34, c = 2 * Math.PI * r;
+  const on = c * (v / 100);
+  const col = v >= 50 ? "var(--mint)" : v >= 35 ? "var(--gold)" : "var(--rose)";
+  return (
+    <div className="gd-winring">
+      <svg viewBox="0 0 84 84">
+        <circle cx="42" cy="42" r={r} fill="none" stroke="var(--line)" strokeWidth="8" />
+        <circle cx="42" cy="42" r={r} fill="none" stroke={col} strokeWidth="8" strokeLinecap="round"
+          strokeDasharray={`${on} ${c}`} transform="rotate(-90 42 42)" className="gd-winring-arc" />
+      </svg>
+      <div className="gd-winring-mid">
+        <b style={{ color: col }}>{p === null ? "—" : `${Math.round(v)}%`}</b>
+        <small>skuteczność</small>
+      </div>
+      <div className="gd-winring-leg"><span className="gd-up">{wins} W</span><span className="gd-down">{losses} L</span></div>
+    </div>
+  );
+}
+
+export function Console({ status, alpaca, extended, onGoPositions }: {
   status: StatusResponse;
   alpaca: PortfolioResponse | null;
   extended: PortfolioResponse | null;
-  decisions: Decision[];
-  onLeg: (v: "us" | "extended") => void;
-  onChanged: () => void;
+  onGoPositions: () => void;
 }) {
   const acc = status.account;
   const total = useCountUp(acc?.total_value ?? 0);
@@ -300,25 +364,9 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
   const invested = sesjaVal + (acc?.extended_positions_value ?? 0);
   const invPct = acc && acc.total_value > 0 ? Math.round((invested / acc.total_value) * 100) : 0;
 
-  const positions = [...extract(alpaca, "sesja"), ...extract(extended, "poza")].sort((a, b) => b.value - a.value);
+  const positions = [...extract(alpaca, "sesja"), ...extract(extended, "poza")];
   const sesjaCount = positions.length;
-
-  const [plans, setPlans] = useState<Record<string, PositionPlan>>({});
-  const hasA = !!alpaca?.current, hasE = !!extended?.current;
-  useEffect(() => {
-    let dead = false;
-    (async () => {
-      const map: Record<string, PositionPlan> = {};
-      const legs: Array<[Leg, "alpaca" | "extended"]> = [];
-      if (hasA) legs.push(["sesja", "alpaca"]);
-      if (hasE) legs.push(["poza", "extended"]);
-      await Promise.all(legs.map(async ([leg, venue]) => {
-        try { const r = await api.positionPlans(venue); r.positions.forEach((pp) => (map[`${leg}:${pp.asset}`] = pp)); } catch { /* best effort */ }
-      }));
-      if (!dead) setPlans(map);
-    })();
-    return () => { dead = true; };
-  }, [hasA, hasE, invested]);
+  const sc = alpaca?.scorecard ?? null;
 
   const usLive = !status.is_halted && !status.is_paused;
 
@@ -332,7 +380,7 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
       <TickerTape sesja={status.whitelist} poza={status.extended_enabled ? status.extended_whitelist : []} prices={livePrices} />
       <NewsBar />
       <div className="gd-topline">
-        <span className="gd-kicker">Konsola · {new Date().toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })}</span>
+        <span className="gd-kicker">Pulpit · {new Date().toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })}</span>
         <span className={`gd-mode ${status.mode === "live" ? "live" : ""}`}>
           <span className="gd-blip" />{status.mode === "live" ? "LIVE" : "PAPER"}
         </span>
@@ -354,50 +402,31 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
 
       <div className="gd-stratrow">
         <ConvictionLadder held={sesjaCount} profile={status.profiles.alpaca} />
-        <div className="gd-engine" onClick={() => onLeg("us")}>
+        <div className="gd-engine" onClick={onGoPositions}>
           <div className="gd-engine-top">
             <span className="gd-engine-name">Silnik pozycyjny · Akcje US</span>
             <span className={`gd-chip ${usLive ? "gd-chip-on" : "gd-chip-off"}`}><span className="gd-dot pulse" />{status.is_halted ? "HALT" : status.is_paused ? "STOP" : "gra"}</span>
           </div>
           <div className="gd-engine-val">{money0(sesjaVal)}<small>{sesjaCount} {sesjaCount === 1 ? "pozycja" : "pozycji"} · {invPct}% w grze</small></div>
           <MarketWeather r={status.market_regime} />
+          <span className="gd-engine-cta">Zobacz pozycje i plany wyjścia →</span>
         </div>
       </div>
 
-      <div className="gd-pnl-head">Na co składa się Zysk automatu: <b>zrealizowany + otwarte (papierowy)</b></div>
-      <div className="gd-pnl">
-        <div className="gd-pnl-item">
-          <span className="gd-pnl-l">Zrealizowany (zamknięte)</span>
-          <span className={`gd-pnl-v ${status.trading_pnl.realized_usd >= 0 ? "gd-up" : "gd-down"}`}>
-            {status.trading_pnl.realized_usd >= 0 ? "+" : ""}{money(status.trading_pnl.realized_usd)}
-          </span>
-        </div>
-        <div className="gd-pnl-item">
-          <span className="gd-pnl-l">Otwarte (papierowy)</span>
-          <span className={`gd-pnl-v ${status.trading_pnl.unrealized_usd >= 0 ? "gd-up" : "gd-down"}`}>
-            {status.trading_pnl.unrealized_usd >= 0 ? "+" : ""}{money(status.trading_pnl.unrealized_usd)}
-          </span>
-        </div>
-        <div className="gd-pnl-item">
-          <span className="gd-pnl-l">Bot vs samo trzymanie SPY</span>
-          {status.alpha_vs_spy ? (
-            <>
-              <span className={`gd-pnl-v ${status.alpha_vs_spy.alpha_usd >= 0 ? "gd-up" : "gd-down"}`}>
-                {status.alpha_vs_spy.alpha_usd >= 0 ? "+" : ""}{money(status.alpha_vs_spy.alpha_usd)}
-                {status.alpha_vs_spy.alpha_pct !== null && <small> ({status.alpha_vs_spy.alpha_pct >= 0 ? "+" : ""}{status.alpha_vs_spy.alpha_pct.toFixed(1)}%)</small>}
-              </span>
-              <span className="gd-pnl-sub">
-                {status.alpha_vs_spy.alpha_usd >= 0
-                  ? "bot zarobił tyle WIĘCEJ, niż gdybyś to samo trzymał w SPY"
-                  : "bot jest tyle W TYLE za zwykłym trzymaniem SPY"}
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="gd-pnl-v" style={{ color: "var(--dim)" }}>—</span>
-              <span className="gd-pnl-sub">porównanie ruszy, gdy będzie cena SPY i punkt startowy</span>
-            </>
-          )}
+      {/* STATYSTYKA — deska rozdzielcza high-level */}
+      <div className="gd-sec"><h3>Statystyka</h3><span className="gd-sec-note">jak automat sobie radzi</span></div>
+      <div className="gd-statwrap">
+        <WinRing pct={sc?.win_rate_pct ?? null} wins={sc?.wins ?? 0} losses={sc?.losses ?? 0} />
+        <div className="gd-statgrid">
+          <StatCard label="Zrealizowany zysk" value={`${status.trading_pnl.realized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.realized_usd)}`}
+            tone={status.trading_pnl.realized_usd >= 0 ? "up" : "down"} sub="zamknięte transakcje" />
+          <StatCard label="Otwarte (papierowy)" value={`${status.trading_pnl.unrealized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.unrealized_usd)}`}
+            tone={status.trading_pnl.unrealized_usd >= 0 ? "up" : "down"} sub="niezrealizowane" />
+          <StatCard label="Zamkniętych transakcji" value={`${sc?.closed_trades ?? 0}`} sub={`${sc?.wins ?? 0} zysk · ${sc?.losses ?? 0} strata`} />
+          <StatCard label="Bot vs SPY"
+            value={status.alpha_vs_spy ? `${status.alpha_vs_spy.alpha_usd >= 0 ? "+" : ""}${money(status.alpha_vs_spy.alpha_usd)}` : "—"}
+            tone={status.alpha_vs_spy ? (status.alpha_vs_spy.alpha_usd >= 0 ? "up" : "down") : "neu"}
+            sub={status.alpha_vs_spy?.alpha_pct != null ? `${status.alpha_vs_spy.alpha_pct >= 0 ? "+" : ""}${status.alpha_vs_spy.alpha_pct.toFixed(1)}% vs trzymanie` : "przewaga nad indeksem"} />
         </div>
       </div>
 
@@ -412,20 +441,10 @@ export function Console({ status, alpaca, extended, decisions, onLeg, onChanged 
 
       <NowStrip status={status} />
 
-      <div className="gd-sec"><h3>Otwarte pozycje</h3><span className="gd-sec-note">{money(invested)} w grze · 🟢 = zysk do wzięcia</span></div>
-      {positions.length ? (
-        <div className="gd-pcards">
-          {positions.map((p) => (
-            <PositionCard key={`${p.leg}:${p.asset}`} p={p} plan={plans[`${p.leg}:${p.asset}`]}
-              bypassPct={status.profiles.alpaca.min_hold_profit_bypass_pct} onChanged={onChanged} />
-          ))}
-        </div>
-      ) : <p className="gd-empty">Brak otwartych pozycji — gotówka czeka na najlepsze wejścia.</p>}
-
-      <div className="gd-sec"><h3>Decyzje Claude</h3><span className="gd-sec-note">na żywo</span></div>
-      {decisions.length ? (
-        <div className="gd-stream">{decisions.slice(0, 12).map((d) => <DecRow key={d.id} d={d} />)}</div>
-      ) : <p className="gd-empty">Jeszcze brak decyzji w tym oknie.</p>}
+      <button className="gd-gopos" onClick={onGoPositions}>
+        <span className="gd-gopos-l"><b>{sesjaCount}</b> {sesjaCount === 1 ? "pozycja" : "pozycji"} · {money(invested)} w grze</span>
+        <span className="gd-gopos-r">Pozycje i „kiedy sprzedam" →</span>
+      </button>
     </div>
   );
 }

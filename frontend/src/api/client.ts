@@ -371,6 +371,19 @@ export interface PositionPlan {
   stop_price: number | null;
   target_price: number | null;
   thesis: string | null;
+  // "KIEDY SPRZEDAM" — kiedy i dlaczego bot zamknie tę pozycję (miarka + opis).
+  sell_plan?: SellPlan;
+}
+
+export type SellState = "sell_now" | "profit_ready" | "climbing" | "locked" | "waiting" | "near_stop";
+export interface SellPlan {
+  state: SellState;
+  headline: string;
+  when: string;
+  progress_pct: number;
+  release: string | null;
+  locked: boolean;
+  detail: string;
 }
 
 export interface PositionPlansResponse {

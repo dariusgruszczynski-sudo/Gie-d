@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 # Stempel wersji wstrzyknięty przy buildzie (Dockerfile ARG -> ENV). Pozwala
 # apce pokazać, JAKI kod realnie działa, żeby nie zgadywać "czy się wdrożyło".
@@ -541,10 +541,136 @@ def get_position_plans(venue: str = "alpaca", db: Session = Depends(get_db), set
             "stop_price": stop_price,
             "target_price": target_price,
             "thesis": _latest_thesis(db, full, venue),
+            "sell_plan": _sell_timing(eff, plan, basis=basis, price=price,
+                                      stop_price=stop_price, target_price=target_price, opened=opened),
             **plan,
         })
     out.sort(key=lambda p: p["value"], reverse=True)
     return {"venue": venue, "positions": out}
+
+
+def _sell_timing(
+    settings: Settings,
+    plan: dict,
+    *,
+    basis: float | None,
+    price: float,
+    stop_price: float | None,
+    target_price: float | None,
+    opened: datetime | None,
+) -> dict:
+    """"KIEDY SPRZEDAM" -- the single clearest thing the owner asked for: for one
+    held position, WHEN and WHY it will be sold, mirroring exactly the conditions
+    the mechanical exit + min-hold gate use. Returns a compact structure the UI
+    renders as a gauge + one-liner, so there's no guessing 'why is it still held'.
+
+    state:
+      sell_now     -- a trigger is live right now (hard take-profit / at stop)
+      profit_ready -- gain >= profit-bypass: min-hold WON'T block a profit exit,
+                      sells at the first cool-down from the peak ("bierzemy zysk")
+      climbing     -- on the plus side, waiting to reach the take-profit target
+      locked       -- anti-churn min-hold still holds it (and not yet in profit)
+      waiting      -- flat/small loss, holding toward target or stop
+      near_stop    -- close to the protective stop
+    progress_pct -- 0..100 fill for the gauge: how far from entry toward the
+                    up-side take-profit target (winners) or toward the stop (losers).
+    """
+    change = plan.get("change_pct")
+    adopted = plan.get("adopted")
+    bypass = settings.min_hold_profit_bypass_pct
+    hard_tp = settings.hard_take_profit_pct
+    arm = plan.get("take_profit_arm_pct") or 0.0
+
+    # Min-hold release moment (anti-churn). None if no min-hold or unknown entry.
+    release: datetime | None = None
+    within_hold = False
+    if opened is not None and settings.min_hold_minutes > 0:
+        o = opened if opened.tzinfo else opened.replace(tzinfo=timezone.utc)
+        release = o + timedelta(minutes=settings.min_hold_minutes)
+        within_hold = datetime.now(timezone.utc) < release
+
+    gain = change if change is not None else 0.0
+
+    def money(v: float) -> str:
+        return f"${v:,.2f}"
+
+    # Progress gauge: winners fill toward the take-profit arm; losers toward stop.
+    progress = 0.0
+    if arm > 0 and gain >= 0:
+        progress = max(0.0, min(100.0, gain / arm * 100))
+    elif gain < 0 and settings.stop_loss_min_pct:
+        stop_ref = plan.get("stop_pct") or settings.stop_loss_min_pct
+        if stop_ref:
+            progress = max(0.0, min(100.0, abs(gain) / stop_ref * 100))
+
+    # ---- Decide the state + copy, in the SAME priority the engine exits use. ----
+    if adopted:
+        return {
+            "state": "waiting", "headline": "Chronię trailingiem",
+            "when": "gdy spadnie od szczytu", "progress_pct": round(progress),
+            "release": None, "locked": False,
+            "detail": "Pozycja adoptowana (bez ceny wejścia) — sprzedam przy schłodzeniu od szczytu.",
+        }
+
+    if plan.get("action") == "near_stop" or gain <= -(plan.get("stop_pct") or 0):
+        return {
+            "state": "near_stop", "headline": "Blisko stopu — bronię kapitału",
+            "when": f"stop {money(stop_price)}" if stop_price else "przy stopie",
+            "progress_pct": round(progress), "release": None, "locked": False,
+            "detail": f"Strata {gain:+.1f}% — zamykam przy −{plan.get('stop_pct'):.1f}% od wejścia.",
+        }
+
+    if hard_tp > 0 and gain >= hard_tp:
+        return {
+            "state": "sell_now", "headline": f"Sprzedaję teraz (+{gain:.1f}%)",
+            "when": "teraz", "progress_pct": 100, "release": None, "locked": False,
+            "detail": f"Zysk sięgnął sufitu +{hard_tp:.1f}% — biorę cały zysk.",
+        }
+
+    # Profit big enough to bypass anti-churn: we will take it at the first dip.
+    if bypass > 0 and gain >= bypass:
+        return {
+            "state": "profit_ready", "headline": f"Zysk do wzięcia (+{gain:.1f}%)",
+            "when": f"cel {money(target_price)}" if target_price else "przy schłodzeniu",
+            "progress_pct": round(progress), "release": None, "locked": False,
+            "detail": (
+                f"Jest zysk (+{gain:.1f}% ≥ +{bypass:.1f}%) — furtka zysku otwarta: "
+                f"anty-churn NIE blokuje. Realizuję przy pierwszym cofnięciu lub na celu."
+            ),
+        }
+
+    # Still inside anti-churn min-hold and not yet in bankable profit.
+    if within_hold and release is not None:
+        return {
+            "state": "locked", "headline": "Anty-churn trzyma pozycję",
+            "when": f"do {release.strftime('%d.%m %H:%M')}",
+            "progress_pct": round(progress), "release": release.isoformat(), "locked": True,
+            "detail": (
+                f"Świeże wejście — nie odwracam się na spreadzie. Sprzedam po "
+                f"{release.strftime('%d.%m %H:%M')} albo wcześniej, gdy zysk sięgnie +{bypass:.1f}%."
+            ),
+        }
+
+    if gain > 0:
+        return {
+            "state": "climbing", "headline": f"Na plusie (+{gain:.1f}%) — rośnie",
+            "when": f"cel {money(target_price)}" if target_price else f"przy +{arm:.1f}%",
+            "progress_pct": round(progress), "release": None, "locked": False,
+            "detail": (
+                f"Zysk {gain:+.1f}%. Realizuję przy +{bypass:.1f}% (furtka) lub na celu "
+                f"{money(target_price) if target_price else ''} — do tego czasu pozwalam rosnąć."
+            ),
+        }
+
+    return {
+        "state": "waiting", "headline": "Trzymam — czekam na ruch",
+        "when": f"cel {money(target_price)}" if target_price else "na sygnał",
+        "progress_pct": round(progress), "release": None, "locked": False,
+        "detail": (
+            f"Blisko zera ({gain:+.1f}%). Sprzedam na celu {money(target_price) if target_price else ''} "
+            f"albo bronię przy stopie {money(stop_price) if stop_price else ''}."
+        ),
+    }
 
 
 def _latest_thesis(db: Session, symbol: str, venue: str) -> str | None:

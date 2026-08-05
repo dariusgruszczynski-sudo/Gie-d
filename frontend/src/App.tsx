@@ -2,23 +2,23 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, Decision, PortfolioResponse, StatusResponse, Trade, withShare } from "./api/client";
 import { Console } from "./ui/Console";
 import { Control } from "./ui/Control";
-import { Engines } from "./ui/Engines";
 import { Health } from "./ui/Health";
-import { Journal } from "./ui/Journal";
 import { News } from "./ui/News";
+import { Positions } from "./ui/Positions";
 import { Icon } from "./ui/kit";
 import { isSoundMuted, playTradeSound, setSoundMuted } from "./tradeSound";
 
 const REFRESH_MS = 15000;
-type View = "console" | "engines" | "journal" | "news" | "control" | "health";
+// Pięć ekranów: Pulpit (high-level + statystyka) · Pozycje (akcje + miarki
+// „kiedy sprzedam") · Newsy · Puls (health) · Steruj (panel sterowania).
+type View = "dashboard" | "positions" | "news" | "health" | "control";
 
-const NAV: Array<{ key: View; label: string; icon: "console" | "engines" | "control" | "pulse" | "news" | "journal" }> = [
-  { key: "console", label: "Konsola", icon: "console" },
-  { key: "engines", label: "Silnik", icon: "engines" },
-  { key: "journal", label: "Dziennik", icon: "journal" },
+const NAV: Array<{ key: View; label: string; icon: "console" | "positions" | "control" | "pulse" | "news" }> = [
+  { key: "dashboard", label: "Pulpit", icon: "console" },
+  { key: "positions", label: "Pozycje", icon: "positions" },
   { key: "news", label: "Newsy", icon: "news" },
-  { key: "control", label: "Steruj", icon: "control" },
   { key: "health", label: "Puls", icon: "pulse" },
+  { key: "control", label: "Steruj", icon: "control" },
 ];
 
 export default function App() {
@@ -31,8 +31,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
   const [muted, setMuted] = useState<boolean>(isSoundMuted);
-  const [view, setView] = useState<View>("console");
-  const [engineVenue, setEngineVenue] = useState<"alpaca" | "extended">("alpaca");
+  const [view, setView] = useState<View>("dashboard");
   const [toasts, setToasts] = useState<Array<{ id: string; kind: "buy" | "sell" | "wait"; title: string; body: string }>>([]);
   const failCount = useRef(0);
   const seenTradeIds = useRef<Set<number> | null>(null);
@@ -119,12 +118,6 @@ export default function App() {
     return () => es.close();
   }, [refresh]);
 
-  const goLeg = useCallback((v: "us" | "extended") => {
-    setEngineVenue(v === "us" ? "alpaca" : "extended");
-    setView("engines");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
-
   const changeView = useCallback((v: View) => {
     setView(v);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -179,16 +172,13 @@ export default function App() {
           {error && <div className="gd-halt">Błąd API: {error}</div>}
           {!error && reconnecting && <div className="gd-ribbon">Ponawiam połączenie…</div>}
 
-          <div className="gd-swap" key={view === "engines" ? `engines:${engineVenue}` : view}>
+          <div className="gd-swap" key={view}>
             {!status ? (
               <div className="gd-view"><p className="gd-empty">Łączę z automatem…</p></div>
-            ) : view === "console" ? (
-              <Console status={status} alpaca={portfolio} extended={extendedPortfolio} decisions={decisions} onLeg={goLeg} onChanged={refresh} />
-            ) : view === "engines" ? (
-              <Engines status={status} alpaca={portfolio} extended={extendedPortfolio} trades={trades} extendedTrades={extendedTrades}
-                decisions={decisions} venue={engineVenue} setVenue={setEngineVenue} onChanged={refresh} />
-            ) : view === "journal" ? (
-              <Journal decisions={decisions} status={status} />
+            ) : view === "dashboard" ? (
+              <Console status={status} alpaca={portfolio} extended={extendedPortfolio} onGoPositions={() => changeView("positions")} />
+            ) : view === "positions" ? (
+              <Positions status={status} alpaca={portfolio} extended={extendedPortfolio} decisions={decisions} onChanged={refresh} />
             ) : view === "news" ? (
               <News />
             ) : view === "control" ? (
