@@ -95,9 +95,13 @@ export interface EngineProfile {
   poll_interval_minutes: number;
   risk_per_trade_pct: number;
   min_buy_confidence: number;
+  progressive_confidence_step: number;
+  progressive_confidence_cap: number;
   max_new_positions_per_day: number;
   max_concurrent_positions: number;
   min_hold_minutes: number;
+  min_hold_profit_bypass_pct: number;
+  hard_take_profit_pct: number;
   max_position_pct: number;
   stop_loss_min_pct: number;
   stop_loss_max_pct: number;

@@ -6,16 +6,26 @@
    ============================================================================= */
 
 .gd {
-  --mint: #19e39a;
-  --amber: #ffae34;
-  --rose: #ff5470;
-  --ink: #04060c;
-  --ink-2: #070b14;
+  /* v8 "Iris Terminal" — deeper indigo ink, an electric mint for gains, a violet
+     IRIS accent that carries the new progressive-strategy widgets, and a gold
+     that flags positions ripe for profit-taking. Rose for losses. */
+  --mint: #24e6a6;
+  --mint-soft: #6ff2c9;
+  --amber: #ffb84d;
+  --gold: #ffd36b;
+  --iris: #8a7dff;
+  --iris-soft: #b3aaff;
+  --rose: #ff5c7a;
+  --rose-soft: #ff90a6;
+  --ink: #05070f;
+  --ink-2: #0a0e1c;
+  --panel: rgba(255, 255, 255, 0.028);
+  --panel-2: rgba(255, 255, 255, 0.05);
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.16);
   --txt: #eef3fa;
-  --dim: #7c8aa2;
-  --dim-2: #4f5c73;
+  --dim: #8593ab;
+  --dim-2: #55627a;
   --rail-w: 240px;
   --rail-w-sm: 68px;
   color: var(--txt);
@@ -565,3 +575,105 @@
 .gd-tokens-ctl { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; margin-top: 6px; }
 .gd-inp { flex: 1 1 160px; min-width: 120px; padding: 8px 11px; border-radius: 10px; border: 1px solid var(--line-strong); background: rgba(0,0,0,0.25); color: var(--txt); font-size: 0.82rem; }
 .gd-inp::placeholder { color: var(--dim-2); }
+
+/* =============================================================================
+   v8 STRATEGY WIDGETS — Conviction Ladder, engine card, market weather, and the
+   position "journey" cards. Reflect the progressive-entry + take-profit strategy.
+   ============================================================================= */
+.gd-stratrow { display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px; margin: 18px 0 8px; }
+@media (max-width: 720px) { .gd-stratrow { grid-template-columns: 1fr; } }
+
+/* --- Conviction Ladder ------------------------------------------------------ */
+.gd-ladder {
+  position: relative; overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--iris) 34%, var(--line));
+  border-radius: 18px; padding: 16px 18px;
+  background:
+    radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--iris) 16%, transparent) 0%, transparent 55%),
+    var(--panel);
+}
+.gd-ladder-top { display: flex; align-items: center; justify-content: space-between; }
+.gd-ladder-title { font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--iris-soft); font-weight: 700; }
+.gd-ladder-count { font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.gd-ladder-count i { font-style: normal; color: var(--dim); font-size: 0.9rem; }
+.gd-rungs { display: flex; gap: 5px; margin: 12px 0 12px; }
+.gd-rung {
+  flex: 1; height: 22px; border-radius: 5px;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line);
+  transition: background 0.5s ease, box-shadow 0.5s ease, border-color 0.5s ease;
+}
+.gd-rung.on {
+  background: linear-gradient(180deg, var(--iris-soft), var(--iris));
+  border-color: transparent;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--iris) 60%, transparent), inset 0 1px 0 rgba(255,255,255,0.4);
+}
+.gd-ladder-next { display: flex; align-items: center; gap: 10px; }
+.gd-ladder-lbl { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); font-weight: 600; flex: 0 0 auto; }
+.gd-ladder-meter { flex: 1; height: 8px; border-radius: 8px; background: rgba(255,255,255,0.06); overflow: hidden; }
+.gd-ladder-meter span { display: block; height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--iris), var(--iris-soft)); transition: width 0.6s cubic-bezier(0.22,1,0.36,1); box-shadow: 0 0 10px color-mix(in srgb, var(--iris) 55%, transparent); }
+.gd-ladder-pct { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--iris-soft); font-size: 1.05rem; }
+.gd-ladder-full { font-size: 0.76rem; color: var(--gold); font-weight: 600; }
+
+/* --- Engine status card ----------------------------------------------------- */
+.gd-engine {
+  cursor: pointer; border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px;
+  background: var(--panel); display: flex; flex-direction: column; gap: 10px;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.gd-engine:hover { border-color: var(--line-strong); transform: translateY(-1px); }
+.gd-engine-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gd-engine-name { font-family: var(--font-display); font-weight: 700; font-size: 0.95rem; }
+.gd-engine-val { font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; font-variant-numeric: tabular-nums; display: flex; flex-direction: column; gap: 2px; }
+.gd-engine-val small { font-family: var(--font-body); font-size: 0.66rem; font-weight: 600; color: var(--dim); letter-spacing: 0.02em; }
+
+/* --- Market weather --------------------------------------------------------- */
+.gd-wx { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; padding: 5px 12px 5px 8px; border-radius: 999px; font-size: 0.74rem; font-weight: 700; border: 1px solid var(--line); }
+.gd-wx-ico { font-size: 1rem; line-height: 1; }
+.gd-wx-on { color: var(--mint); background: color-mix(in srgb, var(--mint) 12%, transparent); border-color: color-mix(in srgb, var(--mint) 30%, transparent); }
+.gd-wx-neu { color: var(--dim); background: rgba(255,255,255,0.04); }
+.gd-wx-off { color: var(--rose); background: color-mix(in srgb, var(--rose) 12%, transparent); border-color: color-mix(in srgb, var(--rose) 30%, transparent); }
+
+/* --- Position journey cards ------------------------------------------------- */
+.gd-pcards { display: flex; flex-direction: column; gap: 12px; }
+.gd-pcard {
+  border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px 16px;
+  background: var(--panel); position: relative; overflow: hidden;
+  animation: gd-in 0.45s cubic-bezier(0.22,1,0.36,1) both;
+}
+.gd-pcard.ripe { border-color: color-mix(in srgb, var(--gold) 45%, transparent); background: radial-gradient(130% 120% at 100% 0%, color-mix(in srgb, var(--gold) 12%, transparent) 0%, transparent 50%), var(--panel); }
+.gd-pcard.danger { border-color: color-mix(in srgb, var(--rose) 40%, transparent); }
+.gd-pcard-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.gd-pcard-id { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.gd-pcard-sym { font-family: var(--font-display); font-size: 1.15rem; font-weight: 700; }
+.gd-pcard-days { font-size: 0.66rem; color: var(--dim); font-weight: 600; }
+.gd-pcard-badge { font-size: 0.62rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; letter-spacing: 0.02em; }
+.gd-pcard-badge.ripe { color: var(--ink); background: var(--gold); }
+.gd-pcard-badge.hold { color: var(--mint); background: color-mix(in srgb, var(--mint) 14%, transparent); }
+.gd-pcard-badge.flat { color: var(--dim); background: rgba(255,255,255,0.05); }
+.gd-pcard-badge.stop { color: #fff; background: var(--rose); }
+.gd-pcard-fig { text-align: right; display: flex; flex-direction: column; gap: 1px; }
+.gd-pcard-val { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; font-size: 1.05rem; }
+.gd-pcard-pct { font-size: 0.82rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* the track: stop --- entry --- [current] --- target */
+.gd-track { position: relative; height: 44px; margin: 6px 2px 2px; }
+.gd-track-line { position: absolute; top: 21px; left: 0; right: 0; height: 3px; border-radius: 3px; background: rgba(255,255,255,0.08); }
+.gd-track-fill { position: absolute; top: 21px; height: 3px; border-radius: 3px; }
+.gd-track-fill.up { background: linear-gradient(90deg, var(--mint-soft), var(--mint)); box-shadow: 0 0 8px color-mix(in srgb, var(--mint) 50%, transparent); }
+.gd-track-fill.down { background: linear-gradient(90deg, var(--rose), var(--rose-soft)); }
+.gd-track-mark { position: absolute; top: 14px; transform: translateX(-50%); text-align: center; }
+.gd-track-mark i { display: block; width: 2px; height: 14px; margin: 0 auto; border-radius: 2px; }
+.gd-track-mark em { font-style: normal; font-size: 0.54rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--dim); position: absolute; top: 16px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
+.gd-track-mark.stop i { background: var(--rose); } .gd-track-mark.stop em { color: var(--rose-soft); }
+.gd-track-mark.entry i { background: var(--dim); }
+.gd-track-mark.target i { background: var(--gold); } .gd-track-mark.target em { color: var(--gold); }
+.gd-track-cur { position: absolute; top: 15px; width: 15px; height: 15px; border-radius: 50%; transform: translateX(-50%); border: 2px solid var(--ink); }
+.gd-track-cur.up { background: var(--mint); box-shadow: 0 0 0 4px color-mix(in srgb, var(--mint) 22%, transparent), 0 0 14px var(--mint); }
+.gd-track-cur.down { background: var(--rose); box-shadow: 0 0 0 4px color-mix(in srgb, var(--rose) 22%, transparent); }
+
+.gd-pcard-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.gd-pcard-lv { font-size: 0.72rem; color: var(--dim); }
+.gd-pcard-lv b { color: var(--txt); font-variant-numeric: tabular-nums; }
+.gd-pcard-actions { display: flex; align-items: center; gap: 10px; }
+.gd-pcard-why { border: none; background: none; color: var(--iris-soft); font-size: 0.72rem; font-weight: 700; cursor: pointer; padding: 0; }
+.gd-pcard-thesis { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 0.76rem; line-height: 1.4; color: var(--muted); font-style: italic; }
