@@ -177,7 +177,11 @@ class Settings(BaseSettings):
     # urośnie o >= tyle procent od wejścia, BIERZEMY cały zysk od razu -- żeby
     # mocny ruch nie „odjechał" z powrotem czekając aż trailing się uzbroi. To
     # odpowiedź na "indeks na +X% a nie sprzedany". 0 wyłącza (czysty trailing).
-    hard_take_profit_pct: float = 0.0
+    # 2026-08-05 (właściciel: "nie bój się wychodzić -- jest zysk, a czekasz"):
+    # 0 -> 8.0. Mocny ruch (+8% od wejścia) jest KASOWANY od razu, zamiast czekać
+    # na uzbrojenie trailingu i ryzykować oddanie zysku. Częściowa realizacja i
+    # trailing biorą mniejsze ruchy; ten sufit łapie duże.
+    hard_take_profit_pct: float = 8.0
     # Pozycje, których automat NIE otworzył sam (były na koncie wcześniej albo
     # kupione ręcznie) nie mają zapisanej ceny wejścia -> dotąd mechaniczny stop
     # je pomijał (żadnej ochrony). Gdy włączone, taka "adoptowana" pozycja i tak
@@ -212,20 +216,30 @@ class Settings(BaseSettings):
     # 0.40 -> 0.0 (2026-07-22, "zdjąć kaganiec"): próg pewności ZDJĘTY -- to
     # Claude decyduje, czy wejść, nie sztywny próg. Ochrona kapitału zostaje w
     # mechanicznych wyjściach i w ryzyku per-transakcja (risk_per_trade_pct).
-    min_buy_confidence: float = 0.6
+    # 2026-08-05 (właściciel: "zwiększ limit wejść, ale progresywnie -- im więcej
+    # wejść tym pewniejszy ruch"): to jest BAZOWY próg dla PIERWSZEGO wejścia.
+    # Efektywny próg rośnie o progressive_confidence_step za każdą już trzymaną
+    # pozycję (patrz niżej), więc luzujemy pułap pozycji, ale każde kolejne
+    # wejście musi być coraz mocniejsze. 0.6 -> 0.55 (łatwiejsze pierwsze wejścia).
+    min_buy_confidence: float = 0.55
+    # Progresywny próg wejścia: efektywny próg pewności = min_buy_confidence +
+    # progressive_confidence_step * (liczba już trzymanych pozycji), przycięty do
+    # progressive_confidence_cap. Dzięki temu bot może otworzyć WIĘCEJ pozycji,
+    # ale każda następna wymaga coraz silniejszego sygnału -- pierwsze wejścia
+    # tanie, ostatnie tylko na naprawdę pewny ruch. 0 = próg stały (wyłączone).
+    progressive_confidence_step: float = 0.03
+    progressive_confidence_cap: float = 0.9
     # Cap on NEW automated BUY entries per venue per calendar day -- stops a
     # small account churning on many low-edge entries. 0 disables (bez limitu).
     # 2026-07-29 (właściciel: "zwiększ limit wejść/wyjść"): 2 -> 5. Jeden silnik
     # (POZA SESJĄ wyłączona) obsługuje teraz cały handel, więc luzujemy pułap
     # wejść, żeby Claude mógł realnie rotować portfel w ciągu dnia, a nie siedzieć
     # na 2 wejściach. Ochrona kapitału zostaje w stopach i risk_per_trade_pct.
-    # 2026-08-04 (dane live: cap 5 dobijany co dzień, 85 zablokowanych BUY, gotówka
-    # bezczynna): 5 -> 8. [COFNIĘTE tego samego dnia -- patrz niżej.]
-    # 2026-08-04, PODZIAŁ NA EPOKI: ostatnie 7 dni = trafność 14% (3W/19L),
-    # −$6.58. Więcej wejść przy 14% trafności = szybsze przepalanie, nie zysk.
-    # Cofam podniesienie 8 -> 5. Problemem NIE jest liczba wejść, tylko churn i
-    # brak przewagi -- atakujemy to niżej (min_hold + próg budzenia).
-    max_new_positions_per_day: int = 5
+    # 2026-08-05 (właściciel: "zwiększ limit wejść progresywnie"): 5 -> 8. Sam
+    # pułap luźniejszy, ale realnym ogranicznikiem jest teraz PROGRESYWNY próg
+    # pewności (progressive_confidence_step) -- kolejne wejścia w dniu wymagają
+    # coraz mocniejszego sygnału, więc 8 to sufit dla naprawdę dobrych dni.
+    max_new_positions_per_day: int = 8
     # Minimum holding time (minutes) before a NON-stop mechanical exit (trailing
     # / take-profit / partial) may fire. The hard stop-loss is ALWAYS allowed.
     # Kills in-and-out round trips that only pay the spread. 0 disables (bez limitu wyjść).
@@ -236,6 +250,14 @@ class Settings(BaseSettings):
     # kapitał na spreadzie. 2 dni wymuszają realne trzymanie; twardy stop-loss i
     # tak zawsze chroni, więc złej pozycji nie trzymamy w nieskończoność.
     min_hold_minutes: int = 2880
+    # Furtka na REALIZACJĘ ZYSKU w oknie min-hold: jeśli pozycja jest na plusie o
+    # >= tyle % od wejścia, wyjścia zysk-owe (take-profit / częściowe / trailing)
+    # MOGĄ zadziałać nawet przed upływem min_hold. To odpowiedź na "kupuje, jest
+    # zysk, a zamiast sprzedać czeka dłużej": anty-churn (min_hold) trzyma tylko
+    # pozycje blisko zera/na małym minusie, a realny zysk bierzemy od razu.
+    # Twardy stop-loss i tak zawsze działa. 0 = furtka wyłączona (min_hold trzyma
+    # wszystko poza stopem).
+    min_hold_profit_bypass_pct: float = 4.0
     # --- Filtr konfluencji wejść (Tier 1: przewaga wejścia) -----------------
     # Entry edge (win rate) is the FIRST-ORDER driver of profit -- exit geometry
     # is second-order -- so a BUY must clear a transparent confluence of trend +
@@ -292,10 +314,11 @@ class Settings(BaseSettings):
     # 2026-07-29 (właściciel: "zwiększ limit wejść/wyjść"): 4 -> 8. Jeden silnik
     # obsługuje cały portfel, więc dajemy Claude więcej miejsca na równoległe
     # pozycje/rotację; skupienie w najlepszych setupach zostaje jego decyzją.
-    # 2026-08-04: 8 -> 10 (uwolnić gotówkę), COFNIĘTE tego samego dnia po podziale
-    # na epoki (trafność 14%): przy ujemnej przewadze więcej równoległych pozycji
-    # = więcej strat. Wracamy do 8 i skupiamy się na jakości, nie liczbie.
-    max_concurrent_positions: int = 8
+    # 2026-08-05 (właściciel: "zwiększ limit progresywnie"): 8 -> 12. Wyższy sufit
+    # równoczesnych pozycji, ale progresywny próg pewności sprawia, że ostatnie
+    # sloty wypełnią się TYLKO przy naprawdę mocnych sygnałach -- skupienie na
+    # jakości utrzymane przez próg, nie przez sztywny mały limit.
+    max_concurrent_positions: int = 12
     # Wide-spread / thinner names (inverse ETFs, small caps, sector/bond ETFs):
     # every round trip pays more spread, so their edge must be larger. Haircut
     # their BUY size by high_spread_size_scale (1.0 = no haircut).

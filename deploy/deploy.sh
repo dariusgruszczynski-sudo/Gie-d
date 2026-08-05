@@ -63,15 +63,18 @@ apply_knobs() { # apply_knobs FILE
   # JEDEN SILNIK: noga POZA SESJĄ (extended/after-hours) WYŁĄCZONA -- cały handel
   # prowadzi jeden zdyscyplinowany silnik pozycyjny (sesja regularna).
   setenv EXTENDED_ENABLED false "$f"
-  # Trzymanie pozycyjne + szerokie stopy (koniec whipsawu)
-  setenv MIN_HOLD_MINUTES 2880 "$f"             # min. 2 dni -- koniec churnu (stop-loss i tak działa)
-  setenv HARD_TAKE_PROFIT_PCT 0 "$f"             # brak twardego TP -- zwycięzcy biegną
+  # Trzymanie pozycyjne, ale BEZ trzymania zysków za długo (2026-08-05)
+  setenv MIN_HOLD_MINUTES 2880 "$f"             # min. 2 dni na pozycje ~zero/minus (anty-churn)
+  setenv MIN_HOLD_PROFIT_BYPASS_PCT 4.0 "$f"    # ale realny zysk (>=4%) bierzemy OD RAZU
+  setenv HARD_TAKE_PROFIT_PCT 8.0 "$f"           # mocny ruch (+8%) kasujemy, nie oddajemy
   setenv STOP_LOSS_MIN_PCT 3.0 "$f"
   setenv TRAILING_STOP_FRAC 0.6 "$f"
-  # Selektywność + koncentracja (dane 2026-08-04: 14% trafności -> mniej, lepiej)
-  setenv MIN_BUY_CONFIDENCE 0.6 "$f"
-  setenv MAX_CONCURRENT_POSITIONS 8 "$f"
-  setenv MAX_NEW_POSITIONS_PER_DAY 5 "$f"
+  # Progresywne wejścia: więcej pozycji, ale każda kolejna wymaga mocniejszego sygnału
+  setenv MIN_BUY_CONFIDENCE 0.55 "$f"           # bazowy próg dla 1. wejścia
+  setenv PROGRESSIVE_CONFIDENCE_STEP 0.03 "$f"  # +0.03 pewności za każdą trzymaną pozycję
+  setenv PROGRESSIVE_CONFIDENCE_CAP 0.9 "$f"
+  setenv MAX_CONCURRENT_POSITIONS 12 "$f"
+  setenv MAX_NEW_POSITIONS_PER_DAY 8 "$f"
   setenv MAX_POSITION_PCT 90 "$f"
   setenv ENTRY_FILTER_ENABLED true "$f"
   setenv AUTO_DEMOTE_ENABLED false "$f"

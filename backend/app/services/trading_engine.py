@@ -1060,7 +1060,20 @@ def check_take_profit_stop_loss(
         # trailing / take-profit / partial are suppressed so the bot doesn't
         # round-trip on the spread minutes after entering. (An adopted position
         # has no BUY of ours anyway, so min-hold is meaningless for it.)
-        if kind not in ("stop", "delisted", "adopted_trailing") and _within_min_hold(db, symbol, settings, venue=venue):
+        # FURTKA ZYSKU: gdy pozycja jest realnie na plusie (>= min_hold_profit_
+        # bypass_pct od wejścia), NIE blokujemy realizacji zysku -- "jest zysk,
+        # bierzemy go", zamiast czekać całe min_hold. Anty-churn trzyma tylko
+        # pozycje blisko zera/na małym minusie.
+        gain_pct = ((price - basis) / basis * 100) if basis and basis > 0 else 0.0
+        profit_bypass = (
+            settings.min_hold_profit_bypass_pct > 0
+            and gain_pct >= settings.min_hold_profit_bypass_pct
+        )
+        if (
+            kind not in ("stop", "delisted", "adopted_trailing")
+            and not profit_bypass
+            and _within_min_hold(db, symbol, settings, venue=venue)
+        ):
             new_peaks[symbol] = peak
             if already_partial:
                 new_partials[symbol] = True
@@ -1465,12 +1478,23 @@ def _process_decision(
             db.refresh(decision)
             return decision
 
-        # Conviction floor: a weak-edge BUY is not worth the spread -- reject it
-        # outright rather than churn the account (cash is a valid position).
-        if settings.min_buy_confidence > 0 and decision_data.confidence < settings.min_buy_confidence:
+        # Conviction floor -- PROGRESYWNY: bazowy próg dla pierwszego wejścia, a
+        # za każdą już trzymaną pozycję podnoszony o progressive_confidence_step
+        # (przycięty do progressive_confidence_cap). Dzięki temu bot bierze więcej
+        # pozycji, ale każda kolejna wymaga coraz mocniejszego sygnału -- ostatnie
+        # sloty tylko na naprawdę pewny ruch. Cash to też pozycja.
+        held_now = count_open_positions(portfolio, settings, symbols)
+        effective_conf = settings.min_buy_confidence
+        if settings.min_buy_confidence > 0 and settings.progressive_confidence_step > 0:
+            effective_conf = min(
+                settings.progressive_confidence_cap,
+                settings.min_buy_confidence + settings.progressive_confidence_step * held_now,
+            )
+        if effective_conf > 0 and decision_data.confidence < effective_conf:
             decision.rejection_reason = (
-                f"Zbyt niska pewność: {decision_data.confidence:.2f} < próg {settings.min_buy_confidence:.2f} "
-                "— wejście pominięte (gotówka to też pozycja)"
+                f"Zbyt niska pewność: {decision_data.confidence:.2f} < próg {effective_conf:.2f} "
+                f"(baza {settings.min_buy_confidence:.2f} + {held_now} pozycji × {settings.progressive_confidence_step:.2f}) "
+                "— wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału"
             )
             db.add(decision)
             db.commit()
