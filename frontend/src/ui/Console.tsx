@@ -329,7 +329,8 @@ function StatCard({ label, value, sub, tone }: { label: string; value: string; s
   );
 }
 
-/* Pierścień skuteczności (win-rate) — animowany SVG donut. */
+/* Pierścień skuteczności (win-rate) — animowany SVG donut z czytelną liczbą
+   w środku i podpisaną legendą (udane / nietrafione). */
 function WinRing({ pct: p, wins, losses }: { pct: number | null; wins: number; losses: number }) {
   const v = p ?? 0;
   const r = 34, c = 2 * Math.PI * r;
@@ -337,16 +338,21 @@ function WinRing({ pct: p, wins, losses }: { pct: number | null; wins: number; l
   const col = v >= 50 ? "var(--mint)" : v >= 35 ? "var(--gold)" : "var(--rose)";
   return (
     <div className="gd-winring">
-      <svg viewBox="0 0 84 84">
-        <circle cx="42" cy="42" r={r} fill="none" stroke="var(--line)" strokeWidth="8" />
-        <circle cx="42" cy="42" r={r} fill="none" stroke={col} strokeWidth="8" strokeLinecap="round"
-          strokeDasharray={`${on} ${c}`} transform="rotate(-90 42 42)" className="gd-winring-arc" />
-      </svg>
-      <div className="gd-winring-mid">
-        <b style={{ color: col }}>{p === null ? "—" : `${Math.round(v)}%`}</b>
-        <small>skuteczność</small>
+      <div className="gd-winring-ring">
+        <svg viewBox="0 0 84 84">
+          <circle cx="42" cy="42" r={r} fill="none" stroke="var(--line)" strokeWidth="7" />
+          <circle cx="42" cy="42" r={r} fill="none" stroke={col} strokeWidth="7" strokeLinecap="round"
+            strokeDasharray={`${on} ${c}`} transform="rotate(-90 42 42)" className="gd-winring-arc" />
+        </svg>
+        <div className="gd-winring-mid">
+          <b style={{ color: col }}>{p === null ? "—" : `${Math.round(v)}%`}</b>
+          <small>skuteczność</small>
+        </div>
       </div>
-      <div className="gd-winring-leg"><span className="gd-up">{wins} W</span><span className="gd-down">{losses} L</span></div>
+      <div className="gd-winring-leg">
+        <span className="gd-up">● {wins} udane</span>
+        <span className="gd-down">● {losses} stratne</span>
+      </div>
     </div>
   );
 }

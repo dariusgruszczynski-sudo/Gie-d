@@ -907,3 +907,14 @@
 .gd-hero-eng { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-weight: 700; font-size: 0.72rem; border: 1px solid var(--line); }
 .gd-hero-eng.on { color: var(--mint); border-color: color-mix(in srgb, var(--mint) 34%, transparent); }
 .gd-hero-eng.off { color: var(--rose); border-color: color-mix(in srgb, var(--rose) 34%, transparent); }
+
+/* --- v11: pierścień skuteczności — czytelny (nadpisuje v9/v10) ------------- */
+.gd-winring { overflow: visible; border-radius: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; width: auto; }
+.gd-winring::after { content: none !important; }          /* zdejmij wirujący shimmer, psuł kontrast liczby */
+.gd-winring-ring { position: relative; width: 118px; height: 118px; flex: 0 0 auto; }
+.gd-winring-ring svg { width: 118px; height: 118px; display: block; }
+.gd-winring-mid { position: absolute; inset: 0; top: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.05; }
+.gd-winring-mid b { font-family: var(--font-display); font-size: 1.7rem; font-variant-numeric: tabular-nums; display: block; }
+.gd-winring-mid small { font-size: 0.56rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); margin-top: 2px; }
+.gd-winring-leg { display: flex; gap: 14px; font-size: 0.74rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gd-winring-leg span { display: inline-flex; align-items: center; gap: 3px; }
