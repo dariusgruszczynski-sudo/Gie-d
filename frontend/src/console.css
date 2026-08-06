@@ -872,3 +872,8 @@
 @media (prefers-reduced-motion: reduce) {
   .gd-brand-mark, .gd-sec::after, .gd-view > .gd-topline::after, .gd-engine::before, .gd-winring::after { animation: none; }
 }
+
+/* --- Newsy: auto-odkrywanie źródeł banner --------------------------------- */
+.gd-discovery { display: flex; align-items: center; gap: 8px; margin: 2px 0 14px; padding: 9px 13px; border-radius: 12px; font-size: 0.78rem; color: var(--muted); border: 1px solid color-mix(in srgb, var(--brand) 26%, var(--line)); background: color-mix(in srgb, var(--brand) 7%, transparent); }
+.gd-discovery b { color: var(--brand-soft); font-variant-numeric: tabular-nums; }
+.gd-discovery-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 8px var(--brand); animation: gd-blip 1.8s infinite; flex: 0 0 auto; }

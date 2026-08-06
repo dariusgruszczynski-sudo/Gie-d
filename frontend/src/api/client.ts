@@ -348,6 +348,8 @@ export interface NewsSourcesResponse {
   sources: NewsSource[];
   headlines: NewsSourceHeadline[];
   summary: { ok: number; down: number; headlines: number };
+  // Auto-odkrywanie źródeł: ile trwale odkrytych + ile dołożył ostatni przebieg.
+  discovery?: { total: number; added_last: number; date: string | null };
   generated_at?: string;
   cached?: boolean;
 }

@@ -100,6 +100,101 @@ RSS_FEEDS: list[tuple[str, str]] = [
     ("SEC EDGAR 8-K filings", "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&company=&dateb=&owner=include&count=40&output=atom"),
     ("SEC EDGAR Form 4 (insider trades)", "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&company=&dateb=&owner=include&count=40&output=atom"),
 ]
+
+# Pula KANDYDATÓW do auto-odkrywania: dodatkowe, wolne/keyless feedy, których NIE
+# ma w RSS_FEEDS powyżej. Codzienny job (discover_feeds) próbnie sięga do nich i
+# dopisuje ~10% tych, które REALNIE odpowiadają z serwera -- reszta (zablokowana
+# na datacenter-IP / 404) po prostu odpada. Google News (topic feeds) jest tu
+# celowo, bo jest udowodnienie-osiągalny z serwera, więc lista zawsze urośnie o
+# coś sensownego, a nie utknie na samych blokadach.
+CANDIDATE_FEEDS: list[tuple[str, str]] = [
+    ("Google News — Biznes", "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en"),
+    ("Google News — Technologia", "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=en-US&gl=US&ceid=US:en"),
+    ("Google News — Rynki (PL)", "https://news.google.com/rss/search?q=gie%C5%82da%20akcje%20USA&hl=pl&gl=PL&ceid=PL:pl"),
+    ("CNBC Investing", "https://www.cnbc.com/id/15839069/device/rss/rss.html"),
+    ("CNBC Technology", "https://www.cnbc.com/id/19854910/device/rss/rss.html"),
+    ("CNBC Earnings", "https://www.cnbc.com/id/15839135/device/rss/rss.html"),
+    ("NYT Business", "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml"),
+    ("NYT Economy", "https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml"),
+    ("Guardian Economics", "https://www.theguardian.com/business/economics/rss"),
+    ("MarketWatch Bulletins", "https://feeds.content.dowjones.io/public/rss/mw_bulletins"),
+    ("MarketWatch Personal Finance", "https://feeds.content.dowjones.io/public/rss/mw_personalfinance"),
+    ("Investing.com Economy", "https://www.investing.com/rss/news_14.rss"),
+    ("Investing.com Commodities", "https://www.investing.com/rss/news_11.rss"),
+    ("Investing.com Forex", "https://www.investing.com/rss/news_1.rss"),
+    ("Bloomberg Technology", "https://feeds.bloomberg.com/technology/news.rss"),
+    ("Bloomberg Economics", "https://feeds.bloomberg.com/economics/news.rss"),
+    ("Sky News Business", "https://feeds.skynews.com/feeds/rss/business.xml"),
+    ("The Verge", "https://www.theverge.com/rss/index.xml"),
+    ("Engadget", "https://www.engadget.com/rss.xml"),
+    ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/"),
+    ("SEC EDGAR 10-K", "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=10-K&company=&dateb=&owner=include&count=40&output=atom"),
+    ("SEC EDGAR 13F", "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=13F&company=&dateb=&owner=include&count=40&output=atom"),
+    ("Federal Reserve speeches", "https://www.federalreserve.gov/feeds/speeches.xml"),
+    ("ECB press", "https://www.ecb.europa.eu/rss/press.html"),
+]
+
+# Auto-odkryte feedy dołączane do RSS_FEEDS w RUNTIME (napełniane z DB przy
+# starcie przez load_discovered_feeds i codziennym jobem). [(nazwa, url), ...].
+_DISCOVERED_FEEDS: list[tuple[str, str]] = []
+
+
+def active_rss_feeds() -> list[tuple[str, str]]:
+    """Stałe RSS_FEEDS + auto-odkryte, zdeduplikowane po URL. To JEDNO źródło
+    prawdy o tym, z jakich feedów news_client realnie czyta -- fetchery używają
+    właśnie tej listy, więc odkryte źródła wchodzą do gry bez redeployu."""
+    seen = {url for _, url in RSS_FEEDS}
+    out = list(RSS_FEEDS)
+    for name, url in _DISCOVERED_FEEDS:
+        if url not in seen:
+            seen.add(url)
+            out.append((name, url))
+    return out
+
+
+def set_discovered_feeds(feeds: list[tuple[str, str]]) -> None:
+    """Podmień runtime'ową listę odkrytych feedów (wołane po odczycie z DB i po
+    codziennym odkrywaniu). Odfiltrowuje te, które i tak są już w RSS_FEEDS."""
+    base = {url for _, url in RSS_FEEDS}
+    _DISCOVERED_FEEDS.clear()
+    for name, url in feeds:
+        if url not in base:
+            _DISCOVERED_FEEDS.append((str(name), str(url)))
+
+
+def probe_feed(name: str, url: str) -> bool:
+    """Czy feed JEST OSIĄGALNY z tego serwera i zwraca parsowalne nagłówki?
+    Jedno próbne zapytanie; True tylko gdy wróciła co najmniej jedna pozycja."""
+    try:
+        return len(_get_rss(name, url, 1)) > 0
+    except Exception:
+        return False
+
+
+def discover_feeds(budget: int) -> list[tuple[str, str]]:
+    """Sprawdź pulę CANDIDATE_FEEDS (pomijając te już aktywne) i zwróć do
+    `budget` NOWYCH, osiągalnych feedów. Próbowanie równoległe, żeby nie ciągnąć
+    się w nieskończoność. Nie dotyka DB -- czysta logika, orkiestracja w
+    schedulerze."""
+    if budget <= 0:
+        return []
+    active = {url for _, url in active_rss_feeds()}
+    candidates = [(n, u) for n, u in CANDIDATE_FEEDS if u not in active]
+    if not candidates:
+        return []
+    found: list[tuple[str, str]] = []
+    with ThreadPoolExecutor(max_workers=max(1, min(len(candidates), 12))) as pool:
+        futures = [(n, u, pool.submit(probe_feed, n, u)) for n, u in candidates]
+        for name, url, fut in futures:
+            try:
+                ok = fut.result()
+            except Exception:
+                ok = False
+            if ok:
+                found.append((name, url))
+            if len(found) >= budget:
+                break
+    return found
 # Polish-language news band (display only) — sourced from Google News RSS with
 # hl=pl so headlines come back in Polish. Google News is already the per-ticker
 # source below, so it's proven-reachable from the server (unlike raw PL RSS,
@@ -608,8 +703,10 @@ class NewsClient:
         av = self._alpha_vantage_key
 
         jobs: list[tuple[str, str, object]] = []
-        for name, url in RSS_FEEDS:
-            jobs.append((name, "RSS / feedy", lambda u=url, nm=name: _get_rss(nm, u, PER_SOURCE_LIMIT)))
+        base_urls = {u for _, u in RSS_FEEDS}
+        for name, url in active_rss_feeds():
+            grp = "RSS / feedy" if url in base_urls else "RSS / auto-odkryte"
+            jobs.append((name, grp, lambda u=url, nm=name: _get_rss(nm, u, PER_SOURCE_LIMIT)))
         for sub in REDDIT_SUBREDDITS:
             jobs.append((f"Reddit r/{sub}", "Reddit", lambda s=sub: _get_reddit(s, PER_SUBREDDIT_LIMIT)))
         for t in tickers[:6]:
@@ -681,9 +778,10 @@ class NewsClient:
         key = self._finnhub_key
         creds = self._alpaca_creds
         av_key = self._alpha_vantage_key
-        worker_count = len(RSS_FEEDS) + len(tickers) + len(REDDIT_SUBREDDITS) + 5
+        feeds = active_rss_feeds()
+        worker_count = len(feeds) + len(tickers) + len(REDDIT_SUBREDDITS) + 5
         with ThreadPoolExecutor(max_workers=worker_count) as pool:
-            futures = [pool.submit(_get_rss, name, url, PER_SOURCE_LIMIT) for name, url in RSS_FEEDS]
+            futures = [pool.submit(_get_rss, name, url, PER_SOURCE_LIMIT) for name, url in feeds]
             futures += [pool.submit(_get_ticker_all, ticker, PER_TICKER_LIMIT, key, creds) for ticker in tickers]
             futures += [pool.submit(_get_reddit, sub, PER_SUBREDDIT_LIMIT) for sub in REDDIT_SUBREDDITS]
             # Keyed primary source (only when configured): broad US market news.

@@ -883,10 +883,28 @@ async def get_news_sources(db: Session = Depends(get_db), settings: Settings = D
         return _sources_cache["data"] or {"sources": [], "headlines": [], "summary": {"ok": 0, "down": 0, "headlines": 0}}
 
     ok = sum(1 for s in rep["sources"] if s["status"] == "ok")
+    # Auto-odkrywanie źródeł: ile trwale odkrytych + ile dołożył ostatni przebieg.
+    state = db.get(SystemState, 1)
+    discovered_total = 0
+    discovery_meta: dict = {}
+    if state is not None:
+        try:
+            discovered_total = len(json.loads(state.discovered_feeds_json or "[]"))
+        except (TypeError, ValueError):
+            discovered_total = 0
+        try:
+            discovery_meta = json.loads(state.discovered_feeds_meta_json or "{}") or {}
+        except (TypeError, ValueError):
+            discovery_meta = {}
     data = {
         "sources": rep["sources"],
         "headlines": rep["headlines"],
         "summary": {"ok": ok, "down": len(rep["sources"]) - ok, "headlines": len(rep["headlines"])},
+        "discovery": {
+            "total": discovered_total,
+            "added_last": discovery_meta.get("added", 0),
+            "date": discovery_meta.get("date"),
+        },
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
     _sources_cache.update(ts=now, data=data)

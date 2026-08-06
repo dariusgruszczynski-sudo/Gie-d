@@ -100,6 +100,8 @@ def init_db() -> None:
     _add_column_if_missing("system_state", "pending_peak_value", "FLOAT", "0.0")
     _add_column_if_missing("system_state", "pending_peak_confirmations", "INTEGER", "0")
     _add_column_if_missing("system_state", "claude_spend_usd_lifetime", "FLOAT", "0.0")
+    _add_column_if_missing("system_state", "discovered_feeds_json", "TEXT", "'[]'")
+    _add_column_if_missing("system_state", "discovered_feeds_meta_json", "TEXT", "'{}'")
     # One-time backfill for deployments upgrading from before the lifetime
     # counter existed: seed it from this month's already-tracked spend instead
     # of a misleadingly-clean 0 (still misses months before this one, but

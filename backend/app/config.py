@@ -546,6 +546,14 @@ class Settings(BaseSettings):
     report_minute: int = 0
     report_timezone: str = "Europe/Warsaw"
 
+    # Auto-odkrywanie źródeł newsów: raz dziennie job próbnie sięga do puli
+    # kandydatów (news_client.CANDIDATE_FEEDS) i dopisuje do ~news_discovery_max_ratio
+    # (10%) NOWYCH, OSIĄGALNYCH z serwera feedów. Zablokowane odpadają. Odkryte
+    # źródła są trwałe (DB) i dołączają do RSS_FEEDS bez redeployu.
+    news_discovery_enabled: bool = True
+    news_discovery_max_ratio: float = 0.10
+    news_discovery_hour: int = 11
+
     database_url: str = "sqlite:///./data/trading.db"
 
     # --- Powiadomienia PUSH (telefon / Apple Watch przez PWA) ----------------

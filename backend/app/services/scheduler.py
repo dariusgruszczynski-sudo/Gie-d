@@ -1,13 +1,17 @@
+import json
 import logging
+import math
+from datetime import datetime, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from app.config import get_settings
 from app.db import SessionLocal
+from app.models import SystemState
 from app.services.alpaca_client import AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
-from app.services import market_hours
+from app.services import market_hours, news_client
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.push_notifier import send_daily_summary_push
@@ -151,6 +155,72 @@ def _self_review_job() -> None:
         db.close()
 
 
+def _parse_feed_pairs(raw: str | None) -> list[tuple[str, str]]:
+    """Odczyt trwałej listy [[nazwa, url], ...] z kolumny DB -> lista krotek,
+    odporny na śmieci (pomija wpisy o złym kształcie)."""
+    try:
+        data = json.loads(raw or "[]")
+    except (TypeError, ValueError):
+        return []
+    out: list[tuple[str, str]] = []
+    for x in data:
+        if isinstance(x, (list, tuple)) and len(x) == 2 and x[0] and x[1]:
+            out.append((str(x[0]), str(x[1])))
+    return out
+
+
+def load_discovered_feeds() -> None:
+    """Przy starcie: wczytaj auto-odkryte feedy z DB do runtime'owego cache w
+    news_client, żeby zakładka Newsy i fetchery używały ich OD RAZU (przed
+    pierwszym codziennym odkrywaniem)."""
+    db = SessionLocal()
+    try:
+        state = db.get(SystemState, 1)
+        if state is not None:
+            news_client.set_discovered_feeds(_parse_feed_pairs(state.discovered_feeds_json))
+    except Exception:
+        logger.warning("Nie udało się wczytać odkrytych feedów z DB", exc_info=True)
+    finally:
+        db.close()
+
+
+def _news_discovery_job() -> None:
+    """Raz dziennie: odkryj ~10% NOWYCH, osiągalnych źródeł newsów i dopisz do
+    aktywnej listy (trwałe w DB). Rewaliduje wcześniej odkryte -- te, które
+    przestały odpowiadać, wypadają. Wyłącznie próbne odczyty (read-only)."""
+    settings = get_settings()
+    if not settings.news_discovery_enabled:
+        return
+    db = SessionLocal()
+    try:
+        state = db.get(SystemState, 1)
+        if state is None:
+            return
+        current = _parse_feed_pairs(state.discovered_feeds_json)
+        news_client.set_discovered_feeds(current)
+        # Rewaliduj już-odkryte: zostaw tylko te, które nadal odpowiadają.
+        kept = [(n, u) for (n, u) in current if news_client.probe_feed(n, u)]
+        news_client.set_discovered_feeds(kept)
+        # Budżet: ~10% wbudowanej listy na przebieg (min 1 nowe źródło).
+        budget = max(1, math.ceil(len(news_client.RSS_FEEDS) * settings.news_discovery_max_ratio))
+        found = news_client.discover_feeds(budget)
+        merged = kept + found
+        news_client.set_discovered_feeds(merged)
+        state.discovered_feeds_json = json.dumps([[n, u] for (n, u) in merged], ensure_ascii=False)
+        state.discovered_feeds_meta_json = json.dumps({
+            "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "added": len(found),
+            "dropped": len(current) - len(kept),
+            "total": len(merged),
+        }, ensure_ascii=False)
+        db.commit()
+        logger.info("News discovery: +%s -%s (razem %s odkrytych)", len(found), len(current) - len(kept), len(merged))
+    except Exception:
+        logger.exception("News discovery failed")
+    finally:
+        db.close()
+
+
 def _whitelist_review_job() -> None:
     """Friday-night auto-review of the POZA SESJĄ ETF whitelist. Only updates the
     DB list + pushes a summary -- removed-and-held names are force-closed by the
@@ -211,6 +281,12 @@ def prime_portfolio_snapshots() -> None:
         _regime_job()
     except Exception:
         logger.warning("Startup regime prime failed, will populate on first refresh", exc_info=True)
+    # First-run news-source discovery so a fresh deploy doesn't wait a full day
+    # for its first extra feeds (runs in this background daemon thread already).
+    try:
+        _news_discovery_job()
+    except Exception:
+        logger.warning("Startup news discovery failed, will retry on the daily job", exc_info=True)
 
 
 def start_scheduler() -> BackgroundScheduler:
@@ -219,6 +295,9 @@ def start_scheduler() -> BackgroundScheduler:
         return _scheduler
 
     settings = get_settings()
+    # Warm the auto-discovered news-feed cache from DB up front, so the Newsy tab
+    # already reads yesterday's finds before today's discovery job runs.
+    load_discovered_feeds()
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         _job,
@@ -267,6 +346,13 @@ def start_scheduler() -> BackgroundScheduler:
         CronTrigger(day_of_week="fri", hour=20, minute=15, timezone="America/New_York"),
         id="whitelist_review",
     )
+    # Codzienne auto-odkrywanie źródeł newsów (~10% nowych osiągalnych feedów).
+    if settings.news_discovery_enabled:
+        scheduler.add_job(
+            _news_discovery_job,
+            CronTrigger(hour=settings.news_discovery_hour, minute=20, timezone=settings.report_timezone),
+            id="news_discovery",
+        )
     scheduler.start()
     _scheduler = scheduler
     return scheduler

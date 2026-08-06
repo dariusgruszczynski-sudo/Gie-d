@@ -46,6 +46,13 @@ export function News() {
         </span>
         <button className="gd-btn" disabled={busy} onClick={load}>{busy ? "…" : "Odśwież"}</button>
       </div>
+      {data?.discovery && data.discovery.total > 0 && (
+        <div className="gd-discovery">
+          <span className="gd-discovery-dot" />
+          Automat sam szuka nowych źródeł raz dziennie · <b>{data.discovery.total}</b> auto-odkrytych
+          {data.discovery.added_last > 0 && <> · ostatnio dołożył <b>+{data.discovery.added_last}</b>{data.discovery.date ? ` (${data.discovery.date})` : ""}</>}
+        </div>
+      )}
       {msg && <div className="gd-ribbon">{msg}</div>}
       {!data ? (
         <p className="gd-empty">Sprawdzam źródła…</p>

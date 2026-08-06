@@ -238,3 +238,10 @@ class SystemState(Base):
     # out without blocking a genuine, sustained new high.
     pending_peak_value: Mapped[float] = mapped_column(Float, default=0.0)
     pending_peak_confirmations: Mapped[int] = mapped_column(Integer, default=0)
+    # Auto-odkryte źródła newsów: JSON lista [[nazwa, url], ...] dołączana do
+    # stałych RSS_FEEDS. Codzienny job próbnie sięga do puli kandydatów i dopisuje
+    # ~10% nowych, OSIĄGALNYCH z serwera źródeł (te zablokowane odpadają). Pusta =
+    # tylko wbudowana lista. discovered_feeds_meta_json trzyma {date, added, total}
+    # na potrzeby nagłówka zakładki Newsy ("znaleziono dziś N nowych źródeł").
+    discovered_feeds_json: Mapped[str] = mapped_column(Text, default="[]")
+    discovered_feeds_meta_json: Mapped[str] = mapped_column(Text, default="{}")
