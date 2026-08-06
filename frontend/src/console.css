@@ -782,3 +782,93 @@
 
 .gd-pcard-detail { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
 .gd-pcard-plan { font-size: 0.78rem; line-height: 1.45; color: var(--muted); }
+
+/* =============================================================================
+   v10 — REAL COLOUR SHIFT + LIVE MOTION. Chrome identity moves from green/dark
+   to an electric CYAN↔VIOLET duotone (nav, brand, headers, chips, buttons,
+   backdrop), while GREEN stays strictly "zysk" and ROSE strictly "strata" so
+   meaning is untouched. Adds continuously-moving gadgets: an aurora sweep bar,
+   a spinning brand halo, a live scan-line on the engine card, shimmering rungs.
+   ============================================================================= */
+.gd {
+  --brand: #34dcff;        /* electric cyan — new primary chrome */
+  --brand-2: #9b6bff;      /* violet — co-primary */
+  --brand-soft: #9fefff;
+}
+
+/* backdrop: swap the green orb for cyan, punch up violet — new overall hue */
+.gd-bg span:nth-child(1) { background: radial-gradient(circle, rgba(52, 220, 255, 0.5), transparent 60%); }
+.gd-bg span:nth-child(2) { background: radial-gradient(circle, rgba(155, 107, 255, 0.5), transparent 62%); }
+.gd-bg span:nth-child(3) { background: radial-gradient(circle, rgba(255, 120, 190, 0.28), transparent 64%); }
+
+/* brand mark: cyan→violet with a slowly spinning halo ring */
+.gd-brand-mark { background: conic-gradient(from 210deg, var(--brand), var(--brand-2), var(--brand)); box-shadow: 0 0 22px -3px var(--brand); animation: gd-spin 9s linear infinite; }
+.gd-brand-mark::after { animation: none; }
+.gd-brand-name b { color: var(--brand); }
+
+/* nav active state → cyan/violet gradient + glow */
+.gd-nav.on {
+  background: linear-gradient(120deg, color-mix(in srgb, var(--brand) 24%, transparent), color-mix(in srgb, var(--brand-2) 14%, transparent));
+  border-color: color-mix(in srgb, var(--brand) 34%, transparent);
+  box-shadow: inset 3px 0 0 0 var(--brand), 0 0 22px -10px var(--brand);
+}
+.gd-nav.on svg { color: var(--brand); }
+
+/* eyebrows / kickers / section notes → cyan tint */
+.gd-kicker, .gd-sec-note, .gd-band-h, .gd-newsgrp-h { color: color-mix(in srgb, var(--brand-soft) 70%, var(--dim)); }
+
+/* section header gets a live animated accent rule */
+.gd-sec { position: relative; }
+.gd-sec::after {
+  content: ""; position: absolute; left: 0; bottom: -1px; height: 2px; width: 64px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--brand), var(--brand-2), var(--brand)); background-size: 200% 100%;
+  animation: gd-accent 3s linear infinite;
+}
+@keyframes gd-accent { from { background-position: 0% 0; } to { background-position: 200% 0; } }
+
+/* neutral chips + primary buttons pick up the new chrome */
+.gd-mode { color: color-mix(in srgb, var(--brand-soft) 60%, var(--dim)); border-color: color-mix(in srgb, var(--brand) 22%, var(--line)); }
+.gd-mode .gd-blip { background: var(--brand); }
+.gd-btn { border-color: color-mix(in srgb, var(--brand) 40%, transparent) !important; color: var(--brand-soft) !important; }
+.gd-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--brand) 12%, transparent) !important; }
+
+/* LIVE AURORA BAR — a continuously moving gradient ribbon under the topline */
+.gd-view > .gd-topline { position: relative; }
+.gd-view > .gd-topline::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -10px; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--brand) 20%, var(--brand-2) 50%, var(--brand) 80%, transparent);
+  background-size: 220% 100%; animation: gd-aurora 4.5s linear infinite; opacity: 0.85;
+}
+@keyframes gd-aurora { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+
+/* engine card: a live scan-line that sweeps across, so it visibly "runs" */
+.gd-engine { position: relative; overflow: hidden; }
+.gd-engine::before {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 40%; left: -40%;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--brand) 16%, transparent), transparent);
+  animation: gd-scan 3.6s ease-in-out infinite; pointer-events: none;
+}
+@keyframes gd-scan { 0% { left: -40%; } 60%,100% { left: 120%; } }
+
+/* conviction rungs: filled ones shimmer, and adopt the violet chrome */
+.gd-rung.on { background: linear-gradient(180deg, var(--brand-soft), var(--brand-2)); box-shadow: 0 0 12px color-mix(in srgb, var(--brand) 60%, transparent), inset 0 1px 0 rgba(255,255,255,0.4); }
+.gd-ladder { border-color: color-mix(in srgb, var(--brand-2) 34%, var(--line)); background: radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--brand-2) 16%, transparent) 0%, transparent 55%), var(--panel); }
+.gd-ladder-title, .gd-ladder-pct { color: var(--brand-soft); }
+.gd-ladder-meter span { background: linear-gradient(90deg, var(--brand-2), var(--brand)); box-shadow: 0 0 10px color-mix(in srgb, var(--brand) 55%, transparent); }
+
+/* win-ring: gentle continuous shimmer sweep over the donut */
+.gd-winring { overflow: hidden; border-radius: 50%; }
+.gd-winring::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(from 0deg, transparent 0deg, color-mix(in srgb, var(--brand) 22%, transparent) 30deg, transparent 60deg);
+  animation: gd-spin 6s linear infinite;
+}
+
+/* stat cards + CTAs: cyan accent on the neutral ones */
+.gd-stat.neu::before { background: var(--brand-2); }
+.gd-gopos { border-color: color-mix(in srgb, var(--brand) 34%, var(--line)); background: radial-gradient(140% 160% at 0% 0%, color-mix(in srgb, var(--brand) 14%, transparent) 0%, transparent 55%), var(--panel); }
+.gd-gopos-r { color: var(--brand-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  .gd-brand-mark, .gd-sec::after, .gd-view > .gd-topline::after, .gd-engine::before, .gd-winring::after { animation: none; }
+}

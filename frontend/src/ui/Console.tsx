@@ -413,20 +413,26 @@ export function Console({ status, alpaca, extended, onGoPositions }: {
         </div>
       </div>
 
-      {/* STATYSTYKA — deska rozdzielcza high-level */}
-      <div className="gd-sec"><h3>Statystyka</h3><span className="gd-sec-note">jak automat sobie radzi</span></div>
+      {/* KASA — proste liczby o pieniądzach, bez żargonu */}
+      <div className="gd-sec"><h3>Twoja kasa</h3><span className="gd-sec-note">gdzie są pieniądze</span></div>
+      <div className="gd-statgrid gd-statgrid-3">
+        <StatCard label="Na koncie" value={acc ? money0(acc.total_value) : "…"} sub="wszystkie środki razem" />
+        <StatCard label="W akcjach" value={money0(invested)} sub={`${sesjaCount} ${sesjaCount === 1 ? "pozycja" : "pozycji"} · ${invPct}% konta`} />
+        <StatCard label="Wolna gotówka" value={money0(cash)} sub="czeka na wejścia" />
+      </div>
+
+      {/* ZYSK — rozbity po ludzku: już wzięty vs na otwartych */}
+      <div className="gd-sec"><h3>Zysk bota</h3><span className="gd-sec-note">bez Twoich wpłat — czysty wynik handlu</span></div>
       <div className="gd-statwrap">
         <WinRing pct={sc?.win_rate_pct ?? null} wins={sc?.wins ?? 0} losses={sc?.losses ?? 0} />
         <div className="gd-statgrid">
-          <StatCard label="Zrealizowany zysk" value={`${status.trading_pnl.realized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.realized_usd)}`}
-            tone={status.trading_pnl.realized_usd >= 0 ? "up" : "down"} sub="zamknięte transakcje" />
-          <StatCard label="Otwarte (papierowy)" value={`${status.trading_pnl.unrealized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.unrealized_usd)}`}
-            tone={status.trading_pnl.unrealized_usd >= 0 ? "up" : "down"} sub="niezrealizowane" />
-          <StatCard label="Zamkniętych transakcji" value={`${sc?.closed_trades ?? 0}`} sub={`${sc?.wins ?? 0} zysk · ${sc?.losses ?? 0} strata`} />
-          <StatCard label="Bot vs SPY"
-            value={status.alpha_vs_spy ? `${status.alpha_vs_spy.alpha_usd >= 0 ? "+" : ""}${money(status.alpha_vs_spy.alpha_usd)}` : "—"}
-            tone={status.alpha_vs_spy ? (status.alpha_vs_spy.alpha_usd >= 0 ? "up" : "down") : "neu"}
-            sub={status.alpha_vs_spy?.alpha_pct != null ? `${status.alpha_vs_spy.alpha_pct >= 0 ? "+" : ""}${status.alpha_vs_spy.alpha_pct.toFixed(1)}% vs trzymanie` : "przewaga nad indeksem"} />
+          <StatCard label="Zysk już wzięty" value={`${status.trading_pnl.realized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.realized_usd)}`}
+            tone={status.trading_pnl.realized_usd >= 0 ? "up" : "down"} sub="z zamkniętych — masz to na koncie" />
+          <StatCard label="Zysk na otwartych" value={`${status.trading_pnl.unrealized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.unrealized_usd)}`}
+            tone={status.trading_pnl.unrealized_usd >= 0 ? "up" : "down"} sub="jeszcze trzymane — wskoczy po sprzedaży" />
+          <StatCard label="Razem zarobek" value={`${status.trading_pnl.total_usd >= 0 ? "+" : ""}${money(status.trading_pnl.total_usd)}`}
+            tone={status.trading_pnl.total_usd >= 0 ? "up" : "down"} sub="wzięty + na otwartych" />
+          <StatCard label="Zamkniętych transakcji" value={`${sc?.closed_trades ?? 0}`} sub={`${sc?.wins ?? 0} na plus · ${sc?.losses ?? 0} na minus`} />
         </div>
       </div>
 
