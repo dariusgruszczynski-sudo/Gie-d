@@ -375,10 +375,11 @@ export function Console({ status, alpaca, extended, onGoPositions }: {
     ...JSON.parse(extended?.current?.prices_json || "{}"),
   };
 
+  const pnlUp = status.trading_pnl.total_usd >= 0;
+
   return (
     <div className="gd-view">
       <TickerTape sesja={status.whitelist} poza={status.extended_enabled ? status.extended_whitelist : []} prices={livePrices} />
-      <NewsBar />
       <div className="gd-topline">
         <span className="gd-kicker">Pulpit · {new Date().toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })}</span>
         <span className={`gd-mode ${status.mode === "live" ? "live" : ""}`}>
@@ -388,32 +389,21 @@ export function Console({ status, alpaca, extended, onGoPositions }: {
 
       {status.is_halted && status.halted_reason && <div className="gd-halt">⛔ {status.halted_reason}</div>}
 
+      {/* HERO — jedna, wielka liczba: ile bot dorobił. Reszta niżej, w sekcjach. */}
       <div className="gd-hero">
         <div className="gd-hero-label">💰 Zysk automatu · ile bot dorobił (bez Twoich wpłat)</div>
-        <div className={`gd-hero-val ${status.trading_pnl.total_usd >= 0 ? "gd-up" : "gd-down"}`}>
-          {acc ? `${status.trading_pnl.total_usd >= 0 ? "+" : ""}${money(status.trading_pnl.total_usd)}` : "…"}
+        <div className={`gd-hero-val ${pnlUp ? "gd-up" : "gd-down"}`}>
+          {acc ? `${pnlUp ? "+" : ""}${money(status.trading_pnl.total_usd)}` : "…"}
         </div>
-        <div className="gd-hero-deltas">
-          <span className="gd-delta">{acc ? money(total) : "…"}<small>wartość konta</small></span>
-          <span className="gd-delta" style={{ color: "var(--dim)" }}>{money0(cash)}<small>gotówka</small></span>
-          <span className="gd-delta" style={{ color: "var(--dim)" }}>{invPct}%<small>w grze</small></span>
-        </div>
-      </div>
-
-      <div className="gd-stratrow">
-        <ConvictionLadder held={sesjaCount} profile={status.profiles.alpaca} />
-        <div className="gd-engine" onClick={onGoPositions}>
-          <div className="gd-engine-top">
-            <span className="gd-engine-name">Silnik pozycyjny · Akcje US</span>
-            <span className={`gd-chip ${usLive ? "gd-chip-on" : "gd-chip-off"}`}><span className="gd-dot pulse" />{status.is_halted ? "HALT" : status.is_paused ? "STOP" : "gra"}</span>
-          </div>
-          <div className="gd-engine-val">{money0(sesjaVal)}<small>{sesjaCount} {sesjaCount === 1 ? "pozycja" : "pozycji"} · {invPct}% w grze</small></div>
-          <MarketWeather r={status.market_regime} />
-          <span className="gd-engine-cta">Zobacz pozycje i plany wyjścia →</span>
+        <div className="gd-hero-sub">
+          Konto <b>{acc ? money(total) : "…"}</b> · {invPct}% w grze ·
+          <span className={`gd-hero-eng ${usLive ? "on" : "off"}`}>
+            <span className="gd-dot pulse" />silnik {status.is_halted ? "HALT" : status.is_paused ? "STOP" : "gra"}
+          </span>
         </div>
       </div>
 
-      {/* KASA — proste liczby o pieniądzach, bez żargonu */}
+      {/* KASA — trzy proste liczby: gdzie są pieniądze */}
       <div className="gd-sec"><h3>Twoja kasa</h3><span className="gd-sec-note">gdzie są pieniądze</span></div>
       <div className="gd-statgrid gd-statgrid-3">
         <StatCard label="Na koncie" value={acc ? money0(acc.total_value) : "…"} sub="wszystkie środki razem" />
@@ -421,28 +411,22 @@ export function Console({ status, alpaca, extended, onGoPositions }: {
         <StatCard label="Wolna gotówka" value={money0(cash)} sub="czeka na wejścia" />
       </div>
 
-      {/* ZYSK — rozbity po ludzku: już wzięty vs na otwartych */}
-      <div className="gd-sec"><h3>Zysk bota</h3><span className="gd-sec-note">bez Twoich wpłat — czysty wynik handlu</span></div>
+      {/* ZYSK — po ludzku: skuteczność + wzięty vs na otwartych */}
+      <div className="gd-sec"><h3>Zysk bota</h3><span className="gd-sec-note">czysty wynik handlu</span></div>
       <div className="gd-statwrap">
         <WinRing pct={sc?.win_rate_pct ?? null} wins={sc?.wins ?? 0} losses={sc?.losses ?? 0} />
         <div className="gd-statgrid">
-          <StatCard label="Zysk już wzięty" value={`${status.trading_pnl.realized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.realized_usd)}`}
-            tone={status.trading_pnl.realized_usd >= 0 ? "up" : "down"} sub="z zamkniętych — masz to na koncie" />
-          <StatCard label="Zysk na otwartych" value={`${status.trading_pnl.unrealized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.unrealized_usd)}`}
-            tone={status.trading_pnl.unrealized_usd >= 0 ? "up" : "down"} sub="jeszcze trzymane — wskoczy po sprzedaży" />
-          <StatCard label="Razem zarobek" value={`${status.trading_pnl.total_usd >= 0 ? "+" : ""}${money(status.trading_pnl.total_usd)}`}
-            tone={status.trading_pnl.total_usd >= 0 ? "up" : "down"} sub="wzięty + na otwartych" />
-          <StatCard label="Zamkniętych transakcji" value={`${sc?.closed_trades ?? 0}`} sub={`${sc?.wins ?? 0} na plus · ${sc?.losses ?? 0} na minus`} />
+          <StatCard label="Już wzięty" value={`${status.trading_pnl.realized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.realized_usd)}`}
+            tone={status.trading_pnl.realized_usd >= 0 ? "up" : "down"} sub="ze sprzedanych — masz na koncie" />
+          <StatCard label="Na otwartych" value={`${status.trading_pnl.unrealized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.unrealized_usd)}`}
+            tone={status.trading_pnl.unrealized_usd >= 0 ? "up" : "down"} sub="jeszcze trzymane" />
         </div>
       </div>
 
+      {/* WYKRES — jeden, najważniejszy: zysk w czasie (odporny na wpłaty) */}
       <div className="gd-bandgrp">
         <div className="gd-band-h">Zysk automatu w czasie <small>bez Twoich wpłat — czysty wynik handlu</small></div>
         <div className="gd-band"><PnlBand series={alpaca?.pnl_history ?? []} /></div>
-      </div>
-      <div className="gd-bandgrp">
-        <div className="gd-band-h">Wartość konta w czasie <small>razem z wpłatami</small></div>
-        <div className="gd-band"><EquityBand history={alpaca?.history ?? []} /></div>
       </div>
 
       <NowStrip status={status} />

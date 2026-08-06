@@ -877,3 +877,33 @@
 .gd-discovery { display: flex; align-items: center; gap: 8px; margin: 2px 0 14px; padding: 9px 13px; border-radius: 12px; font-size: 0.78rem; color: var(--muted); border: 1px solid color-mix(in srgb, var(--brand) 26%, var(--line)); background: color-mix(in srgb, var(--brand) 7%, transparent); }
 .gd-discovery b { color: var(--brand-soft); font-variant-numeric: tabular-nums; }
 .gd-discovery-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 8px var(--brand); animation: gd-blip 1.8s infinite; flex: 0 0 auto; }
+
+/* --- Historia: lista zamkniętych transakcji -------------------------------- */
+.gd-histlist { display: flex; flex-direction: column; gap: 8px; }
+.gd-hist {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 14px; border-radius: 13px; border: 1px solid var(--line); background: var(--panel);
+  position: relative; overflow: hidden; animation: gd-in 0.4s cubic-bezier(0.22,1,0.36,1) both;
+}
+.gd-hist::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+.gd-hist.up::before { background: var(--mint); box-shadow: 0 0 12px var(--mint); }
+.gd-hist.down::before { background: var(--rose); box-shadow: 0 0 12px var(--rose); }
+.gd-hist-l { min-width: 0; }
+.gd-hist-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.gd-hist-sym { font-family: var(--font-display); font-size: 1.05rem; font-weight: 700; }
+.gd-hist-qty { font-size: 0.72rem; color: var(--dim); font-variant-numeric: tabular-nums; }
+.gd-hist-days { font-size: 0.68rem; color: var(--muted); }
+.gd-hist-flow { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 0.78rem; color: var(--dim); flex-wrap: wrap; }
+.gd-hist-flow b { color: var(--txt); font-variant-numeric: tabular-nums; }
+.gd-hist-arrow { color: var(--brand); font-weight: 700; }
+.gd-hist-when { font-size: 0.68rem; color: var(--dim-2); }
+.gd-hist-r { text-align: right; display: flex; flex-direction: column; gap: 1px; flex: 0 0 auto; }
+.gd-hist-pnl { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.gd-hist-pct { font-size: 0.74rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* --- Pulpit: hero jednolinijkowy podpis (zamiast trzech delt) -------------- */
+.gd-hero-sub { margin-top: 8px; font-size: 0.82rem; color: var(--dim); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.gd-hero-sub b { color: var(--txt); font-variant-numeric: tabular-nums; }
+.gd-hero-eng { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-weight: 700; font-size: 0.72rem; border: 1px solid var(--line); }
+.gd-hero-eng.on { color: var(--mint); border-color: color-mix(in srgb, var(--mint) 34%, transparent); }
+.gd-hero-eng.off { color: var(--rose); border-color: color-mix(in srgb, var(--rose) 34%, transparent); }

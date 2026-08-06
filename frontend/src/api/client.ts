@@ -313,6 +313,7 @@ export const api = {
   pushTest: () => apiFetch<{ message: string }>("/api/push/test", { method: "POST" }),
   positionPlans: (venue: string = "alpaca") =>
     apiFetch<PositionPlansResponse>(withShare(`/api/position-plans?venue=${venue}`)),
+  history: () => apiFetch<HistoryResponse>(withShare("/api/history")),
   health: () => apiFetch<HealthReport>("/api/health"),
   newsSources: () => apiFetch<NewsSourcesResponse>("/api/news/sources"),
   healthReset: (action: string) =>
@@ -321,6 +322,32 @@ export const api = {
       body: JSON.stringify({ action }),
     }),
 };
+
+export interface HistoryTrade {
+  symbol: string;
+  venue: string;
+  qty: number;
+  avg_buy_price: number;
+  sell_price: number;
+  cost_usd: number;
+  proceeds_usd: number;
+  pnl_usd: number;
+  pnl_pct: number | null;
+  opened_at: string | null;
+  sold_at: string | null;
+  days_held: number | null;
+}
+export interface HistoryResponse {
+  trades: HistoryTrade[];
+  summary: {
+    count: number;
+    wins: number;
+    losses: number;
+    total_pnl_usd: number;
+    best: HistoryTrade | null;
+    worst: HistoryTrade | null;
+  };
+}
 
 export interface NewsItem {
   title: string;

@@ -49,6 +49,70 @@ def _walk_realized(db: Session) -> tuple[float, int, int]:
     return realized, wins, losses
 
 
+def realized_history(db: Session, *, venue: str | None = None, limit: int = 300) -> list[dict]:
+    """Zakładka HISTORIA: dla KAŻDEJ sprzedaży (zamknięcia) zwraca jedną pozycję
+    'kupiłem X — sprzedałem Y — zarobiłem Z', licząc zysk tą samą metodą średniego
+    kosztu co reszta appki (_walk_realized). Zwraca najnowsze pierwsze.
+
+    Każdy wpis: symbol, ilość, średnia cena kupna (koszt w chwili sprzedaży),
+    cena sprzedaży, wartość kupna/sprzedaży, zysk USD + %, kiedy pozycja się
+    zaczęła (opened_at) i kiedy ją sprzedano (sold_at), ile dni trzymana."""
+    q = select(Trade).order_by(Trade.timestamp.asc())
+    if venue is not None:
+        q = q.where(Trade.venue == venue)
+    trades = db.execute(q).scalars().all()
+
+    qty_by: dict[str, float] = defaultdict(float)
+    cost_by: dict[str, float] = defaultdict(float)      # łączny koszt trzymanej ilości
+    opened_by: dict[str, object] = {}                   # kiedy zaczęła się bieżąca partia
+    out: list[dict] = []
+    for t in trades:
+        sym = t.symbol
+        if t.side.upper() == "BUY":
+            if qty_by[sym] <= 1e-12:
+                opened_by[sym] = t.timestamp            # partia rusza od zera
+            qty_by[sym] += t.quantity
+            cost_by[sym] += t.usdt_value
+        else:  # SELL
+            held = qty_by[sym]
+            if held <= 1e-12:
+                continue
+            avg_cost = cost_by[sym] / held
+            sell_qty = min(t.quantity, held)
+            cost_usd = avg_cost * sell_qty
+            proceeds = t.price * sell_qty
+            pnl = proceeds - cost_usd
+            opened = opened_by.get(sym)
+            days = None
+            if opened is not None and t.timestamp is not None:
+                try:
+                    days = max(0, (t.timestamp - opened).days)
+                except Exception:
+                    days = None
+            out.append({
+                "symbol": sym,
+                "venue": getattr(t, "venue", "alpaca"),
+                "qty": round(sell_qty, 6),
+                "avg_buy_price": round(avg_cost, 4),
+                "sell_price": round(t.price, 4),
+                "cost_usd": round(cost_usd, 2),
+                "proceeds_usd": round(proceeds, 2),
+                "pnl_usd": round(pnl, 2),
+                "pnl_pct": round((pnl / cost_usd * 100), 2) if cost_usd > 0 else None,
+                "opened_at": opened.isoformat() if opened is not None else None,
+                "sold_at": t.timestamp.isoformat() if t.timestamp is not None else None,
+                "days_held": days,
+            })
+            cost_by[sym] -= cost_usd
+            qty_by[sym] -= sell_qty
+            if qty_by[sym] <= 1e-12:
+                qty_by[sym] = 0.0
+                cost_by[sym] = 0.0
+                opened_by.pop(sym, None)
+    out.reverse()  # najnowsze pierwsze
+    return out[:limit]
+
+
 def update_benchmark_baseline(db: Session, settings: Settings, portfolio: dict) -> SystemState:
     """Sets the buy-and-hold baseline once, on the first cycle that can price
     the benchmark ticker. Left untouched afterwards so the comparison stays

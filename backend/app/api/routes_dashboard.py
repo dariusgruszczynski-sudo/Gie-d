@@ -797,6 +797,29 @@ def get_trades(limit: int = Query(100, le=1000), venue: str | None = None, db: S
     return [serialize(r) for r in rows]
 
 
+@router.get("/history")
+def get_history(limit: int = Query(300, le=1000), venue: str | None = None, db: Session = Depends(get_db)):
+    """Zakładka HISTORIA: lista zamkniętych sprzedaży (kupiłem X → sprzedałem Y →
+    zarobiłem Z) + podsumowanie (ile zamknięć, ile na plus/minus, łączny zysk)."""
+    items = scorecard.realized_history(db, venue=venue, limit=limit)
+    wins = sum(1 for i in items if (i["pnl_usd"] or 0) >= 0)
+    losses = len(items) - wins
+    total = round(sum((i["pnl_usd"] or 0) for i in items), 2)
+    best = max(items, key=lambda i: i["pnl_usd"], default=None)
+    worst = min(items, key=lambda i: i["pnl_usd"], default=None)
+    return {
+        "trades": items,
+        "summary": {
+            "count": len(items),
+            "wins": wins,
+            "losses": losses,
+            "total_pnl_usd": total,
+            "best": best,
+            "worst": worst,
+        },
+    }
+
+
 @router.get("/decisions")
 def get_decisions(limit: int = Query(100, le=1000), venue: str | None = None, db: Session = Depends(get_db)):
     stmt = select(Decision).order_by(Decision.timestamp.desc()).limit(limit)
