@@ -181,7 +181,7 @@ class Settings(BaseSettings):
     # 0 -> 8.0. Mocny ruch (+8% od wejścia) jest KASOWANY od razu, zamiast czekać
     # na uzbrojenie trailingu i ryzykować oddanie zysku. Częściowa realizacja i
     # trailing biorą mniejsze ruchy; ten sufit łapie duże.
-    hard_take_profit_pct: float = 8.0
+    hard_take_profit_pct: float = 6.0
     # Pozycje, których automat NIE otworzył sam (były na koncie wcześniej albo
     # kupione ręcznie) nie mają zapisanej ceny wejścia -> dotąd mechaniczny stop
     # je pomijał (żadnej ochrony). Gdy włączone, taka "adoptowana" pozycja i tak
@@ -257,7 +257,7 @@ class Settings(BaseSettings):
     # pozycje blisko zera/na małym minusie, a realny zysk bierzemy od razu.
     # Twardy stop-loss i tak zawsze działa. 0 = furtka wyłączona (min_hold trzyma
     # wszystko poza stopem).
-    min_hold_profit_bypass_pct: float = 4.0
+    min_hold_profit_bypass_pct: float = 3.0
     # --- Filtr konfluencji wejść (Tier 1: przewaga wejścia) -----------------
     # Entry edge (win rate) is the FIRST-ORDER driver of profit -- exit geometry
     # is second-order -- so a BUY must clear a transparent confluence of trend +
@@ -404,7 +404,10 @@ class Settings(BaseSettings):
         "LABU,LABD,YINN,YANG,NUGT,DUST,JNUG,JDST,BOIL,KOLD,UVXY,SVXY,VIXY,UVIX,SVIX,"
         # 2026-07-28: strukturalni przegrani z live (churn, ujemna trafność):
         # SH (short S&P), sektorowe ETF-y mielone w kółko.
-        "SH,XLE,XLU,XLF,XLP,XLI"
+        "SH,XLE,XLU,XLF,XLP,XLI,"
+        # 2026-08-10: SLV (srebro) — poza tezą tech-owego bota, największy
+        # przeciek w audycie; wyrzucone, żeby nie wracało z dynamicznego universe.
+        "SLV"
     )
     # Benchmark the whole strategy against simply buying and holding this
     # ticker -- if the bot can't beat holding SPY, it isn't earning its

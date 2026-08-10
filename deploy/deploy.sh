@@ -65,8 +65,8 @@ apply_knobs() { # apply_knobs FILE
   setenv EXTENDED_ENABLED false "$f"
   # Trzymanie pozycyjne, ale BEZ trzymania zysków za długo (2026-08-05)
   setenv MIN_HOLD_MINUTES 2880 "$f"             # min. 2 dni na pozycje ~zero/minus (anty-churn)
-  setenv MIN_HOLD_PROFIT_BYPASS_PCT 4.0 "$f"    # ale realny zysk (>=4%) bierzemy OD RAZU
-  setenv HARD_TAKE_PROFIT_PCT 8.0 "$f"           # mocny ruch (+8%) kasujemy, nie oddajemy
+  setenv MIN_HOLD_PROFIT_BYPASS_PCT 3.0 "$f"    # realny zysk (>=3%) bierzemy OD RAZU (było 4% — audyt: zyski wisiały ~2 dni)
+  setenv HARD_TAKE_PROFIT_PCT 6.0 "$f"           # mocny ruch (+6%) kasujemy, nie oddajemy (było 8% — bierzemy zysk szybciej)
   setenv STOP_LOSS_MIN_PCT 3.0 "$f"
   setenv TRAILING_STOP_FRAC 0.6 "$f"
   # Progresywne wejścia: więcej pozycji, ale każda kolejna wymaga mocniejszego sygnału
@@ -84,7 +84,7 @@ apply_knobs() { # apply_knobs FILE
   setenv DEFENSIVE_SYMBOLS GLD,TLT "$f"
   # Uniwersum jakości; strukturalni przegrani na czarnej liście
   setenv TRADING_WHITELIST SPY,QQQ,AAPL,MSFT,NVDA,AMZN,GOOGL,META,SMH,GLD,TLT "$f"
-  setenv SYMBOL_BLACKLIST TQQQ,SQQQ,SOXL,SOXS,TNA,TZA,SPXL,SPXS,UPRO,SPXU,UDOW,SDOW,TMF,TMV,LABU,LABD,YINN,YANG,NUGT,DUST,JNUG,JDST,BOIL,KOLD,UVXY,SVXY,VIXY,UVIX,SVIX,SH,XLE,XLU,XLF,XLP,XLI "$f"
+  setenv SYMBOL_BLACKLIST TQQQ,SQQQ,SOXL,SOXS,TNA,TZA,SPXL,SPXS,UPRO,SPXU,UDOW,SDOW,TMF,TMV,LABU,LABD,YINN,YANG,NUGT,DUST,JNUG,JDST,BOIL,KOLD,UVXY,SVXY,VIXY,UVIX,SVIX,SH,XLE,XLU,XLF,XLP,XLI,SLV "$f"
   setenv DYNAMIC_UNIVERSE_ENABLED true "$f"
   setenv UNIVERSE_MAX_SYMBOLS 24 "$f"
   # Tokeny: NIE haltujemy na brak (właściciel auto-doładowuje). Budżet to tylko
