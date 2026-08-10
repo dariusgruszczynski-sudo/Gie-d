@@ -329,29 +329,36 @@ function StatCard({ label, value, sub, tone }: { label: string; value: string; s
   );
 }
 
-/* Pierścień skuteczności (win-rate) — animowany SVG donut z czytelną liczbą
-   w środku i podpisaną legendą (udane / nietrafione). */
-function WinRing({ pct: p, wins, losses }: { pct: number | null; wins: number; losses: number }) {
-  const v = p ?? 0;
-  const r = 34, c = 2 * Math.PI * r;
-  const on = c * (v / 100);
-  const col = v >= 50 ? "var(--mint)" : v >= 35 ? "var(--gold)" : "var(--rose)";
-  return (
-    <div className="gd-winring">
-      <div className="gd-winring-ring">
-        <svg viewBox="0 0 84 84">
-          <circle cx="42" cy="42" r={r} fill="none" stroke="var(--line)" strokeWidth="7" />
-          <circle cx="42" cy="42" r={r} fill="none" stroke={col} strokeWidth="7" strokeLinecap="round"
-            strokeDasharray={`${on} ${c}`} transform="rotate(-90 42 42)" className="gd-winring-arc" />
-        </svg>
-        <div className="gd-winring-mid">
-          <b style={{ color: col }}>{p === null ? "—" : `${Math.round(v)}%`}</b>
-          <small>skuteczność</small>
-        </div>
+/* Skuteczność po ludzku — pasek „ile transakcji na plus vs na minus" z konkretnymi
+   liczbami i zdaniem wyjaśniającym, zamiast abstrakcyjnego pierścienia %. */
+function WinBar({ pct: p, wins, losses }: { pct: number | null; wins: number; losses: number }) {
+  const closed = wins + losses;
+  if (closed === 0) {
+    return (
+      <div className="gd-skill">
+        <div className="gd-skill-head"><span className="gd-skill-label">Skuteczność</span><b className="gd-skill-pct" style={{ color: "var(--dim)" }}>—</b></div>
+        <div className="gd-skill-empty">Za mało zamkniętych transakcji, żeby liczyć — bot dopiero zbiera wynik.</div>
       </div>
-      <div className="gd-winring-leg">
-        <span className="gd-up">● {wins} udane</span>
-        <span className="gd-down">● {losses} stratne</span>
+    );
+  }
+  const v = p ?? (wins / closed) * 100;
+  const col = v >= 50 ? "var(--mint)" : v >= 35 ? "var(--gold)" : "var(--rose)";
+  const per10 = Math.round(v / 10);
+  return (
+    <div className="gd-skill">
+      <div className="gd-skill-head">
+        <span className="gd-skill-label">Skuteczność</span>
+        <b className="gd-skill-pct" style={{ color: col }}>{Math.round(v)}%</b>
+      </div>
+      <div className="gd-skill-gloss">tyle transakcji kończy się na plus</div>
+      <div className="gd-skill-bar">
+        {wins > 0 && <span className="win" style={{ flexGrow: wins }}>{wins}</span>}
+        {losses > 0 && <span className="loss" style={{ flexGrow: losses }}>{losses}</span>}
+      </div>
+      <div className="gd-skill-legend">
+        <span className="gd-up">● {wins} na plus</span>
+        <span className="gd-down">● {losses} na minus</span>
+        <span className="gd-skill-per10">≈ {per10} na 10 udanych</span>
       </div>
     </div>
   );
@@ -417,16 +424,14 @@ export function Console({ status, alpaca, extended, onGoPositions }: {
         <StatCard label="Wolna gotówka" value={money0(cash)} sub="czeka na wejścia" />
       </div>
 
-      {/* ZYSK — po ludzku: skuteczność + wzięty vs na otwartych */}
+      {/* ZYSK — po ludzku: skuteczność (pasek) + wzięty vs na otwartych */}
       <div className="gd-sec"><h3>Zysk bota</h3><span className="gd-sec-note">czysty wynik handlu</span></div>
-      <div className="gd-statwrap">
-        <WinRing pct={sc?.win_rate_pct ?? null} wins={sc?.wins ?? 0} losses={sc?.losses ?? 0} />
-        <div className="gd-statgrid">
-          <StatCard label="Już wzięty" value={`${status.trading_pnl.realized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.realized_usd)}`}
-            tone={status.trading_pnl.realized_usd >= 0 ? "up" : "down"} sub="ze sprzedanych — masz na koncie" />
-          <StatCard label="Na otwartych" value={`${status.trading_pnl.unrealized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.unrealized_usd)}`}
-            tone={status.trading_pnl.unrealized_usd >= 0 ? "up" : "down"} sub="jeszcze trzymane" />
-        </div>
+      <WinBar pct={sc?.win_rate_pct ?? null} wins={sc?.wins ?? 0} losses={sc?.losses ?? 0} />
+      <div className="gd-statgrid" style={{ marginTop: 10 }}>
+        <StatCard label="Już wzięty" value={`${status.trading_pnl.realized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.realized_usd)}`}
+          tone={status.trading_pnl.realized_usd >= 0 ? "up" : "down"} sub="ze sprzedanych — masz na koncie" />
+        <StatCard label="Na otwartych" value={`${status.trading_pnl.unrealized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.unrealized_usd)}`}
+          tone={status.trading_pnl.unrealized_usd >= 0 ? "up" : "down"} sub="jeszcze trzymane" />
       </div>
 
       {/* WYKRES — jeden, najważniejszy: zysk w czasie (odporny na wpłaty) */}
