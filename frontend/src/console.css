@@ -953,3 +953,23 @@
 .gd-risk-chip.hi { color: var(--rose); background: color-mix(in srgb, var(--rose) 12%, transparent); border-color: color-mix(in srgb, var(--rose) 28%, transparent); }
 .gd-risk-chip.mid { color: var(--gold); background: color-mix(in srgb, var(--gold) 12%, transparent); border-color: color-mix(in srgb, var(--gold) 26%, transparent); }
 .gd-risk-chip.lo { color: var(--mint); background: color-mix(in srgb, var(--mint) 12%, transparent); border-color: color-mix(in srgb, var(--mint) 26%, transparent); }
+
+/* --- Audyt strategii (górka zakładki Historia) ---------------------------- */
+.gd-audit { border: 1px solid color-mix(in srgb, var(--brand-2) 30%, var(--line)); border-radius: 16px; padding: 15px 16px; margin: 4px 0 14px;
+  background: radial-gradient(130% 130% at 100% 0%, color-mix(in srgb, var(--brand-2) 12%, transparent) 0%, transparent 55%), var(--panel); }
+.gd-audit-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.gd-audit-title { font-family: var(--font-display); font-weight: 700; font-size: 1rem; color: var(--brand-soft); }
+.gd-audit-note { font-size: 0.68rem; color: var(--dim); }
+.gd-audit-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.gd-audit-col { border: 1px solid var(--line); border-radius: 12px; padding: 10px 11px; background: rgba(255,255,255,0.02); }
+.gd-audit-col-h { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); font-weight: 800; margin-bottom: 7px; }
+.gd-audit-metric { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin-top: 3px; }
+.gd-audit-metric i { font-style: normal; font-size: 0.66rem; color: var(--dim); }
+.gd-audit-metric b { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; font-size: 0.92rem; }
+.gd-audit-notes { list-style: none; margin: 13px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.gd-audit-notes li { position: relative; padding-left: 16px; font-size: 0.8rem; line-height: 1.4; color: var(--muted); }
+.gd-audit-notes li::before { content: "•"; position: absolute; left: 3px; top: -1px; font-weight: 800; }
+.gd-audit-notes li.t-good { color: var(--txt); } .gd-audit-notes li.t-good::before { color: var(--mint); }
+.gd-audit-notes li.t-bad { color: var(--txt); } .gd-audit-notes li.t-bad::before { color: var(--rose); }
+.gd-audit-notes li.t-neu::before { color: var(--gold); }
+@media (max-width: 560px) { .gd-audit-cols { grid-template-columns: 1fr; } }

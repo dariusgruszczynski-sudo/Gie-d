@@ -2,6 +2,102 @@ import { useEffect, useState } from "react";
 import { api, HistoryResponse, HistoryTrade } from "../api/client";
 import { ago, money, pct } from "./kit";
 
+/* ===== AUDYT STRATEGII =====================================================
+   Liczy wynik zamkniętych transakcji w oknach 7 dni / 30 dni / całość i sam
+   wypisuje wnioski po ludzku — w tym KLUCZOWE „czy zyski są trzymane dłużej niż
+   straty" (obawa właściciela). Wszystko z danych, które apka już ma. */
+interface Stat {
+  n: number; wins: number; winRate: number | null; pnl: number;
+  holdWin: number | null; holdLoss: number | null; worst: HistoryTrade | null;
+}
+function statsOf(ts: HistoryTrade[]): Stat {
+  const wins = ts.filter((t) => t.pnl_usd >= 0);
+  const losses = ts.filter((t) => t.pnl_usd < 0);
+  const avg = (a: number[]) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : null);
+  const holdOf = (set: HistoryTrade[]) => avg(set.map((t) => t.days_held).filter((d): d is number => d !== null));
+  return {
+    n: ts.length,
+    wins: wins.length,
+    winRate: ts.length ? (wins.length / ts.length) * 100 : null,
+    pnl: ts.reduce((s, t) => s + t.pnl_usd, 0),
+    holdWin: holdOf(wins),
+    holdLoss: holdOf(losses),
+    worst: ts.reduce<HistoryTrade | null>((w, t) => (w === null || t.pnl_usd < w.pnl_usd ? t : w), null),
+  };
+}
+function fmtDays(d: number | null): string {
+  if (d === null) return "—";
+  return d < 1 ? "<1 dnia" : d < 1.5 ? "~1 dzień" : `~${Math.round(d)} dni`;
+}
+
+function AuditCard({ trades }: { trades: HistoryTrade[] }) {
+  const now = Date.now();
+  const daysAgo = (t: HistoryTrade) => (t.sold_at ? (now - Date.parse(t.sold_at)) / 86400000 : Infinity);
+  const recent = trades.filter((t) => daysAgo(t) <= 7);          // ostatni tydzień
+  const midPrior = trades.filter((t) => daysAgo(t) > 7 && daysAgo(t) <= 30); // 8–30 dni (do trendu)
+  const last30 = trades.filter((t) => daysAgo(t) <= 30);
+  const r = statsOf(recent), p = statsOf(midPrior), m = statsOf(last30), a = statsOf(trades);
+
+  // ---- WNIOSKI (po ludzku) ----
+  const notes: Array<{ t: string; tone: "good" | "bad" | "neu" }> = [];
+  if (a.n < 3) {
+    notes.push({ t: `Za mało zamkniętych transakcji (${a.n}), żeby wyciągać mocne wnioski — bot dopiero zbiera próbkę.`, tone: "neu" });
+  } else {
+    // 1) Trend skuteczności: ostatni tydzień vs wcześniej
+    if (r.n >= 2 && p.winRate !== null && r.winRate !== null) {
+      const diff = r.winRate - p.winRate;
+      notes.push({
+        t: `Skuteczność 7 dni: ${Math.round(r.winRate)}% vs ${Math.round(p.winRate)}% wcześniej — ${diff >= 5 ? "rośnie" : diff <= -5 ? "spada" : "bez zmian"}.`,
+        tone: diff >= 5 ? "good" : diff <= -5 ? "bad" : "neu",
+      });
+    }
+    // 2) KLUCZOWE: czy zyski trzymane dłużej niż straty
+    if (a.holdWin !== null && a.holdLoss !== null) {
+      if (a.holdWin > a.holdLoss + 0.5) {
+        notes.push({ t: `⚠ Zyskowne trzymane dłużej (${fmtDays(a.holdWin)}) niż stratne (${fmtDays(a.holdLoss)}) — automat wciąż zwleka z realizacją zysków.`, tone: "bad" });
+      } else if (a.holdLoss > a.holdWin + 0.5) {
+        notes.push({ t: `Straty trzymane dłużej (${fmtDays(a.holdLoss)}) niż zyski (${fmtDays(a.holdWin)}) — warto szybciej ciąć przegrane.`, tone: "bad" });
+      } else {
+        notes.push({ t: `Czas trzymania zysków (${fmtDays(a.holdWin)}) i strat (${fmtDays(a.holdLoss)}) podobny — bez patologii „siedzenia na zysku".`, tone: "good" });
+      }
+    }
+    // 3) Wynik ostatniego tygodnia
+    if (r.n >= 1) {
+      notes.push({ t: `Ostatnie 7 dni: ${r.pnl >= 0 ? "+" : ""}${money(r.pnl)} z ${r.n} ${r.n === 1 ? "zamknięcia" : "zamknięć"}.`, tone: r.pnl >= 0 ? "good" : "bad" });
+    }
+    // 4) Największy przeciek
+    if (a.worst && a.worst.pnl_usd < 0) {
+      notes.push({ t: `Największa strata: ${a.worst.symbol} (${money(a.worst.pnl_usd)}) — sprawdź, czy to nie powtarzalny przeciek.`, tone: "neu" });
+    }
+  }
+
+  const Col = ({ label, s }: { label: string; s: Stat }) => (
+    <div className="gd-audit-col">
+      <div className="gd-audit-col-h">{label}</div>
+      <div className="gd-audit-metric"><i>skuteczność</i><b>{s.winRate === null ? "—" : `${Math.round(s.winRate)}%`}</b></div>
+      <div className="gd-audit-metric"><i>zysk</i><b className={s.pnl >= 0 ? "gd-up" : "gd-down"}>{s.n ? `${s.pnl >= 0 ? "+" : ""}${money(s.pnl)}` : "—"}</b></div>
+      <div className="gd-audit-metric"><i>zamknięć</i><b>{s.n}</b></div>
+    </div>
+  );
+
+  return (
+    <div className="gd-audit">
+      <div className="gd-audit-head">
+        <span className="gd-audit-title">◈ Audyt strategii</span>
+        <span className="gd-audit-note">od zmiany na progresywne wejścia + realizację zysku</span>
+      </div>
+      <div className="gd-audit-cols">
+        <Col label="Ostatnie 7 dni" s={r} />
+        <Col label="30 dni" s={m} />
+        <Col label="Całość" s={a} />
+      </div>
+      <ul className="gd-audit-notes">
+        {notes.map((n, i) => <li key={i} className={`t-${n.tone}`}>{n.t}</li>)}
+      </ul>
+    </div>
+  );
+}
+
 /* EKRAN HISTORIA — lista zamkniętych transakcji po ludzku:
    „kupiłem X po $a → sprzedałem po $b → zarobiłem $z". Najnowsze na górze. */
 function Row({ t }: { t: HistoryTrade }) {
@@ -52,6 +148,8 @@ export function History() {
         {s && <span className="gd-mode"><span className="gd-blip" />{s.count} zamknięć</span>}
       </div>
       {err && <div className="gd-ribbon">{err}</div>}
+
+      {data && data.trades.length > 0 && <AuditCard trades={data.trades} />}
 
       {s && s.count > 0 && (
         <div className="gd-posbar">
