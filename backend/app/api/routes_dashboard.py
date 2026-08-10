@@ -820,6 +820,190 @@ def get_history(limit: int = Query(300, le=1000), venue: str | None = None, db: 
     }
 
 
+def _realized_since(trades, cutoff) -> tuple[float, int, int]:
+    """Zrealizowany P&L + trafność liczone TYLKO dla sprzedaży po `cutoff`, ale
+    ze średnią ceną walkowaną od początku historii (oddziela wynik nowej
+    strategii od starego churnu). Kopia logiki z scripts/diag.py."""
+    qty_by: dict[str, float] = {}
+    cost_by: dict[str, float] = {}
+    realized, wins, losses = 0.0, 0, 0
+    for t in trades:
+        sym = t.symbol
+        if t.side.upper() == "BUY":
+            qty_by[sym] = qty_by.get(sym, 0.0) + t.quantity
+            cost_by[sym] = cost_by.get(sym, 0.0) + t.usdt_value
+        else:
+            held = qty_by.get(sym, 0.0)
+            if held <= 1e-12:
+                continue
+            avg = cost_by[sym] / held
+            sell_qty = min(t.quantity, held)
+            pnl = (t.price - avg) * sell_qty
+            ts = t.timestamp if t.timestamp.tzinfo else t.timestamp.replace(tzinfo=timezone.utc)
+            if ts >= cutoff:
+                realized += pnl
+                if pnl >= 0:
+                    wins += 1
+                else:
+                    losses += 1
+            cost_by[sym] -= avg * sell_qty
+            qty_by[sym] = held - sell_qty
+            if qty_by[sym] <= 1e-12:
+                qty_by[sym] = 0.0
+                cost_by[sym] = 0.0
+    return round(realized, 2), wins, losses
+
+
+@router.get("/audit")
+def get_audit(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """Pełny AUDYT strategii — to samo co scripts/diag.py, ale jako JSON dla apki
+    (żeby audyt był na telefonie, bez SSH): epoki 7/30/życie, przecieki per
+    symbol, wejścia vs limit, odrzucenia decyzji, ustawienia i auto-wnioski."""
+    import collections
+
+    trades = db.execute(select(Trade).order_by(Trade.timestamp.asc())).scalars().all()
+    buys = [t for t in trades if t.side.upper() == "BUY"]
+    sells = [t for t in trades if t.side.upper() == "SELL"]
+    realized, wins, losses = scorecard._walk_realized(db)
+    closed = wins + losses
+    now = datetime.now(timezone.utc)
+
+    def era(days: int | None):
+        if days is None:
+            r, w, l = realized, wins, losses
+        else:
+            r, w, l = _realized_since(trades, now - timedelta(days=days))
+        c = w + l
+        return {"realized_usd": r, "closed": c, "wins": w, "losses": l,
+                "win_rate": round(w / c * 100, 1) if c else None}
+
+    eras = {"lifetime": era(None), "d7": era(7), "d30": era(30)}
+
+    # Średni czas trzymania: zyskowne vs stratne (obawa „siedzisz na zysku").
+    hist = scorecard.realized_history(db, limit=100000)
+    hw = [h["days_held"] for h in hist if h["pnl_usd"] >= 0 and h["days_held"] is not None]
+    hl = [h["days_held"] for h in hist if h["pnl_usd"] < 0 and h["days_held"] is not None]
+    hold = {
+        "avg_win_days": round(sum(hw) / len(hw), 1) if hw else None,
+        "avg_loss_days": round(sum(hl) / len(hl), 1) if hl else None,
+    }
+
+    # Przecieki per symbol (zrealizowany P&L).
+    sym_stats: dict[str, dict] = {}
+    qb: dict[str, float] = {}
+    cb: dict[str, float] = {}
+    for t in trades:
+        sym = t.symbol
+        if t.side.upper() == "BUY":
+            qb[sym] = qb.get(sym, 0.0) + t.quantity
+            cb[sym] = cb.get(sym, 0.0) + t.usdt_value
+        else:
+            held = qb.get(sym, 0.0)
+            if held <= 1e-12:
+                continue
+            avg = cb[sym] / held
+            sq = min(t.quantity, held)
+            pnl = (t.price - avg) * sq
+            st = sym_stats.setdefault(sym, {"pnl": 0.0, "w": 0, "l": 0})
+            st["pnl"] += pnl
+            st["w" if pnl >= 0 else "l"] += 1
+            cb[sym] -= avg * sq
+            qb[sym] = held - sq
+            if qb[sym] <= 1e-12:
+                qb[sym] = cb[sym] = 0.0
+    per_symbol = sorted(
+        ({"symbol": k, "pnl_usd": round(v["pnl"], 2), "closed": v["w"] + v["l"],
+          "win_rate": round(v["w"] / (v["w"] + v["l"]) * 100) if (v["w"] + v["l"]) else None}
+         for k, v in sym_stats.items()),
+        key=lambda x: x["pnl_usd"],
+    )
+
+    # Wejścia dziennie vs limit.
+    cap = settings.max_new_positions_per_day
+    per_day = collections.Counter(t.timestamp.date().isoformat() for t in buys)
+    days_sorted = sorted(per_day)
+    max_in_day = max(per_day.values()) if per_day else 0
+    days_at_limit = sum(1 for d in per_day if per_day[d] >= cap)
+    entries = {
+        "cap": cap,
+        "per_day": [{"date": d, "n": per_day[d]} for d in days_sorted[-14:]],
+        "max_in_day": max_in_day,
+        "days_at_limit": days_at_limit,
+        "binds": max_in_day >= cap,
+    }
+
+    # Odrzucenia decyzji (dlaczego mało wejść).
+    recent = db.execute(select(Decision).order_by(Decision.timestamp.desc()).limit(300)).scalars().all()
+    by_action = collections.Counter(d.action.value if hasattr(d.action, "value") else str(d.action) for d in recent)
+    rejected = [d for d in recent if d.rejection_reason]
+    rej_reasons = collections.Counter(d.rejection_reason for d in rejected)
+    decisions = {
+        "by_action": dict(by_action),
+        "rejected": len(rejected),
+        "reasons": [{"reason": r, "n": n} for r, n in rej_reasons.most_common(8)],
+    }
+
+    cfg = {
+        "max_new_positions_per_day": settings.max_new_positions_per_day,
+        "max_concurrent_positions": settings.max_concurrent_positions,
+        "min_buy_confidence": settings.min_buy_confidence,
+        "progressive_confidence_step": settings.progressive_confidence_step,
+        "progressive_confidence_cap": settings.progressive_confidence_cap,
+        "min_hold_minutes": settings.min_hold_minutes,
+        "min_hold_profit_bypass_pct": settings.min_hold_profit_bypass_pct,
+        "hard_take_profit_pct": settings.hard_take_profit_pct,
+        "price_move_trigger_pct": settings.price_move_trigger_pct,
+        "signal_timeframe": settings.signal_timeframe,
+    }
+
+    # --- AUTO-WNIOSKI (po ludzku) ---
+    concl: list[dict] = []
+    if closed < 3:
+        concl.append({"t": f"Za mało zamkniętych transakcji ({closed}) na mocne wnioski — bot dopiero zbiera próbkę.", "tone": "neu"})
+    else:
+        d7, d30 = eras["d7"], eras["d30"]
+        if d7["win_rate"] is not None and d30["win_rate"] is not None:
+            diff = d7["win_rate"] - d30["win_rate"]
+            concl.append({
+                "t": f"Trafność 7 dni {d7['win_rate']:.0f}% vs 30 dni {d30['win_rate']:.0f}% — {'rośnie' if diff >= 5 else 'spada' if diff <= -5 else 'stabilna'}.",
+                "tone": "good" if diff >= 5 else "bad" if diff <= -5 else "neu",
+            })
+        concl.append({
+            "t": f"Ostatnie 7 dni: {'+' if d7['realized_usd'] >= 0 else ''}{d7['realized_usd']:.2f} $ z {d7['closed']} zamknięć.",
+            "tone": "good" if d7["realized_usd"] >= 0 else "bad",
+        })
+        if hold["avg_win_days"] is not None and hold["avg_loss_days"] is not None:
+            if hold["avg_win_days"] > hold["avg_loss_days"] + 0.5:
+                concl.append({"t": f"⚠ Zyski trzymane dłużej (~{hold['avg_win_days']:.0f} dni) niż straty (~{hold['avg_loss_days']:.0f} dni) — automat zwleka z realizacją zysku.", "tone": "bad"})
+            elif hold["avg_loss_days"] > hold["avg_win_days"] + 0.5:
+                concl.append({"t": f"Straty trzymane dłużej (~{hold['avg_loss_days']:.0f} dni) niż zyski (~{hold['avg_win_days']:.0f} dni) — warto szybciej ciąć przegrane.", "tone": "bad"})
+            else:
+                concl.append({"t": f"Czas trzymania zysków (~{hold['avg_win_days']:.0f} dni) i strat (~{hold['avg_loss_days']:.0f} dni) podobny — bez „siedzenia na zysku”.", "tone": "good"})
+    if per_symbol and per_symbol[0]["pnl_usd"] < 0:
+        b = per_symbol[0]
+        concl.append({"t": f"Największy przeciek: {b['symbol']} ({b['pnl_usd']:.2f} $, {b['closed']} zamk.) — kandydat do wyrzucenia z listy.", "tone": "neu"})
+    if entries["binds"]:
+        concl.append({"t": f"Limit wejść bywa osiągany ({entries['days_at_limit']} dni) — podniesienie może dołożyć wejść.", "tone": "neu"})
+    else:
+        concl.append({"t": f"Limit wejść (cap {cap}/dzień) nigdy nie osiągnięty — nie hamuje; mało wejść wynika ze strategii/reżimu/pewności.", "tone": "neu"})
+    if decisions["reasons"]:
+        top = decisions["reasons"][0]
+        concl.append({"t": f"Najczęstszy powód pominięcia wejścia: „{top['reason']}” ({top['n']}× z ostatnich 300 decyzji).", "tone": "neu"})
+
+    return {
+        "generated_at": now.isoformat(),
+        "totals": {"trades": len(trades), "buys": len(buys), "sells": len(sells)},
+        "eras": eras,
+        "hold": hold,
+        "per_symbol": per_symbol[:10],
+        "per_symbol_best": list(reversed(per_symbol[-3:])) if len(per_symbol) > 10 else [],
+        "entries": entries,
+        "decisions": decisions,
+        "settings": cfg,
+        "conclusions": concl,
+    }
+
+
 @router.get("/decisions")
 def get_decisions(limit: int = Query(100, le=1000), venue: str | None = None, db: Session = Depends(get_db)):
     stmt = select(Decision).order_by(Decision.timestamp.desc()).limit(limit)

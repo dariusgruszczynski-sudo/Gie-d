@@ -314,6 +314,7 @@ export const api = {
   positionPlans: (venue: string = "alpaca") =>
     apiFetch<PositionPlansResponse>(withShare(`/api/position-plans?venue=${venue}`)),
   history: () => apiFetch<HistoryResponse>(withShare("/api/history")),
+  audit: () => apiFetch<AuditResponse>(withShare("/api/audit")),
   health: () => apiFetch<HealthReport>("/api/health"),
   newsSources: () => apiFetch<NewsSourcesResponse>("/api/news/sources"),
   healthReset: (action: string) =>
@@ -347,6 +348,21 @@ export interface HistoryResponse {
     best: HistoryTrade | null;
     worst: HistoryTrade | null;
   };
+}
+
+export interface AuditEra { realized_usd: number; closed: number; wins: number; losses: number; win_rate: number | null }
+export interface AuditSymbol { symbol: string; pnl_usd: number; closed: number; win_rate: number | null }
+export interface AuditResponse {
+  generated_at: string;
+  totals: { trades: number; buys: number; sells: number };
+  eras: { lifetime: AuditEra; d7: AuditEra; d30: AuditEra };
+  hold: { avg_win_days: number | null; avg_loss_days: number | null };
+  per_symbol: AuditSymbol[];
+  per_symbol_best: AuditSymbol[];
+  entries: { cap: number; per_day: Array<{ date: string; n: number }>; max_in_day: number; days_at_limit: number; binds: boolean };
+  decisions: { by_action: Record<string, number>; rejected: number; reasons: Array<{ reason: string; n: number }> };
+  settings: Record<string, number | string>;
+  conclusions: Array<{ t: string; tone: "good" | "bad" | "neu" }>;
 }
 
 export interface NewsItem {

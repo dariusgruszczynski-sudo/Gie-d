@@ -1,6 +1,61 @@
 import { useEffect, useState } from "react";
-import { api, HistoryResponse, HistoryTrade } from "../api/client";
+import { api, AuditResponse, HistoryResponse, HistoryTrade } from "../api/client";
 import { ago, money, pct } from "./kit";
+
+/* Głęboki audyt (to co diag: przecieki per symbol, wejścia vs limit,
+   odrzucenia, ustawienia). Lazy-fetch z /api/audit; chowa się jak nie ma. */
+function AuditDetails() {
+  const [d, setD] = useState<AuditResponse | null>(null);
+  const [open, setOpen] = useState(false);
+  const [tried, setTried] = useState(false);
+  async function toggle() {
+    const next = !open; setOpen(next);
+    if (next && !d && !tried) {
+      setTried(true);
+      try { setD(await api.audit()); } catch { /* endpoint może jeszcze nie być wdrożony */ }
+    }
+  }
+  const maxDay = d ? Math.max(1, ...d.entries.per_day.map((x) => x.n), d.entries.cap) : 1;
+  return (
+    <div className="gd-audit-deep">
+      <button className="gd-audit-toggle" onClick={toggle}>{open ? "ukryj szczegóły ▲" : "szczegóły: przecieki · wejścia · odrzucenia ▾"}</button>
+      {open && (!d ? <p className="gd-empty" style={{ margin: "8px 0" }}>Liczę szczegóły…</p> : (
+        <div className="gd-audit-deepgrid">
+          <div className="gd-audit-block">
+            <h5>Które nazwy krwawią</h5>
+            {d.per_symbol.slice(0, 6).map((s) => (
+              <div key={s.symbol} className="gd-audit-row">
+                <span>{s.symbol}</span>
+                <span className={s.pnl_usd >= 0 ? "gd-up" : "gd-down"}>{s.pnl_usd >= 0 ? "+" : ""}{money(s.pnl_usd)}</span>
+                <span className="gd-audit-mut">{s.closed} zamk.{s.win_rate !== null ? ` · ${s.win_rate}%` : ""}</span>
+              </div>
+            ))}
+          </div>
+          <div className="gd-audit-block">
+            <h5>Wejścia dziennie vs limit ({d.entries.cap}/dzień)</h5>
+            {d.entries.per_day.slice(-8).map((x) => (
+              <div key={x.date} className="gd-audit-bar">
+                <span className="gd-audit-mut">{x.date.slice(5)}</span>
+                <span className="gd-audit-track"><i style={{ width: `${(x.n / maxDay) * 100}%`, background: x.n >= d.entries.cap ? "var(--rose)" : "var(--brand)" }} /></span>
+                <b>{x.n}</b>
+              </div>
+            ))}
+            <div className="gd-audit-mut" style={{ marginTop: 6 }}>
+              {d.entries.binds ? `Limit osiągany w ${d.entries.days_at_limit} dni — hamuje.` : `Limit nigdy nie osiągnięty (max ${d.entries.max_in_day}) — nie hamuje.`}
+            </div>
+          </div>
+          <div className="gd-audit-block">
+            <h5>Czemu tyle wejść (300 decyzji)</h5>
+            <div className="gd-audit-mut" style={{ marginBottom: 6 }}>Odrzuconych mimo sygnału: <b style={{ color: "var(--txt)" }}>{d.decisions.rejected}</b></div>
+            {d.decisions.reasons.slice(0, 5).map((r, i) => (
+              <div key={i} className="gd-audit-row"><span className="gd-audit-mut" style={{ flex: 1 }}>{r.reason}</span><b>{r.n}×</b></div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /* ===== AUDYT STRATEGII =====================================================
    Liczy wynik zamkniętych transakcji w oknach 7 dni / 30 dni / całość i sam
@@ -94,6 +149,7 @@ function AuditCard({ trades }: { trades: HistoryTrade[] }) {
       <ul className="gd-audit-notes">
         {notes.map((n, i) => <li key={i} className={`t-${n.tone}`}>{n.t}</li>)}
       </ul>
+      <AuditDetails />
     </div>
   );
 }

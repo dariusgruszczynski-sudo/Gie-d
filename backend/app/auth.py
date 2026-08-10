@@ -37,6 +37,8 @@ _SHARE_READONLY_PREFIXES = (
     "/api/claude-edge",
     "/api/widget",
     "/api/position-plans",
+    "/api/history",
+    "/api/audit",
 )
 
 

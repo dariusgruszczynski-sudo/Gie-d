@@ -97,6 +97,10 @@ apply_knobs() { # apply_knobs FILE
   # Bezpieczeństwo danych: brak newsów = stop nowych wejść + alarm.
   setenv NEWS_BLACKOUT_HALT_ENABLED true "$f"
   setenv NEWS_MIN_HEADLINES 3 "$f"
+  # Read-only link (TYLKO GET na dashboard: status/portfel/historia/audyt; ŻADNEGO
+  # handlu ani sterowania). Pozwala pobrać audyt zdalnie bez logowania. Chcesz
+  # odciąć/zmienić? Podmień token tutaj albo ustaw pusty i redeploy.
+  setenv SHARE_TOKEN gd-ro-8f3ktq29xr7v "$f"
 }
 
 apply_knobs .env
