@@ -364,6 +364,78 @@ function WinBar({ pct: p, wins, losses }: { pct: number | null; wins: number; lo
   );
 }
 
+/* SKALA RYZYKA — jeden czytelny wskaźnik „jak ryzykownie jest TERAZ", liczony
+   przejrzyście z realnych czynników: ekspozycja (ile w grze), jak blisko
+   automatycznych stopów (dzienny/tygodniowy limit straty, obsunięcie od szczytu)
+   i nastawienie rynku. Marker na skali Niskie→Umiarkowane→Wysokie + konkretne
+   powody pod spodem. */
+function RiskScale({ status }: { status: StatusResponse }) {
+  const acc = status.account;
+  const invPct = acc && acc.total_value > 0
+    ? Math.round(((acc.equity_positions_value ?? 0) + (acc.extended_positions_value ?? 0)) / acc.total_value * 100)
+    : 0;
+  const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+
+  const exposure = clamp01(invPct / 100);
+  const dayLoss = status.daily_loss_limit_pct > 0 && status.day_pnl_pct != null
+    ? clamp01(Math.max(0, -status.day_pnl_pct) / status.daily_loss_limit_pct) : 0;
+  const weekLoss = status.weekly_loss_limit_pct > 0 && status.week_pnl_pct != null
+    ? clamp01(Math.max(0, -status.week_pnl_pct) / status.weekly_loss_limit_pct) : 0;
+  const dd = acc && status.peak_account_value > 0 && acc.total_value > 0
+    ? (status.peak_account_value - acc.total_value) / status.peak_account_value * 100 : 0;
+  const drawdown = status.max_drawdown_halt_pct > 0 ? clamp01(dd / status.max_drawdown_halt_pct) : 0;
+  const regime = status.market_regime?.regime;
+  const regimeRisk = regime === "risk_off" ? 1 : regime === "risk_on" ? 0.15 : 0.5;
+
+  const lossProximity = Math.max(dayLoss, weekLoss, drawdown);
+  let risk = 100 * (0.45 * lossProximity + 0.30 * exposure + 0.25 * regimeRisk);
+  if (status.is_halted) risk = 100;
+  risk = Math.round(Math.max(0, Math.min(100, risk)));
+
+  const level = status.is_halted ? { t: "ZATRZYMANY", cls: "high" }
+    : risk >= 66 ? { t: "Wysokie", cls: "high" }
+    : risk >= 33 ? { t: "Umiarkowane", cls: "mid" }
+    : { t: "Niskie", cls: "low" };
+
+  // Konkretne powody (max 3), posortowane wg wagi ryzyka.
+  const drivers: Array<{ label: string; tone: "hi" | "mid" | "lo" }> = [];
+  drivers.push({ label: `w grze ${invPct}%`, tone: exposure >= 0.66 ? "hi" : exposure >= 0.33 ? "mid" : "lo" });
+  drivers.push({
+    label: regime === "risk_off" ? "rynek: ostrożnie" : regime === "risk_on" ? "rynek: sprzyja" : "rynek: neutralny",
+    tone: regime === "risk_off" ? "hi" : regime === "risk_on" ? "lo" : "mid",
+  });
+  if (lossProximity >= 0.15) {
+    const near = drawdown >= dayLoss && drawdown >= weekLoss ? `obsunięcie ${dd.toFixed(1)}%`
+      : dayLoss >= weekLoss ? "blisko dziennego stopu" : "blisko tygodniowego stopu";
+    drivers.push({ label: near, tone: lossProximity >= 0.6 ? "hi" : "mid" });
+  } else {
+    drivers.push({ label: "z dala od limitów strat", tone: "lo" });
+  }
+
+  const gloss = status.is_halted ? "Automat wstrzymany — limit ryzyka przekroczony."
+    : level.cls === "high" ? "Wysoka ekspozycja lub blisko stopów — bot będzie ostrożny z nowymi wejściami."
+    : level.cls === "mid" ? "Umiarkowanie — część kapitału pracuje, zapas do limitów jest."
+    : "Bezpiecznie — dużo gotówki i daleko do limitów strat.";
+
+  return (
+    <div className={`gd-risk ${level.cls}`}>
+      <div className="gd-risk-head">
+        <span className="gd-risk-label">Skala ryzyka</span>
+        <b className={`gd-risk-level ${level.cls}`}>{level.t}</b>
+      </div>
+      <div className="gd-risk-scale">
+        <div className="gd-risk-track" />
+        <div className="gd-risk-needle" style={{ left: `${risk}%` }}><i /></div>
+      </div>
+      <div className="gd-risk-ticks"><span>Niskie</span><span>Umiarkowane</span><span>Wysokie</span></div>
+      <div className="gd-risk-gloss">{gloss}</div>
+      <div className="gd-risk-drivers">
+        {drivers.map((d, i) => <span key={i} className={`gd-risk-chip ${d.tone}`}>{d.label}</span>)}
+      </div>
+    </div>
+  );
+}
+
 export function Console({ status, alpaca, extended, onGoPositions }: {
   status: StatusResponse;
   alpaca: PortfolioResponse | null;
@@ -423,6 +495,10 @@ export function Console({ status, alpaca, extended, onGoPositions }: {
         <StatCard label="W akcjach" value={money0(invested)} sub={`${sesjaCount} ${sesjaCount === 1 ? "pozycja" : "pozycji"} · ${invPct}% konta`} />
         <StatCard label="Wolna gotówka" value={money0(cash)} sub="czeka na wejścia" />
       </div>
+
+      {/* RYZYKO — jeden czytelny wskaźnik „jak ryzykownie jest teraz" */}
+      <div className="gd-sec"><h3>Ryzyko teraz</h3><span className="gd-sec-note">jak ostrożnie gra automat</span></div>
+      <RiskScale status={status} />
 
       {/* ZYSK — po ludzku: skuteczność (pasek) + wzięty vs na otwartych */}
       <div className="gd-sec"><h3>Zysk bota</h3><span className="gd-sec-note">czysty wynik handlu</span></div>

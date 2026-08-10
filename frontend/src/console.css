@@ -932,3 +932,24 @@
 .gd-skill-bar .loss { background: linear-gradient(180deg, var(--rose-soft), var(--rose)); }
 .gd-skill-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 0.74rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .gd-skill-per10 { margin-left: auto; color: var(--dim); font-weight: 600; }
+
+/* --- Skala ryzyka ---------------------------------------------------------- */
+.gd-risk { border: 1px solid var(--line); border-radius: 16px; padding: 15px 16px 14px; background: var(--panel); position: relative; overflow: hidden; }
+.gd-risk.high { border-color: color-mix(in srgb, var(--rose) 40%, transparent); }
+.gd-risk.mid { border-color: color-mix(in srgb, var(--gold) 34%, transparent); }
+.gd-risk.low { border-color: color-mix(in srgb, var(--mint) 30%, transparent); }
+.gd-risk-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.gd-risk-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); font-weight: 800; }
+.gd-risk-level { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; }
+.gd-risk-level.high { color: var(--rose); } .gd-risk-level.mid { color: var(--gold); } .gd-risk-level.low { color: var(--mint); }
+.gd-risk-scale { position: relative; height: 12px; }
+.gd-risk-track { position: absolute; inset: 0; border-radius: 999px; background: linear-gradient(90deg, var(--mint) 0%, var(--gold) 52%, var(--rose) 100%); opacity: 0.9; }
+.gd-risk-needle { position: absolute; top: 50%; transform: translate(-50%, -50%); transition: left 0.7s cubic-bezier(0.22,1,0.36,1); z-index: 2; }
+.gd-risk-needle i { display: block; width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 3px solid var(--ink); box-shadow: 0 0 0 2px rgba(255,255,255,0.85), 0 2px 8px rgba(0,0,0,0.5); }
+.gd-risk-ticks { display: flex; justify-content: space-between; margin-top: 7px; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--dim); font-weight: 700; }
+.gd-risk-gloss { font-size: 0.8rem; color: var(--muted); margin-top: 11px; line-height: 1.45; }
+.gd-risk-drivers { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+.gd-risk-chip { font-size: 0.7rem; font-weight: 700; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); }
+.gd-risk-chip.hi { color: var(--rose); background: color-mix(in srgb, var(--rose) 12%, transparent); border-color: color-mix(in srgb, var(--rose) 28%, transparent); }
+.gd-risk-chip.mid { color: var(--gold); background: color-mix(in srgb, var(--gold) 12%, transparent); border-color: color-mix(in srgb, var(--gold) 26%, transparent); }
+.gd-risk-chip.lo { color: var(--mint); background: color-mix(in srgb, var(--mint) 12%, transparent); border-color: color-mix(in srgb, var(--mint) 26%, transparent); }
