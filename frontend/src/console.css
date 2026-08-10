@@ -989,3 +989,9 @@
 .gd-audit-track { flex: 1; height: 8px; border-radius: 6px; background: rgba(255,255,255,0.06); overflow: hidden; }
 .gd-audit-track i { display: block; height: 100%; border-radius: 6px; }
 .gd-audit-bar b { min-width: 16px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* --- Rynek zamknięty: uczciwy „kiedy sprzedam" ---------------------------- */
+.gd-sp-closed { margin-top: 8px; font-size: 0.72rem; line-height: 1.4; color: var(--amber); font-weight: 600; }
+.gd-closed-banner { display: block; margin: 0 0 14px; padding: 12px 14px; border-radius: 13px; font-size: 0.82rem; line-height: 1.45;
+  color: var(--gold); border: 1px solid color-mix(in srgb, var(--amber) 34%, var(--line)); background: color-mix(in srgb, var(--amber) 9%, transparent); }
+.gd-closed-banner b { color: var(--txt); }

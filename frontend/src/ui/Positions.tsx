@@ -38,6 +38,7 @@ export function Positions({ status, alpaca, extended, decisions, onChanged }: {
   const climbing = states.filter((s) => s === "climbing").length;
   const nearStop = states.filter((s) => s === "near_stop").length;
   const bypassPct = status.profiles.alpaca.min_hold_profit_bypass_pct;
+  const marketOpen = status.market_session === "regular";
 
   return (
     <div className="gd-view">
@@ -57,11 +58,17 @@ export function Positions({ status, alpaca, extended, decisions, onChanged }: {
         <div className="gd-posbar-i"><b className={nearStop ? "gd-down" : ""}>{nearStop}</b><small>⚠ blisko stopu</small></div>
       </div>
 
+      {!marketOpen && (ripe > 0 || nearStop > 0) && (
+        <div className="gd-closed-banner">
+          ⏳ <b>Rynek US zamknięty</b> — {ripe > 0 ? `${ripe} ${ripe === 1 ? "pozycja gotowa" : "pozycji gotowych"} do sprzedaży` : "wyjścia"} wykonają się na otwarciu sesji. Możesz sprzedać ręcznie już teraz.
+        </div>
+      )}
+
       {positions.length ? (
         <div className="gd-pcards">
           {positions.map((p) => (
             <PositionCard key={`${p.leg}:${p.asset}`} p={p} plan={plans[`${p.leg}:${p.asset}`]}
-              bypassPct={bypassPct} onChanged={onChanged} />
+              bypassPct={bypassPct} marketOpen={marketOpen} onChanged={onChanged} />
           ))}
         </div>
       ) : <p className="gd-empty">Brak otwartych pozycji — gotówka czeka na najlepsze wejścia.</p>}

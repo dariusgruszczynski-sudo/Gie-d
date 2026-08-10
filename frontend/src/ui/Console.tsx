@@ -223,18 +223,23 @@ const SELL_UI: Record<SellState, { cls: string; icon: string; label: string }> =
 };
 
 /* "KIEDY SPRZEDAM" — miarka + jednozdaniowy plan wyjścia dla jednej pozycji.
-   Wypełnienie miarki = jak blisko wyzwalacza sprzedaży (zysk→cel / strata→stop). */
-function SellGauge({ sp }: { sp: SellPlan }) {
+   Wypełnienie miarki = jak blisko wyzwalacza sprzedaży (zysk→cel / strata→stop).
+   Gdy rynek jest ZAMKNIĘTY, a plan chce działać „teraz" — mówimy uczciwie „na
+   otwarciu", bo bot i tak nie wykona zlecenia przed otwarciem sesji. */
+function SellGauge({ sp, marketClosed }: { sp: SellPlan; marketClosed?: boolean }) {
   const ui = SELL_UI[sp.state];
   const w = Math.max(3, Math.min(100, sp.progress_pct));
+  const wantsNow = sp.state === "sell_now" || sp.state === "profit_ready" || sp.state === "near_stop";
+  const blocked = !!marketClosed && wantsNow;
   return (
     <div className={`gd-sell-plan ${ui.cls}`}>
       <div className="gd-sp-head">
         <span className="gd-sp-eyebrow">Kiedy sprzedam</span>
-        <span className="gd-sp-when">{sp.when}</span>
+        <span className="gd-sp-when">{blocked ? "na otwarciu" : sp.when}</span>
       </div>
       <div className="gd-sp-headline"><span className="gd-sp-ico">{ui.icon}</span>{sp.headline}</div>
       <div className="gd-sp-gauge"><span style={{ width: `${w}%` }} /></div>
+      {blocked && <div className="gd-sp-closed">⏳ Rynek zamknięty — zlecenie wykona się na otwarciu sesji (albo sprzedaj ręcznie).</div>}
     </div>
   );
 }
@@ -242,8 +247,8 @@ function SellGauge({ sp }: { sp: SellPlan }) {
 /* Position as a JOURNEY: stop ── entry ── [current] ── target, plus the
    "kiedy sprzedam" gauge that says WHEN and WHY the bot will close it. Directly
    answers the owner's worry: "there's a profit — why are you still holding?" */
-export function PositionCard({ p, plan, bypassPct, onChanged }: {
-  p: Pos; plan?: PositionPlan; bypassPct: number; onChanged?: () => void;
+export function PositionCard({ p, plan, bypassPct, marketOpen = true, onChanged }: {
+  p: Pos; plan?: PositionPlan; bypassPct: number; marketOpen?: boolean; onChanged?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -290,7 +295,7 @@ export function PositionCard({ p, plan, bypassPct, onChanged }: {
         </div>
       </div>
 
-      {sp && <SellGauge sp={sp} />}
+      {sp && <SellGauge sp={sp} marketClosed={!marketOpen} />}
 
       <div className="gd-track">
         <div className="gd-track-line" />
