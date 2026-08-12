@@ -97,6 +97,11 @@ apply_knobs() { # apply_knobs FILE
   # Bezpieczeństwo danych: brak newsów = stop nowych wejść + alarm.
   setenv NEWS_BLACKOUT_HALT_ENABLED true "$f"
   setenv NEWS_MIN_HEADLINES 3 "$f"
+  # Read-only token dla WIDGETU iPhone (Scriptable) i linku podglądu: pozwala
+  # TYLKO na GET dashboardu (status/portfel/widget/historia/audyt) — ŻADNEGO
+  # handlu ani sterowania. Bez niego /api/widget?share=... zwraca 401. Chcesz
+  # odciąć/zmienić? Podmień token tutaj albo ustaw pusty i redeploy.
+  setenv SHARE_TOKEN gd-ro-8f3ktq29xr7v "$f"
 }
 
 apply_knobs .env

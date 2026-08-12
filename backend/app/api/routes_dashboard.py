@@ -760,11 +760,22 @@ def get_widget(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         series = [series[min(len(series) - 1, int(i * step))] for i in range(30)]
     spark = [round(v, 2) for v in series]
 
+    # Skuteczność (win-rate) + rynek otwarty — dla nowego widgetu.
+    _r, wins, losses = scorecard._walk_realized(db)
+    closed = wins + losses
+    sess = _serialize_session_info(settings)
+
     return {
         "mode": "testnet" if settings.alpaca_paper else "live",
         "total": account["total_value"] if account else None,
         "cash": account["cash"] if account else None,
         "day_pnl_pct": day_pnl_pct,
+        "win_rate": round(wins / closed * 100) if closed else None,
+        "wins": wins,
+        "losses": losses,
+        "closed": closed,
+        "market_open": sess.get("market_session") == "regular",
+        "invested": (account["equity_positions_value"] + account["extended_positions_value"]) if account else None,
         # "Zysk automatu" -- TEN SAM deposit-proof wskaźnik co na Konsoli
         # (zrealizowany + papierowy, bez wpłat), żeby widżet i apka pokazywały
         # to samo. net_result_usd zostaje dla zgodności wstecznej, ale widżet go
