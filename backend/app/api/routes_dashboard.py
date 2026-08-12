@@ -794,7 +794,25 @@ def get_trades(limit: int = Query(100, le=1000), venue: str | None = None, db: S
     if venue is not None:
         stmt = select(Trade).where(Trade.venue == venue).order_by(Trade.timestamp.desc()).limit(limit)
     rows = db.execute(stmt).scalars().all()
-    return [serialize(r) for r in rows]
+    # Dołóż zysk/stratę do KAŻDEJ sprzedaży (średni koszt) -- żeby toast/lista w
+    # apce od razu pokazały „+$X / −$X", tak jak push. Mapa po (symbol, czas).
+    pnl_map: dict[tuple[str, str], dict] = {}
+    try:
+        for h in scorecard.realized_history(db, venue=venue, limit=1000):
+            if h.get("sold_at"):
+                pnl_map[(h["symbol"], h["sold_at"])] = h
+    except Exception:
+        logger.warning("trade pnl map failed", exc_info=True)
+    out = []
+    for r in rows:
+        d = serialize(r)
+        if str(getattr(r, "side", "")).upper() == "SELL" and r.timestamp is not None:
+            h = pnl_map.get((r.symbol, r.timestamp.isoformat()))
+            if h is not None:
+                d["pnl_usd"] = h["pnl_usd"]
+                d["pnl_pct"] = h["pnl_pct"]
+        out.append(d)
+    return out
 
 
 @router.get("/history")

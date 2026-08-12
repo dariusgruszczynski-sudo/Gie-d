@@ -9,7 +9,7 @@
  */
 // Bump on asset changes (new icons/theme) so the activate handler purges the
 // old cache and clients re-fetch the fixed-name assets (icons, favicon).
-const CACHE = "gield-v16";
+const CACHE = "gield-v17";
 const SHELL = ["/", "/index.html"];
 
 self.addEventListener("install", (event) => {
@@ -36,6 +36,7 @@ self.addEventListener("push", (event) => {
     payload = { title: "GielDarek", body: event.data ? event.data.text() : "" };
   }
   const title = payload.title || "GielDarek";
+  const d = payload.data || {};
   const options = {
     body: payload.body || "",
     tag: payload.tag || "gieldarek",
@@ -43,8 +44,10 @@ self.addEventListener("push", (event) => {
     icon: "/icon-192.png",
     badge: "/favicon-64.png",
     // Kolorystyka apki (sky accent) na Androidzie/desktopie.
-    data: { url: payload.url || "/", ...(payload.data || {}) },
-    vibrate: [80, 40, 80],
+    data: { url: payload.url || "/", ...d },
+    // Wibracja per typ (backend wysyła: zysk=triumf, strata=jeden długi,
+    // kupno=podwójny tap). Fallback, gdy brak w payloadzie.
+    vibrate: Array.isArray(d.vibrate) ? d.vibrate : [80, 40, 80],
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });

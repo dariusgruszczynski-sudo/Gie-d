@@ -77,13 +77,27 @@ export default function App() {
           const side = fresh[0].side.toUpperCase() === "SELL" ? "SELL" : "BUY";
           playTradeSound(side);
           navigator.vibrate?.(side === "SELL" ? [60] : [20, 40, 20]);
+          const usd = (v: number) => `$${v.toLocaleString("pl-PL", { maximumFractionDigits: 2 })}`;
           fresh.slice(0, 3).forEach((x) => {
             const isSell = x.side.toUpperCase() === "SELL";
-            pushToast(
-              isSell ? "sell" : "buy",
-              `${isSell ? "🔴 Sprzedano" : "🟢 Kupiono"} ${x.symbol}`,
-              `${x.quantity.toLocaleString("pl-PL", { maximumFractionDigits: 4 })} @ $${x.price.toLocaleString("pl-PL", { maximumFractionDigits: 2 })} · $${x.usdt_value.toLocaleString("pl-PL", { maximumFractionDigits: 2 })}`,
-            );
+            const value = usd(x.usdt_value);
+            if (isSell && x.pnl_usd !== undefined && x.pnl_usd !== null) {
+              // Sprzedaż: pokaż CZY zarobił i za ile — kolor toastu wg wyniku.
+              const win = x.pnl_usd >= 0;
+              const sign = win ? "+" : "−";
+              const pctTxt = x.pnl_pct !== undefined && x.pnl_pct !== null ? ` (${sign}${Math.abs(x.pnl_pct).toFixed(1)}%)` : "";
+              pushToast(
+                win ? "buy" : "sell",
+                `${win ? "✅ Zysk" : "🔻 Strata"} ${sign}${usd(Math.abs(x.pnl_usd))} · ${x.symbol}`,
+                `sprzedano za ${value}${pctTxt}`,
+              );
+            } else {
+              pushToast(
+                isSell ? "sell" : "buy",
+                `${isSell ? "🔴 Sprzedano" : "🟢 Kupiono"} ${x.symbol}`,
+                `${x.quantity.toLocaleString("pl-PL", { maximumFractionDigits: 4 })} @ ${usd(x.price)} · ${value}`,
+              );
+            }
           });
         }
       }

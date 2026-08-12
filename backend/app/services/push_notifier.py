@@ -104,25 +104,60 @@ def send_to_all(
     return sent
 
 
+def _this_sell_pnl(db: Session, trade) -> dict | None:
+    """Zysk/strata TEJ sprzedaży (średni koszt), żeby push mówił wprost 'czy
+    zarobiłeś'. Bierzemy najnowszy wpis realized_history dla tego symbolu +
+    (najlepiej) z pasującym czasem sprzedaży -- to właśnie ta transakcja."""
+    try:
+        venue = getattr(trade, "venue", "alpaca")
+        hist = scorecard.realized_history(db, venue=venue, limit=60)
+        ts = trade.timestamp.isoformat() if getattr(trade, "timestamp", None) is not None else None
+        for h in hist:
+            if h["symbol"] == trade.symbol and (ts is None or h.get("sold_at") == ts):
+                return h
+        for h in hist:  # awaryjnie: bez dopasowania czasu, po samym symbolu
+            if h["symbol"] == trade.symbol:
+                return h
+    except Exception:
+        logger.warning("sell pnl lookup failed", exc_info=True)
+    return None
+
+
 def send_trade_push(db: Session, settings: Settings, trade, account_total: float | None = None) -> None:
-    """Powiadomienie o wykonanej transakcji: strona, symbol, ilość, cena,
-    wartość i stan konta. Wywoływane zaraz po zapisie Trade (obok maila)."""
+    """Powiadomienie o wykonanej transakcji: CO zrobił, ZA ILE, a przy sprzedaży
+    CZY ZAROBIŁ czy STRACIŁ (kwota + %), z wizualnym kodowaniem (✅/🔻/🟢) i
+    dopasowaną wibracją. Wywoływane zaraz po zapisie Trade (obok maila)."""
     if not push_configured(settings):
         return
     try:
         side = trade.side.upper()
-        emoji = "🟢" if side == "BUY" else "🔴"
-        verb = "KUPIONO" if side == "BUY" else "SPRZEDANO"
         venue = _venue_label(getattr(trade, "venue", "alpaca"))
-        title = f"{emoji} {verb} {trade.symbol}"
-        parts = [
-            f"{trade.quantity:g} @ {_fmt_usd(trade.price)}",
-            f"wartość {_fmt_usd(trade.usdt_value)}",
-            f"silnik {venue}",
-        ]
-        if account_total is not None:
-            parts.append(f"konto {_fmt_usd(account_total)}")
-        body = " · ".join(parts)
+        acct = f" · konto {_fmt_usd(account_total)}" if account_total is not None else ""
+
+        if side == "BUY":
+            title = f"🟢 KUPIŁEM {trade.symbol} — za {_fmt_usd(trade.usdt_value)}"
+            body = f"{trade.quantity:g} @ {_fmt_usd(trade.price)} · silnik {venue}{acct}"
+            kind, vibrate = "buy", [20, 40, 20]
+        else:
+            pnl = _this_sell_pnl(db, trade)
+            if pnl is not None:
+                win = (pnl["pnl_usd"] or 0) >= 0
+                sign = "+" if win else "−"
+                amt = _fmt_usd(abs(pnl["pnl_usd"]))
+                pct = pnl.get("pnl_pct")
+                pcttxt = f" ({sign}{abs(pct):.1f}%)" if pct is not None else ""
+                days = pnl.get("days_held")
+                daystxt = f" · trzymane {days} {'dzień' if days == 1 else 'dni'}" if days is not None else ""
+                head = "✅ ZYSK" if win else "🔻 STRATA"
+                title = f"{head} {sign}{amt} — sprzedałem {trade.symbol}"
+                body = f"za {_fmt_usd(trade.usdt_value)}{pcttxt}{daystxt} · silnik {venue}{acct}"
+                kind = "win" if win else "loss"
+                vibrate = [30, 50, 30, 50, 30] if win else [220]
+            else:
+                title = f"🔴 SPRZEDAŁEM {trade.symbol} — za {_fmt_usd(trade.usdt_value)}"
+                body = f"{trade.quantity:g} @ {_fmt_usd(trade.price)} · silnik {venue}{acct}"
+                kind, vibrate = "sell", [60]
+
         send_to_all(
             db,
             settings,
@@ -130,7 +165,8 @@ def send_trade_push(db: Session, settings: Settings, trade, account_total: float
             body=body,
             tag=f"trade-{trade.id}",
             url="/",
-            data={"venue": getattr(trade, "venue", "alpaca"), "side": side, "symbol": trade.symbol},
+            data={"venue": getattr(trade, "venue", "alpaca"), "side": side, "symbol": trade.symbol,
+                  "kind": kind, "vibrate": vibrate},
         )
     except Exception as exc:  # pragma: no cover - powiadomienie nie może wywalić handlu
         logger.warning("send_trade_push failed: %s", exc)

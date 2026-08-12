@@ -176,6 +176,9 @@ export interface Trade {
   mode: string;
   is_manual: boolean;
   decision_id: number | null;
+  // Zysk/strata tej sprzedaży (średni koszt) — tylko dla SELL. null dla BUY.
+  pnl_usd?: number;
+  pnl_pct?: number | null;
 }
 
 export interface Decision {
