@@ -93,6 +93,16 @@ function AuditCard({ trades }: { trades: HistoryTrade[] }) {
   const last30 = trades.filter((t) => daysAgo(t) <= 30);
   const r = statsOf(recent), p = statsOf(midPrior), m = statsOf(last30), a = statsOf(trades);
 
+  // ---- EDGE: ile ŚREDNIO zarabia wygrana vs traci strata + na 1 transakcję ----
+  // Najważniejsza liczba przy niskiej trafności — zysk bierze się z asymetrii.
+  const winsA = trades.filter((t) => t.pnl_usd >= 0);
+  const lossA = trades.filter((t) => t.pnl_usd < 0);
+  const sumP = (arr: HistoryTrade[]) => arr.reduce((s, t) => s + t.pnl_usd, 0);
+  const avgWin = winsA.length ? sumP(winsA) / winsA.length : null;
+  const avgLoss = lossA.length ? sumP(lossA) / lossA.length : null; // ujemna
+  const perTrade = trades.length ? sumP(trades) / trades.length : null;
+  const payoff = avgWin !== null && avgLoss !== null && avgLoss !== 0 ? avgWin / Math.abs(avgLoss) : null;
+
   // ---- WNIOSKI (po ludzku) ----
   const notes: Array<{ t: string; tone: "good" | "bad" | "neu" }> = [];
   if (a.n < 3) {
@@ -104,6 +114,14 @@ function AuditCard({ trades }: { trades: HistoryTrade[] }) {
       notes.push({
         t: `Skuteczność 7 dni: ${Math.round(r.winRate)}% vs ${Math.round(p.winRate)}% wcześniej — ${diff >= 5 ? "rośnie" : diff <= -5 ? "spada" : "bez zmian"}.`,
         tone: diff >= 5 ? "good" : diff <= -5 ? "bad" : "neu",
+      });
+    }
+    // 1b) EDGE — ważniejsze niż trafność: czy wygrana bije stratę
+    if (avgWin !== null && avgLoss !== null && perTrade !== null) {
+      const good = perTrade >= 0;
+      notes.push({
+        t: `Średnia wygrana +${money(avgWin)} vs strata −${money(Math.abs(avgLoss))}${payoff ? ` (wygrana ${payoff.toFixed(1)}× większa)` : ""} → na transakcję ${perTrade >= 0 ? "+" : "−"}${money(Math.abs(perTrade))}. ${good ? "Zarabia mimo <50% trafności." : "Wygrane za małe wobec strat — to psuje wynik."}`,
+        tone: good ? "good" : "bad",
       });
     }
     // 2) KLUCZOWE: czy zyski trzymane dłużej niż straty
@@ -146,6 +164,19 @@ function AuditCard({ trades }: { trades: HistoryTrade[] }) {
         <Col label="30 dni" s={m} />
         <Col label="Całość" s={a} />
       </div>
+
+      {avgWin !== null && avgLoss !== null && perTrade !== null && (
+        <div className="gd-edge">
+          <div className="gd-edge-note">Ważniejsze niż „ile razy wygrywa" — czy <b>wygrana bije stratę</b>:</div>
+          <div className="gd-edge-row">
+            <div className="gd-edge-i"><small>śr. wygrana</small><b className="gd-up">+{money(avgWin)}</b></div>
+            <div className="gd-edge-sep">vs</div>
+            <div className="gd-edge-i"><small>śr. strata</small><b className="gd-down">−{money(Math.abs(avgLoss))}</b></div>
+            <div className="gd-edge-arrow">→</div>
+            <div className="gd-edge-i big"><small>na transakcję</small><b className={perTrade >= 0 ? "gd-up" : "gd-down"}>{perTrade >= 0 ? "+" : "−"}{money(Math.abs(perTrade))}</b></div>
+          </div>
+        </div>
+      )}
       <ul className="gd-audit-notes">
         {notes.map((n, i) => <li key={i} className={`t-${n.tone}`}>{n.t}</li>)}
       </ul>

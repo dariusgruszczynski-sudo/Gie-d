@@ -995,3 +995,15 @@
 .gd-closed-banner { display: block; margin: 0 0 14px; padding: 12px 14px; border-radius: 13px; font-size: 0.82rem; line-height: 1.45;
   color: var(--gold); border: 1px solid color-mix(in srgb, var(--amber) 34%, var(--line)); background: color-mix(in srgb, var(--amber) 9%, transparent); }
 .gd-closed-banner b { color: var(--txt); }
+
+/* --- Audyt: EDGE (śr. wygrana vs strata → na transakcję) ------------------- */
+.gd-edge { margin-top: 12px; padding: 12px 13px; border-radius: 13px; border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--line)); background: color-mix(in srgb, var(--brand) 6%, transparent); }
+.gd-edge-note { font-size: 0.75rem; color: var(--muted); margin-bottom: 9px; }
+.gd-edge-note b { color: var(--txt); }
+.gd-edge-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.gd-edge-i { display: flex; flex-direction: column; gap: 1px; }
+.gd-edge-i small { font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); font-weight: 700; }
+.gd-edge-i b { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; font-size: 1.05rem; }
+.gd-edge-i.big b { font-size: 1.35rem; }
+.gd-edge-sep, .gd-edge-arrow { color: var(--dim); font-weight: 700; font-size: 0.85rem; }
+.gd-edge-arrow { color: var(--brand); font-size: 1.1rem; margin: 0 2px; }

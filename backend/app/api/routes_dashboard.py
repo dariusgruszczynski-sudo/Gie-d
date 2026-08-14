@@ -917,6 +917,17 @@ def get_audit(db: Session = Depends(get_db), settings: Settings = Depends(get_se
         "avg_loss_days": round(sum(hl) / len(hl), 1) if hl else None,
     }
 
+    # EDGE — najważniejsza liczba przy niskiej trafności: ile ŚREDNIO zarabia
+    # wygrana vs traci strata, i ile wychodzi NA JEDNĄ transakcję (oczekiwana
+    # wartość). Zysk bierze się z asymetrii, nie z tego, jak często się wygrywa.
+    win_pnls = [h["pnl_usd"] for h in hist if (h["pnl_usd"] or 0) >= 0]
+    loss_pnls = [h["pnl_usd"] for h in hist if (h["pnl_usd"] or 0) < 0]
+    avg_win = round(sum(win_pnls) / len(win_pnls), 2) if win_pnls else None
+    avg_loss = round(sum(loss_pnls) / len(loss_pnls), 2) if loss_pnls else None  # ujemna
+    per_trade = round(sum(h["pnl_usd"] for h in hist) / len(hist), 2) if hist else None
+    payoff = round(avg_win / abs(avg_loss), 2) if (avg_win and avg_loss) else None
+    edge = {"avg_win": avg_win, "avg_loss": avg_loss, "payoff": payoff, "per_trade": per_trade}
+
     # Przecieki per symbol (zrealizowany P&L).
     sym_stats: dict[str, dict] = {}
     qb: dict[str, float] = {}
@@ -1001,6 +1012,16 @@ def get_audit(db: Session = Depends(get_db), settings: Settings = Depends(get_se
             "t": f"Ostatnie 7 dni: {'+' if d7['realized_usd'] >= 0 else ''}{d7['realized_usd']:.2f} $ z {d7['closed']} zamknięć.",
             "tone": "good" if d7["realized_usd"] >= 0 else "bad",
         })
+        # EDGE — ważniejsze niż trafność: czy średnia wygrana bije średnią stratę.
+        if avg_win is not None and avg_loss is not None and per_trade is not None:
+            good = per_trade >= 0
+            concl.append({
+                "t": (f"Średnia wygrana +${avg_win:.2f} vs strata −${abs(avg_loss):.2f}"
+                      + (f" (wygrana {payoff}× większa)" if payoff else "")
+                      + f" → na transakcję {'+' if per_trade >= 0 else '−'}${abs(per_trade):.2f}. "
+                      + ("Zarabia mimo <50% trafności — edge dodatni." if good else "Wygrane za małe wobec strat — to psuje wynik.")),
+                "tone": "good" if good else "bad",
+            })
         if hold["avg_win_days"] is not None and hold["avg_loss_days"] is not None:
             if hold["avg_win_days"] > hold["avg_loss_days"] + 0.5:
                 concl.append({"t": f"⚠ Zyski trzymane dłużej (~{hold['avg_win_days']:.0f} dni) niż straty (~{hold['avg_loss_days']:.0f} dni) — automat zwleka z realizacją zysku.", "tone": "bad"})
@@ -1024,6 +1045,7 @@ def get_audit(db: Session = Depends(get_db), settings: Settings = Depends(get_se
         "totals": {"trades": len(trades), "buys": len(buys), "sells": len(sells)},
         "eras": eras,
         "hold": hold,
+        "edge": edge,
         "per_symbol": per_symbol[:10],
         "per_symbol_best": list(reversed(per_symbol[-3:])) if len(per_symbol) > 10 else [],
         "entries": entries,
