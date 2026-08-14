@@ -11,7 +11,9 @@ async function api(pathAndQuery) {
 export async function backendAvailable() {
   try {
     const r = await fetch('/api/health', { cache: 'no-store' });
-    return r.ok;
+    if (!r.ok) return false;
+    const d = await r.json();           // upewnij się, że to nasze API (a nie np. statyczny hosting)
+    return !!(d && d.service === 'spiewnik');
   } catch {
     return false;
   }
@@ -24,7 +26,7 @@ export async function searchLyrics(artist, title) {
     if (status === 200 && data.ok) return { ok: true, lyrics: data.lyrics };
     return { ok: false, error: data.error || `Nie znaleziono (status ${status}).` };
   } catch (e) {
-    return { ok: false, error: 'Backend niedostępny. Uruchom serwer (node server/server.js) lub wklej tekst ręcznie.' };
+    return { ok: false, error: 'Automatyczne pobieranie działa tylko w wersji z serwerem. Tutaj skorzystaj z „Wklej tekst ręcznie” poniżej.' };
   }
 }
 
@@ -35,6 +37,6 @@ export async function importUrl(url) {
     if (status === 200 && data.ok) return { ok: true, text: data.text, source: data.source };
     return { ok: false, error: data.error || `Nie udało się pobrać (status ${status}).` };
   } catch (e) {
-    return { ok: false, error: 'Backend niedostępny. Uruchom serwer, aby importować po URL.' };
+    return { ok: false, error: 'Import po URL działa tylko w wersji z serwerem. Tutaj skorzystaj z „Wklej tekst ręcznie” poniżej.' };
   }
 }

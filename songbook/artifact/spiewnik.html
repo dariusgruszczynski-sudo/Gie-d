@@ -1,8 +1,964 @@
+<title>🎵 Śpiewnik</title>
+<style>
+/* ================= Śpiewnik — style ================= */
+:root {
+  --bg: #f4f1ea;
+  --surface: #ffffff;
+  --surface-2: #faf8f3;
+  --border: #e3ddd0;
+  --text: #26221c;
+  --muted: #8a8375;
+  --primary: #b5462f;
+  --primary-ink: #ffffff;
+  --accent: #2f7d6b;
+  --danger: #c0392b;
+  --shadow: 0 1px 3px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.05);
+  --radius: 12px;
+
+  /* zmienne edytowane w Ustawieniach */
+  --song-font: 'Georgia', serif;
+  --song-size: 18px;
+  --song-line: 1.9;
+  --chord-color: #e2564a;
+  --lyric-color: var(--text);
+  --chord-weight: 700;
+}
+[data-theme="dark"] {
+  --bg: #17150f;
+  --surface: #201d16;
+  --surface-2: #262218;
+  --border: #35301f;
+  --text: #ece6d8;
+  --muted: #9c9482;
+  --primary: #d4694f;
+  --accent: #4bbda3;
+  --shadow: 0 1px 3px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.3);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg); color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+
+/* -------- layout -------- */
+#app { display: grid; grid-template-columns: 260px 1fr; height: 100vh; }
+.sidebar {
+  background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; padding: 16px; gap: 18px; overflow-y: auto;
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 20px; }
+.brand-logo { font-size: 26px; }
+.brand-name { letter-spacing: .3px; }
+.nav { display: flex; flex-direction: column; gap: 4px; }
+.nav-item {
+  text-align: left; background: none; border: none; cursor: pointer;
+  padding: 10px 12px; border-radius: 8px; font-size: 15px; color: var(--text);
+  transition: background .15s;
+}
+.nav-item:hover { background: var(--surface-2); }
+.nav-item.active { background: var(--primary); color: var(--primary-ink); font-weight: 600; }
+.sidebar-section { display: flex; flex-direction: column; gap: 8px; }
+.sidebar-title { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 700; }
+.sidebar-bottom { margin-top: auto; gap: 6px; }
+.backend-status { font-size: 12px; color: var(--muted); margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot-ok { background: #2ecc71; } .dot-off { background: #bbb; }
+
+.main { display: flex; flex-direction: column; overflow: hidden; }
+.topbar {
+  display: flex; align-items: center; gap: 12px; padding: 12px 22px;
+  border-bottom: 1px solid var(--border); background: var(--surface); min-height: 60px;
+}
+.view-title { font-size: 20px; margin: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-spacer { flex: 1; }
+.topbar-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.view { padding: 22px; overflow-y: auto; flex: 1; }
+
+/* -------- przyciski -------- */
+.btn {
+  background: var(--surface); border: 1px solid var(--border); color: var(--text);
+  padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 14px;
+  transition: all .15s; white-space: nowrap;
+}
+.btn:hover { background: var(--surface-2); border-color: var(--muted); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn-primary { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
+.btn-primary:hover { filter: brightness(1.07); background: var(--primary); }
+.btn-danger { color: #fff; background: var(--danger); border-color: var(--danger); }
+.btn-danger:hover { filter: brightness(1.07); background: var(--danger); }
+.btn-ghost { background: none; border-color: transparent; }
+.btn-ghost:hover { background: var(--surface-2); }
+.btn-block { width: 100%; }
+.btn-sm { padding: 6px 10px; font-size: 13px; }
+.btn-xs { padding: 3px 8px; font-size: 12px; border-radius: 6px; }
+.btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.icon-btn { background: none; border: none; cursor: pointer; font-size: 18px; padding: 6px; border-radius: 6px; color: var(--text); }
+.icon-btn:hover { background: var(--surface-2); }
+.link-btn { background: none; border: none; color: var(--primary); cursor: pointer; font-size: 13px; text-decoration: underline; padding: 0; }
+.only-mobile { display: none; }
+
+/* -------- inputy -------- */
+.input {
+  width: 100%; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 9px 12px; font-size: 14px; outline: none; transition: border .15s;
+}
+.input:focus { border-color: var(--primary); }
+textarea.input { resize: vertical; line-height: 1.5; }
+.mono { font-family: 'Courier New', monospace; }
+.title-input { font-size: 18px; font-weight: 600; }
+.field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.field-label { font-size: 13px; font-weight: 600; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.field-label.with-help { justify-content: space-between; }
+.field-label.mt { margin-top: 8px; }
+
+/* -------- toolbar / szukaj -------- */
+.toolbar { margin-bottom: 12px; }
+.search-input { max-width: 520px; }
+.tagbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.chip { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; font-size: 13px; cursor: pointer; }
+.chip:hover { background: var(--surface-2); }
+.chip-on { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* -------- karty -------- */
+.card-grid { display: flex; flex-direction: column; gap: 10px; max-width: 900px; }
+.song-card, .list-card {
+  display: flex; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 18px; cursor: pointer; transition: all .15s; box-shadow: var(--shadow);
+}
+.song-card:hover, .list-card:hover { transform: translateY(-1px); border-color: var(--primary); }
+.song-card-main { flex: 1; min-width: 0; }
+.song-title, .list-title { font-size: 16px; font-weight: 700; }
+.song-artist { color: var(--muted); font-size: 14px; }
+.song-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.pill { font-size: 11px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; color: var(--muted); }
+.pill-tag { color: var(--accent); }
+.song-chords { font-family: 'Courier New', monospace; font-size: 12px; color: var(--chord-color); margin-top: 6px; letter-spacing: 1px; }
+.song-card-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.muted-sm { font-size: 12px; color: var(--muted); }
+.chev { font-size: 22px; color: var(--muted); }
+.list-card-icon { font-size: 28px; }
+.list-card-main { flex: 1; }
+
+.empty { text-align: center; padding: 60px 20px; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.empty-emoji { font-size: 48px; }
+
+/* ============ Renderowanie utworu (ChordPro) ============ */
+.reader { max-width: 860px; }
+.reader-head { margin-bottom: 12px; }
+.reader-title { margin: 0 0 2px; font-size: 26px; }
+.reader-sub { color: var(--muted); font-size: 14px; }
+.reader-controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 14px 0; padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+.ctrl-group { display: flex; align-items: center; gap: 6px; }
+.ctrl-label { font-size: 12px; color: var(--muted); font-weight: 700; text-transform: uppercase; }
+.ctrl-val { min-width: 26px; text-align: center; font-weight: 700; }
+
+.diagrams { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 20px; }
+.diagram { width: 78px; }
+.chord-svg { width: 100%; height: auto; color: var(--muted); }
+.chord-name { fill: var(--text); font-size: 13px; font-weight: 700; font-family: sans-serif; }
+.chord-fret { fill: var(--muted); font-size: 9px; font-family: sans-serif; }
+.chord-mark { fill: var(--muted); font-size: 11px; font-family: sans-serif; }
+.chord-finger { fill: #fff; font-size: 8px; font-family: sans-serif; }
+
+.song-body {
+  font-family: var(--song-font); font-size: var(--song-size); line-height: var(--song-line);
+  color: var(--lyric-color);
+}
+.song-body.two-col { column-count: 2; column-gap: 40px; }
+.cp-line { display: flex; flex-wrap: wrap; align-items: flex-end; margin: 2px 0; }
+.cp-unit { display: inline-flex; flex-direction: column; }
+.cp-chord {
+  color: var(--chord-color); font-weight: var(--chord-weight); font-size: .72em;
+  font-family: 'Segoe UI', sans-serif; line-height: 1.1; white-space: pre; min-height: 1.1em;
+}
+.cp-lyric { white-space: pre; }
+.cp-nochord .cp-chord { display: none; }
+.cp-blank { height: .7em; }
+.cp-title { font-size: 1.3em; font-weight: 700; margin: 4px 0; }
+.cp-subtitle { color: var(--muted); margin-bottom: 6px; }
+.cp-comment { color: var(--accent); font-style: italic; font-size: .85em; margin: 10px 0 2px; font-family: 'Segoe UI', sans-serif; }
+.cp-label { font-weight: 700; font-size: .8em; color: var(--muted); text-transform: uppercase; }
+.cp-meta { color: var(--muted); font-size: .8em; }
+.cp-chorus { border-left: 3px solid var(--primary); padding-left: 12px; margin: 6px 0; }
+.cp-tab { font-family: 'Courier New', monospace; font-size: 13px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; line-height: 1.35; white-space: pre; }
+
+.tabs-block, .notes-block { margin-top: 24px; }
+.block-h { font-size: 16px; border-bottom: 1px solid var(--border); padding-bottom: 6px; margin: 20px 0 12px; }
+.block-h.mt { margin-top: 26px; }
+.tab-item { margin-bottom: 14px; }
+.tab-item-title { font-weight: 600; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+
+/* -------- edytor -------- */
+.editor { max-width: 1100px; }
+.editor-grid { display: grid; grid-template-columns: 2fr 2fr; gap: 0 16px; }
+.editor-grid .field:nth-child(3), .editor-grid .field:nth-child(4), .editor-grid .field:nth-child(5) { grid-column: auto; }
+.editor-split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
+.editor-col { display: flex; flex-direction: column; gap: 6px; }
+.editor-area { min-height: 380px; }
+.cp-toolbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+.preview-frame { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-height: 200px; overflow-x: auto; }
+.live-preview { min-height: 360px; }
+.tabs-editor { display: flex; flex-direction: column; gap: 12px; }
+.tab-editor-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+.tab-editor-head { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.tab-editor-head .input { flex: 1; }
+
+/* -------- listy / setlista -------- */
+.list-detail { max-width: 820px; }
+.list-meta { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.setlist { display: flex; flex-direction: column; gap: 6px; }
+.setlist-item { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+.setlist-item.dragging { opacity: .4; }
+.drag { cursor: grab; color: var(--muted); }
+.setlist-num { color: var(--muted); font-weight: 700; min-width: 24px; }
+.setlist-main { flex: 1; cursor: pointer; display: flex; flex-direction: column; min-width: 0; }
+.setlist-title { font-weight: 600; }
+.setlist-artist { font-size: 13px; color: var(--muted); }
+.add-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.add-row .input { flex: 1; min-width: 180px; }
+.check-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; }
+
+/* -------- szukaj -------- */
+.search-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; margin-bottom: 16px; max-width: 900px; }
+.search-intro { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+.search-fields { display: flex; gap: 8px; flex-wrap: wrap; }
+.search-fields .input { flex: 1; min-width: 160px; }
+.search-result { max-width: 900px; }
+.searching { display: flex; align-items: center; gap: 10px; color: var(--muted); padding: 16px 0; }
+.spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.notice { padding: 10px 14px; border-radius: 8px; font-size: 14px; margin: 10px 0; }
+.notice-warn { background: #fdf0e6; color: #a05a1a; border: 1px solid #f0d0a8; }
+.notice-ok { background: #e8f6ef; color: #1d7a53; border: 1px solid #b6e2cc; }
+[data-theme="dark"] .notice-warn { background: #3a2a15; color: #e0a566; border-color: #5a3f1c; }
+[data-theme="dark"] .notice-ok { background: #16342a; color: #6bd3a8; border-color: #23543f; }
+.found-preview { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin: 14px 0; }
+.found-fields { display: flex; gap: 8px; margin-bottom: 12px; }
+.found-fields .input { flex: 1; }
+.found-split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.found-split textarea { min-height: 260px; }
+.found-actions { margin-top: 14px; }
+
+/* -------- ustawienia -------- */
+.settings { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1000px; }
+.settings-panel, .settings-preview { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+.set-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.set-row:last-child { border-bottom: none; }
+.set-label { display: flex; flex-direction: column; }
+.set-label small { font-size: 12px; }
+.set-row .input, .set-row select { max-width: 200px; }
+.range-wrap { display: flex; align-items: center; gap: 10px; }
+.range { width: 160px; }
+.range-val { font-size: 13px; color: var(--muted); min-width: 42px; }
+.color { width: 44px; height: 30px; border: 1px solid var(--border); border-radius: 6px; padding: 2px; background: var(--surface); cursor: pointer; }
+.mt { margin-top: 14px; }
+.about { margin-top: 20px; }
+.about h4 { margin: 0 0 6px; }
+.muted { color: var(--muted); }
+
+/* switch */
+.switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; inset: 0; background: var(--border); border-radius: 24px; transition: .2s; }
+.slider::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+.switch input:checked + .slider { background: var(--accent); }
+.switch input:checked + .slider::before { transform: translateX(20px); }
+
+/* -------- modal / toast -------- */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+.modal { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); width: 100%; max-width: 460px; max-height: 90vh; overflow: auto; }
+.modal-wide { max-width: 700px; }
+.modal-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+.modal-head h3 { margin: 0; }
+.modal-body { padding: 18px; }
+.modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--border); }
+.help pre, .help code { background: var(--surface-2); border-radius: 6px; padding: 2px 6px; font-family: monospace; }
+.help pre { padding: 10px; overflow-x: auto; }
+
+.toast-root { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.toast { background: #222; color: #fff; padding: 10px 18px; border-radius: 24px; font-size: 14px; opacity: 0; transform: translateY(10px); transition: all .3s; box-shadow: var(--shadow); }
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast-success { background: #1d7a53; }
+.toast-error { background: var(--danger); }
+
+/* -------- tryb występu -------- */
+.perf-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 150; display: flex; flex-direction: column; }
+.perf-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
+.perf-spacer { flex: 1; }
+.perf-pos { font-weight: 700; color: var(--muted); }
+.perf-val { min-width: 74px; text-align: center; font-size: 13px; color: var(--muted); }
+.perf-content { flex: 1; overflow-y: auto; padding: 30px 6vw; }
+.perf-content .song-body { font-size: calc(var(--song-size) * 1.25); }
+body.perf-mode { overflow: hidden; }
+
+/* -------- responsywność -------- */
+@media (max-width: 860px) {
+  #app { grid-template-columns: 1fr; }
+  .sidebar { position: fixed; inset: 0 auto 0 0; width: 260px; z-index: 90; transform: translateX(-100%); transition: transform .2s; }
+  .sidebar.open { transform: translateX(0); box-shadow: var(--shadow); }
+  .only-mobile { display: inline-flex; }
+  .editor-split, .found-split, .settings, .editor-grid { grid-template-columns: 1fr; }
+  .song-body.two-col { column-count: 1; }
+  .view { padding: 16px; }
+}
+
+/* -------- druk -------- */
+@media print {
+  .sidebar, .topbar, .no-print, .reader-controls, .diagrams { display: none !important; }
+  #app { display: block; height: auto; }
+  .main { overflow: visible; }
+  .view { overflow: visible; padding: 0; }
+  body { background: #fff; }
+  .song-body { color: #000; }
+  .cp-chord { color: #000 !important; }
+}
+
+</style>
+
+<div id="app">
+    <!-- Pasek boczny -->
+    <aside id="sidebar" class="sidebar">
+      <div class="brand">
+        <span class="brand-logo">🎵</span>
+        <span class="brand-name">Śpiewnik</span>
+        <button id="sidebarClose" class="icon-btn only-mobile" title="Zamknij menu">✕</button>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item" data-view="songs">🎶 Piosenki</button>
+        <button class="nav-item" data-view="lists">📋 Listy</button>
+        <button class="nav-item" data-view="search">🔎 Wyszukaj</button>
+        <button class="nav-item" data-view="settings">⚙️ Wygląd</button>
+      </nav>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Szybkie akcje</div>
+        <button id="btnNewSong" class="btn btn-primary btn-block">＋ Nowa piosenka</button>
+        <button id="btnNewList" class="btn btn-block">＋ Nowa lista</button>
+      </div>
+
+      <div class="sidebar-section sidebar-bottom">
+        <button id="btnExport" class="btn btn-ghost btn-sm">⬇︎ Eksport kopii</button>
+        <button id="btnImport" class="btn btn-ghost btn-sm">⬆︎ Import kopii</button>
+        <input type="file" id="importFile" accept="application/json" hidden />
+        <div id="backendStatus" class="backend-status"></div>
+      </div>
+    </aside>
+
+    <!-- Główny obszar -->
+    <main id="main" class="main">
+      <header class="topbar">
+        <button id="menuToggle" class="icon-btn only-mobile" title="Menu">☰</button>
+        <h1 id="viewTitle" class="view-title">Piosenki</h1>
+        <div class="topbar-spacer"></div>
+        <div id="topbarActions" class="topbar-actions"></div>
+      </header>
+      <section id="view" class="view"></section>
+    </main>
+  </div>
+
+  <!-- Modal (uniwersalne okno) -->
+  <div id="modalRoot"></div>
+  <!-- Toasty -->
+  <div id="toastRoot" class="toast-root"></div>
+
+<script type="module">
+/* ==== chordpro.js ==== */
+// chordpro.js — parser i renderer formatu ChordPro (chwyty w [nawiasach] w tekście)
+// oraz transpozycja. Format ChordPro to standard dla śpiewników:
+//   [C]Panie mój, [G]dobry mój
+//   {title: ...}, {comment: ...}, {start_of_chorus}, {start_of_tab} ...
+
+const SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+const NOTE_TO_IDX = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+
+// Rozbija akord na [root, reszta]. Obsługuje np. C, Cm, C#m7, Bb/D, F#sus4
+function splitChord(chord) {
+  const m = chord.match(/^([A-G])([#b]?)(.*)$/);
+  if (!m) return null;
+  const [, letter, accidental, rest] = m;
+  let idx = NOTE_TO_IDX[letter];
+  if (accidental === '#') idx = (idx + 1) % 12;
+  if (accidental === 'b') idx = (idx + 11) % 12;
+  return { idx, rest };
+}
+
+function idxToName(idx, preferFlat) {
+  return (preferFlat ? FLAT : SHARP)[((idx % 12) + 12) % 12];
+}
+
+// Transponuje pojedynczy token akordu o `steps` półtonów. Obsługuje akordy z basem (C/E).
+function transposeChord(chord, steps, preferFlat = false) {
+  if (!chord) return chord;
+  return chord
+    .split('/')
+    .map((part) => {
+      const sp = splitChord(part);
+      if (!sp) return part;
+      const newIdx = (sp.idx + steps) % 12;
+      return idxToName(newIdx, preferFlat) + sp.rest;
+    })
+    .join('/');
+}
+
+// Transponuje cały tekst ChordPro (tylko zawartość [nawiasów]).
+function transposeSource(source, steps, preferFlat = false) {
+  if (!steps) return source;
+  return source.replace(/\[([^\]]+)\]/g, (_, c) => `[${transposeChord(c, steps, preferFlat)}]`);
+}
+
+// Zwraca unikalną listę akordów użytych w tekście (po transpozycji).
+function extractChords(source, steps = 0, preferFlat = false) {
+  const set = new Set();
+  const re = /\[([^\]]+)\]/g;
+  let m;
+  while ((m = re.exec(source))) {
+    const c = steps ? transposeChord(m[1], steps, preferFlat) : m[1];
+    if (/^[A-G]/.test(c)) set.add(c);
+  }
+  return [...set];
+}
+
+function escCP(s) {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// Parsuje jedną linię tekstu na segmenty {chord, text}
+function parseLine(line) {
+  const units = [];
+  const re = /\[([^\]]+)\]/g;
+  let last = 0;
+  let m;
+  let pendingText = '';
+  let firstChordSeen = false;
+  while ((m = re.exec(line))) {
+    const before = line.slice(last, m.index);
+    if (!firstChordSeen) {
+      pendingText += before;
+      if (pendingText) units.push({ chord: '', text: pendingText });
+      pendingText = '';
+      firstChordSeen = true;
+      units.push({ chord: m[1], text: '' });
+    } else {
+      units[units.length - 1].text += before;
+      units.push({ chord: m[1], text: '' });
+    }
+    last = re.lastIndex;
+  }
+  const tail = line.slice(last);
+  if (units.length) units[units.length - 1].text += tail;
+  else units.push({ chord: '', text: line });
+  return units;
+}
+
+// Renderuje ChordPro -> HTML. Opcje: { steps, preferFlat, showChords }
+function renderChordPro(source, opts = {}) {
+  const { steps = 0, preferFlat = false, showChords = true } = opts;
+  const lines = String(source).replace(/\r\n/g, '\n').split('\n');
+  let html = '';
+  let inTab = false;
+  let inChorus = false;
+  let tabBuffer = [];
+
+  const flushTab = () => {
+    if (tabBuffer.length) {
+      html += `<pre class="cp-tab">${escCP(tabBuffer.join('\n'))}</pre>`;
+      tabBuffer = [];
+    }
+  };
+
+  for (let raw of lines) {
+    const line = raw;
+    const directive = line.trim().match(/^\{\s*([a-zA-Z_]+)\s*:?\s*([^}]*)\}$/);
+    if (directive) {
+      const name = directive[1].toLowerCase();
+      const val = directive[2].trim();
+      switch (name) {
+        case 'title': case 't':
+          html += `<div class="cp-title">${escCP(val)}</div>`; break;
+        case 'subtitle': case 'st': case 'artist':
+          html += `<div class="cp-subtitle">${escCP(val)}</div>`; break;
+        case 'comment': case 'c': case 'ci':
+          html += `<div class="cp-comment">${escCP(val)}</div>`; break;
+        case 'start_of_chorus': case 'soc':
+          inChorus = true; html += `<div class="cp-chorus">`; if (val) html += `<div class="cp-label">${escCP(val)}</div>`; break;
+        case 'end_of_chorus': case 'eoc':
+          inChorus = false; html += `</div>`; break;
+        case 'start_of_verse': case 'sov':
+          html += `<div class="cp-verse">`; if (val) html += `<div class="cp-label">${escCP(val)}</div>`; break;
+        case 'end_of_verse': case 'eov':
+          html += `</div>`; break;
+        case 'start_of_tab': case 'sot':
+          inTab = true; break;
+        case 'end_of_tab': case 'eot':
+          inTab = false; flushTab(); break;
+        case 'key': case 'capo': case 'tempo': case 'time':
+          html += `<div class="cp-meta">${escCP(name)}: ${escCP(val)}</div>`; break;
+        default:
+          if (val) html += `<div class="cp-comment">${escCP(val)}</div>`;
+      }
+      continue;
+    }
+
+    if (inTab) { tabBuffer.push(raw); continue; }
+
+    if (line.trim() === '') { html += `<div class="cp-blank"></div>`; continue; }
+
+    const src = steps ? transposeSource(line, steps, preferFlat) : line;
+    const units = parseLine(src);
+    let lineHtml = '<div class="cp-line">';
+    for (const u of units) {
+      // gdy chwyty wyłączone, i tak parsujemy by usunąć [nawiasy]
+      const text = escCP(u.text.length ? u.text : (u.chord && showChords ? ' ' : ''));
+      if (showChords && u.chord) {
+        lineHtml += `<span class="cp-unit"><span class="cp-chord">${escCP(u.chord)}</span><span class="cp-lyric">${text}</span></span>`;
+      } else {
+        lineHtml += `<span class="cp-unit cp-nochord"><span class="cp-lyric">${text}</span></span>`;
+      }
+    }
+    lineHtml += '</div>';
+    html += lineHtml;
+  }
+  flushTab();
+  return html;
+}
+
+// Konwertuje "surowy" tekst (linie chwytów nad liniami tekstu) na ChordPro.
+// Heurystyka: linia jest "linią chwytów" jeśli składa się głównie z tokenów akordów.
+const CHORD_TOKEN = /^[A-H][#b]?(m|maj|min|dim|aug|sus|add|M)?[0-9]*(sus[0-9]|add[0-9])?(\/[A-H][#b]?)?$/;
+
+function isChordLine(line) {
+  const tokens = line.trim().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return false;
+  let chordCount = 0;
+  for (const t of tokens) {
+    // "H" bywa używane w PL/DE zamiast "B"
+    const norm = t.replace(/^H/, 'B');
+    if (CHORD_TOKEN.test(norm)) chordCount++;
+  }
+  return chordCount / tokens.length >= 0.6;
+}
+
+// Łączy linię chwytów z linią tekstu w jedną linię ChordPro na podstawie pozycji kolumn.
+function mergeChordLyric(chordLine, lyricLine) {
+  const chords = [];
+  const re = /(\S+)/g;
+  let m;
+  while ((m = re.exec(chordLine))) {
+    chords.push({ pos: m.index, chord: m[1].replace(/^H/, 'B') });
+  }
+  if (!chords.length) return lyricLine;
+  let out = '';
+  let prev = 0;
+  const line = lyricLine || '';
+  for (const c of chords) {
+    const p = Math.min(c.pos, line.length);
+    out += line.slice(prev, p) + `[${c.chord}]`;
+    prev = p;
+  }
+  out += line.slice(prev);
+  return out;
+}
+
+function plainToChordPro(text) {
+  const lines = String(text).replace(/\r\n/g, '\n').split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const cur = lines[i];
+    const next = lines[i + 1];
+    if (isChordLine(cur) && next !== undefined && !isChordLine(next) && next.trim() !== '') {
+      out.push(mergeChordLyric(cur, next));
+      i++; // pomijamy zużytą linię tekstu
+    } else if (isChordLine(cur) && (next === undefined || next.trim() === '')) {
+      // sama linia chwytów (np. wstęp) — zamień tokeny na [akordy]
+      out.push(cur.trim().split(/\s+/).map((t) => `[${t.replace(/^H/, 'B')}]`).join(' '));
+    } else {
+      out.push(cur);
+    }
+  }
+  return out.join('\n');
+}
+
+/* ==== chords.js ==== */
+// chords.js — biblioteka kształtów akordów gitarowych + generator diagramów SVG.
+// Kształt: tablica 6 liczb dla strun [E A D G B e] (od najgrubszej):
+//   -1 = struna wyciszona (x), 0 = pusta, n = próg.
+// baseFret: od którego progu rysujemy (dla akordów barre).
+
+const SHAPES = {
+  'C':   { frets: [-1, 3, 2, 0, 1, 0], fingers: [0, 3, 2, 0, 1, 0] },
+  'Cmaj7':{ frets: [-1, 3, 2, 0, 0, 0], fingers: [0, 3, 2, 0, 0, 0] },
+  'C7':  { frets: [-1, 3, 2, 3, 1, 0], fingers: [0, 3, 2, 4, 1, 0] },
+  'Cm':  { frets: [-1, 3, 5, 5, 4, 3], baseFret: 3, barre: 1 },
+  'D':   { frets: [-1, -1, 0, 2, 3, 2], fingers: [0, 0, 0, 1, 3, 2] },
+  'Dm':  { frets: [-1, -1, 0, 2, 3, 1], fingers: [0, 0, 0, 2, 3, 1] },
+  'D7':  { frets: [-1, -1, 0, 2, 1, 2], fingers: [0, 0, 0, 2, 1, 3] },
+  'Dmaj7':{ frets: [-1, -1, 0, 2, 2, 2], fingers: [0, 0, 0, 1, 1, 1] },
+  'Dsus4':{ frets: [-1, -1, 0, 2, 3, 3], fingers: [0, 0, 0, 1, 2, 3] },
+  'E':   { frets: [0, 2, 2, 1, 0, 0], fingers: [0, 2, 3, 1, 0, 0] },
+  'Em':  { frets: [0, 2, 2, 0, 0, 0], fingers: [0, 2, 3, 0, 0, 0] },
+  'E7':  { frets: [0, 2, 0, 1, 0, 0], fingers: [0, 2, 0, 1, 0, 0] },
+  'Em7': { frets: [0, 2, 0, 0, 0, 0], fingers: [0, 2, 0, 0, 0, 0] },
+  'F':   { frets: [1, 3, 3, 2, 1, 1], baseFret: 1, barre: 1 },
+  'Fmaj7':{ frets: [-1, -1, 3, 2, 1, 0], fingers: [0, 0, 3, 2, 1, 0] },
+  'F#m': { frets: [2, 4, 4, 2, 2, 2], baseFret: 2, barre: 1 },
+  'G':   { frets: [3, 2, 0, 0, 0, 3], fingers: [2, 1, 0, 0, 0, 3] },
+  'G7':  { frets: [3, 2, 0, 0, 0, 1], fingers: [3, 2, 0, 0, 0, 1] },
+  'Gm':  { frets: [3, 5, 5, 3, 3, 3], baseFret: 3, barre: 1 },
+  'A':   { frets: [-1, 0, 2, 2, 2, 0], fingers: [0, 0, 1, 2, 3, 0] },
+  'Am':  { frets: [-1, 0, 2, 2, 1, 0], fingers: [0, 0, 2, 3, 1, 0] },
+  'A7':  { frets: [-1, 0, 2, 0, 2, 0], fingers: [0, 0, 2, 0, 3, 0] },
+  'Am7': { frets: [-1, 0, 2, 0, 1, 0], fingers: [0, 0, 2, 0, 1, 0] },
+  'Asus4':{ frets: [-1, 0, 2, 2, 3, 0], fingers: [0, 0, 1, 2, 3, 0] },
+  'B':   { frets: [-1, 2, 4, 4, 4, 2], baseFret: 2, barre: 1 },
+  'Bm':  { frets: [-1, 2, 4, 4, 3, 2], baseFret: 2, barre: 1 },
+  'B7':  { frets: [-1, 2, 1, 2, 0, 2], fingers: [0, 2, 1, 3, 0, 4] },
+  'Bb':  { frets: [-1, 1, 3, 3, 3, 1], baseFret: 1, barre: 1 },
+};
+
+// Normalizuje nazwę akordu do klucza w bazie (usuwa bas po '/', zamienia H->B).
+function normalize(chord) {
+  let c = chord.split('/')[0].replace(/^H/, 'B');
+  if (SHAPES[c]) return c;
+  // spróbuj bez rozszerzeń typu 9,11,13,add
+  const base = c.match(/^([A-G][#b]?m?)/);
+  if (base && SHAPES[base[1]]) return base[1];
+  return null;
+}
+
+// Zwraca SVG diagramu akordu, albo null gdy nie znamy kształtu.
+function chordDiagram(chord, opts = {}) {
+  const key = normalize(chord);
+  if (!key) return null;
+  const shape = SHAPES[key];
+  const { frets, fingers = [], baseFret = 1, barre = 0 } = shape;
+
+  const W = 90, H = 112;
+  const left = 14, top = 24, right = 76, bottom = 96;
+  const strings = 6, fretsShown = 4;
+  const dx = (right - left) / (strings - 1);
+  const dy = (bottom - top) / fretsShown;
+  const dotColor = opts.dotColor || '#e2564a';
+  const line = opts.lineColor || 'currentColor';
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" class="chord-svg" role="img" aria-label="Akord ${chord}">`;
+  svg += `<text x="${W / 2}" y="14" text-anchor="middle" class="chord-name">${chord}</text>`;
+
+  // struny (pionowe)
+  for (let s = 0; s < strings; s++) {
+    const x = left + s * dx;
+    svg += `<line x1="${x}" y1="${top}" x2="${x}" y2="${bottom}" stroke="${line}" stroke-width="1"/>`;
+  }
+  // progi (poziome)
+  for (let f = 0; f <= fretsShown; f++) {
+    const y = top + f * dy;
+    const w = f === 0 && baseFret === 1 ? 3 : 1; // siodełko
+    svg += `<line x1="${left}" y1="${y}" x2="${right}" y2="${y}" stroke="${line}" stroke-width="${w}"/>`;
+  }
+  // numer progu przy barre
+  if (baseFret > 1) {
+    svg += `<text x="${left - 6}" y="${top + dy - 4}" text-anchor="end" class="chord-fret">${baseFret}</text>`;
+  }
+  // barre (poprzeczka)
+  if (barre) {
+    const y = top + (1 - 0.5) * dy;
+    svg += `<line x1="${left}" y1="${y}" x2="${right}" y2="${y}" stroke="${dotColor}" stroke-width="7" stroke-linecap="round" opacity="0.85"/>`;
+  }
+
+  for (let s = 0; s < strings; s++) {
+    const x = left + s * dx;
+    const fr = frets[s];
+    if (fr === -1) {
+      svg += `<text x="${x}" y="${top - 6}" text-anchor="middle" class="chord-mark">×</text>`;
+    } else if (fr === 0) {
+      svg += `<circle cx="${x}" cy="${top - 10}" r="3" fill="none" stroke="${line}" stroke-width="1.2"/>`;
+    } else {
+      const rel = fr - baseFret + 1;
+      if (rel >= 1 && rel <= fretsShown) {
+        const y = top + (rel - 0.5) * dy;
+        svg += `<circle cx="${x}" cy="${y}" r="6" fill="${dotColor}"/>`;
+        if (fingers[s]) svg += `<text x="${x}" y="${y + 3.5}" text-anchor="middle" class="chord-finger">${fingers[s]}</text>`;
+      }
+    }
+  }
+  svg += `</svg>`;
+  return svg;
+}
+
+function hasShape(chord) {
+  return normalize(chord) !== null;
+}
+
+/* ==== store.js ==== */
+// store.js — trwałe przechowywanie danych w localStorage + model danych.
+
+const KEY = 'spiewnik.v1';
+
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+const DEFAULT_SETTINGS = {
+  theme: 'auto',          // auto | light | dark
+  fontFamily: "'Georgia', serif",
+  fontSize: 18,           // px
+  lineHeight: 1.9,
+  chordColor: '#e2564a',
+  lyricColor: '',         // pusty = domyślny kolor motywu
+  chordBold: true,
+  showChords: true,
+  showDiagrams: true,
+  columns: 1,             // 1 | 2
+};
+
+function seed() {
+  const s1 = {
+    id: uid(),
+    title: 'Hey There Delilah',
+    artist: "Plain White T's",
+    key: 'D',
+    capo: 0,
+    tempo: 104,
+    tags: ['przykład', 'akustyk'],
+    body: `{comment: Zwrotka}
+[D]Hey there De[F#m]lilah, what's it [Bm]like in New York [G]city?
+[D]I'm a thousand [F#m]miles a[Bm]way, but [G]girl tonight you look so [A]pretty, yes you [D]do
+
+{start_of_chorus}
+Oh it's [Bm]what you [A]do to [G]me
+Oh it's [Bm]what you [A]do to [G]me
+{end_of_chorus}`,
+    tabs: [],
+    notes: 'Kapodaster można dać na II próg dla wyższego brzmienia.',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  const s2 = {
+    id: uid(),
+    title: 'Przykład z tabulaturą',
+    artist: 'Śpiewnik',
+    key: 'Em',
+    capo: 0,
+    tempo: 0,
+    tags: ['tab'],
+    body: `{comment: Intro (tabulatura)}
+{start_of_tab}
+e|-----0-----0-----|
+B|---0---0---0---0-|
+G|-0-------0-------|
+D|-----------------|
+A|-----------------|
+E|-----------------|
+{end_of_tab}
+
+[Em]Tak wygląda [C]tekst z [G]chwytami [D]nad słowami.`,
+    tabs: [
+      { id: uid(), title: 'Riff główny', content: `e|-------------------|\nB|-------------------|\nG|-------------------|\nD|-----2-4-5---------|\nA|-0-3--------3-0----|\nE|-------------------|` },
+    ],
+    notes: '',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  const list = { id: uid(), name: 'Na ognisko', description: 'Piosenki na gitarę przy ognisku', songIds: [s1.id, s2.id], createdAt: Date.now() };
+  return { songs: [s1, s2], lists: [list], settings: { ...DEFAULT_SETTINGS } };
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) {
+      const data = seed();
+      save(data);
+      return data;
+    }
+    const data = JSON.parse(raw);
+    data.settings = { ...DEFAULT_SETTINGS, ...(data.settings || {}) };
+    data.songs = data.songs || [];
+    data.lists = data.lists || [];
+    return data;
+  } catch (e) {
+    console.error('Błąd wczytywania danych, tworzę nowe:', e);
+    const data = seed();
+    save(data);
+    return data;
+  }
+}
+
+let state = load();
+let storageWarned = false;
+
+function save(data = state) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(data));
+  } catch (e) {
+    // np. pamięć przeglądarki niedostępna/pełna — działamy dalej w pamięci sesji
+    if (!storageWarned) { console.warn('Zapis do localStorage nieudany — dane tylko w tej sesji.', e); storageWarned = true; }
+  }
+}
+
+const store = {
+  get() { return state; },
+  get settings() { return state.settings; },
+
+  // --- Piosenki ---
+  songs() { return state.songs; },
+  song(id) { return state.songs.find((s) => s.id === id); },
+  createSong(partial = {}) {
+    const s = {
+      id: uid(), title: 'Nowa piosenka', artist: '', key: '', capo: 0, tempo: 0,
+      tags: [], body: '', tabs: [], notes: '',
+      createdAt: Date.now(), updatedAt: Date.now(), ...partial,
+    };
+    state.songs.unshift(s);
+    save();
+    return s;
+  },
+  updateSong(id, patch) {
+    const s = this.song(id);
+    if (!s) return null;
+    Object.assign(s, patch, { updatedAt: Date.now() });
+    save();
+    return s;
+  },
+  deleteSong(id) {
+    state.songs = state.songs.filter((s) => s.id !== id);
+    state.lists.forEach((l) => { l.songIds = l.songIds.filter((sid) => sid !== id); });
+    save();
+  },
+  duplicateSong(id) {
+    const s = this.song(id);
+    if (!s) return null;
+    const copy = { ...structuredClone(s), id: uid(), title: s.title + ' (kopia)', createdAt: Date.now(), updatedAt: Date.now() };
+    state.songs.unshift(copy);
+    save();
+    return copy;
+  },
+
+  // --- Listy (setlisty) ---
+  lists() { return state.lists; },
+  list(id) { return state.lists.find((l) => l.id === id); },
+  createList(name = 'Nowa lista') {
+    const l = { id: uid(), name, description: '', songIds: [], createdAt: Date.now() };
+    state.lists.unshift(l);
+    save();
+    return l;
+  },
+  updateList(id, patch) {
+    const l = this.list(id);
+    if (!l) return null;
+    Object.assign(l, patch);
+    save();
+    return l;
+  },
+  deleteList(id) {
+    state.lists = state.lists.filter((l) => l.id !== id);
+    save();
+  },
+  addToList(listId, songId) {
+    const l = this.list(listId);
+    if (l && !l.songIds.includes(songId)) { l.songIds.push(songId); save(); }
+  },
+  removeFromList(listId, songId) {
+    const l = this.list(listId);
+    if (l) { l.songIds = l.songIds.filter((id) => id !== songId); save(); }
+  },
+  reorderList(listId, fromIdx, toIdx) {
+    const l = this.list(listId);
+    if (!l) return;
+    const arr = l.songIds;
+    if (fromIdx < 0 || fromIdx >= arr.length || toIdx < 0 || toIdx >= arr.length) return;
+    const [m] = arr.splice(fromIdx, 1);
+    arr.splice(toIdx, 0, m);
+    save();
+  },
+
+  // --- Ustawienia ---
+  updateSettings(patch) {
+    Object.assign(state.settings, patch);
+    save();
+  },
+
+  // --- Kopia zapasowa ---
+  exportJSON() {
+    return JSON.stringify(state, null, 2);
+  },
+  importJSON(json, { merge = false } = {}) {
+    const incoming = JSON.parse(json);
+    if (!incoming.songs || !incoming.lists) throw new Error('Plik nie wygląda na kopię śpiewnika.');
+    if (merge) {
+      state.songs = [...incoming.songs, ...state.songs];
+      state.lists = [...incoming.lists, ...state.lists];
+    } else {
+      state = { ...seed(), ...incoming };
+      state.settings = { ...DEFAULT_SETTINGS, ...(incoming.settings || {}) };
+    }
+    save();
+    return state;
+  },
+  resetSettings() {
+    state.settings = { ...DEFAULT_SETTINGS };
+    save();
+  },
+};
+
+{ DEFAULT_SETTINGS, uid };
+
+/* ==== search-client.js ==== */
+// search-client.js — klient modułu "Wyszukaj". Rozmawia z backendem
+// (server/server.js). Gdy backend jest niedostępny (np. otwarcie pliku
+// bezpośrednio z dysku), zwraca czytelny komunikat i pozwala wkleić tekst ręcznie.
+
+async function api(pathAndQuery) {
+  const r = await fetch(pathAndQuery, { headers: { Accept: 'application/json' } });
+  const data = await r.json().catch(() => ({}));
+  return { status: r.status, data };
+}
+
+async function backendAvailable() {
+  try {
+    const r = await fetch('/api/health', { cache: 'no-store' });
+    if (!r.ok) return false;
+    const d = await r.json();           // upewnij się, że to nasze API (a nie np. statyczny hosting)
+    return !!(d && d.service === 'spiewnik');
+  } catch {
+    return false;
+  }
+}
+
+// Wyszukuje tekst piosenki po wykonawcy i tytule.
+async function searchLyrics(artist, title) {
+  try {
+    const { status, data } = await api(`/api/lyrics?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`);
+    if (status === 200 && data.ok) return { ok: true, lyrics: data.lyrics };
+    return { ok: false, error: data.error || `Nie znaleziono (status ${status}).` };
+  } catch (e) {
+    return { ok: false, error: 'Automatyczne pobieranie działa tylko w wersji z serwerem. Tutaj skorzystaj z „Wklej tekst ręcznie” poniżej.' };
+  }
+}
+
+// Importuje dowolną stronę z chwytami/tabami po adresie URL.
+async function importUrl(url) {
+  try {
+    const { status, data } = await api(`/api/import?url=${encodeURIComponent(url)}`);
+    if (status === 200 && data.ok) return { ok: true, text: data.text, source: data.source };
+    return { ok: false, error: data.error || `Nie udało się pobrać (status ${status}).` };
+  } catch (e) {
+    return { ok: false, error: 'Import po URL działa tylko w wersji z serwerem. Tutaj skorzystaj z „Wklej tekst ręcznie” poniżej.' };
+  }
+}
+
+/* ==== app.js ==== */
 // app.js — główny moduł aplikacji Śpiewnik.
-import { store } from './store.js';
-import { render as renderChordPro, extractChords, transposeSource, plainToChordPro } from './chordpro.js';
-import { chordDiagram, hasShape } from './chords.js';
-import { searchLyrics, importUrl, backendAvailable } from './search-client.js';
+
+
+
 
 // ------------------------------------------------------------------ helpers
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -802,3 +1758,5 @@ applySettings();
 bind();
 render();
 refreshBackendStatus();
+
+</script>

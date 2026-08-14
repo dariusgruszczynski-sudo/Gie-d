@@ -91,9 +91,15 @@ function load() {
 }
 
 let state = load();
+let storageWarned = false;
 
 function save(data = state) {
-  localStorage.setItem(KEY, JSON.stringify(data));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(data));
+  } catch (e) {
+    // np. pamięć przeglądarki niedostępna/pełna — działamy dalej w pamięci sesji
+    if (!storageWarned) { console.warn('Zapis do localStorage nieudany — dane tylko w tej sesji.', e); storageWarned = true; }
+  }
 }
 
 export const store = {

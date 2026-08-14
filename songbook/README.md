@@ -11,8 +11,26 @@ frontend i udostępnia moduł wyszukiwania/importu z internetu.
 
 ---
 
-## Uruchomienie
+## Dwa sposoby użycia
 
+### A) Wersja hostowana na claude.ai (dostępna z każdego urządzenia)
+Aplikację można opublikować jako **Artefakt Claude** — wtedy jest dostępna
+wszędzie tam, gdzie zalogujesz się do Claude, bez uruchamiania czegokolwiek.
+
+```bash
+cd songbook
+node build-artifact.mjs      # tworzy artifact/spiewnik.html (jeden plik)
+```
+Plik `artifact/spiewnik.html` jest samowystarczalny (CSS + JS + HTML w środku)
+i publikowany jako Artefakt.
+
+W tej wersji **dane trzymane są w przeglądarce danego urządzenia** (localStorage),
+a przenoszenie ich między urządzeniami odbywa się przez **Eksport / Import kopii**
+(przyciski w menu; zapis korzysta z natywnego pobierania Claude). Automatyczne
+pobieranie tekstu z sieci i import po URL wymagają wersji z serwerem (poniżej) —
+w wersji hostowanej użyj „Wklej tekst ręcznie” z auto-konwersją chwytów.
+
+### B) Wersja z serwerem (pełne wyszukiwanie w sieci)
 Wymagany tylko **Node.js ≥ 18** (bez `npm install` — zero zależności).
 
 ```bash
@@ -21,11 +39,11 @@ node server.js
 # otwórz http://localhost:8080
 ```
 
-Port można zmienić: `PORT=3000 node server.js`.
+Port można zmienić: `PORT=3000 node server.js`. Tu działa też automatyczne
+pobieranie tekstów i import po URL.
 
-> Frontend można też otworzyć bez serwera (plik `public/index.html`), ale wtedy
-> nie zadziała moduł wyszukiwania/importu z sieci (wymaga backendu). Reszta —
-> listy, edycja, chwyty, tabulatury, transpozycja, druk — działa w pełni offline.
+> Frontend (`public/index.html`) można otworzyć również bez serwera — działa
+> wtedy tak jak wersja hostowana (bez wyszukiwania w sieci).
 
 ---
 
