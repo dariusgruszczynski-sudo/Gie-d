@@ -2,7 +2,7 @@
 import { store } from './store.js';
 import { render as renderChordPro, extractChords, transposeSource, plainToChordPro, stretchChords } from './chordpro.js';
 import { chordDiagram, hasShape } from './chords.js';
-import { searchLyrics, importUrl, searchWeb, resolveLink } from './search-client.js';
+import { searchLyrics, importUrl, searchWeb, resolveLink, detectChords } from './search-client.js';
 import { sync } from './sync.js';
 import { SUGGEST_PL, SUGGEST_WORLD } from './suggestions.js';
 
@@ -718,6 +718,22 @@ function renderInbox(view, actions) {
     renderList();
   }
 
+  async function detectFromYT(it, btn) {
+    const old = btn.textContent; btn.disabled = true; btn.textContent = '🎧 Analizuję… (to potrwa)';
+    const res = await detectChords(it.url);
+    btn.disabled = false; btn.textContent = old;
+    if (!res.ok) { toast('⚠︎ ' + res.error, 'error'); return; }
+    if (!res.chords.length) { toast('Nie wykryto wyraźnych akordów.', 'error'); return; }
+    const seq = res.chords.map((c) => c.chord);
+    const lines = [];
+    for (let i = 0; i < seq.length; i += 8) lines.push(seq.slice(i, i + 8).map((c) => `[${c}]`).join(' '));
+    const body = `{comment: Akordy wykryte z audio — PRZYBLIŻONE, dopasuj do tekstu}\n{comment: Użyte akordy: ${res.unique.join(' ')}}\n\n${lines.join('\n')}`;
+    const s = store.createSong({ title: it.title || 'Wykryte z YT', artist: it.author || '', tempo: res.tempo || 0, tags: ['z audio'], notes: 'Źródło: ' + it.url, body });
+    store.removeInbox(it.id); updateInboxBadge();
+    toast('Wykryto akordy — dodaj tekst i rozmieść chwyty ✓', 'success');
+    go('songs', { songId: s.id, editing: true });
+  }
+
   const listWrap = el('div', { class: 'inbox-list' });
   function renderList() {
     listWrap.innerHTML = '';
@@ -744,6 +760,7 @@ function renderInbox(view, actions) {
         el('div', { class: 'inbox-actions' },
           el('button', { class: 'btn btn-sm btn-primary', onClick: () => accept(false) }, '✓ Akceptuj'),
           el('button', { class: 'btn btn-sm', title: 'Akceptuj i znajdź chwyty', onClick: () => accept(true) }, '🔎 + chwyty'),
+          (sync.audioAvailable() && /youtu/.test(it.url)) ? el('button', { class: 'btn btn-sm', title: 'Wykryj akordy z audio (przybliżone)', onClick: (e) => detectFromYT(it, e.target) }, '🎧 Akordy z YT') : null,
           el('button', { class: 'btn btn-sm btn-danger', onClick: () => { store.removeInbox(it.id); updateInboxBadge(); renderList(); } }, '✕'),
         ),
       ));

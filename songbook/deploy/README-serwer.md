@@ -45,6 +45,18 @@ wyników użyj SerpAPI:
 - pozwól reużyć klucz GielDarka — nakładka przekazuje `SERPAPI_API_KEY` z `.env`
   (uwaga: współdzielony limit zapytań z botem).
 
+### 1c. (opcjonalnie, CIĘŻKIE) Wykrywanie akordów z audio (YouTube)
+Osobny mikroserwis (librosa + ffmpeg + yt-dlp) analizuje dźwięk i zwraca
+przybliżoną progresję akordów — punkt startowy do ręcznej poprawki w edytorze.
+
+- **Uwaga:** obraz jest duży, analiza obciąża CPU, a wynik jest **przybliżony**
+  (~70–85% na prostym popie). Pobieranie audio z YouTube bywa niezgodne z
+  regulaminem serwisu — używaj prywatnie i na własną odpowiedzialność.
+- Włączenie (jednorazowo): `touch songbook/deploy/audio.enabled`
+  Wtedy `deploy.sh` sam dokłada usługę `songbook-audio` i podłącza ją do apki
+  (endpoint `/api/chords`, przycisk „🎧 Akordy z YT" w Poczekalni przy linkach YT).
+- Wyłączenie: `rm songbook/deploy/audio.enabled` i przebuduj.
+
 ### 2. Zbuduj i uruchom
 Na serwerze, w katalogu repo (`~/gie-d`), po `git pull`:
 

@@ -18,6 +18,7 @@ function emitStatus(s, detail) { statusCb(s, detail); }
 export const sync = {
   onStatus(cb) { statusCb = cb || (() => {}); },
   available() { return !!(cfg && cfg.sync); },
+  audioAvailable() { return !!(cfg && cfg.audio); },
   authRequired() { return !!(cfg && cfg.authRequired); },
   hasToken() { return !!getToken(); },
   token() { return getToken(); },
