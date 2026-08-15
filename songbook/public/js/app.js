@@ -2,7 +2,7 @@
 import { store } from './store.js';
 import { render as renderChordPro, extractChords, transposeSource, plainToChordPro } from './chordpro.js';
 import { chordDiagram, hasShape } from './chords.js';
-import { searchLyrics, importUrl, searchWeb } from './search-client.js';
+import { searchLyrics, importUrl, searchWeb, resolveLink } from './search-client.js';
 import { sync } from './sync.js';
 import { SUGGEST_PL, SUGGEST_WORLD } from './suggestions.js';
 
@@ -26,6 +26,16 @@ const el = (tag, props = {}, ...children) => {
 };
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const fmtDate = (ts) => new Date(ts).toLocaleDateString('pl-PL', { day: '2-digit', month: 'short', year: 'numeric' });
+
+// Automatycznie ustawia chwyty NAD tekstem: jeśli tekst nie jest jeszcze w
+// formacie ChordPro (brak [ ]) a wykryto chwyty, konwertuje. W przeciwnym razie
+// zostawia bez zmian. Zwraca { body, converted }.
+function autoChordify(body) {
+  if (/\[/.test(body)) return { body, converted: false };
+  const conv = plainToChordPro(body || '');
+  const added = (conv.match(/\[/g) || []).length;
+  return added ? { body: conv, converted: true } : { body, converted: false };
+}
 
 function toast(msg, type = 'info') {
   const t = el('div', { class: `toast toast-${type}`, text: msg });
@@ -128,7 +138,8 @@ function go(view, opts = {}) {
 function render() {
   applySettings();
   $$('.nav-item').forEach((b) => b.classList.toggle('active', b.dataset.view === app.view));
-  const titleMap = { songs: 'Piosenki', lists: 'Listy', suggest: 'Propozycje', search: 'Wyszukaj', settings: 'Wygląd' };
+  const titleMap = { songs: 'Piosenki', lists: 'Listy', suggest: 'Propozycje', inbox: 'Poczekalnia', search: 'Wyszukaj', settings: 'Wygląd' };
+  updateInboxBadge();
   const actions = $('#topbarActions'); actions.innerHTML = '';
   const view = $('#view'); view.innerHTML = '';
   $('#viewTitle').textContent = titleMap[app.view] || 'Śpiewnik';
@@ -138,6 +149,7 @@ function render() {
   if (app.view === 'lists' && app.listId) return renderListDetail(view, actions);
   if (app.view === 'lists') return renderLists(view, actions);
   if (app.view === 'suggest') return renderSuggestions(view, actions);
+  if (app.view === 'inbox') return renderInbox(view, actions);
   if (app.view === 'search') return renderSearch(view, actions);
   if (app.view === 'settings') return renderSettings(view, actions);
 }
@@ -251,6 +263,17 @@ function renderSongReader(s, { withControls = false } = {}) {
   );
   wrap.append(head);
 
+  // Piosenka zapisana w „surowej" formie (chwyty nie nad tekstem)? Zaproponuj naprawę.
+  if (withControls) {
+    const fix = autoChordify(s.body);
+    if (fix.converted) {
+      wrap.append(el('div', { class: 'notice notice-warn no-print fix-chords' },
+        el('span', {}, '⚠︎ Chwyty nie są ustawione nad tekstem.'),
+        el('button', { class: 'btn btn-sm', onClick: () => { store.updateSong(s.id, { body: fix.body }); toast('Ustawiłem chwyty nad tekstem ✓', 'success'); render(); } }, '🎸 Ustaw chwyty nad tekstem'),
+      ));
+    }
+  }
+
   if (withControls) {
     const showChordsBtn = el('button', { class: 'btn btn-sm', onClick: () => { store.updateSettings({ showChords: !store.settings.showChords }); render(); } }, store.settings.showChords ? '🎸 Chwyty: wł.' : '🎸 Chwyty: wył.');
     const controls = el('div', { class: 'reader-controls no-print' },
@@ -326,7 +349,7 @@ function renderSongEditor(view, actions, s) {
 
   // podgląd na żywo
   const preview = el('div', { class: 'song-body live-preview' });
-  const updatePreview = () => { preview.innerHTML = renderChordPro(f.body.value, { showChords: store.settings.showChords }); };
+  const updatePreview = () => { preview.innerHTML = renderChordPro(autoChordify(f.body.value).body, { showChords: store.settings.showChords }); };
   f.body.addEventListener('input', updatePreview);
   updatePreview();
 
@@ -368,16 +391,17 @@ function renderSongEditor(view, actions, s) {
 
   function save() {
     const tags = f.tags.value.split(',').map((t) => t.trim()).filter(Boolean);
+    const { body: bodyVal, converted } = autoChordify(f.body.value); // chwyty NAD tekstem, automatycznie
     store.updateSong(s.id, {
       title: f.title.value.trim() || 'Bez tytułu',
       artist: f.artist.value.trim(),
       key: f.key.value.trim(),
       capo: parseInt(f.capo.value) || 0,
       tempo: parseInt(f.tempo.value) || 0,
-      tags, notes: f.notes.value, body: f.body.value,
+      tags, notes: f.notes.value, body: bodyVal,
       tabs: localTabs.filter((t) => t.content.trim()),
     });
-    toast('Zapisano ✓', 'success');
+    toast(converted ? 'Zapisano — ustawiłem chwyty nad tekstem ✓' : 'Zapisano ✓', 'success');
     app.editing = false;
     render();
   }
@@ -549,6 +573,98 @@ function addToListDialog(songId) {
 }
 
 // ------------------------------------------------------------------ Wyszukaj
+// ------------------------------------------------------------------ Poczekalnia
+function updateInboxBadge() {
+  const b = $('#inboxBadge'); if (!b) return;
+  const n = store.inbox().length;
+  b.textContent = n; b.hidden = n === 0;
+}
+
+// Rozdziela tytuł filmu na wykonawcę i tytuł oraz sprząta śmieci („(Official Video)" itd.)
+function parseTrack(rawTitle, author) {
+  let t = (rawTitle || '').replace(/\s+/g, ' ').trim();
+  t = t.replace(/\((?:official|lyric|audio|video|teledysk|prod\.?|hd|4k)[^)]*\)/gi, '')
+       .replace(/\[[^\]]*\]/g, '')
+       .replace(/(official (music )?video|lyric video|audio|teledysk|visualizer)/gi, '')
+       .replace(/\s+/g, ' ').trim();
+  let artist = author ? author.replace(/\s*-\s*Topic$/i, '').trim() : '';
+  let title = t;
+  const m = t.match(/^(.{1,60}?)\s*[-–—]\s*(.+)$/); // „Wykonawca - Tytuł"
+  if (m) { artist = m[1].trim(); title = m[2].trim(); }
+  title = title.replace(/["'|]+$/,'').trim();
+  return { artist, title: title || t || 'Nowa piosenka' };
+}
+
+function renderInbox(view, actions) {
+  $('#viewTitle').textContent = 'Poczekalnia';
+  if (store.inbox().length) {
+    actions.append(el('button', { class: 'btn btn-sm btn-danger', onClick: () => confirmDialog('Wyczyścić całą poczekalnię?', () => { store.clearInbox(); render(); }, { danger: true }) }, 'Wyczyść'));
+  }
+
+  const linksArea = el('textarea', { class: 'input mono', rows: '3', placeholder: 'Wklej link(i) z TikToka / Instagrama / Facebooka / YouTube — po jednym w linii. „Udostępnij → Kopiuj link".' });
+  const box = el('div', { class: 'search-box' },
+    el('p', { class: 'search-intro', text: 'Wrzucaj tu polubione utwory z social mediów. Wklej linki (Udostępnij → Kopiuj link), a aplikacja rozpozna tytuł i doda do kolejki „do akceptacji".' }),
+    linksArea,
+    el('div', { class: 'search-fields' }, el('button', { class: 'btn btn-primary', onClick: addLinks }, '⬇︎ Dodaj do poczekalni')),
+  );
+
+  async function addLinks() {
+    const urls = linksArea.value.split(/\s+/).map((s) => s.trim()).filter((s) => /^https?:\/\//i.test(s));
+    if (!urls.length) { toast('Wklej przynajmniej jeden link (http…)', 'error'); return; }
+    linksArea.value = '';
+    let added = 0;
+    for (const url of urls) {
+      const stub = store.addInbox({ url, source: (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } })(), title: '' });
+      if (stub) { added++; updateInboxBadge(); renderList(); resolveInto(stub); }
+    }
+    toast(added ? `Dodano ${added} do poczekalni` : 'Już były w poczekalni', added ? 'success' : 'info');
+    renderList();
+  }
+  async function resolveInto(stub) {
+    const r = await resolveLink(stub.url);
+    if (r.ok && (r.title || r.author)) {
+      const p = parseTrack(r.title, r.author);
+      store.updateInbox(stub.id, { title: p.title, author: p.artist });
+    }
+    renderList();
+  }
+
+  const listWrap = el('div', { class: 'inbox-list' });
+  function renderList() {
+    listWrap.innerHTML = '';
+    const items = store.inbox();
+    if (!items.length) { listWrap.append(el('div', { class: 'empty' }, el('div', { class: 'empty-emoji' }, '🕓'), el('p', {}, 'Poczekalnia jest pusta. Wklej linki powyżej.'))); return; }
+    items.forEach((it) => {
+      const titleI = el('input', { class: 'input', value: it.title || '', placeholder: 'Tytuł', oninput: (e) => { store.updateInbox(it.id, { title: e.target.value }); } });
+      const artistI = el('input', { class: 'input', value: it.author || '', placeholder: 'Wykonawca', oninput: (e) => { store.updateInbox(it.id, { author: e.target.value }); } });
+      const accept = (search) => {
+        const s = store.createSong({ title: (it.title || '').trim() || 'Nowa piosenka', artist: (it.author || '').trim(), tags: ['z social'], notes: 'Źródło: ' + it.url });
+        store.removeInbox(it.id); updateInboxBadge();
+        toast('Zaakceptowano ✓', 'success');
+        if (search) { app.pendingSearch = { q: s.title, artist: s.artist }; go('search'); }
+        else { go('songs', { songId: s.id }); }
+      };
+      listWrap.append(el('div', { class: 'inbox-item' },
+        el('div', { class: 'inbox-main' },
+          el('div', { class: 'inbox-fields' }, titleI, artistI),
+          el('div', { class: 'inbox-meta' },
+            it.source ? el('span', { class: 'result-source', text: it.source }) : el('span', { class: 'result-source' }, '…'),
+            el('a', { class: 'inbox-link', href: it.url, target: '_blank', rel: 'noopener', text: it.url }),
+          ),
+        ),
+        el('div', { class: 'inbox-actions' },
+          el('button', { class: 'btn btn-sm btn-primary', onClick: () => accept(false) }, '✓ Akceptuj'),
+          el('button', { class: 'btn btn-sm', title: 'Akceptuj i znajdź chwyty', onClick: () => accept(true) }, '🔎 + chwyty'),
+          el('button', { class: 'btn btn-sm btn-danger', onClick: () => { store.removeInbox(it.id); updateInboxBadge(); renderList(); } }, '✕'),
+        ),
+      ));
+    });
+  }
+  renderList();
+
+  view.append(box, listWrap);
+}
+
 // ------------------------------------------------------------------ Propozycje
 const normKey = (t, a) => (String(t) + '|' + String(a)).toLowerCase().replace(/\s+/g, ' ').trim();
 
