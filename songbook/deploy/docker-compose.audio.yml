@@ -1,0 +1,23 @@
+# OPCJONALNA nakładka: mikroserwis wykrywania akordów z audio (YouTube).
+# Włącz świadomie — obraz jest ciężki (librosa + ffmpeg), a pobieranie audio z
+# YouTube bywa niezgodne z regulaminem serwisu (używaj prywatnie).
+#
+# Uruchomienie (z ~/gie-d), razem z resztą:
+#   docker compose -f docker-compose.yml \
+#     -f deploy/docker-compose.caddy.yml \
+#     -f songbook/deploy/docker-compose.songbook.yml \
+#     -f songbook/deploy/docker-compose.audio.yml up -d --build
+#
+# Gdy ta nakładka jest aktywna, główny serwer śpiewnika dostaje adres serwisu
+# przez zmienną SONGBOOK_AUDIO_URL i włącza endpoint /api/chords.
+services:
+  songbook-audio:
+    build:
+      context: ./songbook/audio
+    expose:
+      - "8100"
+    restart: unless-stopped
+
+  songbook:
+    environment:
+      - SONGBOOK_AUDIO_URL=http://songbook-audio:8100

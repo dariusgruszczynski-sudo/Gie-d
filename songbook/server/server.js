@@ -25,6 +25,8 @@ const TOKEN = (process.env.SONGBOOK_TOKEN || '').trim();
 // klucza). Możesz podać własny SONGBOOK_SEARCH_KEY albo pozwolić użyć klucza
 // GielDarka (SERPAPI_API_KEY), jeśli świadomie go tu przekażesz.
 const SEARCH_KEY = (process.env.SONGBOOK_SEARCH_KEY || process.env.SERPAPI_API_KEY || '').trim();
+// Adres opcjonalnego mikroserwisu wykrywania akordów z audio (nakładka audio).
+const AUDIO_URL = (process.env.SONGBOOK_AUDIO_URL || '').trim();
 try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch { /* ignore */ }
 
 const MIME = {
@@ -314,7 +316,23 @@ const server = http.createServer(async (req, res) => {
 
   // Informacja dla frontendu: czy dostępna jest synchronizacja i czy wymaga tokenu.
   if (pathname === '/api/config') {
-    return sendJson(res, 200, { ok: true, service: 'spiewnik', sync: true, authRequired: !!TOKEN, search: true, searchProvider: SEARCH_KEY ? 'serpapi' : 'duckduckgo' });
+    return sendJson(res, 200, { ok: true, service: 'spiewnik', sync: true, authRequired: !!TOKEN, search: true, searchProvider: SEARCH_KEY ? 'serpapi' : 'duckduckgo', audio: !!AUDIO_URL });
+  }
+
+  // Wykrywanie akordów z audio (YouTube) — proxy do opcjonalnego mikroserwisu.
+  if (pathname === '/api/chords') {
+    if (!AUDIO_URL) return sendJson(res, 501, { ok: false, error: 'Moduł audio nie jest włączony (uruchom nakładkę docker-compose.audio.yml).' });
+    const target = (searchParams.get('url') || '').trim();
+    if (!target) return sendJson(res, 400, { ok: false, error: 'Podaj parametr url.' });
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 240000); // detekcja bywa długa
+    try {
+      const r = await fetch(`${AUDIO_URL}/detect?url=${encodeURIComponent(target)}`, { signal: ctrl.signal });
+      const data = await r.json().catch(() => ({ ok: false, error: 'Serwis audio zwrócił nieprawidłową odpowiedź.' }));
+      return sendJson(res, r.ok ? 200 : 502, data);
+    } catch (e) {
+      return sendJson(res, 502, { ok: false, error: e.name === 'AbortError' ? 'Wykrywanie trwało zbyt długo.' : 'Serwis audio niedostępny.' });
+    } finally { clearTimeout(t); }
   }
 
   // Wyszukiwarka opracowań z chwytami — zwraca listę wyników do wyboru.

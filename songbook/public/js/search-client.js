@@ -57,6 +57,17 @@ export async function resolveLink(url) {
   }
 }
 
+// Wykrywa akordy z audio (YouTube) przez opcjonalny mikroserwis. Może trwać.
+export async function detectChords(url) {
+  try {
+    const { status, data } = await api(`/api/chords?url=${encodeURIComponent(url)}`);
+    if (status === 200 && data.ok) return { ok: true, chords: data.chords || [], unique: data.unique || [], tempo: data.tempo || 0, note: data.note };
+    return { ok: false, error: data.error || `Nie udało się wykryć (status ${status}).` };
+  } catch (e) {
+    return { ok: false, error: 'Serwis wykrywania akordów niedostępny.' };
+  }
+}
+
 // Importuje dowolną stronę z chwytami/tabami po adresie URL.
 export async function importUrl(url) {
   try {

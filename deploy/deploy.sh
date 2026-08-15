@@ -131,6 +131,10 @@ COMPOSE="docker compose -f docker-compose.yml"
 # widział kontener `songbook` i nic się nie rozłączało przy przebudowie. Guard na
 # istnienie pliku: gdy nakładki nie ma, cała reszta działa jak dawniej.
 [ -f "$ROOT/songbook/deploy/docker-compose.songbook.yml" ] && COMPOSE="$COMPOSE -f $ROOT/songbook/deploy/docker-compose.songbook.yml"
+# Opcjonalny, CIĘŻKI moduł audio (wykrywanie akordów z YT) — tylko gdy świadomie
+# włączony plikiem-znacznikiem: `touch songbook/deploy/audio.enabled`.
+AUDIO_ON=0
+[ -f "$ROOT/songbook/deploy/audio.enabled" ] && [ -f "$ROOT/songbook/deploy/docker-compose.audio.yml" ] && { COMPOSE="$COMPOSE -f $ROOT/songbook/deploy/docker-compose.audio.yml"; AUDIO_ON=1; }
 echo "==> Przebudowuję i restartuję kontenery (prod + staging) -- wersja $GIT_SHA"
 # Buildkit potrafi rzucić przejściowym "rpc error: EOF" (dwa obrazy naraz na
 # ciaśniejszej maszynie). Najpierw pewny PROD (app), potem staging; każdy z
@@ -148,6 +152,9 @@ build_with_retry app-staging || echo "   UWAGA: staging build nieudany -- prod d
 # Śpiewnik (jeśli nakładka obecna) — nie blokuje deployu proda w razie awarii.
 if [ -f "$ROOT/songbook/deploy/docker-compose.songbook.yml" ]; then
   build_with_retry songbook || echo "   UWAGA: songbook build nieudany -- prod działa, śpiewnik pominięty."
+fi
+if [ "$AUDIO_ON" = 1 ]; then
+  build_with_retry songbook-audio || echo "   UWAGA: moduł audio build nieudany -- reszta działa, audio pominięte."
 fi
 # Upewnij się, że Caddy (HTTPS) stoi i jest na aktualnej sieci proda.
 $COMPOSE up -d caddy 2>/dev/null || echo "   (Caddy pominięty -- brak pliku caddy albo portów 80/443)"
