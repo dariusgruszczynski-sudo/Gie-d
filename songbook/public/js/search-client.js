@@ -30,6 +30,22 @@ export async function searchLyrics(artist, title) {
   }
 }
 
+// Wyszukuje w sieci OPRACOWANIA Z CHWYTAMI. Zwraca listę wyników do wyboru.
+// Działa po częściowym tytule, nazwie zespołu (lub jej braku) albo fragmencie tekstu.
+export async function searchWeb({ q = '', artist = '', title = '' } = {}) {
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  if (artist) params.set('artist', artist);
+  if (title) params.set('title', title);
+  try {
+    const { status, data } = await api(`/api/search?${params.toString()}`);
+    if (status === 200 && data.ok) return { ok: true, items: data.items || [], provider: data.provider };
+    return { ok: false, error: data.error || `Nie udało się wyszukać (status ${status}).` };
+  } catch (e) {
+    return { ok: false, error: 'Wyszukiwanie działa w wersji z serwerem. Tutaj użyj „Wklej tekst ręcznie".' };
+  }
+}
+
 // Importuje dowolną stronę z chwytami/tabami po adresie URL.
 export async function importUrl(url) {
   try {

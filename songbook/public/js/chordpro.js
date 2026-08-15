@@ -163,19 +163,48 @@ export function render(source, opts = {}) {
 }
 
 // Konwertuje "surowy" tekst (linie chwytów nad liniami tekstu) na ChordPro.
-// Heurystyka: linia jest "linią chwytów" jeśli składa się głównie z tokenów akordów.
-const CHORD_TOKEN = /^[A-H][#b]?(m|maj|min|dim|aug|sus|add|M)?[0-9]*(sus[0-9]|add[0-9])?(\/[A-H][#b]?)?$/;
+// Obsługuje też polski zapis: H = B, oraz małe litery = akordy molowe (a = Am,
+// e7 = Em7). Heurystyka: linia jest "linią chwytów", jeśli w większości składa
+// się z tokenów akordów i zawiera co najmniej jeden „mocny” akord.
+const CHORD_SUFFIX = /^(m|maj|min|dim|aug|sus|add|M)?[0-9]*(sus[0-9]|add[0-9]|maj[0-9])?$/;
+
+// Normalizuje token do standardowego akordu (np. "h"->"Bm", "a7"->"Am7", "C/e"->"C/E")
+// albo zwraca null, gdy to nie akord.
+export function normalizeChordToken(raw) {
+  if (!raw) return null;
+  let t = String(raw).trim().replace(/[.,;)]+$/, '').replace(/^\(/, '');
+  if (!t) return null;
+  const m = t.match(/^([A-Ha-h])([#b]?)(.*)$/);
+  if (!m) return null;
+  let [, letter, acc, rest] = m;
+  const lowerMinor = letter >= 'a' && letter <= 'h';
+  // rozdziel bas po '/'
+  let bass = '';
+  const slash = rest.match(/\/([A-Ha-h])([#b]?)$/);
+  if (slash) {
+    let b = slash[1].toUpperCase(); if (b === 'H') b = 'B';
+    bass = '/' + b + slash[2];
+    rest = rest.slice(0, slash.index);
+  }
+  if (!CHORD_SUFFIX.test(rest)) return null;
+  let up = letter.toUpperCase(); if (up === 'H') up = 'B';
+  let core = up + acc;
+  if (lowerMinor && !/^(m|maj|min|dim|aug|M)/.test(rest)) core += 'm';
+  return core + rest + bass;
+}
 
 function isChordLine(line) {
   const tokens = line.trim().split(/\s+/).filter(Boolean);
   if (!tokens.length) return false;
-  let chordCount = 0;
+  let chords = 0, strong = 0;
   for (const t of tokens) {
-    // "H" bywa używane w PL/DE zamiast "B"
-    const norm = t.replace(/^H/, 'B');
-    if (CHORD_TOKEN.test(norm)) chordCount++;
+    const n = normalizeChordToken(t);
+    if (n) { chords++; if (t.length >= 2 || /[A-H]/.test(t[0])) strong++; }
   }
-  return chordCount / tokens.length >= 0.6;
+  // Akceptujemy linię, gdy ≥60% tokenów to akordy ORAZ jest ≥2 akordy (np. „a e")
+  // albo choć jeden „mocny" akord (duża litera / dłuższy token). Chroni to przed
+  // uznaniem pojedynczej małej literki („a" jako polskie słowo) za akord.
+  return chords / tokens.length >= 0.6 && (chords >= 2 || strong >= 1);
 }
 
 // Łączy linię chwytów z linią tekstu w jedną linię ChordPro na podstawie pozycji kolumn.
@@ -184,7 +213,8 @@ function mergeChordLyric(chordLine, lyricLine) {
   const re = /(\S+)/g;
   let m;
   while ((m = re.exec(chordLine))) {
-    chords.push({ pos: m.index, chord: m[1].replace(/^H/, 'B') });
+    const norm = normalizeChordToken(m[1]);
+    if (norm) chords.push({ pos: m.index, chord: norm });
   }
   if (!chords.length) return lyricLine;
   let out = '';
@@ -210,7 +240,7 @@ export function plainToChordPro(text) {
       i++; // pomijamy zużytą linię tekstu
     } else if (isChordLine(cur) && (next === undefined || next.trim() === '')) {
       // sama linia chwytów (np. wstęp) — zamień tokeny na [akordy]
-      out.push(cur.trim().split(/\s+/).map((t) => `[${t.replace(/^H/, 'B')}]`).join(' '));
+      out.push(cur.trim().split(/\s+/).map((t) => normalizeChordToken(t)).filter(Boolean).map((c) => `[${c}]`).join(' '));
     } else {
       out.push(cur);
     }

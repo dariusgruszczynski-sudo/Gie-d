@@ -20,6 +20,11 @@ services:
       # Token dostępu — ustaw SONGBOOK_TOKEN w pliku .env w repo root (~/gie-d/.env).
       # Pusty = dostęp otwarty (używaj tylko, jeśli adres jest prywatny).
       - SONGBOOK_TOKEN=${SONGBOOK_TOKEN:-}
+      # Wyszukiwarka: własny klucz SerpAPI dla śpiewnika (zalecane) albo — gdy
+      # pusty — reużycie klucza GielDarka (współdzielony limit). Bez żadnego
+      # klucza wyszukiwarka używa DuckDuckGo (mniej pewne).
+      - SONGBOOK_SEARCH_KEY=${SONGBOOK_SEARCH_KEY:-}
+      - SERPAPI_API_KEY=${SERPAPI_API_KEY:-}
     volumes:
       - ./songbook-data:/app/data   # trwałe dane (piosenki/listy) — przeżywają restart
     expose:

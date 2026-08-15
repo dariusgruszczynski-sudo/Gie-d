@@ -37,6 +37,14 @@ SONGBOOK_TOKEN=twoj-dlugi-losowy-token
 Bez tokenu każdy z adresem miałby dostęp do Twoich piosenek. Token podajesz raz
 na każdym urządzeniu (aplikacja zapamiętuje go w przeglądarce).
 
+### 1b. (opcjonalnie) Wyszukiwarka opracowań z chwytami
+Wyszukiwarka szuka w sieci opracowań z chwytami i daje listę wyników do wyboru.
+Domyślnie używa DuckDuckGo (bez klucza, ale bywa mniej pewne). Dla najlepszych
+wyników użyj SerpAPI:
+- podaj własny klucz: `SONGBOOK_SEARCH_KEY=...` w `.env`, **albo**
+- pozwól reużyć klucz GielDarka — nakładka przekazuje `SERPAPI_API_KEY` z `.env`
+  (uwaga: współdzielony limit zapytań z botem).
+
 ### 2. Zbuduj i uruchom
 Na serwerze, w katalogu repo (`~/gie-d`), po `git pull`:
 

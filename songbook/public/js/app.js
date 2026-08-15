@@ -2,7 +2,7 @@
 import { store } from './store.js';
 import { render as renderChordPro, extractChords, transposeSource, plainToChordPro } from './chordpro.js';
 import { chordDiagram, hasShape } from './chords.js';
-import { searchLyrics, importUrl } from './search-client.js';
+import { searchLyrics, importUrl, searchWeb } from './search-client.js';
 import { sync } from './sync.js';
 
 // ------------------------------------------------------------------ helpers
@@ -87,7 +87,6 @@ const app = {
   editing: false,
   filter: '',
   tagFilter: '',
-  transpose: new Map(), // songId -> steps (sesyjnie)
 };
 
 // ------------------------------------------------------------------ theming
@@ -202,7 +201,9 @@ function newSong(partial) {
 }
 
 // ------------------------------------------------ Szczegóły / widok piosenki
-function currentSteps(id) { return app.transpose.get(id) || 0; }
+// Transpozycja jest ZAPISYWANA przy piosence (i synchronizuje się między urządzeniami).
+function currentSteps(id) { const s = store.song(id); return (s && s.transpose) || 0; }
+function setTranspose(id, steps) { store.updateSong(id, { transpose: steps }); }
 
 function renderSongDetail(view, actions) {
   const s = store.song(app.songId);
@@ -243,10 +244,10 @@ function renderSongReader(s, { withControls = false } = {}) {
     const controls = el('div', { class: 'reader-controls no-print' },
       el('div', { class: 'ctrl-group' },
         el('span', { class: 'ctrl-label' }, 'Transpozycja'),
-        el('button', { class: 'btn btn-sm', onClick: () => { app.transpose.set(s.id, currentSteps(s.id) - 1); render(); } }, '−'),
+        el('button', { class: 'btn btn-sm', onClick: () => { setTranspose(s.id, currentSteps(s.id) - 1); render(); } }, '−'),
         el('span', { class: 'ctrl-val', text: (steps > 0 ? '+' : '') + steps }),
-        el('button', { class: 'btn btn-sm', onClick: () => { app.transpose.set(s.id, currentSteps(s.id) + 1); render(); } }, '+'),
-        el('button', { class: 'btn btn-sm btn-ghost', onClick: () => { app.transpose.set(s.id, 0); render(); } }, 'reset'),
+        el('button', { class: 'btn btn-sm', onClick: () => { setTranspose(s.id, currentSteps(s.id) + 1); render(); } }, '+'),
+        el('button', { class: 'btn btn-sm btn-ghost', onClick: () => { setTranspose(s.id, 0); render(); } }, 'reset'),
       ),
       showChordsBtn,
       el('button', { class: 'btn btn-sm', onClick: () => { store.updateSettings({ showDiagrams: !store.settings.showDiagrams }); render(); } }, store.settings.showDiagrams ? '📊 Diagramy: wł.' : '📊 Diagramy: wył.'),
@@ -467,12 +468,18 @@ function renderListDetail(view, actions) {
     l.songIds.forEach((sid, idx) => {
       const s = store.song(sid);
       if (!s) return;
+      const tr = currentSteps(s.id);
       const item = el('div', { class: 'setlist-item', draggable: 'true' },
         el('span', { class: 'drag', title: 'Przeciągnij, aby zmienić kolejność' }, '⠿'),
         el('span', { class: 'setlist-num', text: (idx + 1) + '.' }),
         el('span', { class: 'setlist-main', onClick: () => go('songs', { songId: s.id }) },
           el('span', { class: 'setlist-title', text: s.title }), el('span', { class: 'setlist-artist', text: s.artist || '' })),
-        s.key ? el('span', { class: 'pill' }, s.key) : null,
+        s.key ? el('span', { class: 'pill', title: tr ? 'tonacja po transpozycji' : 'tonacja' }, (tr ? transposeKey(s.key, tr) : s.key)) : null,
+        el('span', { class: 'setlist-tr', title: 'Transpozycja chwytów (zapisywana)' },
+          el('button', { class: 'btn btn-xs', title: 'Chwyty niżej', onClick: (e) => { e.stopPropagation(); setTranspose(s.id, currentSteps(s.id) - 1); renderItems(); } }, '♭'),
+          el('span', { class: 'tr-val', text: (tr > 0 ? '+' : '') + tr }),
+          el('button', { class: 'btn btn-xs', title: 'Chwyty wyżej', onClick: (e) => { e.stopPropagation(); setTranspose(s.id, currentSteps(s.id) + 1); renderItems(); } }, '♯'),
+        ),
         el('button', { class: 'btn btn-xs', title: 'W górę', onClick: () => { store.reorderList(l.id, idx, idx - 1); renderItems(); } }, '↑'),
         el('button', { class: 'btn btn-xs', title: 'W dół', onClick: () => { store.reorderList(l.id, idx, idx + 1); renderItems(); } }, '↓'),
         el('button', { class: 'btn btn-xs btn-danger', onClick: () => { store.removeFromList(l.id, sid); renderItems(); } }, '✕'),
@@ -532,27 +539,63 @@ function addToListDialog(songId) {
 // ------------------------------------------------------------------ Wyszukaj
 function renderSearch(view, actions) {
   $('#viewTitle').textContent = 'Wyszukaj';
-  const artist = el('input', { class: 'input', placeholder: 'Wykonawca / zespół' });
-  const title = el('input', { class: 'input', placeholder: 'Tytuł piosenki' });
+  const q = el('input', { class: 'input', placeholder: 'Tytuł, zespół lub fragment tekstu — np. „hej sokoły", „dżem naboso", „przyjaciół nikt…"' });
+  const artist = el('input', { class: 'input', placeholder: 'Zespół / wykonawca (opcjonalnie)' });
   const result = el('div', { class: 'search-result' });
 
-  const doSearch = async () => {
-    if (!artist.value.trim() || !title.value.trim()) { toast('Podaj wykonawcę i tytuł', 'error'); return; }
+  const chordsCount = (body) => (body.match(/\[[A-Ha-h][^\]]*\]/g) || []).length;
+
+  // Wybór konkretnego wyniku → pobranie i sformatowanie pod śpiewnik.
+  const pickResult = async (item) => {
     result.innerHTML = '';
-    result.append(el('div', { class: 'searching' }, el('span', { class: 'spinner' }), ' Szukam tekstu…'));
-    const res = await searchLyrics(artist.value.trim(), title.value.trim());
+    result.append(el('div', { class: 'searching' }, el('span', { class: 'spinner' }), ` Pobieram z ${item.source}…`));
+    const res = await importUrl(item.url);
     result.innerHTML = '';
-    if (!res.ok) { result.append(el('div', { class: 'notice notice-warn', text: '⚠︎ ' + res.error })); return; }
-    showFoundText(result, artist.value.trim(), title.value.trim(), res.lyrics, 'Tekst znaleziony automatycznie. Dodaj chwyty w nawiasach [ ] albo zaimportuj chwyty z URL poniżej.');
+    const back = el('button', { class: 'btn btn-sm', onClick: doSearch }, '‹ Wróć do wyników');
+    if (!res.ok) { result.append(back, el('div', { class: 'notice notice-warn', text: '⚠︎ ' + res.error })); return; }
+    const body = plainToChordPro(res.text);
+    const n = chordsCount(body);
+    const note = n >= 3
+      ? `Znaleziono opracowanie z chwytami (${n}) ze strony ${item.source}. Sprawdź i popraw, potem zapisz.`
+      : `To źródło (${item.source}) ma mało/zero chwytów — może to sam tekst. Wróć i wybierz inny wynik albo dodaj chwyty ręcznie.`;
+    result.append(el('div', { class: 'result-actions-top' }, back, el('a', { class: 'btn btn-sm', href: item.url, target: '_blank', rel: 'noopener' }, '↗ Otwórz źródło')));
+    showFoundText(result, artist.value.trim(), title(item), body, note);
   };
 
+  const title = (item) => q.value.trim() && !artist.value.trim() ? q.value.trim() : (item.title || q.value.trim());
+
+  const doSearch = async () => {
+    if (!q.value.trim() && !artist.value.trim()) { toast('Wpisz choć tytuł, zespół albo fragment tekstu', 'error'); return; }
+    result.innerHTML = '';
+    result.append(el('div', { class: 'searching' }, el('span', { class: 'spinner' }), ' Szukam opracowań z chwytami…'));
+    const res = await searchWeb({ q: q.value.trim(), artist: artist.value.trim() });
+    result.innerHTML = '';
+    if (!res.ok) { result.append(el('div', { class: 'notice notice-warn', text: '⚠︎ ' + res.error }), el('p', { class: 'muted', text: 'Możesz też wkleić link do strony z chwytami lub tekst ręcznie (niżej).' })); return; }
+    if (!res.items.length) { result.append(el('div', { class: 'notice notice-warn', text: 'Brak wyników. Spróbuj innych słów albo dodaj „chwyty".' })); return; }
+    result.append(el('div', { class: 'muted-sm mb', text: `Wybierz opracowanie (${res.items.length}) — kliknij, żeby pobrać i sformatować:` }));
+    const list = el('div', { class: 'result-list' });
+    res.items.forEach((item) => {
+      list.append(el('button', { class: 'result-card', onClick: () => pickResult(item) },
+        el('div', { class: 'result-main' },
+          el('div', { class: 'result-title', text: item.title || item.url }),
+          item.snippet ? el('div', { class: 'result-snippet', text: item.snippet }) : null,
+        ),
+        el('span', { class: 'result-source', text: item.source }),
+      ));
+    });
+    result.append(list);
+  };
+  q.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+
   const box = el('div', { class: 'search-box' },
-    el('p', { class: 'search-intro', text: 'Wpisz wykonawcę i tytuł — aplikacja pobierze tekst z sieci i przygotuje go pod śpiewnik.' }),
-    el('div', { class: 'search-fields' }, artist, title, el('button', { class: 'btn btn-primary', onClick: doSearch }, '🔎 Szukaj')),
+    el('p', { class: 'search-intro', text: 'Szukaj opracowań z chwytami w sieci. Działa po częściowym tytule, nazwie zespołu (albo bez niej) lub po fragmencie tekstu. Polskie znaki są OK. Dostaniesz listę wersji do wyboru.' }),
+    el('div', { class: 'search-fields' }, q),
+    el('div', { class: 'search-fields' }, artist, el('button', { class: 'btn btn-primary', onClick: doSearch }, '🔎 Szukaj z chwytami')),
+    result,
   );
 
   // import chwytów/tabów po URL
-  const urlInput = el('input', { class: 'input', placeholder: 'https://… (strona z chwytami lub tabami)' });
+  const urlInput = el('input', { class: 'input', placeholder: 'https://… (konkretna strona z chwytami lub tabami)' });
   const importResult = el('div', { class: 'search-result' });
   const doImport = async () => {
     if (!urlInput.value.trim()) { toast('Wklej adres URL', 'error'); return; }
@@ -562,11 +605,11 @@ function renderSearch(view, actions) {
     importResult.innerHTML = '';
     if (!res.ok) { importResult.append(el('div', { class: 'notice notice-warn', text: '⚠︎ ' + res.error })); return; }
     const converted = plainToChordPro(res.text);
-    showFoundText(importResult, artist.value.trim(), title.value.trim(), converted, 'Zaimportowano i wykryto chwyty. Sprawdź i popraw ustawienie chwytów, potem zapisz.');
+    showFoundText(importResult, artist.value.trim(), q.value.trim(), converted, 'Zaimportowano i wykryto chwyty. Sprawdź i popraw ustawienie chwytów, potem zapisz.');
   };
   const importBox = el('div', { class: 'search-box' },
-    el('h3', { class: 'block-h' }, '🎸 Import chwytów / tabów po adresie URL'),
-    el('p', { class: 'search-intro', text: 'Wklej link do strony z chwytami lub tabulaturą — aplikacja pobierze treść, oczyści z HTML i wykryje chwyty nad tekstem, formatując je pod śpiewnik.' }),
+    el('h3', { class: 'block-h' }, '🎸 Mam już konkretny link'),
+    el('p', { class: 'search-intro', text: 'Wklej link do strony z chwytami lub tabulaturą — aplikacja pobierze treść, oczyści z HTML i wykryje chwyty nad tekstem.' }),
     el('div', { class: 'search-fields' }, urlInput, el('button', { class: 'btn btn-primary', onClick: doImport }, '⬇︎ Importuj')),
     importResult,
   );
@@ -577,10 +620,10 @@ function renderSearch(view, actions) {
     el('h3', { class: 'block-h' }, '📋 Wklej tekst ręcznie'),
     el('p', { class: 'search-intro', text: 'Skopiuj tekst z dowolnego źródła i wklej tutaj. Auto-konwersja przełoży chwyty do formatu ChordPro.' }),
     pasteArea,
-    el('button', { class: 'btn btn-primary', onClick: () => { if (!pasteArea.value.trim()) { toast('Najpierw wklej tekst', 'error'); return; } showFoundText(pasteBox, artist.value.trim(), title.value.trim(), plainToChordPro(pasteArea.value), 'Skonwertowano wklejony tekst.'); } }, '✨ Konwertuj i podejrzyj'),
+    el('button', { class: 'btn btn-primary', onClick: () => { if (!pasteArea.value.trim()) { toast('Najpierw wklej tekst', 'error'); return; } showFoundText(pasteBox, artist.value.trim(), q.value.trim(), plainToChordPro(pasteArea.value), 'Skonwertowano wklejony tekst.'); } }, '✨ Konwertuj i podejrzyj'),
   );
 
-  view.append(box, result, importBox, pasteBox);
+  view.append(box, importBox, pasteBox);
 }
 
 function showFoundText(container, artist, title, body, note) {
@@ -706,8 +749,8 @@ function openPerformance(startSongId, listId = null) {
     el('button', { class: 'btn btn-sm', onClick: () => { stopScroll(); overlay.remove(); document.body.classList.remove('perf-mode'); } }, '✕ Zamknij'),
     el('span', { class: 'perf-pos' }, ''),
     el('div', { class: 'perf-spacer' }),
-    el('button', { class: 'btn btn-sm', onClick: () => { app.transpose.set(songIds[idx], currentSteps(songIds[idx]) - 1); draw(); } }, '♭'),
-    el('button', { class: 'btn btn-sm', onClick: () => { app.transpose.set(songIds[idx], currentSteps(songIds[idx]) + 1); draw(); } }, '♯'),
+    el('button', { class: 'btn btn-sm', onClick: () => { setTranspose(songIds[idx], currentSteps(songIds[idx]) - 1); draw(); } }, '♭'),
+    el('button', { class: 'btn btn-sm', onClick: () => { setTranspose(songIds[idx], currentSteps(songIds[idx]) + 1); draw(); } }, '♯'),
     el('button', { class: 'btn btn-sm', onClick: () => setScroll(Math.max(0, speed - 1)) }, '−'),
     spd,
     el('button', { class: 'btn btn-sm', onClick: () => setScroll(Math.min(3, speed + 1)) }, '+'),
