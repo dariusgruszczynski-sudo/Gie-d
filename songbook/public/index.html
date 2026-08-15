@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎵 Śpiewnik</title>
+  <meta name="description" content="Śpiewnik — listy piosenek, teksty z chwytami, edytor tabulatur i wyszukiwarka tekstów." />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>" />
+</head>
+<body>
+  <div id="app">
+    <!-- Pasek boczny -->
+    <aside id="sidebar" class="sidebar">
+      <div class="brand">
+        <span class="brand-logo">🎵</span>
+        <span class="brand-name">Śpiewnik</span>
+        <button id="sidebarClose" class="icon-btn only-mobile" title="Zamknij menu">✕</button>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item" data-view="songs">🎶 Piosenki</button>
+        <button class="nav-item" data-view="lists">📋 Listy</button>
+        <button class="nav-item" data-view="search">🔎 Wyszukaj</button>
+        <button class="nav-item" data-view="settings">⚙️ Wygląd</button>
+      </nav>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Szybkie akcje</div>
+        <button id="btnNewSong" class="btn btn-primary btn-block">＋ Nowa piosenka</button>
+        <button id="btnNewList" class="btn btn-block">＋ Nowa lista</button>
+      </div>
+
+      <div class="sidebar-section sidebar-bottom">
+        <button id="btnExport" class="btn btn-ghost btn-sm">⬇︎ Eksport kopii</button>
+        <button id="btnImport" class="btn btn-ghost btn-sm">⬆︎ Import kopii</button>
+        <input type="file" id="importFile" accept="application/json" hidden />
+        <div id="backendStatus" class="backend-status"></div>
+      </div>
+    </aside>
+
+    <!-- Główny obszar -->
+    <main id="main" class="main">
+      <header class="topbar">
+        <button id="menuToggle" class="icon-btn only-mobile" title="Menu">☰</button>
+        <h1 id="viewTitle" class="view-title">Piosenki</h1>
+        <div class="topbar-spacer"></div>
+        <div id="topbarActions" class="topbar-actions"></div>
+      </header>
+      <section id="view" class="view"></section>
+    </main>
+  </div>
+
+  <!-- Modal (uniwersalne okno) -->
+  <div id="modalRoot"></div>
+  <!-- Toasty -->
+  <div id="toastRoot" class="toast-root"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

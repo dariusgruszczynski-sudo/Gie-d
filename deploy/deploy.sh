@@ -127,6 +127,10 @@ export BUILD_TIME="$(date -u +%Y-%m-%dT%H:%MZ)"
 # obecny -- app i Caddy są zarządzane jako jeden projekt i nigdy się nie rozjadą.
 COMPOSE="docker compose -f docker-compose.yml"
 [ -f "$ROOT/deploy/docker-compose.caddy.yml" ] && COMPOSE="$COMPOSE -f $ROOT/deploy/docker-compose.caddy.yml"
+# Śpiewnik (osobna apka) — dołączamy do TEGO SAMEGO projektu compose, żeby Caddy
+# widział kontener `songbook` i nic się nie rozłączało przy przebudowie. Guard na
+# istnienie pliku: gdy nakładki nie ma, cała reszta działa jak dawniej.
+[ -f "$ROOT/songbook/deploy/docker-compose.songbook.yml" ] && COMPOSE="$COMPOSE -f $ROOT/songbook/deploy/docker-compose.songbook.yml"
 echo "==> Przebudowuję i restartuję kontenery (prod + staging) -- wersja $GIT_SHA"
 # Buildkit potrafi rzucić przejściowym "rpc error: EOF" (dwa obrazy naraz na
 # ciaśniejszej maszynie). Najpierw pewny PROD (app), potem staging; każdy z
@@ -141,6 +145,10 @@ build_with_retry() { # build_with_retry SERVICE
 }
 build_with_retry app || { echo "!! PROD build nieudany po 3 próbach -- zostaje poprzednia wersja"; exit 1; }
 build_with_retry app-staging || echo "   UWAGA: staging build nieudany -- prod działa, staging pominięty."
+# Śpiewnik (jeśli nakładka obecna) — nie blokuje deployu proda w razie awarii.
+if [ -f "$ROOT/songbook/deploy/docker-compose.songbook.yml" ]; then
+  build_with_retry songbook || echo "   UWAGA: songbook build nieudany -- prod działa, śpiewnik pominięty."
+fi
 # Upewnij się, że Caddy (HTTPS) stoi i jest na aktualnej sieci proda.
 $COMPOSE up -d caddy 2>/dev/null || echo "   (Caddy pominięty -- brak pliku caddy albo portów 80/443)"
 
