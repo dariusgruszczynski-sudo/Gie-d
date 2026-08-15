@@ -210,6 +210,45 @@ async function webSearch(params) {
   return { ok: true, query, provider: SEARCH_KEY ? 'serpapi' : 'duckduckgo', items: res.items };
 }
 
+// --- Rozpoznanie linku (poczekalnia): tytuł/wykonawca z oEmbed lub <title> ---
+async function resolveLink(target) {
+  let u;
+  try { u = new URL(target); } catch { return { ok: false, error: 'Niepoprawny adres URL.' }; }
+  if (!/^https?:$/.test(u.protocol)) return { ok: false, error: 'Dozwolone tylko http/https.' };
+  const host = u.hostname.replace(/^www\./, '');
+
+  const fetchJson = async (endpoint) => {
+    const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 10000);
+    try { const r = await fetch(endpoint, { signal: ctrl.signal, headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SpiewnikBot/1.0)' } });
+      if (!r.ok) return null; return await r.json(); } catch { return null; } finally { clearTimeout(t); }
+  };
+
+  // oEmbed dla platform, które go udostępniają
+  let oembed = null;
+  if (/youtube\.com|youtu\.be/.test(host)) oembed = `https://www.youtube.com/oembed?url=${encodeURIComponent(u.href)}&format=json`;
+  else if (/tiktok\.com/.test(host)) oembed = `https://www.tiktok.com/oembed?url=${encodeURIComponent(u.href)}`;
+  if (oembed) {
+    const d = await fetchJson(oembed);
+    if (d && (d.title || d.author_name)) {
+      return { ok: true, title: d.title || '', author: d.author_name || '', source: host, url: u.href, thumb: d.thumbnail_url || '' };
+    }
+  }
+
+  // fallback: og:title / <title> ze strony (IG, FB i inne)
+  const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    const r = await fetch(u.href, { signal: ctrl.signal, headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SpiewnikBot/1.0)', 'Accept': 'text/html' } });
+    if (!r.ok) return { ok: true, title: '', author: '', source: host, url: u.href };
+    const html = await r.text();
+    const og = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i);
+    const tt = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    const title = decodeEntities((og && og[1]) || (tt && tt[1]) || '').replace(/\s+/g, ' ').trim();
+    return { ok: true, title, author: '', source: host, url: u.href };
+  } catch (e) {
+    return { ok: false, error: 'Nie udało się pobrać opisu linku.' };
+  } finally { clearTimeout(t); }
+}
+
 function serveStatic(req, res) {
   let urlPath = decodeURIComponent(req.url.split('?')[0]);
   if (urlPath === '/') urlPath = '/index.html';
@@ -327,6 +366,13 @@ const server = http.createServer(async (req, res) => {
     const target = (searchParams.get('url') || '').trim();
     if (!target) return sendJson(res, 400, { ok: false, error: 'Podaj parametr url.' });
     const result = await fetchPage(target);
+    return sendJson(res, result.ok ? 200 : 502, result);
+  }
+
+  if (pathname === '/api/resolve') {
+    const target = (searchParams.get('url') || '').trim();
+    if (!target) return sendJson(res, 400, { ok: false, error: 'Podaj parametr url.' });
+    const result = await resolveLink(target);
     return sendJson(res, result.ok ? 200 : 502, result);
   }
 

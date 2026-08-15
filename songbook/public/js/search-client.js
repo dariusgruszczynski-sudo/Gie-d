@@ -46,6 +46,17 @@ export async function searchWeb({ q = '', artist = '', title = '' } = {}) {
   }
 }
 
+// Rozpoznaje link (YT/TikTok/Reels/FB…) → tytuł/wykonawca do poczekalni.
+export async function resolveLink(url) {
+  try {
+    const { status, data } = await api(`/api/resolve?url=${encodeURIComponent(url)}`);
+    if (status === 200 && data.ok) return { ok: true, title: data.title || '', author: data.author || '', source: data.source || '', url: data.url || url };
+    return { ok: false, error: data.error || `Nie udało się rozpoznać (status ${status}).` };
+  } catch (e) {
+    return { ok: false, error: 'Rozpoznawanie linków działa w wersji z serwerem.' };
+  }
+}
+
 // Importuje dowolną stronę z chwytami/tabami po adresie URL.
 export async function importUrl(url) {
   try {

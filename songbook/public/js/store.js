@@ -67,7 +67,7 @@ E|-----------------|
     updatedAt: Date.now(),
   };
   const list = { id: uid(), name: 'Na ognisko', description: 'Piosenki na gitarę przy ognisku', songIds: [s1.id, s2.id], createdAt: Date.now() };
-  return { songs: [s1, s2], lists: [list], settings: { ...DEFAULT_SETTINGS } };
+  return { songs: [s1, s2], lists: [list], inbox: [], settings: { ...DEFAULT_SETTINGS } };
 }
 
 function load() {
@@ -82,6 +82,7 @@ function load() {
     data.settings = { ...DEFAULT_SETTINGS, ...(data.settings || {}) };
     data.songs = data.songs || [];
     data.lists = data.lists || [];
+    data.inbox = data.inbox || [];
     return data;
   } catch (e) {
     console.error('Błąd wczytywania danych, tworzę nowe:', e);
@@ -209,6 +210,20 @@ export const store = {
     save();
   },
 
+  // --- Poczekalnia (inbox) ---
+  inbox() { return state.inbox; },
+  addInbox(item) {
+    const it = { id: uid(), title: '', author: '', source: '', url: '', createdAt: Date.now(), ...item };
+    // pomiń duplikaty po URL
+    if (it.url && state.inbox.some((x) => x.url === it.url)) return null;
+    state.inbox.unshift(it);
+    save();
+    return it;
+  },
+  updateInbox(id, patch) { const it = state.inbox.find((x) => x.id === id); if (it) { Object.assign(it, patch); save(); } return it; },
+  removeInbox(id) { state.inbox = state.inbox.filter((x) => x.id !== id); save(); },
+  clearInbox() { state.inbox = []; save(); },
+
   // --- Synchronizacja ---
   subscribe(fn) { listeners.push(fn); },
   // Wczytuje bibliotekę z serwera do lokalnego stanu (w miejscu — zachowuje referencję settings).
@@ -216,6 +231,7 @@ export const store = {
     if (!lib || typeof lib !== 'object') return;
     state.songs = Array.isArray(lib.songs) ? lib.songs : [];
     state.lists = Array.isArray(lib.lists) ? lib.lists : [];
+    state.inbox = Array.isArray(lib.inbox) ? lib.inbox : [];
     state.settings = { ...DEFAULT_SETTINGS, ...(lib.settings || {}) };
     save();
   },
