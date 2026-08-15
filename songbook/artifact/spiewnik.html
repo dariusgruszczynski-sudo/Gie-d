@@ -67,6 +67,9 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .backend-status { font-size: 12px; color: var(--muted); margin-top: 6px; display: flex; align-items: center; gap: 6px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .dot-ok { background: #2ecc71; } .dot-off { background: #bbb; }
+.dot-err { background: #e74c3c; }
+.dot-sync { background: #f39c12; animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
 .main { display: flex; flex-direction: column; overflow: hidden; }
 .topbar {
@@ -791,8 +794,9 @@ function load() {
   }
 }
 
-let state = load();
+const listeners = [];
 let storageWarned = false;
+let state = load();
 
 function save(data = state) {
   try {
@@ -801,6 +805,7 @@ function save(data = state) {
     // np. pamięć przeglądarki niedostępna/pełna — działamy dalej w pamięci sesji
     if (!storageWarned) { console.warn('Zapis do localStorage nieudany — dane tylko w tej sesji.', e); storageWarned = true; }
   }
+  for (const l of listeners) { try { l(); } catch (err) { console.error(err); } }
 }
 
 const store = {
@@ -906,9 +911,102 @@ const store = {
     state.settings = { ...DEFAULT_SETTINGS };
     save();
   },
+
+  // --- Synchronizacja ---
+  subscribe(fn) { listeners.push(fn); },
+  // Wczytuje bibliotekę z serwera do lokalnego stanu (w miejscu — zachowuje referencję settings).
+  loadFrom(lib) {
+    if (!lib || typeof lib !== 'object') return;
+    state.songs = Array.isArray(lib.songs) ? lib.songs : [];
+    state.lists = Array.isArray(lib.lists) ? lib.lists : [];
+    state.settings = { ...DEFAULT_SETTINGS, ...(lib.settings || {}) };
+    save();
+  },
 };
 
 { DEFAULT_SETTINGS, uid };
+
+/* ==== sync.js ==== */
+// sync.js — synchronizacja biblioteki między urządzeniami przez serwer.
+// Aktywna tylko, gdy działa backend (wersja z serwerem). W wersji czysto
+// lokalnej / hostowanej jako Artefakt po prostu się nie włącza i wszystko
+// działa na localStorage.
+
+const TOKEN_KEY = 'spiewnik.token';
+let cfg = null;              // { sync, authRequired } z /api/config
+let applyingRemote = false;  // blokada, by nie odsyłać właśnie pobranych danych
+let pushTimer = null;
+let lastPushedJSON = null;
+let statusCb = () => {};
+
+function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } }
+function authHeaders() { const t = getToken(); return t ? { Authorization: 'Bearer ' + t } : {}; }
+function emitStatus(s, detail) { statusCb(s, detail); }
+
+const sync = {
+  onStatus(cb) { statusCb = cb || (() => {}); },
+  available() { return !!(cfg && cfg.sync); },
+  authRequired() { return !!(cfg && cfg.authRequired); },
+  hasToken() { return !!getToken(); },
+  setToken(t) { try { localStorage.setItem(TOKEN_KEY, (t || '').trim()); } catch { /* ignore */ } },
+
+  // Sprawdza, czy serwer oferuje synchronizację.
+  async detect() {
+    try {
+      const r = await fetch('/api/config', { cache: 'no-store' });
+      if (!r.ok) { cfg = null; return false; }
+      const d = await r.json();
+      cfg = (d && d.service === 'spiewnik' && d.sync) ? d : null;
+      return this.available();
+    } catch { cfg = null; return false; }
+  },
+
+  // Pobiera bibliotekę z serwera.
+  async pull() {
+    if (!this.available()) return { ok: false };
+    try {
+      const r = await fetch('/api/library', { cache: 'no-store', headers: authHeaders() });
+      if (r.status === 401) { emitStatus('auth'); return { ok: false, auth: true }; }
+      if (!r.ok) { emitStatus('error'); return { ok: false }; }
+      const d = await r.json();
+      return { ok: true, library: d.library, empty: d.empty };
+    } catch { emitStatus('error'); return { ok: false }; }
+  },
+
+  // Wysyła bieżącą bibliotekę na serwer (natychmiast).
+  async push() {
+    if (!this.available()) return;
+    const payload = JSON.stringify(store.get());
+    if (payload === lastPushedJSON) { emitStatus('ok'); return; }
+    emitStatus('saving');
+    try {
+      const r = await fetch('/api/library', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: payload,
+      });
+      if (r.status === 401) { emitStatus('auth'); return; }
+      if (!r.ok) { emitStatus('error'); return; }
+      lastPushedJSON = payload;
+      emitStatus('ok');
+    } catch { emitStatus('error'); }
+  },
+
+  // Zaplanuj wysyłkę po krótkiej ciszy (debounce). Wywoływane przy każdej zmianie.
+  schedulePush() {
+    if (applyingRemote || !this.available()) return;
+    emitStatus('saving');
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(() => this.push(), 900);
+  },
+
+  // Zastosuj bibliotekę z serwera lokalnie, nie wywołując wysyłki z powrotem.
+  applyRemote(library) {
+    applyingRemote = true;
+    try { store.loadFrom(library); } finally { applyingRemote = false; }
+    lastPushedJSON = JSON.stringify(store.get());
+  },
+};
 
 /* ==== search-client.js ==== */
 // search-client.js — klient modułu "Wyszukaj". Rozmawia z backendem
@@ -956,6 +1054,7 @@ async function importUrl(url) {
 
 /* ==== app.js ==== */
 // app.js — główny moduł aplikacji Śpiewnik.
+
 
 
 
@@ -1627,7 +1726,7 @@ function renderSettings(view, actions) {
       demoBox,
       el('div', { class: 'about' },
         el('h4', {}, 'O aplikacji'),
-        el('p', { class: 'muted', text: 'Wszystkie dane trzymane są lokalnie w Twojej przeglądarce. Rób kopie zapasowe przyciskami w menu (Eksport / Import).' }),
+        el('p', { class: 'muted', text: 'Dane działają na tym urządzeniu (localStorage), a w wersji z serwerem synchronizują się między urządzeniami. Status widać w menu na dole. Dobrze mieć też kopię: Eksport / Import.' }),
       ),
     ),
   ));
@@ -1710,13 +1809,69 @@ function toggleMetronome(btn, bpm) {
   metro.timer = setInterval(tick, 60000 / bpm);
 }
 
-// ------------------------------------------------------------------ backend status
-async function refreshBackendStatus() {
+// --------------------------------------------------------- status + synchronizacja
+function setSyncStatus(state) {
   const node = $('#backendStatus');
-  const ok = await backendAvailable();
-  node.innerHTML = ok
-    ? '<span class="dot dot-ok"></span> Wyszukiwarka online'
-    : '<span class="dot dot-off"></span> Tryb offline (wyszukiwarka wymaga serwera)';
+  if (!node) return;
+  const map = {
+    local: '<span class="dot dot-off"></span> Tryb lokalny (dane na tym urządzeniu)',
+    ok: '<span class="dot dot-ok"></span> Zsynchronizowano ✓',
+    saving: '<span class="dot dot-sync"></span> Zapisywanie…',
+    error: '<span class="dot dot-err"></span> Błąd synchronizacji',
+    auth: '<span class="dot dot-err"></span> Wymagany token — kliknij, by podać',
+    connecting: '<span class="dot dot-sync"></span> Łączenie z serwerem…',
+  };
+  node.innerHTML = map[state] || map.local;
+  node.style.cursor = state === 'auth' ? 'pointer' : 'default';
+  node.onclick = state === 'auth' ? promptToken : null;
+}
+
+function promptToken() {
+  const input = el('input', { class: 'input', type: 'password', placeholder: 'Token dostępu' });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') connect(); });
+  async function connect() {
+    sync.setToken(input.value);
+    m.close();
+    setSyncStatus('connecting');
+    const res = await sync.pull();
+    if (res.auth) { toast('Nieprawidłowy token', 'error'); setSyncStatus('auth'); return; }
+    if (!res.ok) { setSyncStatus('error'); return; }
+    if (res.empty) { await sync.push(); } else { sync.applyRemote(res.library); }
+    startPushing();
+    render();
+    setSyncStatus('ok');
+    toast('Zsynchronizowano ✓', 'success');
+  }
+  const m = modal({
+    title: '🔒 Śpiewnik — dostęp',
+    body: el('div', {},
+      el('p', { text: 'Ten śpiewnik jest chroniony tokenem. Podaj go, aby zsynchronizować swoje piosenki na tym urządzeniu.' }),
+      input),
+    actions: [el('button', { class: 'btn btn-primary', onClick: connect }, 'Połącz')],
+  });
+  setTimeout(() => input.focus(), 50);
+}
+
+let pushingStarted = false;
+function startPushing() {
+  if (pushingStarted) return;
+  pushingStarted = true;
+  store.subscribe(() => sync.schedulePush());
+}
+
+async function setupSync() {
+  setSyncStatus('connecting');
+  const ok = await sync.detect();
+  if (!ok) { setSyncStatus('local'); return; }        // brak serwera → czysto lokalnie
+  sync.onStatus(setSyncStatus);
+  if (sync.authRequired() && !sync.hasToken()) { setSyncStatus('auth'); promptToken(); return; }
+  const res = await sync.pull();
+  if (res.auth) { setSyncStatus('auth'); promptToken(); return; }
+  if (!res.ok) { setSyncStatus('error'); return; }
+  if (res.empty) { await sync.push(); } else { sync.applyRemote(res.library); }
+  startPushing();
+  render();
+  setSyncStatus('ok');
 }
 
 // ------------------------------------------------------------------ init
@@ -1757,6 +1912,6 @@ function bind() {
 applySettings();
 bind();
 render();
-refreshBackendStatus();
+setupSync();
 
 </script>

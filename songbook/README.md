@@ -11,39 +11,45 @@ frontend i udostępnia moduł wyszukiwania/importu z internetu.
 
 ---
 
-## Dwa sposoby użycia
+## Trzy sposoby użycia
 
-### A) Wersja hostowana na claude.ai (dostępna z każdego urządzenia)
-Aplikację można opublikować jako **Artefakt Claude** — wtedy jest dostępna
-wszędzie tam, gdzie zalogujesz się do Claude, bez uruchamiania czegokolwiek.
+### A) Na serwerze GielDarka — zalecane (dostęp zewsząd + synchronizacja)
+Śpiewnik działa obok GielDarka na tym samym VPS, pod stałym adresem HTTPS
+(`https://spiewnik.<ip>.sslip.io`, zaufany cert, PWA). Ma pełny backend, więc
+działa **synchronizacja piosenek między urządzeniami** (dane na serwerze,
+chronione tokenem) oraz **wyszukiwanie w sieci**. Instrukcja wdrożenia:
+[`deploy/README-serwer.md`](deploy/README-serwer.md).
 
-```bash
-cd songbook
-node build-artifact.mjs      # tworzy artifact/spiewnik.html (jeden plik)
-```
-Plik `artifact/spiewnik.html` jest samowystarczalny (CSS + JS + HTML w środku)
-i publikowany jako Artefakt.
-
-W tej wersji **dane trzymane są w przeglądarce danego urządzenia** (localStorage),
-a przenoszenie ich między urządzeniami odbywa się przez **Eksport / Import kopii**
-(przyciski w menu; zapis korzysta z natywnego pobierania Claude). Automatyczne
-pobieranie tekstu z sieci i import po URL wymagają wersji z serwerem (poniżej) —
-w wersji hostowanej użyj „Wklej tekst ręcznie” z auto-konwersją chwytów.
-
-### B) Wersja z serwerem (pełne wyszukiwanie w sieci)
-Wymagany tylko **Node.js ≥ 18** (bez `npm install` — zero zależności).
+### B) Artefakt Claude (podręczna kopia, offline)
+Aplikację można też opublikować jako **Artefakt Claude** — dostępny wszędzie,
+gdzie zalogujesz się do Claude, bez serwera.
 
 ```bash
-cd songbook/server
-node server.js
-# otwórz http://localhost:8080
+cd songbook && node build-artifact.mjs   # tworzy artifact/spiewnik.html (jeden plik)
 ```
+Tu **dane są w przeglądarce urządzenia** (localStorage), a przenoszenie ich
+odbywa się przez **Eksport / Import kopii**. Wyszukiwanie w sieci nie działa
+(brak backendu) — użyj „Wklej tekst ręcznie” z auto-konwersją chwytów.
 
-Port można zmienić: `PORT=3000 node server.js`. Tu działa też automatyczne
-pobieranie tekstów i import po URL.
+### C) Lokalnie (do rozwoju)
+Wymagany tylko **Node.js ≥ 18** (bez `npm install` — zero zależności):
 
-> Frontend (`public/index.html`) można otworzyć również bez serwera — działa
-> wtedy tak jak wersja hostowana (bez wyszukiwania w sieci).
+```bash
+cd songbook/server && node server.js     # http://localhost:8080
+```
+Opcjonalnie `PORT=3000` oraz `SONGBOOK_TOKEN=...` (włącza wymóg tokenu) i
+`SONGBOOK_DATA_DIR=...` (katalog danych). Frontend (`public/index.html`) można
+też otworzyć wprost z dysku — działa jak wariant B.
+
+## Synchronizacja (wariant z serwerem)
+
+- Serwer trzyma bibliotekę w `library.json` (endpoint `GET/PUT /api/library`).
+- Zmiany w aplikacji są automatycznie wysyłane (debounce ~1 s); po wejściu na
+  innym urządzeniu biblioteka jest pobierana z serwera.
+- Gdy ustawiony jest `SONGBOOK_TOKEN`, dostęp wymaga podania tokenu (raz na
+  urządzenie). Bez tokenu dostęp jest otwarty — używaj tylko na prywatnym adresie.
+- Model rozwiązywania konfliktów: „ostatni zapis wygrywa” dla całej biblioteki —
+  w sam raz do użytku osobistego.
 
 ---
 

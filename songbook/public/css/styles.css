@@ -65,6 +65,9 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .backend-status { font-size: 12px; color: var(--muted); margin-top: 6px; display: flex; align-items: center; gap: 6px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .dot-ok { background: #2ecc71; } .dot-off { background: #bbb; }
+.dot-err { background: #e74c3c; }
+.dot-sync { background: #f39c12; animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
 .main { display: flex; flex-direction: column; overflow: hidden; }
 .topbar {

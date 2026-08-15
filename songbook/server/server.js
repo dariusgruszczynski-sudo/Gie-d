@@ -14,6 +14,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const PORT = process.env.PORT || 8080;
 
+// Katalog na dane synchronizowane między urządzeniami (montowany wolumen w Dockerze).
+const DATA_DIR = process.env.SONGBOOK_DATA_DIR || path.join(__dirname, '..', 'data');
+const LIBRARY_FILE = path.join(DATA_DIR, 'library.json');
+// Opcjonalny token dostępu. Gdy ustawiony, biblioteka wymaga nagłówka
+// `Authorization: Bearer <token>`. Gdy pusty — dostęp otwarty (tylko do użytku
+// prywatnego / za VPN-em). Zalecane: ustaw SONGBOOK_TOKEN w .env.
+const TOKEN = (process.env.SONGBOOK_TOKEN || '').trim();
+try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch { /* ignore */ }
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -138,11 +147,72 @@ function serveStatic(req, res) {
   });
 }
 
+// --- Biblioteka synchronizowana (server-side storage) ---
+function authorized(req) {
+  if (!TOKEN) return true; // brak tokenu = dostęp otwarty
+  const h = req.headers['authorization'] || '';
+  const m = h.match(/^Bearer\s+(.+)$/i);
+  return !!m && m[1] === TOKEN;
+}
+
+function readBody(req, limit = 8 * 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    let data = ''; let size = 0;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > limit) { reject(new Error('Za duży ładunek.')); req.destroy(); return; }
+      data += c;
+    });
+    req.on('end', () => resolve(data));
+    req.on('error', reject);
+  });
+}
+
+function loadLibrary() {
+  try { return JSON.parse(fs.readFileSync(LIBRARY_FILE, 'utf8')); }
+  catch { return null; }
+}
+function saveLibrary(obj) {
+  const tmp = LIBRARY_FILE + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(obj));
+  fs.renameSync(tmp, LIBRARY_FILE); // zapis atomowy
+}
+
 const server = http.createServer(async (req, res) => {
   const { pathname, searchParams } = new URL(req.url, `http://${req.headers.host}`);
 
   if (pathname === '/api/health') {
     return sendJson(res, 200, { ok: true, service: 'spiewnik', time: new Date().toISOString() });
+  }
+
+  // Informacja dla frontendu: czy dostępna jest synchronizacja i czy wymaga tokenu.
+  if (pathname === '/api/config') {
+    return sendJson(res, 200, { ok: true, service: 'spiewnik', sync: true, authRequired: !!TOKEN });
+  }
+
+  // Biblioteka piosenek/list synchronizowana między urządzeniami.
+  if (pathname === '/api/library') {
+    if (!authorized(req)) return sendJson(res, 401, { ok: false, error: 'Wymagany prawidłowy token.' });
+
+    if (req.method === 'GET') {
+      const lib = loadLibrary();
+      return sendJson(res, 200, { ok: true, library: lib, empty: lib === null });
+    }
+    if (req.method === 'PUT' || req.method === 'POST') {
+      try {
+        const raw = await readBody(req);
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.songs) || !Array.isArray(parsed.lists)) {
+          return sendJson(res, 400, { ok: false, error: 'Nieprawidłowy format biblioteki.' });
+        }
+        parsed.savedAt = Date.now();
+        saveLibrary(parsed);
+        return sendJson(res, 200, { ok: true, savedAt: parsed.savedAt });
+      } catch (e) {
+        return sendJson(res, 400, { ok: false, error: String(e.message || e) });
+      }
+    }
+    return sendJson(res, 405, { ok: false, error: 'Metoda nieobsługiwana.' });
   }
 
   if (pathname === '/api/lyrics') {
@@ -169,4 +239,6 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`🎵 Śpiewnik działa na http://localhost:${PORT}`);
+  console.log(`   Dane: ${LIBRARY_FILE}`);
+  console.log(`   Synchronizacja: WŁ.  |  Token dostępu: ${TOKEN ? 'wymagany' : 'BRAK (dostęp otwarty)'}`);
 });

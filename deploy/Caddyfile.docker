@@ -9,3 +9,13 @@
     encode zstd gzip
     reverse_proxy app:8000
 }
+
+# --- Śpiewnik (osobna apka na tym samym serwerze) ---
+# Subdomena sslip.io wskazuje na ten sam IP, więc Let's Encrypt wystawi zaufany
+# cert automatycznie (zielona kłódka, PWA-installable), bez kupowania domeny.
+# Proxy do kontenera `songbook` (nakładka songbook/deploy/docker-compose.songbook.yml).
+# Uwaga: aktywne tylko, gdy usługa `songbook` działa w tym samym projekcie compose.
+spiewnik.46.225.229.113.sslip.io {
+    encode zstd gzip
+    reverse_proxy songbook:8080
+}

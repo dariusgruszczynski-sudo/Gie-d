@@ -90,8 +90,9 @@ function load() {
   }
 }
 
-let state = load();
+const listeners = [];
 let storageWarned = false;
+let state = load();
 
 function save(data = state) {
   try {
@@ -100,6 +101,7 @@ function save(data = state) {
     // np. pamięć przeglądarki niedostępna/pełna — działamy dalej w pamięci sesji
     if (!storageWarned) { console.warn('Zapis do localStorage nieudany — dane tylko w tej sesji.', e); storageWarned = true; }
   }
+  for (const l of listeners) { try { l(); } catch (err) { console.error(err); } }
 }
 
 export const store = {
@@ -203,6 +205,17 @@ export const store = {
   },
   resetSettings() {
     state.settings = { ...DEFAULT_SETTINGS };
+    save();
+  },
+
+  // --- Synchronizacja ---
+  subscribe(fn) { listeners.push(fn); },
+  // Wczytuje bibliotekę z serwera do lokalnego stanu (w miejscu — zachowuje referencję settings).
+  loadFrom(lib) {
+    if (!lib || typeof lib !== 'object') return;
+    state.songs = Array.isArray(lib.songs) ? lib.songs : [];
+    state.lists = Array.isArray(lib.lists) ? lib.lists : [];
+    state.settings = { ...DEFAULT_SETTINGS, ...(lib.settings || {}) };
     save();
   },
 };

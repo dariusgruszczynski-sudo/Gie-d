@@ -2,7 +2,8 @@
 import { store } from './store.js';
 import { render as renderChordPro, extractChords, transposeSource, plainToChordPro } from './chordpro.js';
 import { chordDiagram, hasShape } from './chords.js';
-import { searchLyrics, importUrl, backendAvailable } from './search-client.js';
+import { searchLyrics, importUrl } from './search-client.js';
+import { sync } from './sync.js';
 
 // ------------------------------------------------------------------ helpers
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -671,7 +672,7 @@ function renderSettings(view, actions) {
       demoBox,
       el('div', { class: 'about' },
         el('h4', {}, 'O aplikacji'),
-        el('p', { class: 'muted', text: 'Wszystkie dane trzymane są lokalnie w Twojej przeglądarce. Rób kopie zapasowe przyciskami w menu (Eksport / Import).' }),
+        el('p', { class: 'muted', text: 'Dane działają na tym urządzeniu (localStorage), a w wersji z serwerem synchronizują się między urządzeniami. Status widać w menu na dole. Dobrze mieć też kopię: Eksport / Import.' }),
       ),
     ),
   ));
@@ -754,13 +755,69 @@ function toggleMetronome(btn, bpm) {
   metro.timer = setInterval(tick, 60000 / bpm);
 }
 
-// ------------------------------------------------------------------ backend status
-async function refreshBackendStatus() {
+// --------------------------------------------------------- status + synchronizacja
+function setSyncStatus(state) {
   const node = $('#backendStatus');
-  const ok = await backendAvailable();
-  node.innerHTML = ok
-    ? '<span class="dot dot-ok"></span> Wyszukiwarka online'
-    : '<span class="dot dot-off"></span> Tryb offline (wyszukiwarka wymaga serwera)';
+  if (!node) return;
+  const map = {
+    local: '<span class="dot dot-off"></span> Tryb lokalny (dane na tym urządzeniu)',
+    ok: '<span class="dot dot-ok"></span> Zsynchronizowano ✓',
+    saving: '<span class="dot dot-sync"></span> Zapisywanie…',
+    error: '<span class="dot dot-err"></span> Błąd synchronizacji',
+    auth: '<span class="dot dot-err"></span> Wymagany token — kliknij, by podać',
+    connecting: '<span class="dot dot-sync"></span> Łączenie z serwerem…',
+  };
+  node.innerHTML = map[state] || map.local;
+  node.style.cursor = state === 'auth' ? 'pointer' : 'default';
+  node.onclick = state === 'auth' ? promptToken : null;
+}
+
+function promptToken() {
+  const input = el('input', { class: 'input', type: 'password', placeholder: 'Token dostępu' });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') connect(); });
+  async function connect() {
+    sync.setToken(input.value);
+    m.close();
+    setSyncStatus('connecting');
+    const res = await sync.pull();
+    if (res.auth) { toast('Nieprawidłowy token', 'error'); setSyncStatus('auth'); return; }
+    if (!res.ok) { setSyncStatus('error'); return; }
+    if (res.empty) { await sync.push(); } else { sync.applyRemote(res.library); }
+    startPushing();
+    render();
+    setSyncStatus('ok');
+    toast('Zsynchronizowano ✓', 'success');
+  }
+  const m = modal({
+    title: '🔒 Śpiewnik — dostęp',
+    body: el('div', {},
+      el('p', { text: 'Ten śpiewnik jest chroniony tokenem. Podaj go, aby zsynchronizować swoje piosenki na tym urządzeniu.' }),
+      input),
+    actions: [el('button', { class: 'btn btn-primary', onClick: connect }, 'Połącz')],
+  });
+  setTimeout(() => input.focus(), 50);
+}
+
+let pushingStarted = false;
+function startPushing() {
+  if (pushingStarted) return;
+  pushingStarted = true;
+  store.subscribe(() => sync.schedulePush());
+}
+
+async function setupSync() {
+  setSyncStatus('connecting');
+  const ok = await sync.detect();
+  if (!ok) { setSyncStatus('local'); return; }        // brak serwera → czysto lokalnie
+  sync.onStatus(setSyncStatus);
+  if (sync.authRequired() && !sync.hasToken()) { setSyncStatus('auth'); promptToken(); return; }
+  const res = await sync.pull();
+  if (res.auth) { setSyncStatus('auth'); promptToken(); return; }
+  if (!res.ok) { setSyncStatus('error'); return; }
+  if (res.empty) { await sync.push(); } else { sync.applyRemote(res.library); }
+  startPushing();
+  render();
+  setSyncStatus('ok');
 }
 
 // ------------------------------------------------------------------ init
@@ -801,4 +858,4 @@ function bind() {
 applySettings();
 bind();
 render();
-refreshBackendStatus();
+setupSync();

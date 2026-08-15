@@ -1,0 +1,27 @@
+# Nakładka compose dodająca usługę "songbook" obok GielDarka.
+# Uruchamiana ZAWSZE razem z głównym docker-compose.yml (i nakładką Caddy),
+# jako jeden projekt — dzięki temu Caddy widzi kontener po nazwie `songbook`
+# i nic się nie „rozłącza" przy przebudowie (ten sam wzorzec co usługa Caddy).
+#
+# Ścieżki względne liczą się od katalogu projektu (repo root, ~/gie-d),
+# bo pierwszy plik `-f docker-compose.yml` leży właśnie tam.
+#
+# Ręczne uruchomienie (z ~/gie-d):
+#   docker compose -f docker-compose.yml \
+#     -f deploy/docker-compose.caddy.yml \
+#     -f songbook/deploy/docker-compose.songbook.yml up -d --build
+services:
+  songbook:
+    build:
+      context: ./songbook
+    environment:
+      - PORT=8080
+      - SONGBOOK_DATA_DIR=/app/data
+      # Token dostępu — ustaw SONGBOOK_TOKEN w pliku .env w repo root (~/gie-d/.env).
+      # Pusty = dostęp otwarty (używaj tylko, jeśli adres jest prywatny).
+      - SONGBOOK_TOKEN=${SONGBOOK_TOKEN:-}
+    volumes:
+      - ./songbook-data:/app/data   # trwałe dane (piosenki/listy) — przeżywają restart
+    expose:
+      - "8080"
+    restart: unless-stopped
