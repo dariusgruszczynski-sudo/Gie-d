@@ -76,15 +76,18 @@ też otworzyć wprost z dysku — działa jak wariant B.
 - Tabulatury w tekście przez `{start_of_tab} … {end_of_tab}` (czcionka stała).
 
 ### 🔎 Wyszukaj / Importuj
-Trzy sposoby zdobycia materiału:
-1. **Wykonawca + tytuł** → automatyczne pobranie tekstu z sieci
-   (darmowe API [lyrics.ovh](https://lyrics.ovh), bez klucza).
-2. **Import po URL** → wklej link do strony z chwytami/tabami; backend pobiera
-   treść, czyści z HTML i **wykrywa chwyty nad tekstem**, formatując je do ChordPro.
-3. **Wklej ręcznie** → wklej surowy tekst; **auto-konwersja** przekłada chwyty
-   (linie akordów nad słowami) do formatu ChordPro. Działa też w pełni offline.
+- **Szukaj opracowań z chwytami** — wpisz częściowy tytuł, nazwę zespołu (lub jej
+  brak) albo fragment tekstu; wyszukiwarka webowa zwraca **listę wersji do wyboru**
+  (różne źródła). Po kliknięciu backend pobiera stronę, czyści z HTML i **wykrywa
+  chwyty**, formatując je do ChordPro. Obsługuje polski zapis (H = B, małe litery =
+  akordy molowe, np. `a` = Am) i polskie znaki. Provider: SerpAPI (z kluczem) lub
+  DuckDuckGo (bez klucza).
+- **Mam już konkretny link** → wklej URL strony z chwytami/tabami.
+- **Wklej ręcznie** → wklej surowy tekst; **auto-konwersja** przekłada chwyty do
+  ChordPro. Działa też w pełni offline.
 
-Wykryty materiał zawsze trafia do podglądu z możliwością poprawy przed zapisem.
+Każdy wynik trafia do podglądu z informacją, ile wykryto chwytów (żeby łatwo
+odrzucić źródło z samym tekstem) i możliwością poprawy przed zapisem.
 
 ### ⚙️ Wygląd i style
 - Motyw jasny / ciemny / automatyczny.

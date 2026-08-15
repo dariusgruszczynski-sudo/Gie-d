@@ -21,6 +21,10 @@ const LIBRARY_FILE = path.join(DATA_DIR, 'library.json');
 // `Authorization: Bearer <token>`. Gdy pusty — dostęp otwarty (tylko do użytku
 // prywatnego / za VPN-em). Zalecane: ustaw SONGBOOK_TOKEN w .env.
 const TOKEN = (process.env.SONGBOOK_TOKEN || '').trim();
+// Klucz do wyszukiwarki webowej (SerpAPI). Gdy pusty — używamy DuckDuckGo (bez
+// klucza). Możesz podać własny SONGBOOK_SEARCH_KEY albo pozwolić użyć klucza
+// GielDarka (SERPAPI_API_KEY), jeśli świadomie go tu przekażesz.
+const SEARCH_KEY = (process.env.SONGBOOK_SEARCH_KEY || process.env.SERPAPI_API_KEY || '').trim();
 try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch { /* ignore */ }
 
 const MIME = {
@@ -122,6 +126,90 @@ async function fetchPage(targetUrl) {
   }
 }
 
+// --- Wyszukiwarka opracowań z chwytami (web search) ---
+function hostnameOf(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } }
+function decodeEntities(s) {
+  return String(s)
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#x27;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+}
+function stripTags(s) { return decodeEntities(String(s).replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim(); }
+
+// Buduje zapytanie nakierowane na opracowania z chwytami (polskie + międzynarodowe).
+function buildSearchQuery({ q, artist, title }) {
+  const base = (q && q.trim()) || [artist, title].filter(Boolean).join(' ').trim();
+  if (!base) return '';
+  // Jeśli użytkownik sam nie dopisał "chwyty/akordy/chords/tab", dokładamy.
+  if (/chwyt|akord|chord|tab/i.test(base)) return base;
+  return `${base} chwyty akordy`;
+}
+
+// SerpAPI (Google) — zwraca listę wyników.
+async function searchSerp(query, max) {
+  const url = `https://serpapi.com/search.json?engine=google&hl=pl&gl=pl&num=${max}&q=${encodeURIComponent(query)}&api_key=${encodeURIComponent(SEARCH_KEY)}`;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    if (!r.ok) return { ok: false, error: `Wyszukiwarka zwróciła status ${r.status}` };
+    const data = await r.json();
+    const items = (data.organic_results || []).map((o) => ({
+      title: o.title || '', url: o.link || '', snippet: o.snippet || '', source: hostnameOf(o.link || ''),
+    })).filter((x) => x.url);
+    return { ok: true, items };
+  } catch (e) {
+    return { ok: false, error: e.name === 'AbortError' ? 'Przekroczono czas wyszukiwania.' : String(e.message || e) };
+  } finally { clearTimeout(t); }
+}
+
+// DuckDuckGo (bez klucza) — parsujemy HTML wyników.
+async function searchDuck(query, max) {
+  const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=pl-pl`;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    const r = await fetch(url, {
+      signal: ctrl.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SpiewnikBot/1.0)', 'Accept': 'text/html' },
+    });
+    if (!r.ok) return { ok: false, error: `Wyszukiwarka zwróciła status ${r.status}` };
+    const html = await r.text();
+    return { ok: true, items: parseDuck(html).slice(0, max) };
+  } catch (e) {
+    return { ok: false, error: e.name === 'AbortError' ? 'Przekroczono czas wyszukiwania.' : String(e.message || e) };
+  } finally { clearTimeout(t); }
+}
+
+// Pure — parsuje stronę wyników DuckDuckGo HTML na listę {title,url,snippet,source}.
+function parseDuck(html) {
+  const items = [];
+  const re = /<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  let m;
+  while ((m = re.exec(html))) {
+    let href = decodeEntities(m[1]);
+    // DDG owija link w redirect z parametrem uddg=
+    const ud = href.match(/[?&]uddg=([^&]+)/);
+    if (ud) { try { href = decodeURIComponent(ud[1]); } catch { /* keep */ } }
+    if (href.startsWith('//')) href = 'https:' + href;
+    const title = stripTags(m[2]);
+    if (href && title) items.push({ title, url: href, snippet: '', source: hostnameOf(href) });
+  }
+  // dorzuć snippety (kolejność zwykle zgodna z wynikami)
+  const snips = [...html.matchAll(/<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/gi)].map((x) => stripTags(x[1]));
+  items.forEach((it, i) => { if (snips[i]) it.snippet = snips[i]; });
+  return items;
+}
+
+async function webSearch(params) {
+  const query = buildSearchQuery(params);
+  if (!query) return { ok: false, error: 'Podaj tytuł, zespół lub fragment tekstu.' };
+  const max = Math.min(Math.max(parseInt(params.max) || 12, 1), 20);
+  const res = SEARCH_KEY ? await searchSerp(query, max) : await searchDuck(query, max);
+  if (!res.ok) return res;
+  return { ok: true, query, provider: SEARCH_KEY ? 'serpapi' : 'duckduckgo', items: res.items };
+}
+
 function serveStatic(req, res) {
   let urlPath = decodeURIComponent(req.url.split('?')[0]);
   if (urlPath === '/') urlPath = '/index.html';
@@ -187,7 +275,19 @@ const server = http.createServer(async (req, res) => {
 
   // Informacja dla frontendu: czy dostępna jest synchronizacja i czy wymaga tokenu.
   if (pathname === '/api/config') {
-    return sendJson(res, 200, { ok: true, service: 'spiewnik', sync: true, authRequired: !!TOKEN });
+    return sendJson(res, 200, { ok: true, service: 'spiewnik', sync: true, authRequired: !!TOKEN, search: true, searchProvider: SEARCH_KEY ? 'serpapi' : 'duckduckgo' });
+  }
+
+  // Wyszukiwarka opracowań z chwytami — zwraca listę wyników do wyboru.
+  if (pathname === '/api/search') {
+    const params = {
+      q: searchParams.get('q') || '',
+      artist: searchParams.get('artist') || '',
+      title: searchParams.get('title') || '',
+      max: searchParams.get('max') || '',
+    };
+    const result = await webSearch(params);
+    return sendJson(res, result.ok ? 200 : 502, result);
   }
 
   // Biblioteka piosenek/list synchronizowana między urządzeniami.
