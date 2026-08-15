@@ -1,6 +1,6 @@
 // app.js — główny moduł aplikacji Śpiewnik.
 import { store } from './store.js';
-import { render as renderChordPro, extractChords, transposeSource, plainToChordPro } from './chordpro.js';
+import { render as renderChordPro, extractChords, transposeSource, plainToChordPro, stretchChords } from './chordpro.js';
 import { chordDiagram, hasShape } from './chords.js';
 import { searchLyrics, importUrl, searchWeb, resolveLink } from './search-client.js';
 import { sync } from './sync.js';
@@ -31,10 +31,28 @@ const fmtDate = (ts) => new Date(ts).toLocaleDateString('pl-PL', { day: '2-digit
 // formacie ChordPro (brak [ ]) a wykryto chwyty, konwertuje. W przeciwnym razie
 // zostawia bez zmian. Zwraca { body, converted }.
 function autoChordify(body) {
-  if (/\[/.test(body)) return { body, converted: false };
+  // plainToChordPro jest bezpieczne per-linia (linie z [chwytami] pomija), więc
+  // działa też na treści mieszanej (część surowa, część już w ChordPro).
   const conv = plainToChordPro(body || '');
-  const added = (conv.match(/\[/g) || []).length;
-  return added ? { body: conv, converted: true } : { body, converted: false };
+  return { body: conv, converted: conv !== (body || '') };
+}
+
+// Rozbija linię ChordPro na czysty tekst + listę chwytów z pozycjami w tekście.
+function lineToPlain(line) {
+  const chords = []; let plain = ''; const re = /\[([^\]]+)\]/g; let last = 0, m;
+  while ((m = re.exec(line))) { plain += line.slice(last, m.index); chords.push({ pos: plain.length, chord: m[1] }); last = re.lastIndex; }
+  plain += line.slice(last);
+  return { plain, chords };
+}
+// Buduje linię ChordPro z tekstu + chwytów (chwyty w rosnących pozycjach).
+function plainToLine(plain, chords) {
+  const sorted = [...chords].sort((a, b) => a.pos - b.pos);
+  let out = '';
+  for (let i = 0; i <= plain.length; i++) {
+    for (const c of sorted) if (c.pos === i) out += `[${c.chord}]`;
+    if (i < plain.length) out += plain[i];
+  }
+  return out;
 }
 
 function toast(msg, type = 'info') {
@@ -286,6 +304,7 @@ function renderSongReader(s, { withControls = false } = {}) {
       ),
       showChordsBtn,
       el('button', { class: 'btn btn-sm', onClick: () => { store.updateSettings({ showDiagrams: !store.settings.showDiagrams }); render(); } }, store.settings.showDiagrams ? '📊 Diagramy: wł.' : '📊 Diagramy: wył.'),
+      (() => { const stretched = stretchChords(s.body); return stretched !== s.body ? el('button', { class: 'btn btn-sm', title: 'Rozciągnij chwyty z 1. zwrotki i refrenu na resztę utworu', onClick: () => { store.updateSong(s.id, { body: stretched }); toast('Rozciągnięto chwyty na całość ✓', 'success'); render(); } }, '🔁 Rozciągnij chwyty') : null; })(),
       s.tempo ? el('button', { class: 'btn btn-sm', onClick: (e) => toggleMetronome(e.target, s.tempo) }, '🥁 Metronom') : null,
     );
     wrap.append(controls);
@@ -366,8 +385,68 @@ function renderSongEditor(view, actions, s) {
     el('button', { class: 'btn btn-xs', type: 'button', onClick: () => insert('{comment: ', '}') }, 'Komentarz'),
     el('button', { class: 'btn btn-xs', type: 'button', onClick: () => insert('{start_of_chorus}\n', '\n{end_of_chorus}') }, 'Refren'),
     el('button', { class: 'btn btn-xs', type: 'button', onClick: () => insert('{start_of_tab}\n', '\n{end_of_tab}') }, 'Tabulatura' ),
-    el('button', { class: 'btn btn-xs', type: 'button', title: 'Zamień wklejony surowy tekst (chwyty nad tekstem) na format ChordPro', onClick: () => { f.body.value = plainToChordPro(f.body.value); updatePreview(); toast('Skonwertowano do ChordPro'); } }, '✨ Auto-konwersja'),
+    el('button', { class: 'btn btn-xs', type: 'button', title: 'Zamień wklejony surowy tekst (chwyty nad tekstem) na format ChordPro', onClick: () => { f.body.value = plainToChordPro(f.body.value); updatePreview(); refreshRight(); toast('Skonwertowano do ChordPro'); } }, '✨ Auto-konwersja'),
+    el('button', { class: 'btn btn-xs', type: 'button', title: 'Rozciągnij chwyty z 1. zwrotki i refrenu na resztę utworu', onClick: () => { f.body.value = stretchChords(autoChordify(f.body.value).body); updatePreview(); refreshRight(); toast('Rozciągnięto chwyty na całość ✓', 'success'); } }, '🔁 Rozciągnij chwyty'),
   );
+
+  // --- Wizualny edytor chwytów (klik = dodaj/edytuj chwyt nad tekstem) ---
+  const arranger = el('div', { class: 'arranger' });
+  let activeEdit = null; // { li, pos }
+  const buildArranger = () => {
+    arranger.innerHTML = '';
+    const lines = f.body.value.split('\n');
+    lines.forEach((line, li) => {
+      if (/^\s*\{.*\}\s*$/.test(line) || line.trim() === '') {
+        arranger.append(el('div', { class: 'arr-skip', text: line || '·' }));
+        return;
+      }
+      const { plain, chords } = lineToPlain(line);
+      const chordAt = (p) => chords.find((c) => c.pos === p);
+      const commit = (pos, value) => {
+        const parsed = lineToPlain(f.body.value.split('\n')[li]);
+        parsed.chords = parsed.chords.filter((c) => c.pos !== pos);
+        if (value.trim()) parsed.chords.push({ pos, chord: value.trim() });
+        const newLines = f.body.value.split('\n');
+        newLines[li] = plainToLine(parsed.plain, parsed.chords);
+        f.body.value = newLines.join('\n');
+        activeEdit = null; updatePreview(); buildArranger();
+      };
+      const slot = (pos, ch) => {
+        if (activeEdit && activeEdit.li === li && activeEdit.pos === pos) {
+          const inp = el('input', { class: 'arr-input', value: ch ? ch.chord : '', spellcheck: 'false' });
+          inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); commit(pos, inp.value); } if (e.key === 'Escape') { activeEdit = null; buildArranger(); } });
+          inp.addEventListener('blur', () => commit(pos, inp.value));
+          setTimeout(() => inp.focus(), 0);
+          return inp;
+        }
+        return el('span', { class: 'arr-chord' + (ch ? ' has' : ''), onClick: (e) => { e.stopPropagation(); activeEdit = { li, pos }; buildArranger(); } }, ch ? ch.chord : '');
+      };
+      const lineEl = el('div', { class: 'arr-line' });
+      for (let p = 0; p < plain.length; p++) {
+        lineEl.append(el('span', { class: 'arr-unit' }, slot(p, chordAt(p)), el('span', { class: 'arr-char', onClick: () => { activeEdit = { li, pos: p }; buildArranger(); } }, plain[p] === ' ' ? ' ' : plain[p])));
+      }
+      // slot na końcu linii
+      lineEl.append(el('span', { class: 'arr-unit' }, slot(plain.length, chordAt(plain.length)), el('span', { class: 'arr-char arr-end', onClick: () => { activeEdit = { li, pos: plain.length }; buildArranger(); } }, ' ')));
+      arranger.append(lineEl);
+    });
+    if (!f.body.value.trim()) arranger.append(el('p', { class: 'muted', text: 'Najpierw wpisz tekst (po lewej), potem klikaj w słowa, żeby dodać chwyty.' }));
+  };
+
+  // przełącznik prawej kolumny: Podgląd / Rozmieść chwyty
+  let rightMode = 'preview';
+  const rightBox = el('div', { class: 'preview-frame' });
+  const refreshRight = () => {
+    rightBox.innerHTML = '';
+    if (rightMode === 'preview') { updatePreview(); rightBox.append(preview); }
+    else {
+      // wchodząc w edytor chwytów, zamień surowe chwyty na edytowalne [chwyty]
+      const c = autoChordify(f.body.value);
+      if (c.converted) { f.body.value = c.body; updatePreview(); }
+      buildArranger(); rightBox.append(arranger);
+    }
+  };
+  f.body.addEventListener('input', () => { if (rightMode === 'arrange') buildArranger(); });
+  refreshRight(); // start w trybie podglądu
 
   // moduł tabulatur (osobne taby przypięte do utworu)
   let localTabs = structuredClone(s.tabs || []);
@@ -419,8 +498,18 @@ function renderSongEditor(view, actions, s) {
         cpToolbar, f.body,
       ),
       el('div', { class: 'editor-col' },
-        el('div', { class: 'field-label' }, 'Podgląd na żywo'),
-        el('div', { class: 'preview-frame' }, preview),
+        el('div', { class: 'field-label with-help' },
+          el('span', {}, 'Podgląd / edytor chwytów'),
+          (() => {
+            const segPrev = el('button', { class: 'btn btn-xs seg-on', type: 'button' }, 'Podgląd');
+            const segArr = el('button', { class: 'btn btn-xs', type: 'button' }, '🎯 Rozmieść chwyty');
+            const setMode = (m) => { rightMode = m; segPrev.classList.toggle('seg-on', m === 'preview'); segArr.classList.toggle('seg-on', m === 'arrange'); refreshRight(); };
+            segPrev.addEventListener('click', () => setMode('preview'));
+            segArr.addEventListener('click', () => setMode('arrange'));
+            return el('div', { class: 'seg' }, segPrev, segArr);
+          })(),
+        ),
+        rightBox,
       ),
     ),
     el('div', { class: 'field-label mt' }, '🎸 Moduł tabulatur'),
