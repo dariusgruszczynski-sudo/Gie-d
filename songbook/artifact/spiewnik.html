@@ -1908,6 +1908,29 @@ function tabTemplate() {
   return 'e|-----------------|\nB|-----------------|\nG|-----------------|\nD|-----------------|\nA|-----------------|\nE|-----------------|';
 }
 
+// Wyjaśnia, że moduł wykrywania akordów z audio jest opcjonalny + jak go włączyć.
+function audioModuleInfo() {
+  const cmd = 'cd /root/gie-d && touch songbook/deploy/audio.enabled && ./deploy/deploy.sh';
+  modal({
+    title: '🎧 Wykrywanie akordów z audio',
+    wide: true,
+    body: el('div', { class: 'help' },
+      el('p', {}, 'Ten moduł potrafi „posłuchać" nagrania z YouTube i wykryć przybliżoną progresję akordów. Jest ', el('b', {}, 'opcjonalny i wyłączony'), ' — bo jest ciężki (analiza dźwięku) i ma haczyki:'),
+      el('ul', {},
+        el('li', {}, 'Wynik jest ', el('b', {}, 'przybliżony'), ' (~70–85% na prostym popie) — punkt startowy do poprawki w edytorze.'),
+        el('li', {}, 'Pobieranie audio z YouTube bywa niezgodne z regulaminem serwisu — do prywatnego użytku, na własną odpowiedzialność.'),
+      ),
+      el('p', {}, 'Aby włączyć, uruchom raz na serwerze:'),
+      el('pre', {}, cmd),
+      el('p', { class: 'muted' }, 'Pierwszy build potrwa (librosa + ffmpeg). Potem przycisk „🎧 Akordy z YT" zacznie działać przy linkach z YouTube.'),
+    ),
+    actions: [
+      el('button', { class: 'btn', onClick: () => { copyText(cmd); toast('Skopiowano komendę'); } }, '📋 Kopiuj komendę'),
+      el('button', { class: 'btn btn-primary', onClick: () => document.querySelector('.modal-overlay')?.remove() }, 'OK'),
+    ],
+  });
+}
+
 function chordProHelp() {
   modal({
     title: 'Jak pisać teksty z chwytami (ChordPro)',
@@ -2079,7 +2102,10 @@ function renderInbox(view, actions) {
 
   const linksArea = el('textarea', { class: 'input mono', rows: '3', placeholder: 'Wklej link(i) z TikToka / Instagrama / Facebooka / YouTube — po jednym w linii. „Udostępnij → Kopiuj link".' });
   const box = el('div', { class: 'search-box' },
-    el('p', { class: 'search-intro', text: 'Wrzucaj tu polubione utwory z social mediów. Wklej linki (Udostępnij → Kopiuj link), a aplikacja rozpozna tytuł i doda do kolejki „do akceptacji".' }),
+    el('p', { class: 'search-intro' }, 'Wrzucaj tu polubione utwory z social mediów. Wklej linki (Udostępnij → Kopiuj link), a aplikacja rozpozna tytuł i doda do kolejki „do akceptacji". ',
+      el('span', {}, 'Przy linkach z YouTube możesz też '),
+      el('a', { class: 'link-btn', href: '#', onClick: (e) => { e.preventDefault(); audioModuleInfo(); } }, '🎧 wykryć akordy z dźwięku'),
+      el('span', {}, '.')),
     linksArea,
     el('div', { class: 'search-fields' }, el('button', { class: 'btn btn-primary', onClick: addLinks }, '⬇︎ Dodaj do poczekalni')),
   );
@@ -2147,7 +2173,7 @@ function renderInbox(view, actions) {
         el('div', { class: 'inbox-actions' },
           el('button', { class: 'btn btn-sm btn-primary', onClick: () => accept(false) }, '✓ Akceptuj'),
           el('button', { class: 'btn btn-sm', title: 'Akceptuj i znajdź chwyty', onClick: () => accept(true) }, '🔎 + chwyty'),
-          (sync.audioAvailable() && /youtu/.test(it.url)) ? el('button', { class: 'btn btn-sm', title: 'Wykryj akordy z audio (przybliżone)', onClick: (e) => detectFromYT(it, e.target) }, '🎧 Akordy z YT') : null,
+          /youtu/.test(it.url) ? el('button', { class: 'btn btn-sm', title: 'Wykryj akordy z audio (przybliżone)', onClick: (e) => (sync.audioAvailable() ? detectFromYT(it, e.target) : audioModuleInfo()) }, '🎧 Akordy z YT') : null,
           el('button', { class: 'btn btn-sm btn-danger', onClick: () => { store.removeInbox(it.id); updateInboxBadge(); renderList(); } }, '✕'),
         ),
       ));
