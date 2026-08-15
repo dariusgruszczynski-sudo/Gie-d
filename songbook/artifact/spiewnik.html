@@ -993,6 +993,7 @@ const sync = {
   available() { return !!(cfg && cfg.sync); },
   authRequired() { return !!(cfg && cfg.authRequired); },
   hasToken() { return !!getToken(); },
+  token() { return getToken(); },
   setToken(t) { try { localStorage.setItem(TOKEN_KEY, (t || '').trim()); } catch { /* ignore */ } },
 
   // Sprawdza, czy serwer oferuje synchronizację.
@@ -1176,6 +1177,16 @@ function confirmDialog(message, onYes, { danger = false, yes = 'Tak', no = 'Anul
       el('button', { class: 'btn ' + (danger ? 'btn-danger' : 'btn-primary'), onClick: () => { m.close(); onYes(); } }, yes),
     ],
   });
+}
+
+function copyText(text) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text); return; }
+  } catch { /* fallback poniżej */ }
+  const ta = el('textarea', { style: 'position:fixed;opacity:0' }); ta.value = text;
+  document.body.append(ta); ta.select();
+  try { document.execCommand('copy'); } catch { /* ignore */ }
+  ta.remove();
 }
 
 async function download(filename, text, type = 'application/json') {
@@ -1829,7 +1840,12 @@ function renderSettings(view, actions) {
       el('div', { class: 'field-label' }, 'Podgląd'),
       demoBox,
       el('div', { class: 'about' },
-        el('h4', {}, 'O aplikacji'),
+        (sync.available() && sync.hasToken()) ? el('div', { class: 'about-link' },
+          el('h4', {}, '🔗 Twój link bez wpisywania tokenu'),
+          el('p', { class: 'muted', text: 'Zapisz ten link w zakładkach lub dodaj do ekranu głównego — otworzy śpiewnik od razu, bez podawania tokenu.' }),
+          el('button', { class: 'btn btn-sm', onClick: (e) => { const link = `${location.origin}/?t=${encodeURIComponent(sync.token())}`; copyText(link); toast('Skopiowano link ✓', 'success'); } }, '📋 Kopiuj mój link'),
+        ) : null,
+        el('h4', { class: 'mt' }, 'O aplikacji'),
         el('p', { class: 'muted', text: 'Dane działają na tym urządzeniu (localStorage), a w wersji z serwerem synchronizują się między urządzeniami. Status widać w menu na dole. Dobrze mieć też kopię: Eksport / Import.' }),
       ),
     ),
@@ -2013,9 +2029,21 @@ function bind() {
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (store.settings.theme === 'auto') applySettings(); });
 }
 
+// Token można podać w adresie (?t=… albo #t=…) — dzięki temu wystarczy raz
+// zapisać osobisty link (zakładka / ekran główny) i nigdy nie wpisywać tokenu.
+function captureUrlToken() {
+  try {
+    const url = new URL(location.href);
+    let t = url.searchParams.get('t') || url.searchParams.get('token') || '';
+    if (!t && location.hash) { const m = location.hash.match(/[#&](?:t|token)=([^&]+)/); if (m) t = decodeURIComponent(m[1]); }
+    if (t) sync.setToken(t);
+  } catch { /* ignore */ }
+}
+
 applySettings();
 bind();
 render();
+captureUrlToken();
 setupSync();
 
 </script>

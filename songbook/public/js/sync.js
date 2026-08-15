@@ -20,6 +20,7 @@ export const sync = {
   available() { return !!(cfg && cfg.sync); },
   authRequired() { return !!(cfg && cfg.authRequired); },
   hasToken() { return !!getToken(); },
+  token() { return getToken(); },
   setToken(t) { try { localStorage.setItem(TOKEN_KEY, (t || '').trim()); } catch { /* ignore */ } },
 
   // Sprawdza, czy serwer oferuje synchronizację.
