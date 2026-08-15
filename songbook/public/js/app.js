@@ -4,6 +4,7 @@ import { render as renderChordPro, extractChords, transposeSource, plainToChordP
 import { chordDiagram, hasShape } from './chords.js';
 import { searchLyrics, importUrl, searchWeb } from './search-client.js';
 import { sync } from './sync.js';
+import { SUGGEST_PL, SUGGEST_WORLD } from './suggestions.js';
 
 // ------------------------------------------------------------------ helpers
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -127,7 +128,7 @@ function go(view, opts = {}) {
 function render() {
   applySettings();
   $$('.nav-item').forEach((b) => b.classList.toggle('active', b.dataset.view === app.view));
-  const titleMap = { songs: 'Piosenki', lists: 'Listy', search: 'Wyszukaj', settings: 'Wygląd' };
+  const titleMap = { songs: 'Piosenki', lists: 'Listy', suggest: 'Propozycje', search: 'Wyszukaj', settings: 'Wygląd' };
   const actions = $('#topbarActions'); actions.innerHTML = '';
   const view = $('#view'); view.innerHTML = '';
   $('#viewTitle').textContent = titleMap[app.view] || 'Śpiewnik';
@@ -136,6 +137,7 @@ function render() {
   if (app.view === 'songs') return renderSongs(view, actions);
   if (app.view === 'lists' && app.listId) return renderListDetail(view, actions);
   if (app.view === 'lists') return renderLists(view, actions);
+  if (app.view === 'suggest') return renderSuggestions(view, actions);
   if (app.view === 'search') return renderSearch(view, actions);
   if (app.view === 'settings') return renderSettings(view, actions);
 }
@@ -547,6 +549,63 @@ function addToListDialog(songId) {
 }
 
 // ------------------------------------------------------------------ Wyszukaj
+// ------------------------------------------------------------------ Propozycje
+const normKey = (t, a) => (String(t) + '|' + String(a)).toLowerCase().replace(/\s+/g, ' ').trim();
+
+function renderSuggestions(view, actions) {
+  $('#viewTitle').textContent = 'Propozycje';
+
+  // co już mam + profil gustu (wykonawcy i tagi z biblioteki)
+  const have = new Set(store.songs().map((s) => normKey(s.title, s.artist)));
+  const myArtists = new Set(store.songs().map((s) => (s.artist || '').toLowerCase()).filter(Boolean));
+  const myTags = new Set(store.songs().flatMap((s) => (s.tags || []).map((t) => t.toLowerCase())));
+  const score = (it) => (myArtists.has((it.artist || '').toLowerCase()) ? 2 : 0) + (it.tags || []).reduce((n, t) => n + (myTags.has(t.toLowerCase()) ? 1 : 0), 0);
+
+  const goSearch = (it) => { app.pendingSearch = { q: it.title, artist: it.artist === 'trad.' ? '' : it.artist }; go('search'); };
+
+  const card = (it) => {
+    const added = have.has(normKey(it.title, it.artist));
+    const matched = score(it) > 0;
+    const addBtn = added
+      ? el('span', { class: 'pill pill-ok' }, '✓ w bibliotece')
+      : el('button', { class: 'btn btn-sm btn-primary', onClick: (e) => {
+          const s = store.createSong({ title: it.title, artist: it.artist, key: it.key || '', capo: it.capo || 0, tempo: it.tempo || 0, tags: it.tags || [] });
+          toast('Dodano „' + it.title + '" ✓', 'success');
+          e.target.replaceWith(el('span', { class: 'pill pill-ok' }, '✓ dodano'));
+          void s;
+        } }, '＋ Dodaj');
+    return el('div', { class: 'suggest-card' },
+      el('div', { class: 'suggest-main' },
+        el('div', { class: 'suggest-title' }, it.title, matched ? el('span', { class: 'match-badge', title: 'pasuje do Twojej biblioteki' }, '★') : null),
+        el('div', { class: 'suggest-artist', text: it.artist }),
+        el('div', { class: 'song-meta' },
+          it.key ? el('span', { class: 'pill' }, '🎹 ' + it.key) : null,
+          it.capo ? el('span', { class: 'pill' }, 'kapo ' + it.capo) : null,
+          it.tempo ? el('span', { class: 'pill' }, '⏱ ' + it.tempo) : null,
+          ...(it.tags || []).slice(0, 3).map((t) => el('span', { class: 'pill pill-tag' }, '#' + t)),
+        ),
+      ),
+      el('div', { class: 'suggest-actions' },
+        addBtn,
+        el('button', { class: 'btn btn-sm', title: 'Znajdź chwyty', onClick: () => goSearch(it) }, '🔎 Chwyty'),
+      ),
+    );
+  };
+
+  const section = (heading, items) => {
+    const sorted = [...items].sort((a, b) => score(b) - score(a));
+    const grid = el('div', { class: 'suggest-grid' });
+    sorted.forEach((it) => grid.append(card(it)));
+    return el('div', { class: 'suggest-section' }, el('h3', { class: 'block-h' }, heading), grid);
+  };
+
+  view.append(
+    el('p', { class: 'search-intro', text: 'Gotowe propozycje do dodania jednym kliknięciem. ★ oznacza pozycje pasujące do Twojej biblioteki. „＋ Dodaj" tworzy piosenkę (tytuł, tonacja, tempo), a „🔎 Chwyty" od razu ją wyszukuje.' }),
+    section('🇵🇱 Polskie (15)', SUGGEST_PL),
+    section('🌍 Zagraniczne (15)', SUGGEST_WORLD),
+  );
+}
+
 function renderSearch(view, actions) {
   $('#viewTitle').textContent = 'Wyszukaj';
   const q = el('input', { class: 'input', placeholder: 'Tytuł, zespół lub fragment tekstu — np. „hej sokoły", „dżem naboso", „przyjaciół nikt…"' });
@@ -634,6 +693,14 @@ function renderSearch(view, actions) {
   );
 
   view.append(box, importBox, pasteBox);
+
+  // wejście z „Propozycji" (🔎 Chwyty) — wypełnij i od razu szukaj
+  if (app.pendingSearch) {
+    q.value = app.pendingSearch.q || '';
+    artist.value = app.pendingSearch.artist || '';
+    app.pendingSearch = null;
+    setTimeout(doSearch, 0);
+  }
 }
 
 function showFoundText(container, artist, title, body, note) {
@@ -745,6 +812,9 @@ function openPerformance(startSongId, listId = null) {
   const content = el('div', { class: 'perf-content' });
   let speed = 0;
 
+  const applyScale = () => overlay.style.setProperty('--stage-scale', store.settings.stageScale);
+  const bumpScale = (d) => { const v = Math.min(2.6, Math.max(0.9, Math.round((store.settings.stageScale + d) * 100) / 100)); store.updateSettings({ stageScale: v }); applyScale(); };
+
   const draw = () => {
     const s = store.song(songIds[idx]);
     content.innerHTML = '';
@@ -752,6 +822,15 @@ function openPerformance(startSongId, listId = null) {
     content.scrollTop = 0;
     nav.querySelector('.perf-pos').textContent = `${idx + 1} / ${songIds.length}`;
   };
+
+  // Wake Lock — ekran nie gaśnie podczas występu (jeśli przeglądarka wspiera).
+  let wakeLock = null;
+  const acquireWake = async () => { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch { /* ignore */ } };
+  const releaseWake = () => { try { wakeLock && wakeLock.release(); } catch { /* ignore */ } wakeLock = null; };
+  const onVis = () => { if (document.visibilityState === 'visible' && document.body.contains(overlay)) acquireWake(); };
+  document.addEventListener('visibilitychange', onVis);
+
+  const closePerf = () => { stopScroll(); releaseWake(); document.removeEventListener('visibilitychange', onVis); overlay.remove(); document.body.classList.remove('perf-mode'); };
   const stopScroll = () => { if (scrollTimer) { clearInterval(scrollTimer); scrollTimer = null; } };
   const setScroll = (v) => {
     speed = v; stopScroll();
@@ -761,9 +840,11 @@ function openPerformance(startSongId, listId = null) {
   const spd = el('span', { class: 'perf-val', text: 'auto-scroll' });
 
   const nav = el('div', { class: 'perf-bar' },
-    el('button', { class: 'btn btn-sm', onClick: () => { stopScroll(); overlay.remove(); document.body.classList.remove('perf-mode'); } }, '✕ Zamknij'),
+    el('button', { class: 'btn btn-sm', onClick: closePerf }, '✕ Zamknij'),
     el('span', { class: 'perf-pos' }, ''),
     el('div', { class: 'perf-spacer' }),
+    el('button', { class: 'btn btn-sm', title: 'Mniejszy tekst', onClick: () => bumpScale(-0.15) }, 'A−'),
+    el('button', { class: 'btn btn-sm', title: 'Większy tekst', onClick: () => bumpScale(0.15) }, 'A+'),
     el('button', { class: 'btn btn-sm', onClick: () => { setTranspose(songIds[idx], currentSteps(songIds[idx]) - 1); draw(); } }, '♭'),
     el('button', { class: 'btn btn-sm', onClick: () => { setTranspose(songIds[idx], currentSteps(songIds[idx]) + 1); draw(); } }, '♯'),
     el('button', { class: 'btn btn-sm', onClick: () => setScroll(Math.max(0, speed - 1)) }, '−'),
@@ -776,11 +857,13 @@ function openPerformance(startSongId, listId = null) {
   overlay.append(nav, content);
   document.body.append(overlay);
   document.body.classList.add('perf-mode');
+  applyScale();
+  acquireWake();
   draw();
 
   const keyHandler = (e) => {
     if (!document.body.contains(overlay)) { document.removeEventListener('keydown', keyHandler); return; }
-    if (e.key === 'Escape') { stopScroll(); overlay.remove(); document.body.classList.remove('perf-mode'); }
+    if (e.key === 'Escape') { closePerf(); }
     if (e.key === 'ArrowRight' && idx < songIds.length - 1) { idx++; setScroll(0); draw(); }
     if (e.key === 'ArrowLeft' && idx > 0) { idx--; setScroll(0); draw(); }
   };

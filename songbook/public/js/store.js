@@ -15,6 +15,7 @@ const DEFAULT_SETTINGS = {
   showChords: true,
   showDiagrams: true,
   columns: 1,             // 1 | 2
+  stageScale: 1.25,       // powiększenie tekstu w trybie występu
 };
 
 function seed() {

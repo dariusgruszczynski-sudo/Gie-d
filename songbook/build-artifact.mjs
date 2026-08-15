@@ -33,6 +33,7 @@ let chordpro = stripModule(read('js/chordpro.js'))
 let chords = stripModule(read('js/chords.js'));
 let store = stripModule(read('js/store.js'));
 let syncjs = stripModule(read('js/sync.js'));
+let suggestions = stripModule(read('js/suggestions.js'));
 let searchClient = stripModule(read('js/search-client.js'));
 let appjs = stripModule(read('js/app.js'));
 
@@ -41,6 +42,7 @@ const bundle = [
   '/* ==== chords.js ==== */', chords,
   '/* ==== store.js ==== */', store,
   '/* ==== sync.js ==== */', syncjs,
+  '/* ==== suggestions.js ==== */', suggestions,
   '/* ==== search-client.js ==== */', searchClient,
   '/* ==== app.js ==== */', appjs,
 ].join('\n');
