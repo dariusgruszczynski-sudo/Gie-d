@@ -661,6 +661,39 @@ function looksLikeChordStrong(t) {
   return false;
 }
 
+// Rozkłada ZLEPIONĄ zbitkę chwytów na osobne, np. "CGC" -> [C,G,C],
+// "aFG" -> [a,F,G], "CGC/C7" -> [C,G,C,C7]. Zwraca null, gdy się nie da czysto.
+function splitChordRun(tok) {
+  if (!/^[A-Ha-h][A-Ha-h0-9#b/]*$/.test(tok)) return null;
+  const one = /^[A-Ha-h][#b]?(?:maj7|maj9|maj|min|dim|aug|sus2|sus4|sus|add9|add|m)?(?:13|11|9|7|6|5|4|2)?/;
+  const parts = [];
+  let rest = tok, guard = 0;
+  while (rest.length && guard++ < 24) {
+    if (rest[0] === '/') { rest = rest.slice(1); continue; } // separator / bas
+    const m = rest.match(one);
+    if (!m || !m[0]) return null;
+    parts.push(m[0]);
+    rest = rest.slice(m[0].length);
+  }
+  return parts.length >= 2 ? parts : null;
+}
+
+// Rozmieszcza chwyty NAD słowami linii, gdy znamy je dla całej linii, ale nie
+// znamy dokładnych pozycji (np. zbitka po prawej) — rozkładamy równomiernie.
+function placeChordsOverLine(lyric, chords) {
+  if (!chords.length) return lyric;
+  const parts = lyric.split(/(\s+)/); // zachowaj odstępy
+  const wordPos = [];
+  parts.forEach((p, i) => { if (p.trim()) wordPos.push(i); });
+  if (!wordPos.length) return chords.map((c) => `[${c}]`).join(' ');
+  const out = [...parts];
+  chords.forEach((c, k) => {
+    const wp = Math.min(wordPos.length - 1, Math.round((k * wordPos.length) / chords.length));
+    out[wordPos[wp]] = `[${c}]` + out[wordPos[wp]];
+  });
+  return out.join('');
+}
+
 // Oznacza chwyty ZAPISANE W LINII Z TEKSTEM (w środku, między słowami, po prawej)
 // oraz w nawiasach „(C)". Pozostawia tekst nietknięty tam, gdzie akordów nie ma.
 function inlineChords(line) {
@@ -670,20 +703,24 @@ function inlineChords(line) {
     const n = normalizeChordToken(inner);
     return n ? `[${n}]` : full;
   });
-  // chwyty PO PRAWEJ: tekst + większa przerwa + zbitka SAMYCH akordów na końcu.
-  // Bierzemy najwcześniejszą dużą przerwę, po której już wszystko jest akordami —
-  // dzięki temu łapiemy całą zbitkę (np. „…tekst      C  G  a"). Mocny kontekst,
-  // więc akceptujemy też pojedyncze małe litery molowe.
+  // chwyty PO PRAWEJ: tekst + większa przerwa + zbitka akordów na końcu (także
+  // ZLEPIONA, np. „…dalej    CGC"). Rozkładamy je równomiernie NAD tekstem.
   for (const g of line.matchAll(/\s{2,}/g)) {
     const prefix = line.slice(0, g.index);
     if (!prefix.trim()) continue;
     const after = line.slice(g.index + g[0].length);
     if (after.includes('[')) continue;
-    const toks = after.trim().split(/\s+/);
-    if (toks.length && toks.every((t) => normalizeChordToken(t))) {
-      line = prefix + g[0] + toks.map((t) => `[${normalizeChordToken(t)}]`).join(' ');
-      break;
+    const rawToks = after.trim().split(/\s+/);
+    const chords = [];
+    let ok = rawToks.length > 0;
+    for (const t of rawToks) {
+      const n = normalizeChordToken(t);
+      if (n) { chords.push(n); continue; }
+      const run = splitChordRun(t);
+      if (run) { run.forEach((c) => { const nc = normalizeChordToken(c); if (nc) chords.push(nc); }); continue; }
+      ok = false; break;
     }
+    if (ok && chords.length) return placeChordsOverLine(prefix.replace(/\s+$/, ''), chords);
   }
   // samodzielne, jednoznaczne chwyty w środku tekstu (prefix i reszta)
   return line.replace(/\S+/g, (tok) => {
