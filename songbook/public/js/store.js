@@ -16,6 +16,8 @@ const DEFAULT_SETTINGS = {
   showDiagrams: true,
   columns: 1,             // 1 | 2
   stageScale: 1.25,       // powiększenie tekstu w trybie występu
+  seenWelcome: false,     // czy pokazano ekran powitalny
+  songSort: 'updated',    // sortowanie listy: updated | created | title | artist
 };
 
 function seed() {

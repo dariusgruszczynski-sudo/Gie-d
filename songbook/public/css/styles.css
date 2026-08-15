@@ -117,8 +117,17 @@ textarea.input { resize: vertical; line-height: 1.5; }
 .field-label.mt { margin-top: 8px; }
 
 /* -------- toolbar / szukaj -------- */
-.toolbar { margin-bottom: 12px; }
-.search-input { max-width: 520px; }
+.toolbar { margin-bottom: 12px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.search-input { max-width: 420px; flex: 1; min-width: 200px; }
+.list-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.input.mini { width: auto; padding: 6px 8px; font-size: 13px; }
+.count { white-space: nowrap; }
+.welcome-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.saved-tag { opacity: .6; transition: opacity .2s; min-width: 84px; }
+.saved-tag.on { opacity: 1; color: var(--accent); }
+.arr-editing { display: inline-flex; flex-direction: column; position: relative; }
+.arr-pal { position: absolute; top: 100%; left: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 3px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 5px; box-shadow: var(--shadow); width: max-content; max-width: 260px; margin-top: 2px; }
+.arr-pal .btn { font-family: 'Segoe UI', sans-serif; }
 .tagbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
 .chip { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; font-size: 13px; cursor: pointer; }
 .chip:hover { background: var(--surface-2); }

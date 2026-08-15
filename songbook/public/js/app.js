@@ -197,15 +197,35 @@ function renderSongs(view, actions) {
   };
   buildTagBar();
 
+  // sortowanie + filtr tonacji + licznik
+  const keysPresent = [...new Set(store.songs().map((s) => (s.key || '').trim()).filter(Boolean))].sort();
+  const sortSel = el('select', { class: 'input mini', onchange: (e) => { store.updateSettings({ songSort: e.target.value }); refreshList(); } },
+    ...[['updated', 'Ostatnio zmienione'], ['created', 'Ostatnio dodane'], ['title', 'Tytuł A–Z'], ['artist', 'Wykonawca A–Z']]
+      .map(([v, l]) => el('option', { value: v, ...(store.settings.songSort === v ? { selected: true } : {}) }, l)));
+  const keySel = el('select', { class: 'input mini', onchange: (e) => { app.keyFilter = e.target.value; refreshList(); } },
+    el('option', { value: '' }, 'Każda tonacja'),
+    ...keysPresent.map((k) => el('option', { value: k, ...(app.keyFilter === k ? { selected: true } : {}) }, '🎹 ' + k)));
+  const count = el('span', { class: 'muted-sm count' });
+
   const listWrap = el('div', { class: 'card-grid' });
   const refreshList = () => {
     listWrap.innerHTML = '';
     const q = app.filter.trim().toLowerCase();
     let songs = store.songs().filter((s) => {
       if (app.tagFilter && !(s.tags || []).includes(app.tagFilter)) return false;
+      if (app.keyFilter && (s.key || '').trim() !== app.keyFilter) return false;
       if (!q) return true;
       return (s.title + ' ' + s.artist + ' ' + (s.tags || []).join(' ')).toLowerCase().includes(q);
     });
+    const sort = store.settings.songSort;
+    const cmp = {
+      updated: (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0),
+      created: (a, b) => (b.createdAt || 0) - (a.createdAt || 0),
+      title: (a, b) => (a.title || '').localeCompare(b.title || '', 'pl'),
+      artist: (a, b) => (a.artist || '').localeCompare(b.artist || '', 'pl'),
+    }[sort] || (() => 0);
+    songs = [...songs].sort(cmp);
+    count.textContent = `${songs.length} ${plural(songs.length, 'piosenka', 'piosenki', 'piosenek')}`;
     if (!songs.length) {
       listWrap.append(el('div', { class: 'empty' },
         el('div', { class: 'empty-emoji' }, '🎼'),
@@ -234,7 +254,10 @@ function renderSongs(view, actions) {
   };
   refreshList();
 
-  view.append(el('div', { class: 'toolbar' }, search), tagBar, listWrap);
+  view.append(
+    el('div', { class: 'toolbar' }, search,
+      el('div', { class: 'list-controls' }, sortSel, keysPresent.length ? keySel : null, count)),
+    tagBar, listWrap);
 }
 
 function newSong(partial) {
@@ -349,9 +372,11 @@ function transposeKey(key, steps) {
 
 // ------------------------------------------------------------- Edytor utworu
 function renderSongEditor(view, actions, s) {
+  const savedTag = el('span', { class: 'saved-tag muted-sm' });
   actions.append(
-    el('button', { class: 'btn btn-sm', onClick: () => { app.editing = false; render(); } }, '‹ Podgląd'),
-    el('button', { class: 'btn btn-sm btn-primary', onClick: save }, '💾 Zapisz'),
+    el('button', { class: 'btn btn-sm', title: 'Zapisz i pokaż podgląd', onClick: () => save() }, '‹ Gotowe'),
+    el('button', { class: 'btn btn-sm', title: 'Cofnij zmianę chwytów', onClick: () => undo() }, '↶ Cofnij'),
+    savedTag,
   );
 
   const f = {};
@@ -385,8 +410,8 @@ function renderSongEditor(view, actions, s) {
     el('button', { class: 'btn btn-xs', type: 'button', onClick: () => insert('{comment: ', '}') }, 'Komentarz'),
     el('button', { class: 'btn btn-xs', type: 'button', onClick: () => insert('{start_of_chorus}\n', '\n{end_of_chorus}') }, 'Refren'),
     el('button', { class: 'btn btn-xs', type: 'button', onClick: () => insert('{start_of_tab}\n', '\n{end_of_tab}') }, 'Tabulatura' ),
-    el('button', { class: 'btn btn-xs', type: 'button', title: 'Zamień wklejony surowy tekst (chwyty nad tekstem) na format ChordPro', onClick: () => { f.body.value = plainToChordPro(f.body.value); updatePreview(); refreshRight(); toast('Skonwertowano do ChordPro'); } }, '✨ Auto-konwersja'),
-    el('button', { class: 'btn btn-xs', type: 'button', title: 'Rozciągnij chwyty z 1. zwrotki i refrenu na resztę utworu', onClick: () => { f.body.value = stretchChords(autoChordify(f.body.value).body); updatePreview(); refreshRight(); toast('Rozciągnięto chwyty na całość ✓', 'success'); } }, '🔁 Rozciągnij chwyty'),
+    el('button', { class: 'btn btn-xs', type: 'button', title: 'Zamień wklejony surowy tekst (chwyty nad tekstem) na format ChordPro', onClick: () => { snapshot(); f.body.value = plainToChordPro(f.body.value); updatePreview(); refreshRight(); autosave(); toast('Skonwertowano do ChordPro'); } }, '✨ Auto-konwersja'),
+    el('button', { class: 'btn btn-xs', type: 'button', title: 'Rozciągnij chwyty z 1. zwrotki i refrenu na resztę utworu', onClick: () => { snapshot(); f.body.value = stretchChords(autoChordify(f.body.value).body); updatePreview(); refreshRight(); autosave(); toast('Rozciągnięto chwyty na całość ✓', 'success'); } }, '🔁 Rozciągnij chwyty'),
   );
 
   // --- Wizualny edytor chwytów (klik = dodaj/edytuj chwyt nad tekstem) ---
@@ -394,6 +419,10 @@ function renderSongEditor(view, actions, s) {
   let activeEdit = null; // { li, pos }
   const buildArranger = () => {
     arranger.innerHTML = '';
+    // paleta: najczęstsze chwyty + te już użyte w utworze
+    const base = ['C', 'D', 'E', 'F', 'G', 'A', 'Am', 'Em', 'Dm', 'Bm', 'A7', 'E7', 'D7', 'G7'];
+    const used = extractChords(f.body.value);
+    const palette = [...new Set([...used, ...base])].slice(0, 18);
     const lines = f.body.value.split('\n');
     lines.forEach((line, li) => {
       if (/^\s*\{.*\}\s*$/.test(line) || line.trim() === '') {
@@ -403,21 +432,23 @@ function renderSongEditor(view, actions, s) {
       const { plain, chords } = lineToPlain(line);
       const chordAt = (p) => chords.find((c) => c.pos === p);
       const commit = (pos, value) => {
+        snapshot();
         const parsed = lineToPlain(f.body.value.split('\n')[li]);
         parsed.chords = parsed.chords.filter((c) => c.pos !== pos);
         if (value.trim()) parsed.chords.push({ pos, chord: value.trim() });
         const newLines = f.body.value.split('\n');
         newLines[li] = plainToLine(parsed.plain, parsed.chords);
         f.body.value = newLines.join('\n');
-        activeEdit = null; updatePreview(); buildArranger();
+        activeEdit = null; updatePreview(); buildArranger(); autosave();
       };
       const slot = (pos, ch) => {
         if (activeEdit && activeEdit.li === li && activeEdit.pos === pos) {
           const inp = el('input', { class: 'arr-input', value: ch ? ch.chord : '', spellcheck: 'false' });
           inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); commit(pos, inp.value); } if (e.key === 'Escape') { activeEdit = null; buildArranger(); } });
-          inp.addEventListener('blur', () => commit(pos, inp.value));
+          inp.addEventListener('blur', () => setTimeout(() => { if (activeEdit && activeEdit.li === li && activeEdit.pos === pos) commit(pos, inp.value); }, 120));
           setTimeout(() => inp.focus(), 0);
-          return inp;
+          const pal = el('div', { class: 'arr-pal' }, ...palette.map((c) => el('button', { class: 'btn btn-xs', type: 'button', onMousedown: (e) => { e.preventDefault(); commit(pos, c); } }, c)));
+          return el('span', { class: 'arr-editing' }, inp, pal);
         }
         return el('span', { class: 'arr-chord' + (ch ? ' has' : ''), onClick: (e) => { e.stopPropagation(); activeEdit = { li, pos }; buildArranger(); } }, ch ? ch.chord : '');
       };
@@ -468,19 +499,41 @@ function renderSongEditor(view, actions, s) {
   };
   renderTabsEditor();
 
-  function save() {
-    const tags = f.tags.value.split(',').map((t) => t.trim()).filter(Boolean);
-    const { body: bodyVal, converted } = autoChordify(f.body.value); // chwyty NAD tekstem, automatycznie
-    store.updateSong(s.id, {
+  // zbiera bieżące pola do obiektu piosenki (body surowe — bez formatowania)
+  function collect(body = f.body.value) {
+    return {
       title: f.title.value.trim() || 'Bez tytułu',
       artist: f.artist.value.trim(),
       key: f.key.value.trim(),
       capo: parseInt(f.capo.value) || 0,
       tempo: parseInt(f.tempo.value) || 0,
-      tags, notes: f.notes.value, body: bodyVal,
+      tags: f.tags.value.split(',').map((t) => t.trim()).filter(Boolean),
+      notes: f.notes.value,
+      body,
       tabs: localTabs.filter((t) => t.content.trim()),
-    });
-    toast(converted ? 'Zapisano — ustawiłem chwyty nad tekstem ✓' : 'Zapisano ✓', 'success');
+    };
+  }
+
+  // --- Autozapis (bez klikania „Zapisz") + status ---
+  let autosaveTimer = null;
+  const showSaved = () => { savedTag.textContent = 'zapisano ✓'; savedTag.classList.add('on'); setTimeout(() => savedTag.classList.remove('on'), 1500); };
+  const autosave = () => { savedTag.textContent = 'zapisywanie…'; clearTimeout(autosaveTimer); autosaveTimer = setTimeout(() => { store.updateSong(s.id, collect()); showSaved(); }, 900); };
+  [f.title, f.artist, f.key, f.capo, f.tempo, f.tags, f.notes, f.body].forEach((n) => n.addEventListener('input', autosave));
+
+  // --- Undo dla przekształceń chwytów (auto-konwersja, rozciąganie, wizualny edytor) ---
+  const history = [];
+  function snapshot() { history.push(f.body.value); if (history.length > 60) history.shift(); }
+  function undo() {
+    if (!history.length) { toast('Nie ma czego cofnąć', 'info'); return; }
+    f.body.value = history.pop();
+    updatePreview(); refreshRight(); autosave();
+  }
+
+  // finalizuj: ustaw chwyty nad tekstem i wyjdź do podglądu
+  function save() {
+    const { body: bodyVal, converted } = autoChordify(f.body.value);
+    store.updateSong(s.id, collect(bodyVal));
+    toast(converted ? 'Gotowe — ustawiłem chwyty nad tekstem ✓' : 'Zapisano ✓', 'success');
     app.editing = false;
     render();
   }
@@ -519,6 +572,53 @@ function renderSongEditor(view, actions, s) {
 
 function tabTemplate() {
   return 'e|-----------------|\nB|-----------------|\nG|-----------------|\nD|-----------------|\nA|-----------------|\nE|-----------------|';
+}
+
+// Pomoc / pierwsze kroki
+function helpModal() {
+  modal({
+    title: '🎵 Śpiewnik — pomoc',
+    wide: true,
+    body: el('div', { class: 'help' },
+      el('h4', {}, '➕ Dodawanie piosenek'),
+      el('ul', {},
+        el('li', {}, '„＋ Nowa piosenka" — wpisujesz ręcznie.'),
+        el('li', {}, '🔎 Wyszukaj — znajdź opracowanie z chwytami w sieci (częściowy tytuł, zespół albo fragment tekstu).'),
+        el('li', {}, '💡 Propozycje — 15 polskich i 15 zagranicznych do dodania guzikiem.'),
+        el('li', {}, '🕓 Poczekalnia — wklej linki polubionych z TikToka/IG/FB/YT; akceptujesz do biblioteki.'),
+      ),
+      el('h4', {}, '🎸 Chwyty nad tekstem'),
+      el('ul', {},
+        el('li', {}, 'Chwyty zapisujesz w nawiasach: ', el('code', {}, '[C]'), ' tuż przed literą, nad którą mają być.'),
+        el('li', {}, 'Wklejasz surowy tekst z chwytami (nad tekstem, w tekście, po prawej — też zlepione) → zapisują się nad tekstem automatycznie.'),
+        el('li', {}, 'W edytorze: „🎯 Rozmieść chwyty" — klikasz nad literą i wpisujesz chwyt; „🔁 Rozciągnij chwyty" — kopiuje chwyty z 1. zwrotki i refrenu na resztę.'),
+      ),
+      el('h4', {}, '🎚 Transpozycja i występ'),
+      el('ul', {},
+        el('li', {}, 'Transpozycja (− / +) zapisuje się przy piosence — działa też z poziomu list.'),
+        el('li', {}, '▶︎ Występ — pełny ekran, ekran nie gaśnie, A− / A+ i auto‑scroll.'),
+      ),
+      el('h4', {}, '☁︎ Synchronizacja'),
+      el('p', {}, 'W wersji z serwerem wszystko synchronizuje się między urządzeniami. Zapisz swój link (Wygląd → „Kopiuj mój link"), by wchodzić bez wpisywania tokenu.'),
+    ),
+    actions: [el('button', { class: 'btn btn-primary', onClick: () => document.querySelector('.modal-overlay')?.remove() }, 'OK')],
+  });
+}
+
+function welcomeModal() {
+  const m = modal({
+    title: '👋 Witaj w Śpiewniku!',
+    body: el('div', {},
+      el('p', { text: 'Twój śpiewnik na każde urządzenie: listy piosenek, teksty z chwytami, tabulatury i wyszukiwarka. Od czego zaczniesz?' }),
+      el('div', { class: 'welcome-actions' },
+        el('button', { class: 'btn btn-primary btn-block', onClick: () => { m.close(); newSong(); } }, '＋ Dodaj pierwszą piosenkę'),
+        el('button', { class: 'btn btn-block', onClick: () => { m.close(); go('search'); } }, '🔎 Znajdź piosenkę z chwytami'),
+        el('button', { class: 'btn btn-block', onClick: () => { m.close(); go('suggest'); } }, '💡 Zobacz propozycje (15+15)'),
+        el('button', { class: 'btn btn-ghost btn-block', onClick: () => { m.close(); helpModal(); } }, '❓ Jak to działa?'),
+      ),
+    ),
+    onClose: () => store.updateSettings({ seenWelcome: true }),
+  });
 }
 
 // Wyjaśnia, że moduł wykrywania akordów z audio jest opcjonalny + jak go włączyć.
@@ -1216,6 +1316,13 @@ function bind() {
   $('#btnNewList').addEventListener('click', () => { const l = store.createList(); go('lists', { listId: l.id }); });
   $('#menuToggle').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
   $('#sidebarClose').addEventListener('click', () => $('#sidebar').classList.remove('open'));
+  $('#btnHelp').addEventListener('click', helpModal);
+  // skrót „/" — skok do wyszukiwarki w liście piosenek
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '/' && !/input|textarea|select/i.test(document.activeElement.tagName)) {
+      const s = document.querySelector('.search-input'); if (s) { e.preventDefault(); s.focus(); }
+    }
+  });
 
   $('#btnExport').addEventListener('click', async () => { await download(`spiewnik-kopia-${new Date().toISOString().slice(0, 10)}.json`, store.exportJSON()); });
   $('#btnImport').addEventListener('click', () => $('#importFile').click());
@@ -1260,3 +1367,4 @@ bind();
 render();
 captureUrlToken();
 setupSync();
+if (!store.settings.seenWelcome) setTimeout(welcomeModal, 400);
