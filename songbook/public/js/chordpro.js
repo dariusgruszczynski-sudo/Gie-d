@@ -229,6 +229,51 @@ function mergeChordLyric(chordLine, lyricLine) {
   return out;
 }
 
+// Czy token to na tyle jednoznaczny akord, że można go bezpiecznie oznaczyć
+// WEWNĄTRZ linii z tekstem (bez psucia zwykłych słów)?
+function looksLikeChordStrong(t) {
+  if (!normalizeChordToken(t)) return false;
+  const bare = t.replace(/^[("']+/, '').replace(/[).,;:!?"']+$/, '');
+  if (/[#b]/.test(bare)) return true;          // z krzyżykiem/bemolem: F#, Bb…
+  if (bare.length >= 2) return true;            // z sufiksem: Am, G7, Dm7, C/E…
+  if (/^[BCDEFGH]$/.test(bare)) return true;    // duża litera nutowa (bez „A", bo to polskie słowo)
+  return false;
+}
+
+// Oznacza chwyty ZAPISANE W LINII Z TEKSTEM (w środku, między słowami, po prawej)
+// oraz w nawiasach „(C)". Pozostawia tekst nietknięty tam, gdzie akordów nie ma.
+export function inlineChords(line) {
+  if (line.includes('[')) return line; // już w formacie ChordPro
+  // chwyty w nawiasach: (C), (Am7), (F#) -> [C] [Am7] [F#]
+  line = line.replace(/\(([A-Ha-h][#b]?[^\s()]{0,6})\)/g, (full, inner) => {
+    const n = normalizeChordToken(inner);
+    return n ? `[${n}]` : full;
+  });
+  // chwyty PO PRAWEJ: tekst + większa przerwa + zbitka SAMYCH akordów na końcu.
+  // Bierzemy najwcześniejszą dużą przerwę, po której już wszystko jest akordami —
+  // dzięki temu łapiemy całą zbitkę (np. „…tekst      C  G  a"). Mocny kontekst,
+  // więc akceptujemy też pojedyncze małe litery molowe.
+  for (const g of line.matchAll(/\s{2,}/g)) {
+    const prefix = line.slice(0, g.index);
+    if (!prefix.trim()) continue;
+    const after = line.slice(g.index + g[0].length);
+    if (after.includes('[')) continue;
+    const toks = after.trim().split(/\s+/);
+    if (toks.length && toks.every((t) => normalizeChordToken(t))) {
+      line = prefix + g[0] + toks.map((t) => `[${normalizeChordToken(t)}]`).join(' ');
+      break;
+    }
+  }
+  // samodzielne, jednoznaczne chwyty w środku tekstu (prefix i reszta)
+  return line.replace(/\S+/g, (tok) => {
+    const m = tok.match(/^([("']?)([A-Ha-h][^\s]*?)([).,;:!?"']*)$/);
+    if (!m) return tok;
+    if (!looksLikeChordStrong(m[2])) return tok;
+    const n = normalizeChordToken(m[2]);
+    return n ? `${m[1]}[${n}]${m[3]}` : tok;
+  });
+}
+
 export function plainToChordPro(text) {
   const lines = String(text).replace(/\r\n/g, '\n').split('\n');
   const out = [];
@@ -242,7 +287,8 @@ export function plainToChordPro(text) {
       // sama linia chwytów (np. wstęp) — zamień tokeny na [akordy]
       out.push(cur.trim().split(/\s+/).map((t) => normalizeChordToken(t)).filter(Boolean).map((c) => `[${c}]`).join(' '));
     } else {
-      out.push(cur);
+      // zwykła linia tekstu — ale mogą w niej siedzieć chwyty (w środku/po prawej/w nawiasach)
+      out.push(inlineChords(cur));
     }
   }
   return out.join('\n');

@@ -255,6 +255,18 @@ textarea.input { resize: vertical; line-height: 1.5; }
 .result-source { font-size: 12px; color: var(--accent); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; white-space: nowrap; }
 .result-actions-top { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
 
+/* propozycje */
+.suggest-section { margin-bottom: 22px; max-width: 1000px; }
+.suggest-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.suggest-card { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.suggest-main { flex: 1; min-width: 0; }
+.suggest-title { font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.suggest-artist { color: var(--muted); font-size: 13px; margin-bottom: 5px; }
+.suggest-actions { display: flex; flex-direction: column; gap: 6px; white-space: nowrap; }
+.match-badge { color: #e0a417; font-size: 13px; }
+.pill-ok { color: #1d7a53; border-color: #b6e2cc; background: #e8f6ef; }
+[data-theme="dark"] .pill-ok { color: #6bd3a8; border-color: #23543f; background: #16342a; }
+
 /* transpozycja w setliście */
 .setlist-tr { display: inline-flex; align-items: center; gap: 3px; }
 .tr-val { min-width: 24px; text-align: center; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--muted); }
@@ -308,8 +320,13 @@ textarea.input { resize: vertical; line-height: 1.5; }
 .perf-pos { font-weight: 700; color: var(--muted); }
 .perf-val { min-width: 74px; text-align: center; font-size: 13px; color: var(--muted); }
 .perf-content { flex: 1; overflow-y: auto; padding: 30px 6vw; }
-.perf-content .song-body { font-size: calc(var(--song-size) * 1.25); }
+.perf-content .song-body { font-size: calc(var(--song-size) * var(--stage-scale, 1.25)); }
 body.perf-mode { overflow: hidden; }
+
+/* długie linie nie uciekają poza ekran (ważne na telefonie) */
+.song-body { overflow-wrap: break-word; }
+.cp-unit { max-width: 100%; }
+.cp-lyric { overflow-wrap: anywhere; }
 
 /* -------- responsywność -------- */
 @media (max-width: 860px) {
