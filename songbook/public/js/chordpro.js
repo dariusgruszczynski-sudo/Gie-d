@@ -330,3 +330,62 @@ export function plainToChordPro(text) {
   }
   return out.join('\n');
 }
+
+// Rozciąga chwyty na resztę utworu: bierze pierwszą zwrotkę i pierwszy refren
+// (te z chwytami) jako szablon i nakłada je na kolejne, niezachwycone zwrotki/
+// refreny — dopasowując linia-do-linii wewnątrz bloku. Linie już z chwytami
+// zostają nietknięte. Heurystyka pod śpiewniki „chwyty tylko na 1. zwrotkę".
+const chordsOfLine = (line) => (line.match(/\[([^\]]+)\]/g) || []).map((x) => x.slice(1, -1));
+const isDirectiveLine = (l) => /^\s*\{.*\}\s*$/.test(l);
+const isChorusMarker = (l) => /^\s*(?:\[[^\]]*\]\s*)*(ref\.?\s*:|refren|chorus)/i.test(l);
+
+export function stretchChords(source) {
+  const lines = String(source).replace(/\r\n/g, '\n').split('\n');
+  const n = lines.length;
+  const blockId = new Array(n).fill(0);
+  const inChorusArr = new Array(n).fill(false);
+  // 1) granice bloków (pusta linia dzieli) + stan refrenu ({soc}/{eoc})
+  let bid = 0, soc = false, prevBlank = true;
+  for (let i = 0; i < n; i++) {
+    const l = lines[i];
+    if (l.trim() === '') { prevBlank = true; continue; }
+    if (prevBlank) { bid++; prevBlank = false; }
+    blockId[i] = bid;
+    if (isDirectiveLine(l)) { if (/start_of_chorus|soc/i.test(l)) soc = true; if (/end_of_chorus|eoc/i.test(l)) soc = false; }
+    inChorusArr[i] = soc;
+  }
+  // 2) który blok to refren, który ma chwyty
+  const blockChorus = {}, blockHasChords = {};
+  for (let i = 0; i < n; i++) {
+    const b = blockId[i]; if (!b) continue;
+    if (inChorusArr[i] || isChorusMarker(lines[i])) blockChorus[b] = true;
+    if (chordsOfLine(lines[i]).length) blockHasChords[b] = true;
+  }
+  // 3) szablon = pierwszy blok z chwytami danego typu (per-linia lista akordów)
+  const buildTpl = (chorus) => {
+    let target = 0;
+    for (let i = 0; i < n; i++) { const b = blockId[i]; if (b && blockHasChords[b] && (!!blockChorus[b] === chorus)) { target = b; break; } }
+    if (!target) return [];
+    const tpl = [];
+    for (let i = 0; i < n; i++) { if (blockId[i] === target && !isDirectiveLine(lines[i])) tpl.push(chordsOfLine(lines[i])); }
+    return tpl;
+  };
+  const verseTpl = buildTpl(false), chorusTpl = buildTpl(true);
+  if (!verseTpl.length && !chorusTpl.length) return source;
+
+  // 4) nałóż szablon na bloki BEZ chwytów (dopasowanie linia-do-linii w bloku)
+  const out = lines.slice();
+  let lastBlock = -1, li = 0;
+  for (let i = 0; i < n; i++) {
+    const b = blockId[i]; if (!b) continue;
+    if (b !== lastBlock) { lastBlock = b; li = 0; }
+    if (isDirectiveLine(lines[i])) continue;
+    const idx = li++;
+    if (blockHasChords[b]) continue;                 // blok-szablon / już z chwytami
+    const tpl = blockChorus[b] ? (chorusTpl.length ? chorusTpl : verseTpl) : (verseTpl.length ? verseTpl : chorusTpl);
+    if (!tpl.length) continue;
+    const chords = tpl[idx % tpl.length];
+    if (chords && chords.length) out[i] = placeChordsOverLine(lines[i], chords);
+  }
+  return out.join('\n');
+}

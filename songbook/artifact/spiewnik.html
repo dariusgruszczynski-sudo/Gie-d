@@ -206,6 +206,21 @@ textarea.input { resize: vertical; line-height: 1.5; }
 .cp-toolbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
 .preview-frame { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-height: 200px; overflow-x: auto; }
 .live-preview { min-height: 360px; }
+/* wizualny edytor chwytów */
+.seg { display: inline-flex; gap: 4px; }
+.seg .btn.seg-on { background: var(--primary); color: #fff; border-color: var(--primary); }
+.arranger { font-family: var(--song-font); font-size: var(--song-size); line-height: calc(var(--song-line) * 1.15); }
+.arr-line { display: flex; flex-wrap: wrap; align-items: flex-end; margin: 2px 0; }
+.arr-skip { color: var(--muted); font-style: italic; font-size: .8em; white-space: pre-wrap; min-height: .6em; font-family: 'Segoe UI', sans-serif; }
+.arr-unit { display: inline-flex; flex-direction: column; align-items: flex-start; }
+.arr-chord { color: var(--chord-color); font-weight: var(--chord-weight); font-size: .72em; font-family: 'Segoe UI', sans-serif; line-height: 1; min-height: 1.1em; min-width: 0; cursor: pointer; border-radius: 3px; padding: 0; white-space: pre; }
+.arr-chord.has { background: color-mix(in srgb, var(--chord-color) 15%, transparent); }
+.arr-chord:hover { background: color-mix(in srgb, var(--chord-color) 30%, transparent); outline: 1px dashed var(--chord-color); }
+.arr-char { white-space: pre; cursor: text; border-bottom: 1px solid transparent; }
+.arr-char:hover { border-bottom-color: var(--muted); }
+.arr-char.arr-end { min-width: 10px; }
+.arr-input { width: 52px; font-size: .72em; padding: 0 3px; border: 1px solid var(--primary); border-radius: 4px; font-family: 'Segoe UI', sans-serif; }
+
 .tabs-editor { display: flex; flex-direction: column; gap: 12px; }
 .tab-editor-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
 .tab-editor-head { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
@@ -748,6 +763,65 @@ function plainToChordPro(text) {
       // zwykła linia tekstu — ale mogą w niej siedzieć chwyty (w środku/po prawej/w nawiasach)
       out.push(inlineChords(cur));
     }
+  }
+  return out.join('\n');
+}
+
+// Rozciąga chwyty na resztę utworu: bierze pierwszą zwrotkę i pierwszy refren
+// (te z chwytami) jako szablon i nakłada je na kolejne, niezachwycone zwrotki/
+// refreny — dopasowując linia-do-linii wewnątrz bloku. Linie już z chwytami
+// zostają nietknięte. Heurystyka pod śpiewniki „chwyty tylko na 1. zwrotkę".
+const chordsOfLine = (line) => (line.match(/\[([^\]]+)\]/g) || []).map((x) => x.slice(1, -1));
+const isDirectiveLine = (l) => /^\s*\{.*\}\s*$/.test(l);
+const isChorusMarker = (l) => /^\s*(?:\[[^\]]*\]\s*)*(ref\.?\s*:|refren|chorus)/i.test(l);
+
+function stretchChords(source) {
+  const lines = String(source).replace(/\r\n/g, '\n').split('\n');
+  const n = lines.length;
+  const blockId = new Array(n).fill(0);
+  const inChorusArr = new Array(n).fill(false);
+  // 1) granice bloków (pusta linia dzieli) + stan refrenu ({soc}/{eoc})
+  let bid = 0, soc = false, prevBlank = true;
+  for (let i = 0; i < n; i++) {
+    const l = lines[i];
+    if (l.trim() === '') { prevBlank = true; continue; }
+    if (prevBlank) { bid++; prevBlank = false; }
+    blockId[i] = bid;
+    if (isDirectiveLine(l)) { if (/start_of_chorus|soc/i.test(l)) soc = true; if (/end_of_chorus|eoc/i.test(l)) soc = false; }
+    inChorusArr[i] = soc;
+  }
+  // 2) który blok to refren, który ma chwyty
+  const blockChorus = {}, blockHasChords = {};
+  for (let i = 0; i < n; i++) {
+    const b = blockId[i]; if (!b) continue;
+    if (inChorusArr[i] || isChorusMarker(lines[i])) blockChorus[b] = true;
+    if (chordsOfLine(lines[i]).length) blockHasChords[b] = true;
+  }
+  // 3) szablon = pierwszy blok z chwytami danego typu (per-linia lista akordów)
+  const buildTpl = (chorus) => {
+    let target = 0;
+    for (let i = 0; i < n; i++) { const b = blockId[i]; if (b && blockHasChords[b] && (!!blockChorus[b] === chorus)) { target = b; break; } }
+    if (!target) return [];
+    const tpl = [];
+    for (let i = 0; i < n; i++) { if (blockId[i] === target && !isDirectiveLine(lines[i])) tpl.push(chordsOfLine(lines[i])); }
+    return tpl;
+  };
+  const verseTpl = buildTpl(false), chorusTpl = buildTpl(true);
+  if (!verseTpl.length && !chorusTpl.length) return source;
+
+  // 4) nałóż szablon na bloki BEZ chwytów (dopasowanie linia-do-linii w bloku)
+  const out = lines.slice();
+  let lastBlock = -1, li = 0;
+  for (let i = 0; i < n; i++) {
+    const b = blockId[i]; if (!b) continue;
+    if (b !== lastBlock) { lastBlock = b; li = 0; }
+    if (isDirectiveLine(lines[i])) continue;
+    const idx = li++;
+    if (blockHasChords[b]) continue;                 // blok-szablon / już z chwytami
+    const tpl = blockChorus[b] ? (chorusTpl.length ? chorusTpl : verseTpl) : (verseTpl.length ? verseTpl : chorusTpl);
+    if (!tpl.length) continue;
+    const chords = tpl[idx % tpl.length];
+    if (chords && chords.length) out[i] = placeChordsOverLine(lines[i], chords);
   }
   return out.join('\n');
 }
@@ -1332,10 +1406,28 @@ const fmtDate = (ts) => new Date(ts).toLocaleDateString('pl-PL', { day: '2-digit
 // formacie ChordPro (brak [ ]) a wykryto chwyty, konwertuje. W przeciwnym razie
 // zostawia bez zmian. Zwraca { body, converted }.
 function autoChordify(body) {
-  if (/\[/.test(body)) return { body, converted: false };
+  // plainToChordPro jest bezpieczne per-linia (linie z [chwytami] pomija), więc
+  // działa też na treści mieszanej (część surowa, część już w ChordPro).
   const conv = plainToChordPro(body || '');
-  const added = (conv.match(/\[/g) || []).length;
-  return added ? { body: conv, converted: true } : { body, converted: false };
+  return { body: conv, converted: conv !== (body || '') };
+}
+
+// Rozbija linię ChordPro na czysty tekst + listę chwytów z pozycjami w tekście.
+function lineToPlain(line) {
+  const chords = []; let plain = ''; const re = /\[([^\]]+)\]/g; let last = 0, m;
+  while ((m = re.exec(line))) { plain += line.slice(last, m.index); chords.push({ pos: plain.length, chord: m[1] }); last = re.lastIndex; }
+  plain += line.slice(last);
+  return { plain, chords };
+}
+// Buduje linię ChordPro z tekstu + chwytów (chwyty w rosnących pozycjach).
+function plainToLine(plain, chords) {
+  const sorted = [...chords].sort((a, b) => a.pos - b.pos);
+  let out = '';
+  for (let i = 0; i <= plain.length; i++) {
+    for (const c of sorted) if (c.pos === i) out += `[${c.chord}]`;
+    if (i < plain.length) out += plain[i];
+  }
+  return out;
 }
 
 function toast(msg, type = 'info') {
@@ -1587,6 +1679,7 @@ function renderSongReader(s, { withControls = false } = {}) {
       ),
       showChordsBtn,
       el('button', { class: 'btn btn-sm', onClick: () => { store.updateSettings({ showDiagrams: !store.settings.showDiagrams }); render(); } }, store.settings.showDiagrams ? '📊 Diagramy: wł.' : '📊 Diagramy: wył.'),
+      (() => { const stretched = stretchChords(s.body); return stretched !== s.body ? el('button', { class: 'btn btn-sm', title: 'Rozciągnij chwyty z 1. zwrotki i refrenu na resztę utworu', onClick: () => { store.updateSong(s.id, { body: stretched }); toast('Rozciągnięto chwyty na całość ✓', 'success'); render(); } }, '🔁 Rozciągnij chwyty') : null; })(),
       s.tempo ? el('button', { class: 'btn btn-sm', onClick: (e) => toggleMetronome(e.target, s.tempo) }, '🥁 Metronom') : null,
     );
     wrap.append(controls);
@@ -1667,8 +1760,68 @@ function renderSongEditor(view, actions, s) {
     el('button', { class: 'btn btn-xs', type: 'button', onClick: () => insert('{comment: ', '}') }, 'Komentarz'),
     el('button', { class: 'btn btn-xs', type: 'button', onClick: () => insert('{start_of_chorus}\n', '\n{end_of_chorus}') }, 'Refren'),
     el('button', { class: 'btn btn-xs', type: 'button', onClick: () => insert('{start_of_tab}\n', '\n{end_of_tab}') }, 'Tabulatura' ),
-    el('button', { class: 'btn btn-xs', type: 'button', title: 'Zamień wklejony surowy tekst (chwyty nad tekstem) na format ChordPro', onClick: () => { f.body.value = plainToChordPro(f.body.value); updatePreview(); toast('Skonwertowano do ChordPro'); } }, '✨ Auto-konwersja'),
+    el('button', { class: 'btn btn-xs', type: 'button', title: 'Zamień wklejony surowy tekst (chwyty nad tekstem) na format ChordPro', onClick: () => { f.body.value = plainToChordPro(f.body.value); updatePreview(); refreshRight(); toast('Skonwertowano do ChordPro'); } }, '✨ Auto-konwersja'),
+    el('button', { class: 'btn btn-xs', type: 'button', title: 'Rozciągnij chwyty z 1. zwrotki i refrenu na resztę utworu', onClick: () => { f.body.value = stretchChords(autoChordify(f.body.value).body); updatePreview(); refreshRight(); toast('Rozciągnięto chwyty na całość ✓', 'success'); } }, '🔁 Rozciągnij chwyty'),
   );
+
+  // --- Wizualny edytor chwytów (klik = dodaj/edytuj chwyt nad tekstem) ---
+  const arranger = el('div', { class: 'arranger' });
+  let activeEdit = null; // { li, pos }
+  const buildArranger = () => {
+    arranger.innerHTML = '';
+    const lines = f.body.value.split('\n');
+    lines.forEach((line, li) => {
+      if (/^\s*\{.*\}\s*$/.test(line) || line.trim() === '') {
+        arranger.append(el('div', { class: 'arr-skip', text: line || '·' }));
+        return;
+      }
+      const { plain, chords } = lineToPlain(line);
+      const chordAt = (p) => chords.find((c) => c.pos === p);
+      const commit = (pos, value) => {
+        const parsed = lineToPlain(f.body.value.split('\n')[li]);
+        parsed.chords = parsed.chords.filter((c) => c.pos !== pos);
+        if (value.trim()) parsed.chords.push({ pos, chord: value.trim() });
+        const newLines = f.body.value.split('\n');
+        newLines[li] = plainToLine(parsed.plain, parsed.chords);
+        f.body.value = newLines.join('\n');
+        activeEdit = null; updatePreview(); buildArranger();
+      };
+      const slot = (pos, ch) => {
+        if (activeEdit && activeEdit.li === li && activeEdit.pos === pos) {
+          const inp = el('input', { class: 'arr-input', value: ch ? ch.chord : '', spellcheck: 'false' });
+          inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); commit(pos, inp.value); } if (e.key === 'Escape') { activeEdit = null; buildArranger(); } });
+          inp.addEventListener('blur', () => commit(pos, inp.value));
+          setTimeout(() => inp.focus(), 0);
+          return inp;
+        }
+        return el('span', { class: 'arr-chord' + (ch ? ' has' : ''), onClick: (e) => { e.stopPropagation(); activeEdit = { li, pos }; buildArranger(); } }, ch ? ch.chord : '');
+      };
+      const lineEl = el('div', { class: 'arr-line' });
+      for (let p = 0; p < plain.length; p++) {
+        lineEl.append(el('span', { class: 'arr-unit' }, slot(p, chordAt(p)), el('span', { class: 'arr-char', onClick: () => { activeEdit = { li, pos: p }; buildArranger(); } }, plain[p] === ' ' ? ' ' : plain[p])));
+      }
+      // slot na końcu linii
+      lineEl.append(el('span', { class: 'arr-unit' }, slot(plain.length, chordAt(plain.length)), el('span', { class: 'arr-char arr-end', onClick: () => { activeEdit = { li, pos: plain.length }; buildArranger(); } }, ' ')));
+      arranger.append(lineEl);
+    });
+    if (!f.body.value.trim()) arranger.append(el('p', { class: 'muted', text: 'Najpierw wpisz tekst (po lewej), potem klikaj w słowa, żeby dodać chwyty.' }));
+  };
+
+  // przełącznik prawej kolumny: Podgląd / Rozmieść chwyty
+  let rightMode = 'preview';
+  const rightBox = el('div', { class: 'preview-frame' });
+  const refreshRight = () => {
+    rightBox.innerHTML = '';
+    if (rightMode === 'preview') { updatePreview(); rightBox.append(preview); }
+    else {
+      // wchodząc w edytor chwytów, zamień surowe chwyty na edytowalne [chwyty]
+      const c = autoChordify(f.body.value);
+      if (c.converted) { f.body.value = c.body; updatePreview(); }
+      buildArranger(); rightBox.append(arranger);
+    }
+  };
+  f.body.addEventListener('input', () => { if (rightMode === 'arrange') buildArranger(); });
+  refreshRight(); // start w trybie podglądu
 
   // moduł tabulatur (osobne taby przypięte do utworu)
   let localTabs = structuredClone(s.tabs || []);
@@ -1720,8 +1873,18 @@ function renderSongEditor(view, actions, s) {
         cpToolbar, f.body,
       ),
       el('div', { class: 'editor-col' },
-        el('div', { class: 'field-label' }, 'Podgląd na żywo'),
-        el('div', { class: 'preview-frame' }, preview),
+        el('div', { class: 'field-label with-help' },
+          el('span', {}, 'Podgląd / edytor chwytów'),
+          (() => {
+            const segPrev = el('button', { class: 'btn btn-xs seg-on', type: 'button' }, 'Podgląd');
+            const segArr = el('button', { class: 'btn btn-xs', type: 'button' }, '🎯 Rozmieść chwyty');
+            const setMode = (m) => { rightMode = m; segPrev.classList.toggle('seg-on', m === 'preview'); segArr.classList.toggle('seg-on', m === 'arrange'); refreshRight(); };
+            segPrev.addEventListener('click', () => setMode('preview'));
+            segArr.addEventListener('click', () => setMode('arrange'));
+            return el('div', { class: 'seg' }, segPrev, segArr);
+          })(),
+        ),
+        rightBox,
       ),
     ),
     el('div', { class: 'field-label mt' }, '🎸 Moduł tabulatur'),

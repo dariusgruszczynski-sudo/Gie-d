@@ -204,6 +204,21 @@ textarea.input { resize: vertical; line-height: 1.5; }
 .cp-toolbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
 .preview-frame { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-height: 200px; overflow-x: auto; }
 .live-preview { min-height: 360px; }
+/* wizualny edytor chwytów */
+.seg { display: inline-flex; gap: 4px; }
+.seg .btn.seg-on { background: var(--primary); color: #fff; border-color: var(--primary); }
+.arranger { font-family: var(--song-font); font-size: var(--song-size); line-height: calc(var(--song-line) * 1.15); }
+.arr-line { display: flex; flex-wrap: wrap; align-items: flex-end; margin: 2px 0; }
+.arr-skip { color: var(--muted); font-style: italic; font-size: .8em; white-space: pre-wrap; min-height: .6em; font-family: 'Segoe UI', sans-serif; }
+.arr-unit { display: inline-flex; flex-direction: column; align-items: flex-start; }
+.arr-chord { color: var(--chord-color); font-weight: var(--chord-weight); font-size: .72em; font-family: 'Segoe UI', sans-serif; line-height: 1; min-height: 1.1em; min-width: 0; cursor: pointer; border-radius: 3px; padding: 0; white-space: pre; }
+.arr-chord.has { background: color-mix(in srgb, var(--chord-color) 15%, transparent); }
+.arr-chord:hover { background: color-mix(in srgb, var(--chord-color) 30%, transparent); outline: 1px dashed var(--chord-color); }
+.arr-char { white-space: pre; cursor: text; border-bottom: 1px solid transparent; }
+.arr-char:hover { border-bottom-color: var(--muted); }
+.arr-char.arr-end { min-width: 10px; }
+.arr-input { width: 52px; font-size: .72em; padding: 0 3px; border: 1px solid var(--primary); border-radius: 4px; font-family: 'Segoe UI', sans-serif; }
+
 .tabs-editor { display: flex; flex-direction: column; gap: 12px; }
 .tab-editor-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
 .tab-editor-head { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
