@@ -14,6 +14,9 @@ services:
   songbook:
     build:
       context: ./songbook
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
+        BUILD_TIME: ${BUILD_TIME:-}
     environment:
       - PORT=8080
       - SONGBOOK_DATA_DIR=/app/data

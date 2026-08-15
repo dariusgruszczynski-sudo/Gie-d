@@ -311,7 +311,7 @@ const server = http.createServer(async (req, res) => {
   const { pathname, searchParams } = new URL(req.url, `http://${req.headers.host}`);
 
   if (pathname === '/api/health') {
-    return sendJson(res, 200, { ok: true, service: 'spiewnik', time: new Date().toISOString() });
+    return sendJson(res, 200, { ok: true, service: 'spiewnik', time: new Date().toISOString(), version: process.env.GIT_SHA || 'dev', builtAt: process.env.BUILD_TIME || '' });
   }
 
   // Informacja dla frontendu: czy dostępna jest synchronizacja i czy wymaga tokenu.
