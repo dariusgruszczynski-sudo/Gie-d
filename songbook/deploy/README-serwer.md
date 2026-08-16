@@ -59,7 +59,14 @@ przybliżoną progresję akordów — punkt startowy do ręcznej poprawki w edyt
 
 #### Gdy YouTube pokazuje „Sign in to confirm you're not a bot"
 Z serwera (IP data-center) YouTube często blokuje pobieranie i żąda logowania.
-Obejście: podłóż ciasteczka zalogowanej sesji YouTube w formacie Netscape.
+
+**Automatyczne obejście (domyślnie włączone, bez cookies):** nakładka audio
+uruchamia mały serwis `bgutil-provider`, który mintuje PO-tokeny. `yt-dlp`
+próbuje z nimi jako pierwszy — często to wystarcza i nic nie musisz robić. Gdy
+YouTube i to utnie, użyj cookies (niżej) albo drogi „🎵 Z pliku audio".
+
+**Obejście przez cookies:** podłóż ciasteczka zalogowanej sesji YouTube w
+formacie Netscape.
 
 1. **Użyj konta „na zapas"** (nie głównego Google) — pobieranie audio bywa
    niezgodne z regulaminem YouTube i grozi ograniczeniem konta.
