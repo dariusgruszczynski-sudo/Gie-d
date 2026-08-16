@@ -57,6 +57,38 @@ przybliżoną progresję akordów — punkt startowy do ręcznej poprawki w edyt
   (endpoint `/api/chords`, przycisk „🎧 Akordy z YT" w Poczekalni przy linkach YT).
 - Wyłączenie: `rm songbook/deploy/audio.enabled` i przebuduj.
 
+#### Gdy YouTube pokazuje „Sign in to confirm you're not a bot"
+Z serwera (IP data-center) YouTube często blokuje pobieranie i żąda logowania.
+Obejście: podłóż ciasteczka zalogowanej sesji YouTube w formacie Netscape.
+
+1. **Użyj konta „na zapas"** (nie głównego Google) — pobieranie audio bywa
+   niezgodne z regulaminem YouTube i grozi ograniczeniem konta.
+2. W przeglądarce zaloguj się na YouTube tym kontem.
+3. Wyeksportuj cookies do pliku `cookies.txt` w formacie Netscape — np.
+   rozszerzeniem „Get cookies.txt LOCALLY" (Chrome/Firefox), będąc na
+   `https://www.youtube.com`.
+4. Wgraj plik na serwer do:
+   ```
+   ~/gie-d/songbook-audio-cookies/cookies.txt
+   ```
+   (katalog jest już podmontowany do kontenera jako `/app/cookies`, tylko-do-odczytu).
+5. Odtwórz kontener audio, żeby złapał wolumen:
+   ```bash
+   cd ~/gie-d
+   docker compose -f docker-compose.yml \
+     -f deploy/docker-compose.caddy.yml \
+     -f songbook/deploy/docker-compose.songbook.yml \
+     -f songbook/deploy/docker-compose.audio.yml up -d --build songbook-audio
+   ```
+   (albo po prostu `bash deploy/deploy.sh`).
+
+**Uwaga:** cookies wygasają po pewnym czasie — jeśli błąd wróci, wyeksportuj je
+ponownie. Plik `cookies.txt` jest w `.gitignore` (to sekret — nie commituj go).
+
+> Alternatywa bez cookies: przycisk **„🔎 + chwyty"** w piosence/wyszukiwarce —
+> szuka gotowych opracowań z chwytami po tytule i zespole. Dla znanych utworów
+> to zwykle szybsza i pewniejsza droga niż analiza audio.
+
 ### 2. Zbuduj i uruchom
 Na serwerze, w katalogu repo (`~/gie-d`), po `git pull`:
 
