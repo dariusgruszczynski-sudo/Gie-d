@@ -74,16 +74,33 @@ def _smooth(seq, win=4):
     return out
 
 
-def _download_audio(url, workdir):
-    """Pobiera audio przez yt-dlp do pliku wav; zwraca ścieżkę."""
+def _run_ytdlp(url, workdir, extractor_args=None):
     out = os.path.join(workdir, 'audio.%(ext)s')
     cmd = ['yt-dlp', '-x', '--audio-format', 'wav', '--audio-quality', '0',
-           '-o', out, '--no-playlist', '--quiet', '--no-warnings', url]
-    subprocess.run(cmd, check=True, timeout=180)
-    for f in os.listdir(workdir):
-        if f.endswith('.wav'):
-            return os.path.join(workdir, f)
-    raise RuntimeError('yt-dlp nie zwrócił pliku wav')
+           '--no-playlist', '--no-warnings', '-o', out]
+    if extractor_args:
+        cmd += ['--extractor-args', extractor_args]
+    cmd.append(url)
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+
+
+def _download_audio(url, workdir):
+    """Pobiera audio przez yt-dlp do pliku wav; zwraca ścieżkę.
+    Próbuje najpierw klienta 'android' (często omija bot-check na VPS), potem
+    domyślnego. Przy błędzie pokazuje PRAWDZIWY komunikat yt-dlp."""
+    attempts = ['youtube:player_client=android', None]
+    last = ''
+    for ea in attempts:
+        proc = _run_ytdlp(url, workdir, ea)
+        if proc.returncode == 0:
+            for f in os.listdir(workdir):
+                if f.endswith('.wav'):
+                    return os.path.join(workdir, f)
+            last = 'yt-dlp zakończył się sukcesem, ale nie ma pliku wav'
+            continue
+        msg = (proc.stderr or proc.stdout or '').strip().splitlines()
+        last = ' | '.join(msg[-4:]) if msg else f'kod wyjścia {proc.returncode}'
+    raise RuntimeError('yt-dlp: ' + last)
 
 
 def detect(source, max_seconds=240):
