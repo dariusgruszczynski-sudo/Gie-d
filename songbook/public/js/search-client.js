@@ -68,6 +68,22 @@ export async function detectChords(url) {
   }
 }
 
+// Wykrywa akordy z WGRANEGO pliku audio (mp3/m4a/wav…). Omija YouTube i bot-check.
+export async function detectChordsFile(file) {
+  try {
+    const r = await fetch(`/api/chords/upload?name=${encodeURIComponent(file.name || 'audio')}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: file,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.status === 200 && data.ok) return { ok: true, chords: data.chords || [], unique: data.unique || [], tempo: data.tempo || 0, note: data.note };
+    return { ok: false, error: data.error || `Nie udało się wykryć (status ${r.status}).` };
+  } catch (e) {
+    return { ok: false, error: 'Serwis wykrywania akordów niedostępny.' };
+  }
+}
+
 // Importuje dowolną stronę z chwytami/tabami po adresie URL.
 export async function importUrl(url) {
   try {
