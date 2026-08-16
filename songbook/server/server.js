@@ -298,6 +298,20 @@ function readBody(req, limit = 8 * 1024 * 1024) {
   });
 }
 
+// Wersja binarna (dla wgrywanego pliku audio) — zwraca Buffer, nie string.
+function readBodyBuffer(req, limit = 80 * 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    const chunks = []; let size = 0;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > limit) { reject(new Error('Za duży ładunek.')); req.destroy(); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
 function loadLibrary() {
   try { return JSON.parse(fs.readFileSync(LIBRARY_FILE, 'utf8')); }
   catch { return null; }
@@ -318,6 +332,31 @@ const server = http.createServer(async (req, res) => {
   // Informacja dla frontendu: czy dostępna jest synchronizacja i czy wymaga tokenu.
   if (pathname === '/api/config') {
     return sendJson(res, 200, { ok: true, service: 'spiewnik', sync: true, authRequired: !!TOKEN, search: true, searchProvider: SEARCH_KEY ? 'serpapi' : 'duckduckgo', audio: !!AUDIO_URL });
+  }
+
+  // Wykrywanie akordów z WGRANEGO pliku audio — pewna droga bez YouTube.
+  if (pathname === '/api/chords/upload') {
+    if (!AUDIO_URL) return sendJson(res, 501, { ok: false, error: 'Moduł audio nie jest włączony (uruchom nakładkę docker-compose.audio.yml).' });
+    if (req.method !== 'POST') return sendJson(res, 405, { ok: false, error: 'Użyj POST.' });
+    let buf;
+    try { buf = await readBodyBuffer(req); }
+    catch { return sendJson(res, 413, { ok: false, error: 'Plik za duży (max 80 MB). Użyj mp3/m4a.' }); }
+    if (!buf.length) return sendJson(res, 400, { ok: false, error: 'Pusty plik audio.' });
+    const name = (searchParams.get('name') || 'audio').trim();
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 240000);
+    try {
+      const r = await fetch(`${AUDIO_URL}/detect?name=${encodeURIComponent(name)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': String(buf.length) },
+        body: buf,
+        signal: ctrl.signal,
+      });
+      const data = await r.json().catch(() => ({ ok: false, error: 'Serwis audio zwrócił nieprawidłową odpowiedź.' }));
+      return sendJson(res, r.ok ? 200 : 502, data);
+    } catch (e) {
+      return sendJson(res, 502, { ok: false, error: e.name === 'AbortError' ? 'Wykrywanie trwało zbyt długo.' : 'Serwis audio niedostępny.' });
+    } finally { clearTimeout(t); }
   }
 
   // Wykrywanie akordów z audio (YouTube) — proxy do opcjonalnego mikroserwisu.

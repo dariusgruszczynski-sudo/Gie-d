@@ -1386,6 +1386,22 @@ async function detectChords(url) {
   }
 }
 
+// Wykrywa akordy z WGRANEGO pliku audio (mp3/m4a/wav…). Omija YouTube i bot-check.
+async function detectChordsFile(file) {
+  try {
+    const r = await fetch(`/api/chords/upload?name=${encodeURIComponent(file.name || 'audio')}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: file,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.status === 200 && data.ok) return { ok: true, chords: data.chords || [], unique: data.unique || [], tempo: data.tempo || 0, note: data.note };
+    return { ok: false, error: data.error || `Nie udało się wykryć (status ${r.status}).` };
+  } catch (e) {
+    return { ok: false, error: 'Serwis wykrywania akordów niedostępny.' };
+  }
+}
+
 // Importuje dowolną stronę z chwytami/tabami po adresie URL.
 async function importUrl(url) {
   try {
@@ -2219,7 +2235,10 @@ function renderInbox(view, actions) {
       el('a', { class: 'link-btn', href: '#', onClick: (e) => { e.preventDefault(); audioModuleInfo(); } }, '🎧 wykryć akordy z dźwięku'),
       el('span', {}, '.')),
     linksArea,
-    el('div', { class: 'search-fields' }, el('button', { class: 'btn btn-primary', onClick: addLinks }, '⬇︎ Dodaj do poczekalni')),
+    el('div', { class: 'search-fields' },
+      el('button', { class: 'btn btn-primary', onClick: addLinks }, '⬇︎ Dodaj do poczekalni'),
+      el('button', { class: 'btn', title: 'Wgraj plik audio (mp3/m4a) i wykryj akordy — pewna droga bez YouTube', onClick: () => detectFromFile({}) }, '🎵 Akordy z pliku audio'),
+    ),
   );
 
   async function addLinks() {
@@ -2243,30 +2262,63 @@ function renderInbox(view, actions) {
     renderList();
   }
 
-  async function detectFromYT(it, btn) {
-    const old = btn.textContent; btn.disabled = true; btn.textContent = '🎧 Analizuję… (to potrwa)';
-    const res = await detectChords(it.url);
-    btn.disabled = false; btn.textContent = old;
-    if (!res.ok) {
-      modal({
-        title: '🎧 Nie udało się wykryć akordów',
-        body: el('div', { class: 'help' },
-          el('p', {}, 'Powód:'), el('pre', {}, res.error || 'nieznany'),
-          el('p', { class: 'muted' }, 'Najczęstsze przyczyny: moduł audio nie jest włączony na serwerze, pierwszy build jeszcze trwa, albo YouTube ograniczył pobieranie tego filmu. Sprawdź też stronę /api/config (pole „audio").'),
-        ),
-        actions: [el('button', { class: 'btn btn-primary', onClick: () => document.querySelector('.modal-overlay')?.remove() }, 'OK')],
-      });
-      return;
-    }
+  // Wspólne: z wyniku detekcji buduje piosenkę i otwiera edytor.
+  function applyDetected(res, meta) {
     if (!res.chords.length) { toast('Nie wykryto wyraźnych akordów w tym nagraniu.', 'error'); return; }
     const seq = res.chords.map((c) => c.chord);
     const lines = [];
     for (let i = 0; i < seq.length; i += 8) lines.push(seq.slice(i, i + 8).map((c) => `[${c}]`).join(' '));
     const body = `{comment: Akordy wykryte z audio — PRZYBLIŻONE, dopasuj do tekstu}\n{comment: Użyte akordy: ${res.unique.join(' ')}}\n\n${lines.join('\n')}`;
-    const s = store.createSong({ title: it.title || 'Wykryte z YT', artist: it.author || '', tempo: res.tempo || 0, tags: ['z audio'], notes: 'Źródło: ' + it.url, body });
-    store.removeInbox(it.id); updateInboxBadge();
+    const s = store.createSong({ title: meta.title || 'Wykryte z audio', artist: meta.artist || '', tempo: res.tempo || 0, tags: ['z audio'], notes: meta.notes || '', body });
+    if (meta.inboxId) { store.removeInbox(meta.inboxId); updateInboxBadge(); }
     toast('Wykryto akordy — dodaj tekst i rozmieść chwyty ✓', 'success');
     go('songs', { songId: s.id, editing: true });
+  }
+
+  function detectError(err) {
+    const botCheck = /not a bot|Sign in|cookies/i.test(err || '');
+    modal({
+      title: '🎧 Nie udało się wykryć akordów',
+      wide: true,
+      body: el('div', { class: 'help' },
+        el('p', {}, 'Powód:'), el('pre', {}, err || 'nieznany'),
+        botCheck
+          ? el('p', {}, el('b', {}, 'YouTube blokuje pobieranie z serwera. '), 'Najpewniejsza droga bez YouTube: kliknij ', el('b', {}, '„🎵 Z pliku audio"'), ' i wgraj mp3/m4a utworu. Analiza pójdzie lokalnie, bez bot-checku.')
+          : el('p', { class: 'muted' }, 'Najczęstsze przyczyny: moduł audio nie jest włączony na serwerze, pierwszy build jeszcze trwa, albo YouTube ograniczył pobieranie. Sprawdź też /api/config (pole „audio"). Zawsze możesz wgrać plik audio przyciskiem „🎵 Z pliku audio".'),
+      ),
+      actions: [el('button', { class: 'btn btn-primary', onClick: () => document.querySelector('.modal-overlay')?.remove() }, 'OK')],
+    });
+  }
+
+  async function detectFromYT(it, btn) {
+    const old = btn.textContent; btn.disabled = true; btn.textContent = '🎧 Analizuję… (to potrwa)';
+    const res = await detectChords(it.url);
+    btn.disabled = false; btn.textContent = old;
+    if (!res.ok) { detectError(res.error); return; }
+    applyDetected(res, { title: it.title || 'Wykryte z YT', artist: it.author || '', notes: 'Źródło: ' + it.url, inboxId: it.id });
+  }
+
+  // Wykrywanie z WGRANEGO pliku audio — pewna droga, omija YouTube i bot-check.
+  function detectFromFile(meta) {
+    if (!sync.audioAvailable()) { audioModuleInfo(); return; }
+    const inp = el('input', { type: 'file', accept: 'audio/*,.mp3,.m4a,.wav,.ogg,.flac,.aac,.opus', style: 'display:none' });
+    inp.addEventListener('change', async () => {
+      const file = inp.files && inp.files[0];
+      if (!file) return;
+      const closing = modal({
+        title: '🎧 Analizuję plik…',
+        body: el('div', { class: 'help' },
+          el('p', {}, 'Trwa analiza „', el('b', {}, file.name), '". To może potrwać kilkadziesiąt sekund — nie zamykaj tej karty.'),
+        ),
+        actions: [],
+      });
+      const res = await detectChordsFile(file);
+      document.querySelector('.modal-overlay')?.remove();
+      if (!res.ok) { detectError(res.error); return; }
+      applyDetected(res, { title: meta.title || file.name.replace(/\.[^.]+$/, ''), artist: meta.artist || '', notes: meta.notes || ('Plik: ' + file.name), inboxId: meta.inboxId });
+    });
+    document.body.append(inp); inp.click();
+    setTimeout(() => inp.remove(), 60000);
   }
 
   const listWrap = el('div', { class: 'inbox-list' });
@@ -2296,6 +2348,7 @@ function renderInbox(view, actions) {
           el('button', { class: 'btn btn-sm btn-primary', onClick: () => accept(false) }, '✓ Akceptuj'),
           el('button', { class: 'btn btn-sm', title: 'Akceptuj i znajdź chwyty', onClick: () => accept(true) }, '🔎 + chwyty'),
           /youtu/.test(it.url) ? el('button', { class: 'btn btn-sm', title: 'Wykryj akordy z audio (przybliżone)', onClick: (e) => (sync.audioAvailable() ? detectFromYT(it, e.target) : audioModuleInfo()) }, '🎧 Akordy z YT') : null,
+          el('button', { class: 'btn btn-sm', title: 'Wgraj plik audio (mp3/m4a) i wykryj akordy — bez YouTube', onClick: () => detectFromFile({ title: it.title, artist: it.author, inboxId: it.id, notes: 'Źródło: ' + it.url }) }, '🎵 Z pliku'),
           el('button', { class: 'btn btn-sm btn-danger', onClick: () => { store.removeInbox(it.id); updateInboxBadge(); renderList(); } }, '✕'),
         ),
       ));
