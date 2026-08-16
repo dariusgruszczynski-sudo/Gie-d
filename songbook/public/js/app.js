@@ -848,8 +848,18 @@ function renderInbox(view, actions) {
     const old = btn.textContent; btn.disabled = true; btn.textContent = '🎧 Analizuję… (to potrwa)';
     const res = await detectChords(it.url);
     btn.disabled = false; btn.textContent = old;
-    if (!res.ok) { toast('⚠︎ ' + res.error, 'error'); return; }
-    if (!res.chords.length) { toast('Nie wykryto wyraźnych akordów.', 'error'); return; }
+    if (!res.ok) {
+      modal({
+        title: '🎧 Nie udało się wykryć akordów',
+        body: el('div', { class: 'help' },
+          el('p', {}, 'Powód:'), el('pre', {}, res.error || 'nieznany'),
+          el('p', { class: 'muted' }, 'Najczęstsze przyczyny: moduł audio nie jest włączony na serwerze, pierwszy build jeszcze trwa, albo YouTube ograniczył pobieranie tego filmu. Sprawdź też stronę /api/config (pole „audio").'),
+        ),
+        actions: [el('button', { class: 'btn btn-primary', onClick: () => document.querySelector('.modal-overlay')?.remove() }, 'OK')],
+      });
+      return;
+    }
+    if (!res.chords.length) { toast('Nie wykryto wyraźnych akordów w tym nagraniu.', 'error'); return; }
     const seq = res.chords.map((c) => c.chord);
     const lines = [];
     for (let i = 0; i < seq.length; i += 8) lines.push(seq.slice(i, i + 8).map((c) => `[${c}]`).join(' '));
