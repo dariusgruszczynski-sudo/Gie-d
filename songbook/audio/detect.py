@@ -75,6 +75,8 @@ def _smooth(seq, win=4):
 
 
 def _run_ytdlp(url, workdir, extractor_args=None):
+    """extractor_args: None, pojedynczy string, albo lista stringów — każdy
+    trafia jako osobny --extractor-args (różne ekstraktory wymagają osobnych flag)."""
     out = os.path.join(workdir, 'audio.%(ext)s')
     cmd = ['yt-dlp', '-x', '--audio-format', 'wav', '--audio-quality', '0',
            '--no-playlist', '--no-warnings', '-o', out]
@@ -83,16 +85,29 @@ def _run_ytdlp(url, workdir, extractor_args=None):
     if cookies and os.path.isfile(cookies):
         cmd += ['--cookies', cookies]
     if extractor_args:
-        cmd += ['--extractor-args', extractor_args]
+        args = extractor_args if isinstance(extractor_args, list) else [extractor_args]
+        for a in args:
+            cmd += ['--extractor-args', a]
     cmd.append(url)
     return subprocess.run(cmd, capture_output=True, text=True, timeout=180)
 
 
 def _download_audio(url, workdir):
     """Pobiera audio przez yt-dlp do pliku wav; zwraca ścieżkę.
-    Próbuje najpierw klienta 'android' (często omija bot-check na VPS), potem
-    domyślnego. Przy błędzie pokazuje PRAWDZIWY komunikat yt-dlp."""
-    attempts = ['youtube:player_client=android', None]
+
+    Kolejność prób (od najskuteczniejszej na VPS):
+      1) klient 'web' + PO-token z mikroserwisu bgutil (jeśli wpięty) —
+         automatyczne obejście „Sign in to confirm you're not a bot" bez cookies,
+      2) klient 'android' (czasem omija bot-check),
+      3) domyślny.
+    Cookies (jeśli są) dokładają się do KAŻDEJ próby. Przy błędzie pokazujemy
+    PRAWDZIWY komunikat yt-dlp."""
+    attempts = []
+    pot = os.environ.get('SONGBOOK_POT_PROVIDER_URL', 'http://bgutil-provider:4416').strip()
+    if pot:
+        attempts.append(['youtube:player_client=web',
+                         f'youtubepot-bgutilhttp:base_url={pot}'])
+    attempts += ['youtube:player_client=android', None]
     last = ''
     for ea in attempts:
         proc = _run_ytdlp(url, workdir, ea)

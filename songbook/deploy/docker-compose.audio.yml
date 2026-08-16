@@ -24,6 +24,19 @@ services:
       - ./songbook-audio-cookies:/app/cookies:ro
     environment:
       - SONGBOOK_YTDLP_COOKIES=/app/cookies/cookies.txt
+      # Automatyczne obejście bot-checku bez cookies (PO-token z bgutil-provider).
+      - SONGBOOK_POT_PROVIDER_URL=http://bgutil-provider:4416
+    depends_on:
+      - bgutil-provider
+    restart: unless-stopped
+
+  # Mikroserwis PO-token (bgutil) — mintuje tokeny, dzięki którym yt-dlp pobiera
+  # z YouTube bez logowania/cookies. Lekki obraz Node. Gdy padnie, yt-dlp i tak
+  # próbuje dalej (android/domyślny/cookies).
+  bgutil-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    expose:
+      - "4416"
     restart: unless-stopped
 
   songbook:
