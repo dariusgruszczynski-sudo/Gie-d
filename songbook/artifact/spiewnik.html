@@ -1827,6 +1827,7 @@ function renderSongEditor(view, actions, s) {
     el('button', { class: 'btn btn-xs', type: 'button', onClick: () => insert('{start_of_tab}\n', '\n{end_of_tab}') }, 'Tabulatura' ),
     el('button', { class: 'btn btn-xs', type: 'button', title: 'Zamień wklejony surowy tekst (chwyty nad tekstem) na format ChordPro', onClick: () => { snapshot(); f.body.value = plainToChordPro(f.body.value); updatePreview(); refreshRight(); autosave(); toast('Skonwertowano do ChordPro'); } }, '✨ Auto-konwersja'),
     el('button', { class: 'btn btn-xs', type: 'button', title: 'Rozciągnij chwyty z 1. zwrotki i refrenu na resztę utworu', onClick: () => { snapshot(); f.body.value = stretchChords(autoChordify(f.body.value).body); updatePreview(); refreshRight(); autosave(); toast('Rozciągnięto chwyty na całość ✓', 'success'); } }, '🔁 Rozciągnij chwyty'),
+    el('button', { class: 'btn btn-xs', type: 'button', title: 'Wgraj plik audio i rozłóż wykryte akordy nad tym tekstem', onClick: () => { store.updateSong(s.id, collect()); detectFromFile({ song: s, title: f.title.value }); } }, '🎵 Akordy z pliku'),
   );
 
   // --- Wizualny edytor chwytów (klik = dodaj/edytuj chwyt nad tekstem) ---
@@ -2207,6 +2208,142 @@ function updateInboxBadge() {
   b.textContent = n; b.hidden = n === 0;
 }
 
+// ---------------------------------------------- wykrywanie akordów z audio
+
+// Wstawia N akordów w linię tekstu, równomiernie nad słowami (jak w chordpro).
+function placeOverLine(lyric, chords) {
+  if (!chords.length) return lyric;
+  const parts = lyric.split(/(\s+)/);
+  const wordPos = [];
+  parts.forEach((p, i) => { if (p.trim()) wordPos.push(i); });
+  if (!wordPos.length) return lyric;
+  const out = [...parts];
+  chords.forEach((c, k) => {
+    const wp = Math.min(wordPos.length - 1, Math.round((k * wordPos.length) / chords.length));
+    out[wordPos[wp]] = `[${c}]` + out[wordPos[wp]];
+  });
+  return out.join('');
+}
+
+// Rozkłada wykrytą sekwencję akordów NAD istniejącym tekstem (proporcjonalnie
+// do liczby wersów, max ~4 akordy na linię). Zwraca tekst ChordPro.
+function overlayDetectedOnLyrics(lyrics, seq) {
+  const lines = lyrics.replace(/\r/g, '').split('\n');
+  const idx = [];
+  lines.forEach((ln, i) => {
+    const t = ln.trim();
+    if (t && !/^\{.*\}$/.test(t) && !/^\[[^\]]*\]$/.test(t)) idx.push(i);
+  });
+  if (!idx.length || !seq.length) return null;
+  const per = Math.max(1, Math.min(4, Math.round(seq.length / idx.length)));
+  let cur = 0;
+  idx.forEach((li, n) => {
+    // ostatniej linii oddaj resztę, by nie zgubić akordów
+    const take = (n === idx.length - 1) ? Math.max(per, seq.length - cur) : per;
+    const slice = seq.slice(cur, cur + take);
+    cur += take;
+    if (slice.length) lines[li] = placeOverLine(lines[li], slice);
+  });
+  return lines.join('\n');
+}
+
+// Ma piosenka realny tekst (nie same akordy/dyrektywy)?
+function songHasLyrics(song) {
+  if (!song || !song.body) return false;
+  return song.body.replace(/\r/g, '').split('\n').some((ln) => {
+    const t = ln.replace(/\[[^\]]*\]/g, '').trim();
+    return t && !/^\{.*\}$/.test(t);
+  });
+}
+
+// Wspólne: z wyniku detekcji buduje/uzupełnia piosenkę i otwiera edytor.
+function applyDetected(res, meta) {
+  if (!res.chords.length) { toast('Nie wykryto wyraźnych akordów w tym nagraniu.', 'error'); return; }
+  const seq = res.chords.map((c) => c.chord);
+  // Świeży stan piosenki (edytor mógł właśnie zapisać nowy tekst).
+  const song = meta.song ? (store.song(meta.song.id) || meta.song) : null;
+
+  // Jeśli mamy piosenkę z gotowym tekstem — rozłóż akordy NAD tym tekstem.
+  if (song && songHasLyrics(song)) {
+    const overlaid = overlayDetectedOnLyrics(song.body, seq);
+    if (overlaid) {
+      const head = `{comment: Akordy z audio — PRZYBLIŻONE, popraw rozmieszczenie}\n`;
+      const body = /\{comment: Akordy z audio/.test(song.body) ? overlaid : head + overlaid;
+      store.updateSong(song.id, { body, tempo: song.tempo || res.tempo || 0 });
+      if (meta.inboxId) { store.removeInbox(meta.inboxId); updateInboxBadge(); }
+      toast('Rozłożono wykryte akordy nad tekstem — sprawdź i popraw ✓', 'success');
+      go('songs', { songId: song.id, editing: true });
+      return;
+    }
+  }
+
+  // Brak tekstu: zapisz akordy w osobnych liniach (punkt startowy).
+  const lines = [];
+  for (let i = 0; i < seq.length; i += 8) lines.push(seq.slice(i, i + 8).map((c) => `[${c}]`).join(' '));
+  const body = `{comment: Akordy wykryte z audio — PRZYBLIŻONE, dopasuj do tekstu}\n{comment: Użyte akordy: ${res.unique.join(' ')}}\n\n${lines.join('\n')}`;
+  if (song) {
+    store.updateSong(song.id, { body, tempo: song.tempo || res.tempo || 0 });
+    if (meta.inboxId) { store.removeInbox(meta.inboxId); updateInboxBadge(); }
+    toast('Wykryto akordy — dodaj tekst i rozmieść chwyty ✓', 'success');
+    go('songs', { songId: song.id, editing: true });
+    return;
+  }
+  const s = store.createSong({ title: meta.title || 'Wykryte z audio', artist: meta.artist || '', tempo: res.tempo || 0, tags: ['z audio'], notes: meta.notes || '', body });
+  if (meta.inboxId) { store.removeInbox(meta.inboxId); updateInboxBadge(); }
+  toast('Wykryto akordy — dodaj tekst i rozmieść chwyty ✓', 'success');
+  go('songs', { songId: s.id, editing: true });
+}
+
+function detectError(err) {
+  const botCheck = /not a bot|Sign in|cookies/i.test(err || '');
+  modal({
+    title: '🎧 Nie udało się wykryć akordów',
+    wide: true,
+    body: el('div', { class: 'help' },
+      el('p', {}, 'Powód:'), el('pre', {}, err || 'nieznany'),
+      botCheck
+        ? el('p', {}, el('b', {}, 'YouTube blokuje pobieranie z serwera. '), 'Najpewniejsza droga bez YouTube: kliknij ', el('b', {}, '„🎵 Z pliku audio"'), ' i wgraj mp3/m4a utworu. Analiza pójdzie lokalnie, bez bot-checku.')
+        : el('p', { class: 'muted' }, 'Najczęstsze przyczyny: moduł audio nie jest włączony na serwerze, pierwszy build jeszcze trwa, albo YouTube ograniczył pobieranie. Sprawdź też /api/config (pole „audio"). Zawsze możesz wgrać plik audio przyciskiem „🎵 Z pliku audio".'),
+    ),
+    actions: [el('button', { class: 'btn btn-primary', onClick: () => document.querySelector('.modal-overlay')?.remove() }, 'OK')],
+  });
+}
+
+async function detectFromYT(it, btn) {
+  const old = btn.textContent; btn.disabled = true; btn.textContent = '🎧 Analizuję… (to potrwa)';
+  const res = await detectChords(it.url);
+  btn.disabled = false; btn.textContent = old;
+  if (!res.ok) { detectError(res.error); return; }
+  applyDetected(res, { title: it.title || 'Wykryte z YT', artist: it.author || '', notes: 'Źródło: ' + it.url, inboxId: it.id });
+}
+
+// Wykrywanie z WGRANEGO pliku audio — pewna droga, omija YouTube i bot-check.
+function detectFromFile(meta) {
+  if (!sync.audioAvailable()) { audioModuleInfo(); return; }
+  const inp = el('input', { type: 'file', accept: 'audio/*,.mp3,.m4a,.wav,.ogg,.flac,.aac,.opus', style: 'display:none' });
+  inp.addEventListener('change', async () => {
+    const file = inp.files && inp.files[0];
+    if (!file) return;
+    modal({
+      title: '🎧 Analizuję plik…',
+      body: el('div', { class: 'help' },
+        el('p', {}, 'Trwa analiza „', el('b', {}, file.name), '". To może potrwać kilkadziesiąt sekund — nie zamykaj tej karty.'),
+      ),
+      actions: [],
+    });
+    const res = await detectChordsFile(file);
+    document.querySelector('.modal-overlay')?.remove();
+    if (!res.ok) { detectError(res.error); return; }
+    applyDetected(res, {
+      title: meta.title || file.name.replace(/\.[^.]+$/, ''),
+      artist: meta.artist || '', notes: meta.notes || ('Plik: ' + file.name),
+      inboxId: meta.inboxId, song: meta.song,
+    });
+  });
+  document.body.append(inp); inp.click();
+  setTimeout(() => inp.remove(), 60000);
+}
+
 // Rozdziela tytuł filmu na wykonawcę i tytuł oraz sprząta śmieci („(Official Video)" itd.)
 function parseTrack(rawTitle, author) {
   let t = (rawTitle || '').replace(/\s+/g, ' ').trim();
@@ -2260,65 +2397,6 @@ function renderInbox(view, actions) {
       store.updateInbox(stub.id, { title: p.title, author: p.artist });
     }
     renderList();
-  }
-
-  // Wspólne: z wyniku detekcji buduje piosenkę i otwiera edytor.
-  function applyDetected(res, meta) {
-    if (!res.chords.length) { toast('Nie wykryto wyraźnych akordów w tym nagraniu.', 'error'); return; }
-    const seq = res.chords.map((c) => c.chord);
-    const lines = [];
-    for (let i = 0; i < seq.length; i += 8) lines.push(seq.slice(i, i + 8).map((c) => `[${c}]`).join(' '));
-    const body = `{comment: Akordy wykryte z audio — PRZYBLIŻONE, dopasuj do tekstu}\n{comment: Użyte akordy: ${res.unique.join(' ')}}\n\n${lines.join('\n')}`;
-    const s = store.createSong({ title: meta.title || 'Wykryte z audio', artist: meta.artist || '', tempo: res.tempo || 0, tags: ['z audio'], notes: meta.notes || '', body });
-    if (meta.inboxId) { store.removeInbox(meta.inboxId); updateInboxBadge(); }
-    toast('Wykryto akordy — dodaj tekst i rozmieść chwyty ✓', 'success');
-    go('songs', { songId: s.id, editing: true });
-  }
-
-  function detectError(err) {
-    const botCheck = /not a bot|Sign in|cookies/i.test(err || '');
-    modal({
-      title: '🎧 Nie udało się wykryć akordów',
-      wide: true,
-      body: el('div', { class: 'help' },
-        el('p', {}, 'Powód:'), el('pre', {}, err || 'nieznany'),
-        botCheck
-          ? el('p', {}, el('b', {}, 'YouTube blokuje pobieranie z serwera. '), 'Najpewniejsza droga bez YouTube: kliknij ', el('b', {}, '„🎵 Z pliku audio"'), ' i wgraj mp3/m4a utworu. Analiza pójdzie lokalnie, bez bot-checku.')
-          : el('p', { class: 'muted' }, 'Najczęstsze przyczyny: moduł audio nie jest włączony na serwerze, pierwszy build jeszcze trwa, albo YouTube ograniczył pobieranie. Sprawdź też /api/config (pole „audio"). Zawsze możesz wgrać plik audio przyciskiem „🎵 Z pliku audio".'),
-      ),
-      actions: [el('button', { class: 'btn btn-primary', onClick: () => document.querySelector('.modal-overlay')?.remove() }, 'OK')],
-    });
-  }
-
-  async function detectFromYT(it, btn) {
-    const old = btn.textContent; btn.disabled = true; btn.textContent = '🎧 Analizuję… (to potrwa)';
-    const res = await detectChords(it.url);
-    btn.disabled = false; btn.textContent = old;
-    if (!res.ok) { detectError(res.error); return; }
-    applyDetected(res, { title: it.title || 'Wykryte z YT', artist: it.author || '', notes: 'Źródło: ' + it.url, inboxId: it.id });
-  }
-
-  // Wykrywanie z WGRANEGO pliku audio — pewna droga, omija YouTube i bot-check.
-  function detectFromFile(meta) {
-    if (!sync.audioAvailable()) { audioModuleInfo(); return; }
-    const inp = el('input', { type: 'file', accept: 'audio/*,.mp3,.m4a,.wav,.ogg,.flac,.aac,.opus', style: 'display:none' });
-    inp.addEventListener('change', async () => {
-      const file = inp.files && inp.files[0];
-      if (!file) return;
-      const closing = modal({
-        title: '🎧 Analizuję plik…',
-        body: el('div', { class: 'help' },
-          el('p', {}, 'Trwa analiza „', el('b', {}, file.name), '". To może potrwać kilkadziesiąt sekund — nie zamykaj tej karty.'),
-        ),
-        actions: [],
-      });
-      const res = await detectChordsFile(file);
-      document.querySelector('.modal-overlay')?.remove();
-      if (!res.ok) { detectError(res.error); return; }
-      applyDetected(res, { title: meta.title || file.name.replace(/\.[^.]+$/, ''), artist: meta.artist || '', notes: meta.notes || ('Plik: ' + file.name), inboxId: meta.inboxId });
-    });
-    document.body.append(inp); inp.click();
-    setTimeout(() => inp.remove(), 60000);
   }
 
   const listWrap = el('div', { class: 'inbox-list' });
