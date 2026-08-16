@@ -16,6 +16,14 @@ services:
       context: ./songbook/audio
     expose:
       - "8100"
+    # Cookies YouTube (obejście „Sign in to confirm you're not a bot" na VPS).
+    # Wgraj plik Netscape cookies.txt do ./songbook-audio-cookies/cookies.txt
+    # (instrukcja w songbook/deploy/README-serwer.md). Katalog może być pusty —
+    # wtedy yt-dlp działa bez cookies (i YouTube może blokować serwer).
+    volumes:
+      - ./songbook-audio-cookies:/app/cookies:ro
+    environment:
+      - SONGBOOK_YTDLP_COOKIES=/app/cookies/cookies.txt
     restart: unless-stopped
 
   songbook:

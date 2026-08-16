@@ -78,6 +78,10 @@ def _run_ytdlp(url, workdir, extractor_args=None):
     out = os.path.join(workdir, 'audio.%(ext)s')
     cmd = ['yt-dlp', '-x', '--audio-format', 'wav', '--audio-quality', '0',
            '--no-playlist', '--no-warnings', '-o', out]
+    # Cookies (obejście „Sign in to confirm you're not a bot" na VPS).
+    cookies = os.environ.get('SONGBOOK_YTDLP_COOKIES', '/app/cookies/cookies.txt')
+    if cookies and os.path.isfile(cookies):
+        cmd += ['--cookies', cookies]
     if extractor_args:
         cmd += ['--extractor-args', extractor_args]
     cmd.append(url)
@@ -100,7 +104,12 @@ def _download_audio(url, workdir):
             continue
         msg = (proc.stderr or proc.stdout or '').strip().splitlines()
         last = ' | '.join(msg[-4:]) if msg else f'kod wyjścia {proc.returncode}'
-    raise RuntimeError('yt-dlp: ' + last)
+    hint = ''
+    if 'not a bot' in last or 'Sign in' in last or 'cookies' in last.lower():
+        hint = (' — YouTube blokuje serwer jako „bota". Rozwiązanie: wgraj plik '
+                'cookies.txt (patrz README-serwer.md). Albo użyj przycisku '
+                '„🔎 + chwyty", który wyszuka akordy po tytule.')
+    raise RuntimeError('yt-dlp: ' + last + hint)
 
 
 def detect(source, max_seconds=240):
