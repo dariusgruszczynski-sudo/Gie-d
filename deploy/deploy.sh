@@ -147,15 +147,17 @@ build_with_retry() { # build_with_retry SERVICE
   done
   [ "$ok" = 1 ]
 }
-build_with_retry app || { echo "!! PROD build nieudany po 3 próbach -- zostaje poprzednia wersja"; exit 1; }
-build_with_retry app-staging || echo "   UWAGA: staging build nieudany -- prod działa, staging pominięty."
-# Śpiewnik (jeśli nakładka obecna) — nie blokuje deployu proda w razie awarii.
+# Śpiewnik budujemy NAJPIERW i NIEZALEŻNIE od proda — dzięki temu ewentualna
+# awaria builda GielDarka (który niżej robi `exit 1`) nie blokuje aktualizacji
+# śpiewnika. Śpiewnik to osobne kontenery, więc kolejność nie ma znaczenia.
 if [ -f "$ROOT/songbook/deploy/docker-compose.songbook.yml" ]; then
-  build_with_retry songbook || echo "   UWAGA: songbook build nieudany -- prod działa, śpiewnik pominięty."
+  build_with_retry songbook || echo "   UWAGA: songbook build nieudany -- reszta działa, śpiewnik pominięty."
 fi
 if [ "$AUDIO_ON" = 1 ]; then
   build_with_retry songbook-audio || echo "   UWAGA: moduł audio build nieudany -- reszta działa, audio pominięte."
 fi
+build_with_retry app || { echo "!! PROD build nieudany po 3 próbach -- zostaje poprzednia wersja"; exit 1; }
+build_with_retry app-staging || echo "   UWAGA: staging build nieudany -- prod działa, staging pominięty."
 # Upewnij się, że Caddy (HTTPS) stoi i jest na aktualnej sieci proda.
 $COMPOSE up -d caddy 2>/dev/null || echo "   (Caddy pominięty -- brak pliku caddy albo portów 80/443)"
 

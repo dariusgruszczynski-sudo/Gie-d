@@ -2,8 +2,9 @@
 # Cięższy obraz — budowany tylko, gdy włączysz nakładkę docker-compose.audio.yml.
 FROM python:3.12-slim
 
-# ffmpeg jest potrzebny librosie (dekodowanie audio) i yt-dlp.
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+# ffmpeg + libsndfile1 — librosa/soundfile ich wymagają do dekodowania audio.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ffmpeg libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
