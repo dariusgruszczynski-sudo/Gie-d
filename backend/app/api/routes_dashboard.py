@@ -130,8 +130,10 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "alpha_vs_spy": _alpha_view(db, settings, account),
         # Read-only share link enabled? (token itself never leaves the server.)
         "share_enabled": bool(settings.share_token),
-        # „Od kiedy mierzymy" skuteczność/edge (Świeży start). Puste = od zawsze.
-        "stats_epoch": (state.stats_epoch or None),
+        # „Od kiedy mierzymy" skuteczność/edge — efektywna epoka (ręczny Świeży
+        # start albo domyślny start strategii z configu). Frontend liczy od niej
+        # i pomija krypto/POZA SESJĄ.
+        "stats_epoch": scorecard.effective_epoch(state, settings)[1] or None,
         # Exact per-engine tuning (Centrum Sterowania): every live knob, not
         # just the headline daily/weekly limits above.
         "profiles": {
@@ -851,10 +853,11 @@ def get_history(limit: int = Query(300, le=1000), venue: str | None = None, db: 
     }
 
 
-def _realized_since(trades, cutoff) -> tuple[float, int, int]:
+def _realized_since(trades, cutoff, alpaca_only: bool = False) -> tuple[float, int, int]:
     """Zrealizowany P&L + trafność liczone TYLKO dla sprzedaży po `cutoff`, ale
     ze średnią ceną walkowaną od początku historii (oddziela wynik nowej
-    strategii od starego churnu). Kopia logiki z scripts/diag.py."""
+    strategii od starego churnu). `alpaca_only` pomija nogę POZA SESJĄ (krypto /
+    zaszłości). Kopia logiki z scripts/diag.py."""
     qty_by: dict[str, float] = {}
     cost_by: dict[str, float] = {}
     realized, wins, losses = 0.0, 0, 0
@@ -871,7 +874,8 @@ def _realized_since(trades, cutoff) -> tuple[float, int, int]:
             sell_qty = min(t.quantity, held)
             pnl = (t.price - avg) * sell_qty
             ts = t.timestamp if t.timestamp.tzinfo else t.timestamp.replace(tzinfo=timezone.utc)
-            if ts >= cutoff:
+            counts = ts >= cutoff and (not alpaca_only or getattr(t, "venue", "alpaca") == "alpaca")
+            if counts:
                 realized += pnl
                 if pnl >= 0:
                     wins += 1
@@ -895,39 +899,41 @@ def get_audit(db: Session = Depends(get_db), settings: Settings = Depends(get_se
     trades = db.execute(select(Trade).order_by(Trade.timestamp.asc())).scalars().all()
     buys = [t for t in trades if t.side.upper() == "BUY"]
     sells = [t for t in trades if t.side.upper() == "SELL"]
-    realized, wins, losses = scorecard._walk_realized(db)
-    closed = wins + losses
     now = datetime.now(timezone.utc)
 
-    # „Od kiedy mierzymy" — punkt Świeżego startu (po zmianie strategii / wpłacie).
+    # Domyślnie liczymy TYLKO akcje sesji (bez krypto / POZA SESJĄ) i OD OSTATNIEJ
+    # ZMIANY (auto: Świeży start albo domyślny start strategii z configu).
     _st = db.get(SystemState, 1)
-    epoch_raw = (_st.stats_epoch if _st else "") or ""
-    epoch = scorecard._parse_epoch(epoch_raw)
+    epoch, epoch_raw = scorecard.effective_epoch(_st, settings)
+
+    # „Życiowo" tu = od epoki, tylko akcje sesji — zaszłości nie zaniżają obrazu.
+    realized, wins, losses = _realized_since(trades, epoch or datetime.min.replace(tzinfo=timezone.utc), alpaca_only=True)
+    closed = wins + losses
 
     def _era_from(cutoff):
-        r, w, l = _realized_since(trades, cutoff)
+        r, w, l = _realized_since(trades, cutoff, alpaca_only=True)
         c = w + l
         return {"realized_usd": r, "closed": c, "wins": w, "losses": l,
                 "win_rate": round(w / c * 100, 1) if c else None}
 
     def era(days: int | None):
         if days is None:
-            r, w, l = realized, wins, losses
-            c = w + l
-            return {"realized_usd": r, "closed": c, "wins": w, "losses": l,
-                    "win_rate": round(w / c * 100, 1) if c else None}
+            return {"realized_usd": realized, "closed": closed, "wins": wins, "losses": losses,
+                    "win_rate": round(wins / closed * 100, 1) if closed else None}
         return _era_from(now - timedelta(days=days))
 
+    # „lifetime" = od zmiany strategii (akcje sesji). „since" = to samo, jawnie.
     eras = {"lifetime": era(None), "d7": era(7), "d30": era(30)}
     if epoch is not None:
         eras["since"] = _era_from(epoch)
 
-    # Średni czas trzymania: zyskowne vs stratne (obawa „siedzisz na zysku").
-    # OD RESETU, jeśli ustawiony — żeby edge/hold odbijały nową strategię.
+    # Średni czas trzymania + edge: OD EPOKI i tylko akcje sesji (bez krypto).
+    epoch_iso = epoch.isoformat() if epoch is not None else None
     hist_all = scorecard.realized_history(db, limit=100000)
-    hist = hist_all if epoch is None else [
+    hist = [
         h for h in hist_all
-        if h.get("sold_at") and (scorecard._parse_epoch(h["sold_at"]) or now) >= epoch
+        if h.get("venue", "alpaca") == "alpaca"
+        and (epoch_iso is None or (h.get("sold_at") and (scorecard._parse_epoch(h["sold_at"]) or now) >= epoch))
     ]
     hw = [h["days_held"] for h in hist if h["pnl_usd"] >= 0 and h["days_held"] is not None]
     hl = [h["days_held"] for h in hist if h["pnl_usd"] < 0 and h["days_held"] is not None]
@@ -963,9 +969,12 @@ def get_audit(db: Session = Depends(get_db), settings: Settings = Depends(get_se
             avg = cb[sym] / held
             sq = min(t.quantity, held)
             pnl = (t.price - avg) * sq
-            st = sym_stats.setdefault(sym, {"pnl": 0.0, "w": 0, "l": 0})
-            st["pnl"] += pnl
-            st["w" if pnl >= 0 else "l"] += 1
+            ts_e = t.timestamp if (t.timestamp and t.timestamp.tzinfo) else (t.timestamp.replace(tzinfo=timezone.utc) if t.timestamp else None)
+            counts = getattr(t, "venue", "alpaca") == "alpaca" and (epoch is None or (ts_e is not None and ts_e >= epoch))
+            if counts:
+                st = sym_stats.setdefault(sym, {"pnl": 0.0, "w": 0, "l": 0})
+                st["pnl"] += pnl
+                st["w" if pnl >= 0 else "l"] += 1
             cb[sym] -= avg * sq
             qb[sym] = held - sq
             if qb[sym] <= 1e-12:

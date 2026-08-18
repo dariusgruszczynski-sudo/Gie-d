@@ -166,7 +166,7 @@ function AuditCard({ trades, epoch }: { trades: HistoryTrade[]; epoch?: string |
         <span className="gd-audit-title">◈ Audyt strategii</span>
         <span className="gd-audit-note">
           {Number.isFinite(epochMs)
-            ? `pomiar od świeżego startu · ${new Date(epochMs).toLocaleDateString("pl-PL", { day: "numeric", month: "long" })}`
+            ? `od ostatniej zmiany strategii · ${new Date(epochMs).toLocaleDateString("pl-PL", { day: "numeric", month: "long" })} · tylko akcje sesji`
             : "od zmiany na progresywne wejścia + realizację zysku"}
         </span>
       </div>
@@ -238,36 +238,42 @@ export function History({ status }: { status: StatusResponse | null }) {
     return () => clearInterval(id);
   }, []);
 
-  const s = data?.summary;
+  // Tylko akcje sesji — bez krypto / POZA SESJĄ (zaszłości), zgodnie z prośbą.
+  const eq = (data?.trades ?? []).filter((t) => (t.venue ?? "alpaca") === "alpaca");
+  const wins = eq.filter((t) => t.pnl_usd >= 0).length;
+  const losses = eq.length - wins;
+  const totalPnl = eq.reduce((s2, t) => s2 + t.pnl_usd, 0);
+  const best = eq.reduce<HistoryTrade | null>((b, t) => (b === null || t.pnl_usd > b.pnl_usd ? t : b), null);
+
   return (
     <div className="gd-view">
       <div className="gd-topline">
         <span className="gd-kicker">Historia · zamknięte transakcje</span>
-        {s && <span className="gd-mode"><span className="gd-blip" />{s.count} zamknięć</span>}
+        {data && <span className="gd-mode"><span className="gd-blip" />{eq.length} zamknięć</span>}
       </div>
       {err && <div className="gd-ribbon">{err}</div>}
 
-      {data && data.trades.length > 0 && <AuditCard trades={data.trades} epoch={status?.stats_epoch} />}
+      {eq.length > 0 && <AuditCard trades={eq} epoch={status?.stats_epoch} />}
 
-      {s && s.count > 0 && (
+      {eq.length > 0 && (
         <div className="gd-posbar">
-          <div className="gd-posbar-i"><b className={s.total_pnl_usd >= 0 ? "gd-up" : "gd-down"}>{s.total_pnl_usd >= 0 ? "+" : ""}{money(s.total_pnl_usd)}</b><small>łączny zysk</small></div>
+          <div className="gd-posbar-i"><b className={totalPnl >= 0 ? "gd-up" : "gd-down"}>{totalPnl >= 0 ? "+" : ""}{money(totalPnl)}</b><small>łączny zysk</small></div>
           <div className="gd-posbar-sep" />
-          <div className="gd-posbar-i"><b className="gd-up">{s.wins}</b><small>na plus</small></div>
+          <div className="gd-posbar-i"><b className="gd-up">{wins}</b><small>na plus</small></div>
           <div className="gd-posbar-sep" />
-          <div className="gd-posbar-i"><b className="gd-down">{s.losses}</b><small>na minus</small></div>
+          <div className="gd-posbar-i"><b className="gd-down">{losses}</b><small>na minus</small></div>
           <div className="gd-posbar-sep" />
-          <div className="gd-posbar-i"><b>{s.best ? s.best.symbol : "—"}</b><small>najlepsza {s.best ? `+${money(s.best.pnl_usd)}` : ""}</small></div>
+          <div className="gd-posbar-i"><b>{best ? best.symbol : "—"}</b><small>najlepsza {best ? `+${money(best.pnl_usd)}` : ""}</small></div>
         </div>
       )}
 
       {!data ? (
         <p className="gd-empty">Wczytuję historię…</p>
-      ) : data.trades.length === 0 ? (
+      ) : eq.length === 0 ? (
         <p className="gd-empty">Jeszcze żadnej zamkniętej transakcji — historia pojawi się po pierwszej sprzedaży.</p>
       ) : (
         <div className="gd-histlist">
-          {data.trades.map((t, i) => <Row key={`${t.symbol}-${t.sold_at}-${i}`} t={t} />)}
+          {eq.map((t, i) => <Row key={`${t.symbol}-${t.sold_at}-${i}`} t={t} />)}
         </div>
       )}
     </div>

@@ -557,6 +557,12 @@ class Settings(BaseSettings):
     news_discovery_max_ratio: float = 0.10
     news_discovery_hour: int = 11
 
+    # Statystyki (skuteczność/edge) liczymy DOMYŚLNIE od tej daty — startu obecnej
+    # strategii pozycyjnej — a nie od zawsze, żeby stara epoka churnu nie zaniżała
+    # obrazu. Krypto i noga POZA SESJĄ (venue!=alpaca) są dodatkowo odfiltrowane
+    # w kodzie. SystemState.stats_epoch (Świeży start) nadpisuje tę datę, gdy ustawione.
+    stats_epoch_default: str = "2026-07-28"
+
     database_url: str = "sqlite:///./data/trading.db"
 
     # --- Powiadomienia PUSH (telefon / Apple Watch przez PWA) ----------------

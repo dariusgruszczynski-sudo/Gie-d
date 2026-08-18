@@ -14,15 +14,16 @@ from app.models import SystemState, Trade
 from app.services import risk_manager
 
 
-def _walk_realized(db: Session, since=None) -> tuple[float, int, int]:
+def _walk_realized(db: Session, since=None, alpaca_only: bool = False) -> tuple[float, int, int]:
     """Walks the full trade history per ticker, tracking a running average
     cost, and books realized P&L on each SELL. Returns
     (total_realized_usd, winning_sells, losing_sells).
 
     `since` (aware datetime) counts ONLY sells at/after that moment toward the
     result -- but the average cost is still walked from the very beginning, so
-    the P&L per sale is correct. Lets „skuteczność od resetu" ignore the old
-    churn era without deleting any trades. None = od zawsze (jak dotąd)."""
+    the P&L per sale is correct. `alpaca_only` pomija w liczeniu nogę POZA SESJĄ
+    (venue!=alpaca) -- czyli krypto i inne zaszłości. Oba filtry pozwalają
+    pokazać „staty od ostatniej zmiany, bez krypto" bez kasowania transakcji."""
     from datetime import timezone as _tz
 
     trades = db.execute(select(Trade).order_by(Trade.timestamp.asc())).scalars().all()
@@ -47,6 +48,8 @@ def _walk_realized(db: Session, since=None) -> tuple[float, int, int]:
             if since is not None and t.timestamp is not None:
                 ts = t.timestamp if t.timestamp.tzinfo else t.timestamp.replace(tzinfo=_tz.utc)
                 in_window = ts >= since
+            if alpaca_only and getattr(t, "venue", "alpaca") != "alpaca":
+                in_window = False
             if in_window:
                 realized += pnl
                 if pnl >= 0:
@@ -59,6 +62,13 @@ def _walk_realized(db: Session, since=None) -> tuple[float, int, int]:
                 qty_by[sym] = 0.0
                 cost_by[sym] = 0.0
     return realized, wins, losses
+
+
+def effective_epoch(state, settings) -> "object | None":
+    """Data „od kiedy liczymy staty": ręczny Świeży start (SystemState.stats_epoch)
+    ma pierwszeństwo, inaczej domyślny start obecnej strategii z configu."""
+    raw = (getattr(state, "stats_epoch", "") or "") or getattr(settings, "stats_epoch_default", "")
+    return _parse_epoch(raw), raw
 
 
 def _parse_epoch(raw: str | None):
@@ -182,17 +192,18 @@ def compute_scorecard(db: Session, settings: Settings, portfolio: dict) -> dict:
         if benchmark_value > 0:
             alpha_pct = alpha_usd / benchmark_value * 100
 
-    # Skuteczność/trafność liczona OD RESETU (stats_epoch), żeby nowa strategia
-    # nie tonęła w starej epoce churnu. realized_pnl_usd zostaje ŻYCIOWE (zasila
-    # „wynik netto"), bo to inny, całościowy wskaźnik.
-    epoch = _parse_epoch(getattr(state, "stats_epoch", "") or "")
+    # Skuteczność/trafność liczona OD OSTATNIEJ ZMIANY (auto: stats_epoch albo
+    # domyślny start strategii) i TYLKO akcje sesji (bez krypto / POZA SESJĄ) —
+    # żeby nowa strategia nie tonęła w starej epoce churnu i zaszłościach.
+    # realized_pnl_usd zostaje ŻYCIOWE (zasila „wynik netto"), bo to inny wskaźnik.
+    epoch, epoch_raw = effective_epoch(state, settings)
     realized, _wl, _ll = _walk_realized(db)
-    _r2, wins, losses = _walk_realized(db, since=epoch)
+    _r2, wins, losses = _walk_realized(db, since=epoch, alpaca_only=True)
     closed = wins + losses
 
     return {
         "portfolio_value": round(portfolio_value, 2),
-        "stats_since": (state.stats_epoch or None),
+        "stats_since": (epoch_raw or None),
         "benchmark_symbol": settings.benchmark_symbol,
         # Baseline exposed so the frontend can draw a full buy-and-hold series
         # over the portfolio chart (per-snapshot benchmark prices come from
