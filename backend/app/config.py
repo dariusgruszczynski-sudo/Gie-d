@@ -557,11 +557,13 @@ class Settings(BaseSettings):
     news_discovery_max_ratio: float = 0.10
     news_discovery_hour: int = 11
 
-    # Statystyki (skuteczność/edge) liczymy DOMYŚLNIE od tej daty — startu obecnej
-    # strategii pozycyjnej — a nie od zawsze, żeby stara epoka churnu nie zaniżała
-    # obrazu. Krypto i noga POZA SESJĄ (venue!=alpaca) są dodatkowo odfiltrowane
-    # w kodzie. SystemState.stats_epoch (Świeży start) nadpisuje tę datę, gdy ustawione.
-    stats_epoch_default: str = "2026-07-28"
+    # Statystyki (skuteczność/edge) liczymy DOMYŚLNIE od OSTATNIEJ ZMIANY STRATEGII,
+    # nie od zawsze — żeby stara epoka nie zaniżała obrazu. Ta data to moment wejścia
+    # w życie „Dokręć realizację zysku" (hard TP 8→6%, furtka 4→3%, SLV out) —
+    # commit 2026-08-10 20:11 UTC, po zamknięciu rynku, więc realnie od 11.08.
+    # Krypto i noga POZA SESJĄ (venue!=alpaca) są dodatkowo odfiltrowane w kodzie.
+    # SystemState.stats_epoch (ręczny reset) nadpisuje tę datę, gdy ustawione.
+    stats_epoch_default: str = "2026-08-10T20:11:29+00:00"
 
     database_url: str = "sqlite:///./data/trading.db"
 
