@@ -1,0 +1,89 @@
+# Snapshot audytu GielDarek do repo, żeby Claude mógł czytać wynik na żądanie
+# (środowisko robocze Claude ma firewall i nie sięga bezpośrednio do serwera).
+# Runner GitHuba NIE ma tego firewalla, więc pobiera read-only /api/audit i
+# zapisuje wynik na OSOBNEJ gałęzi `audit-snapshots` (nie wywołuje deployu).
+name: Audit snapshot
+
+on:
+  schedule:
+    - cron: "0 6 * * *"        # codziennie 06:00 UTC (~08:00 PL)
+  workflow_dispatch: {}         # + na żądanie (przycisk / API)
+
+concurrency:
+  group: audit-snapshot
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    env:
+      # Read-only (same GET-y na dashboard — bez handlu i sterowania). Można
+      # nadpisać sekretami repo, ale domyślnie działa bez żadnej konfiguracji.
+      BASE_URL: ${{ secrets.AUDIT_BASE_URL || 'https://46.225.229.113.sslip.io' }}
+      SHARE_TOKEN: ${{ secrets.AUDIT_SHARE_TOKEN || 'gd-ro-8f3ktq29xr7v' }}
+      SNAP_BRANCH: audit-snapshots
+    steps:
+      - name: Pobierz audyt z serwera
+        run: |
+          set -euo pipefail
+          code=$(curl -sS --max-time 45 -o audit-latest.json -w '%{http_code}' \
+            "${BASE_URL%/}/api/audit?share=${SHARE_TOKEN}" || true)
+          echo "HTTP ${code}"
+          if [ "${code}" != "200" ]; then
+            echo "::error::/api/audit zwrócił ${code} (token/serwer?)"; head -c 400 audit-latest.json || true; exit 1
+          fi
+          jq -e '.eras and .conclusions and .edge' audit-latest.json >/dev/null \
+            || { echo "::error::Niepoprawny JSON audytu"; head -c 400 audit-latest.json; exit 1; }
+          echo "OK — audyt pobrany i zweryfikowany."
+
+      - name: Zbuduj czytelne podsumowanie (Markdown)
+        run: |
+          set -euo pipefail
+          {
+            echo "# Audyt GielDarek — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            jq -r '"**Życiowo:** \(.eras.lifetime.closed) zamknięć · trafność \(.eras.lifetime.win_rate // "—")% · zrealizowany $\(.eras.lifetime.realized_usd)"' audit-latest.json
+            jq -r '"**7 dni:** \(.eras.d7.closed) zamknięć · \(.eras.d7.win_rate // "—")% · $\(.eras.d7.realized_usd)   |   **30 dni:** \(.eras.d30.closed) · \(.eras.d30.win_rate // "—")% · $\(.eras.d30.realized_usd)"' audit-latest.json
+            jq -r '"**Edge:** śr. wygrana +$\(.edge.avg_win // "—") vs strata $\(.edge.avg_loss // "—") → na transakcję $\(.edge.per_trade // "—") (payoff \(.edge.payoff // "—")×)"' audit-latest.json
+            jq -r '"**Trzymanie:** zyski ~\(.hold.avg_win_days // "—") dni · straty ~\(.hold.avg_loss_days // "—") dni"' audit-latest.json
+            echo; echo "## Wnioski"
+            jq -r '.conclusions[] | "- (\(.tone)) \(.t)"' audit-latest.json
+            echo; echo "## Przecieki per symbol (najgorsze)"
+            jq -r '.per_symbol[] | "- \(.symbol): $\(.pnl_usd) (\(.closed) zamk., \(.win_rate // "—")%)"' audit-latest.json
+            echo; echo "## Wejścia vs limit"
+            jq -r '"- cap \(.entries.cap)/dzień · max w dniu \(.entries.max_in_day) · dni z limitem \(.entries.days_at_limit) · hamuje: \(.entries.binds)"' audit-latest.json
+          } > SUMMARY.md
+          echo "Podsumowanie gotowe."
+
+      - name: Opublikuj na gałęzi audit-snapshots
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          STAMP=$(date -u +%Y-%m-%dT%H%MZ)
+          TMP=$(mktemp -d)
+          if git ls-remote --exit-code --heads "${REMOTE}" "${SNAP_BRANCH}" >/dev/null 2>&1; then
+            git clone --depth 1 --branch "${SNAP_BRANCH}" "${REMOTE}" "${TMP}"
+          else
+            git clone --depth 1 "${REMOTE}" "${TMP}"
+            git -C "${TMP}" checkout --orphan "${SNAP_BRANCH}"
+            git -C "${TMP}" rm -rf . >/dev/null 2>&1 || true
+          fi
+          mkdir -p "${TMP}/audit/history"
+          cp audit-latest.json "${TMP}/audit/latest.json"
+          cp SUMMARY.md        "${TMP}/audit/SUMMARY.md"
+          cp audit-latest.json "${TMP}/audit/history/${STAMP}.json"
+          cd "${TMP}"
+          git config user.name  "gieldarek-audit-bot"
+          git config user.email "audit@users.noreply.github.com"
+          git add audit
+          if git diff --cached --quiet; then
+            echo "Brak zmian — nic do commitu."; exit 0
+          fi
+          git commit -m "audyt: snapshot ${STAMP}"
+          git push origin "HEAD:${SNAP_BRANCH}"
+          echo "Wypchnięto na ${SNAP_BRANCH}."
