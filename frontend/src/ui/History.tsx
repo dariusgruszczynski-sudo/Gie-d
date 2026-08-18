@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, AuditResponse, HistoryResponse, HistoryTrade } from "../api/client";
+import { api, AuditResponse, HistoryResponse, HistoryTrade, StatusResponse } from "../api/client";
 import { ago, money, pct } from "./kit";
 
 /* Głęboki audyt (to co diag: przecieki per symbol, wejścia vs limit,
@@ -85,22 +85,29 @@ function fmtDays(d: number | null): string {
   return d < 1 ? "<1 dnia" : d < 1.5 ? "~1 dzień" : `~${Math.round(d)} dni`;
 }
 
-function AuditCard({ trades }: { trades: HistoryTrade[] }) {
+function AuditCard({ trades, epoch }: { trades: HistoryTrade[]; epoch?: string | null }) {
   const now = Date.now();
   const daysAgo = (t: HistoryTrade) => (t.sold_at ? (now - Date.parse(t.sold_at)) / 86400000 : Infinity);
   const recent = trades.filter((t) => daysAgo(t) <= 7);          // ostatni tydzień
   const midPrior = trades.filter((t) => daysAgo(t) > 7 && daysAgo(t) <= 30); // 8–30 dni (do trendu)
   const last30 = trades.filter((t) => daysAgo(t) <= 30);
-  const r = statsOf(recent), p = statsOf(midPrior), m = statsOf(last30), a = statsOf(trades);
+  // „Od resetu" (Świeży start) — jeśli ustawiony, trzecia kolumna i edge liczą
+  // się od tego momentu, żeby stara epoka nie zaniżała obrazu nowej strategii.
+  const epochMs = epoch ? Date.parse(epoch) : NaN;
+  const sinceTrades = Number.isFinite(epochMs)
+    ? trades.filter((t) => t.sold_at && Date.parse(t.sold_at) >= epochMs)
+    : trades;
+  const r = statsOf(recent), p = statsOf(midPrior), m = statsOf(last30), a = statsOf(sinceTrades);
+  const totalLabel = Number.isFinite(epochMs) ? "Od resetu" : "Całość";
 
   // ---- EDGE: ile ŚREDNIO zarabia wygrana vs traci strata + na 1 transakcję ----
   // Najważniejsza liczba przy niskiej trafności — zysk bierze się z asymetrii.
-  const winsA = trades.filter((t) => t.pnl_usd >= 0);
-  const lossA = trades.filter((t) => t.pnl_usd < 0);
+  const winsA = sinceTrades.filter((t) => t.pnl_usd >= 0);
+  const lossA = sinceTrades.filter((t) => t.pnl_usd < 0);
   const sumP = (arr: HistoryTrade[]) => arr.reduce((s, t) => s + t.pnl_usd, 0);
   const avgWin = winsA.length ? sumP(winsA) / winsA.length : null;
   const avgLoss = lossA.length ? sumP(lossA) / lossA.length : null; // ujemna
-  const perTrade = trades.length ? sumP(trades) / trades.length : null;
+  const perTrade = sinceTrades.length ? sumP(sinceTrades) / sinceTrades.length : null;
   const payoff = avgWin !== null && avgLoss !== null && avgLoss !== 0 ? avgWin / Math.abs(avgLoss) : null;
 
   // ---- WNIOSKI (po ludzku) ----
@@ -157,12 +164,16 @@ function AuditCard({ trades }: { trades: HistoryTrade[] }) {
     <div className="gd-audit">
       <div className="gd-audit-head">
         <span className="gd-audit-title">◈ Audyt strategii</span>
-        <span className="gd-audit-note">od zmiany na progresywne wejścia + realizację zysku</span>
+        <span className="gd-audit-note">
+          {Number.isFinite(epochMs)
+            ? `pomiar od świeżego startu · ${new Date(epochMs).toLocaleDateString("pl-PL", { day: "numeric", month: "long" })}`
+            : "od zmiany na progresywne wejścia + realizację zysku"}
+        </span>
       </div>
       <div className="gd-audit-cols">
         <Col label="Ostatnie 7 dni" s={r} />
         <Col label="30 dni" s={m} />
-        <Col label="Całość" s={a} />
+        <Col label={totalLabel} s={a} />
       </div>
 
       {avgWin !== null && avgLoss !== null && perTrade !== null && (
@@ -214,7 +225,7 @@ function Row({ t }: { t: HistoryTrade }) {
   );
 }
 
-export function History() {
+export function History({ status }: { status: StatusResponse | null }) {
   const [data, setData] = useState<HistoryResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -236,7 +247,7 @@ export function History() {
       </div>
       {err && <div className="gd-ribbon">{err}</div>}
 
-      {data && data.trades.length > 0 && <AuditCard trades={data.trades} />}
+      {data && data.trades.length > 0 && <AuditCard trades={data.trades} epoch={status?.stats_epoch} />}
 
       {s && s.count > 0 && (
         <div className="gd-posbar">

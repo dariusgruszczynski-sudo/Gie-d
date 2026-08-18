@@ -9,6 +9,7 @@ const ACTION_LABEL: Record<string, string> = {
   restart_scheduler: "Restart schedulera",
   rebaseline_pnl: "Wpłata/wypłata — przelicz P&L",
   reset_budget_meter: "Wyzeruj licznik tokenów",
+  fresh_start: "Świeży start pomiaru",
 };
 
 export function Health({ status }: { status: StatusResponse | null }) {
@@ -22,6 +23,13 @@ export function Health({ status }: { status: StatusResponse | null }) {
     setBusy(true); setMsg(null);
     try { const r = await api.healthReset(action); setMsg((r as { message?: string }).message ?? "OK"); await load(); }
     catch (e) { setMsg(String(e)); } finally { setBusy(false); }
+  }
+
+  async function freshStart() {
+    if (!window.confirm(
+      "Świeży start pomiaru?\n\n• Skuteczność i edge zaczną się liczyć OD TERAZ (historia transakcji zostaje — nic nie kasujemy).\n• Liczniki dnia/tygodnia/szczytu i porównanie z SPY re-kotwiczą się do bieżącego stanu, więc Twoja wpłata NIE będzie liczona jako zysk.\n\nRób to po zmianie strategii albo po wpłacie/wypłacie.",
+    )) return;
+    await reset("fresh_start");
   }
 
   async function restartApp() {
@@ -42,6 +50,7 @@ export function Health({ status }: { status: StatusResponse | null }) {
       <div className="gd-topline">
         <span className="gd-kicker">Puls systemu {rep ? `· ${rep.counts?.ok ?? 0} OK` : ""}</span>
         <div className="gd-btnrow">
+          {!isReadOnly && <button className="gd-btn" disabled={busy} onClick={freshStart}>🔄 Świeży start</button>}
           {!isReadOnly && <button className="gd-btn warn" disabled={busy} onClick={restartApp}>⟳ Restart aplikacji</button>}
           <button className="gd-btn" disabled={busy} onClick={load}>{busy ? "…" : "Odśwież"}</button>
         </div>

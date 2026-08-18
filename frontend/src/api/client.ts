@@ -70,6 +70,8 @@ export interface StatusResponse {
   alpha_vs_spy: { benchmark: string; benchmark_value: number; alpha_usd: number; alpha_pct: number | null } | null;
   // Read-only share link enabled on the server (token stays server-side).
   share_enabled: boolean;
+  // „Od kiedy mierzymy" skuteczność/edge (Świeży start). null = od zawsze.
+  stats_epoch: string | null;
   // Honest bottom line: realized P&L across BOTH engines (one account) and
   // that same figure minus what Claude has actually cost this month.
   realized_pnl_usd: number;

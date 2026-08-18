@@ -196,7 +196,7 @@ export default function App() {
             ) : view === "positions" ? (
               <Positions status={status} alpaca={portfolio} extended={extendedPortfolio} decisions={decisions} onChanged={refresh} />
             ) : view === "history" ? (
-              <History />
+              <History status={status} />
             ) : view === "news" ? (
               <News />
             ) : view === "control" ? (

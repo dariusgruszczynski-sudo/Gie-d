@@ -14,10 +14,17 @@ from app.models import SystemState, Trade
 from app.services import risk_manager
 
 
-def _walk_realized(db: Session) -> tuple[float, int, int]:
+def _walk_realized(db: Session, since=None) -> tuple[float, int, int]:
     """Walks the full trade history per ticker, tracking a running average
     cost, and books realized P&L on each SELL. Returns
-    (total_realized_usd, winning_sells, losing_sells)."""
+    (total_realized_usd, winning_sells, losing_sells).
+
+    `since` (aware datetime) counts ONLY sells at/after that moment toward the
+    result -- but the average cost is still walked from the very beginning, so
+    the P&L per sale is correct. Lets „skuteczność od resetu" ignore the old
+    churn era without deleting any trades. None = od zawsze (jak dotąd)."""
+    from datetime import timezone as _tz
+
     trades = db.execute(select(Trade).order_by(Trade.timestamp.asc())).scalars().all()
     qty_by: dict[str, float] = defaultdict(float)
     cost_by: dict[str, float] = defaultdict(float)  # total cost of held qty
@@ -36,17 +43,35 @@ def _walk_realized(db: Session) -> tuple[float, int, int]:
             avg_cost = cost_by[sym] / held
             sell_qty = min(t.quantity, held)
             pnl = (t.price - avg_cost) * sell_qty
-            realized += pnl
-            if pnl >= 0:
-                wins += 1
-            else:
-                losses += 1
+            in_window = True
+            if since is not None and t.timestamp is not None:
+                ts = t.timestamp if t.timestamp.tzinfo else t.timestamp.replace(tzinfo=_tz.utc)
+                in_window = ts >= since
+            if in_window:
+                realized += pnl
+                if pnl >= 0:
+                    wins += 1
+                else:
+                    losses += 1
             cost_by[sym] -= avg_cost * sell_qty
             qty_by[sym] -= sell_qty
             if qty_by[sym] <= 1e-12:
                 qty_by[sym] = 0.0
                 cost_by[sym] = 0.0
     return realized, wins, losses
+
+
+def _parse_epoch(raw: str | None):
+    """ISO string z SystemState.stats_epoch -> aware datetime (albo None)."""
+    if not raw:
+        return None
+    from datetime import datetime, timezone as _tz
+
+    try:
+        dt = datetime.fromisoformat(raw)
+        return dt if dt.tzinfo else dt.replace(tzinfo=_tz.utc)
+    except (TypeError, ValueError):
+        return None
 
 
 def realized_history(db: Session, *, venue: str | None = None, limit: int = 300) -> list[dict]:
@@ -157,11 +182,17 @@ def compute_scorecard(db: Session, settings: Settings, portfolio: dict) -> dict:
         if benchmark_value > 0:
             alpha_pct = alpha_usd / benchmark_value * 100
 
-    realized, wins, losses = _walk_realized(db)
+    # Skuteczność/trafność liczona OD RESETU (stats_epoch), żeby nowa strategia
+    # nie tonęła w starej epoce churnu. realized_pnl_usd zostaje ŻYCIOWE (zasila
+    # „wynik netto"), bo to inny, całościowy wskaźnik.
+    epoch = _parse_epoch(getattr(state, "stats_epoch", "") or "")
+    realized, _wl, _ll = _walk_realized(db)
+    _r2, wins, losses = _walk_realized(db, since=epoch)
     closed = wins + losses
 
     return {
         "portfolio_value": round(portfolio_value, 2),
+        "stats_since": (state.stats_epoch or None),
         "benchmark_symbol": settings.benchmark_symbol,
         # Baseline exposed so the frontend can draw a full buy-and-hold series
         # over the portfolio chart (per-snapshot benchmark prices come from

@@ -245,3 +245,8 @@ class SystemState(Base):
     # na potrzeby nagłówka zakładki Newsy ("znaleziono dziś N nowych źródeł").
     discovered_feeds_json: Mapped[str] = mapped_column(Text, default="[]")
     discovered_feeds_meta_json: Mapped[str] = mapped_column(Text, default="{}")
+    # "Od kiedy mierzymy" skuteczność/edge — ISO timestamp ustawiany przyciskiem
+    # „Świeży start" (po zmianie strategii / wpłacie). Puste = licz od zawsze.
+    # NIE kasuje transakcji (historia zostaje) — tylko przesuwa punkt startu
+    # statystyk, żeby stara epoka churnu nie zaniżała obrazu nowej strategii.
+    stats_epoch: Mapped[str] = mapped_column(String(32), default="")

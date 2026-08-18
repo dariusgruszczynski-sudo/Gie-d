@@ -130,6 +130,8 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "alpha_vs_spy": _alpha_view(db, settings, account),
         # Read-only share link enabled? (token itself never leaves the server.)
         "share_enabled": bool(settings.share_token),
+        # „Od kiedy mierzymy" skuteczność/edge (Świeży start). Puste = od zawsze.
+        "stats_epoch": (state.stats_epoch or None),
         # Exact per-engine tuning (Centrum Sterowania): every live knob, not
         # just the headline daily/weekly limits above.
         "profiles": {
@@ -897,19 +899,36 @@ def get_audit(db: Session = Depends(get_db), settings: Settings = Depends(get_se
     closed = wins + losses
     now = datetime.now(timezone.utc)
 
-    def era(days: int | None):
-        if days is None:
-            r, w, l = realized, wins, losses
-        else:
-            r, w, l = _realized_since(trades, now - timedelta(days=days))
+    # „Od kiedy mierzymy" — punkt Świeżego startu (po zmianie strategii / wpłacie).
+    _st = db.get(SystemState, 1)
+    epoch_raw = (_st.stats_epoch if _st else "") or ""
+    epoch = scorecard._parse_epoch(epoch_raw)
+
+    def _era_from(cutoff):
+        r, w, l = _realized_since(trades, cutoff)
         c = w + l
         return {"realized_usd": r, "closed": c, "wins": w, "losses": l,
                 "win_rate": round(w / c * 100, 1) if c else None}
 
+    def era(days: int | None):
+        if days is None:
+            r, w, l = realized, wins, losses
+            c = w + l
+            return {"realized_usd": r, "closed": c, "wins": w, "losses": l,
+                    "win_rate": round(w / c * 100, 1) if c else None}
+        return _era_from(now - timedelta(days=days))
+
     eras = {"lifetime": era(None), "d7": era(7), "d30": era(30)}
+    if epoch is not None:
+        eras["since"] = _era_from(epoch)
 
     # Średni czas trzymania: zyskowne vs stratne (obawa „siedzisz na zysku").
-    hist = scorecard.realized_history(db, limit=100000)
+    # OD RESETU, jeśli ustawiony — żeby edge/hold odbijały nową strategię.
+    hist_all = scorecard.realized_history(db, limit=100000)
+    hist = hist_all if epoch is None else [
+        h for h in hist_all
+        if h.get("sold_at") and (scorecard._parse_epoch(h["sold_at"]) or now) >= epoch
+    ]
     hw = [h["days_held"] for h in hist if h["pnl_usd"] >= 0 and h["days_held"] is not None]
     hl = [h["days_held"] for h in hist if h["pnl_usd"] < 0 and h["days_held"] is not None]
     hold = {
@@ -1042,6 +1061,7 @@ def get_audit(db: Session = Depends(get_db), settings: Settings = Depends(get_se
 
     return {
         "generated_at": now.isoformat(),
+        "stats_epoch": epoch_raw or None,
         "totals": {"trades": len(trades), "buys": len(buys), "sells": len(sells)},
         "eras": eras,
         "hold": hold,

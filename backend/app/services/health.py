@@ -353,6 +353,23 @@ def _reset_rebaseline_pnl(db, settings):
     return f"P&L przeliczony od nowa — baseline dnia/tygodnia, szczyt i benchmark SPY = ${total:,.2f}. Zysk i alfa startują od zera.{bench_note}"
 
 
+def _reset_fresh_start(db, settings):
+    """ŚWIEŻY START pomiaru — dla „zresetuj statystyki od ostatniej zmiany" +
+    „wpłata nie ma być liczona jako zysk" w jednym:
+      1) stempluje stats_epoch = TERAZ, więc skuteczność/edge liczą się od zera
+         (historia transakcji ZOSTAJE — nic nie kasujemy),
+      2) re-kotwiczy baseline dnia/tygodnia, szczyt i benchmark SPY do bieżącego
+         stanu (rebaseline_pnl), więc wpłata/wypłata nie udaje zysku ani obsunięcia.
+    """
+    from datetime import datetime, timezone
+
+    state = risk_manager.get_state(db)
+    state.stats_epoch = datetime.now(timezone.utc).isoformat()
+    db.commit()
+    base = _reset_rebaseline_pnl(db, settings)
+    return "Świeży start — skuteczność i edge liczone OD TERAZ (historia zostaje). " + base
+
+
 def _reset_restart_app(db, settings):
     """Twardy restart CAŁEJ aplikacji bez SSH: ubijamy własny proces (SIGTERM),
     a Docker (restart: unless-stopped w docker-compose.yml) podnosi kontener z
@@ -383,6 +400,7 @@ RESET_ACTIONS = {
     "refresh_snapshots": _reset_refresh_snapshots,
     "restart_scheduler": _reset_restart_scheduler,
     "rebaseline_pnl": _reset_rebaseline_pnl,
+    "fresh_start": _reset_fresh_start,
 }
 
 
