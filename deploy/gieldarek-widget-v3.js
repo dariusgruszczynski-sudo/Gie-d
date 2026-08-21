@@ -1,23 +1,13 @@
-// GielDarek — widget iPhone v3 (Scriptable) „Iris Terminal”.
-// Ciemny, z gradientem, poświatą i wypełnionym wykresem — WIELE rozmiarów:
-//   • Ekran GŁÓWNY: mały (jedna liczba), średni (liczba + wykres + ostatni ruch),
-//     duży (liczba + wykres + skuteczność/edge + pozycje).
-//   • Ekran BLOKADY (iOS 16+): kołowy / prostokątny / liniowy.
-//   Główną liczbę (Zysk automatu / dnia / konto / pozycje) wybierasz W APCE
-//   (Sterowanie → „📲 Widżet — co pokazuje”); skrypt czyta ją z serwera.
-//
-// MOTYW: zmień THEME poniżej. Domyślnie „iris” (ciemny fiolet↔cyan) — NIE robi
-// białego tła nawet przy jasnym trybie iOS. Opcje: "iris" | "midnight" | "light".
-//
-// Granice iOS (uczciwie): kafel się NIE animuje (iOS odświeża co kilka minut).
-// Apple Watch: brak komplikacji (najbliżej — widżet na ekranie blokady). Live
-// Activity niemożliwa ze Scriptable — masz za to powiadomienia push w apce.
-// =============================================================================
-// INSTALACJA: Scriptable → „+” → wklej CAŁY plik → nazwij „GielDarek v3”.
-//   Ekran główny/blokady → przytrzymaj → „+” → Scriptable → wybierz skrypt i rozmiar.
-// =============================================================================
+// GielDarek - widget iPhone v3 (Scriptable), motyw Iris Terminal.
+// Ciemny, z gradientem, poswiata i wypelnionym wykresem. Wiele rozmiarow:
+//   - Ekran glowny: maly / sredni / duzy.
+//   - Ekran blokady (iOS 16+): kolowy / prostokatny / liniowy.
+//   Glowna liczbe wybierasz W APCE: Steruj -> Widzet co pokazuje.
+// MOTYW: zmien THEME ponizej. Domyslnie "iris" (ciemny). Opcje: iris/midnight/light.
+// INSTALACJA: Scriptable -> plus -> wklej CALY plik -> nazwij GielDarek v3.
+//   Ekran glowny/blokady -> przytrzymaj -> plus -> Scriptable -> wybierz skrypt.
 
-// ——— KONFIG ———
+// --- KONFIG ---
 let BASE_URL = "https://46.225.229.113.sslip.io";
 let SHARE_TOKEN = "gd-ro-8f3ktq29xr7v";
 const THEME = "iris"; // "iris" | "midnight" | "light"
@@ -27,7 +17,7 @@ if (args.widgetParameter) {
   if (parts[1]) SHARE_TOKEN = parts[1].trim();
 }
 
-// ——— MOTYWY (tło = gradient, więc jest „bajer”, nie płaska plama) ———
+// --- MOTYWY (tlo = gradient) ---
 const THEMES = {
   iris:     { bg: ["#0b1024", "#14092b", "#0a1730"], text: "#eef3fa", dim: "#9aa7c4", mint: "#24e6a6", rose: "#ff5c7a", brand: "#34dcff", brand2: "#9b6bff", glow: "#34dcff" },
   midnight: { bg: ["#05070f", "#0a1020", "#05070f"], text: "#eef3fa", dim: "#7f8ba6", mint: "#24e6a6", rose: "#ff5c7a", brand: "#34dcff", brand2: "#2bd0ff", glow: "#24e6a6" },
@@ -47,7 +37,7 @@ function applyBg(w) {
   w.backgroundColor = new Color(T.bg[0]);
 }
 
-// ——— FORMAT ———
+// --- FORMAT ---
 function fmtUsd(v, dp) {
   if (v === null || v === undefined || isNaN(v)) return "—";
   if (dp === undefined) dp = 0;
@@ -74,7 +64,7 @@ function primaryColor(d) {
 }
 function hexToColor(hex, a) { return new Color(hex, a); }
 
-// ——— SPARKLINE z WYPEŁNIENIEM (area) + linia ———
+// --- SPARKLINE z wypelnieniem (area) + linia ---
 function sparkImage(series, w, h, colorHex) {
   const dc = new DrawContext();
   dc.size = new Size(w, h);
@@ -85,7 +75,7 @@ function sparkImage(series, w, h, colorHex) {
   const span = hi - lo || 1;
   const x = (i) => (i / (series.length - 1)) * w;
   const y = (v) => h - ((v - lo) / span) * (h - 6) - 3;
-  // Wypełnienie pod krzywą (delikatna poświata).
+  // Wypelnienie pod krzywa (delikatna poswiata).
   const fill = new Path();
   fill.move(new Point(0, h));
   for (let i = 0; i < series.length; i++) fill.addLine(new Point(x(i), y(series[i])));
@@ -102,14 +92,14 @@ function sparkImage(series, w, h, colorHex) {
   dc.setLineWidth(2.4);
   dc.addPath(line);
   dc.strokePath();
-  // Kropka na końcu.
+  // Kropka na koncu.
   const lastX = x(series.length - 1), lastY = y(series[series.length - 1]);
   dc.setFillColor(new Color(colorHex));
   dc.fillEllipse(new Rect(lastX - 3, lastY - 3, 6, 6));
   return dc.getImage();
 }
 
-// ——— nagłówek: wordmark + LIVE ———
+// --- naglowek: wordmark + LIVE ---
 function header(w, d) {
   const row = w.addStack(); row.layoutHorizontally(); row.centerAlignContent();
   const mark = row.addText("GIEL");
@@ -139,7 +129,7 @@ function bigNumber(w, d, size) {
   val.shadowColor = hexToColor(T.glow, 0.5); val.shadowRadius = 8; val.shadowOffset = new Point(0, 0);
 }
 
-// ——— EKRAN GŁÓWNY ———
+// --- EKRAN GLOWNY ---
 function buildSmall(w, d) {
   applyBg(w); w.setPadding(14, 15, 13, 15);
   header(w, d); w.addSpacer(6);
@@ -213,7 +203,7 @@ function bigNumberInto(stack, d, size) {
   val.shadowColor = hexToColor(T.glow, 0.5); val.shadowRadius = 8; val.shadowOffset = new Point(0, 0);
 }
 
-// ——— EKRAN BLOKADY ———
+// --- EKRAN BLOKADY ---
 function buildLockCircular(w, d) {
   const s = w.addStack(); s.layoutVertically(); s.centerAlignContent();
   const a = s.addText(fmtPct(d.day_pnl_pct));
@@ -231,7 +221,7 @@ function buildLockInline(w, d) {
   const t = w.addText(`GielDarek ${p.text || "—"} · ${fmtPct(d.day_pnl_pct)} dziś`); t.font = Font.systemFont(12);
 }
 
-// ——— DANE + ROUTER ———
+// --- DANE + ROUTER ---
 async function fetchData() {
   const req = new Request(`${BASE_URL}/api/widget?share=${encodeURIComponent(SHARE_TOKEN)}`);
   req.timeoutInterval = 12;
