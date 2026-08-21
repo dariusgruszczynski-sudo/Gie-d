@@ -1,0 +1,23 @@
+# Konfiguracja gitleaks (skan sekretów w CI + pre-commit).
+# Realne sekrety (klucze Alpaca LIVE, Anthropic, VAPID, SMTP) żyją WYŁĄCZNIE w
+# serwerowym .env, który jest w .gitignore — nigdy nie trafiają do repo. Ten skan
+# pilnuje, żeby przypadkiem tam nie wpadły. Poniższe allowlisty to jawnie
+# NIE-sekrety (hasła testowe, read-only token widgetu), żeby nie dawały fałszywych
+# alarmów.
+title = "GielDarek gitleaks"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Jawne nie-sekrety: fixture testowe i read-only token podglądu"
+paths = [
+  '''backend/tests/.*''',        # hasła/tokeny w testach to fikcyjne fixture
+]
+regexes = [
+  '''gd-ro-[a-z0-9]+''',         # read-only token widgetu (tylko GET dashboardu)
+  '''Dobre-Haslo-123''',
+  '''Dareczek123''',
+  '''test-secret''',
+  '''s3cret-share''',
+]

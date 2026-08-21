@@ -1,0 +1,29 @@
+# Pre-commit: lekkie bramki jakości odpalane LOKALNIE przed każdym commitem,
+# żeby nie zasyłać brudnego kodu i nie czekać na czerwone CI.
+# Instalacja jednorazowa:  pip install pre-commit && pre-commit install
+# Ręczny przebieg na całym repo:  pre-commit run --all-files
+#
+# Backend (ruff) i skan sekretów (gitleaks) biegną tu; eslint/vitest frontu są
+# cięższe (node) i pilnuje ich CI.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.8
+    hooks:
+      - id: ruff
+        name: ruff (backend lint)
+        args: ["--fix"]
+        files: ^backend/
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
