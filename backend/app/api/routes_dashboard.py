@@ -1201,3 +1201,31 @@ async def get_news_sources(db: Session = Depends(get_db), settings: Settings = D
     }
     _sources_cache.update(ts=now, data=data)
     return {**data, "cached": False}
+
+
+@router.get("/monthly")
+def get_monthly(months: int = Query(12, le=36), db: Session = Depends(get_db)):
+    """Miesięczny raport wyników (venue akcji): dla KAŻDEGO miesiąca kalendarzowego
+    zysk zrealizowany, liczba zamknięć, trafność. Liczone z tej samej historii
+    zamknięć co Historia/skuteczność (średni koszt). Najnowszy miesiąc pierwszy."""
+    closes = scorecard.realized_history(db, venue="alpaca", limit=1000)
+    buckets: dict[str, dict] = {}
+    for c in closes:
+        sold = c.get("sold_at")
+        if not sold:
+            continue
+        key = sold[:7]  # YYYY-MM
+        b = buckets.setdefault(key, {"month": key, "realized_usd": 0.0, "closed": 0, "wins": 0, "losses": 0})
+        pnl = c.get("pnl_usd") or 0.0
+        b["realized_usd"] += pnl
+        b["closed"] += 1
+        if pnl >= 0:
+            b["wins"] += 1
+        else:
+            b["losses"] += 1
+    rows = []
+    for b in sorted(buckets.values(), key=lambda x: x["month"], reverse=True)[:months]:
+        b["realized_usd"] = round(b["realized_usd"], 2)
+        b["win_rate"] = round(b["wins"] / b["closed"] * 100) if b["closed"] else None
+        rows.append(b)
+    return {"months": rows}

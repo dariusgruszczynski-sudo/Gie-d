@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta, timezone
 import pytest
 
 from app.api import routes_dashboard
-from app.api.routes_dashboard import _account_view, get_claude_edge, get_portfolio, get_status
+from app.api.routes_dashboard import _account_view, get_claude_edge, get_monthly, get_portfolio, get_status
 from app.models import PortfolioSnapshot
 from app.services import market_hours
 
@@ -299,3 +299,30 @@ def test_status_degrades_gracefully_when_session_lookup_fails(db_session, settin
     assert body["session_bounds"] is None
     # The rest of the endpoint must still work despite the cold session cache.
     assert "is_paused" in body
+
+
+def test_monthly_report_buckets_closes_by_calendar_month(db_session):
+    """Miesięczny raport grupuje zamknięcia (SELL) po YYYY-MM sold_at, licząc
+    zysk/skuteczność per miesiąc. Najnowszy miesiąc pierwszy."""
+    from app.models import Trade, TradeMode
+
+    jul = datetime(2026, 7, 10, tzinfo=UTC)
+    aug = datetime(2026, 8, 12, tzinfo=UTC)
+    # Lipiec: kup 1@100, sprzedaj 1@110 -> +10.
+    db_session.add(Trade(timestamp=jul, symbol="SPY", side="BUY", quantity=1, price=100.0, usdt_value=100.0, mode=TradeMode.LIVE, venue="alpaca"))
+    db_session.add(Trade(timestamp=jul + timedelta(hours=1), symbol="SPY", side="SELL", quantity=1, price=110.0, usdt_value=110.0, mode=TradeMode.LIVE, venue="alpaca"))
+    # Sierpień: kup 1@200, sprzedaj 1@180 -> -20.
+    db_session.add(Trade(timestamp=aug, symbol="QQQ", side="BUY", quantity=1, price=200.0, usdt_value=200.0, mode=TradeMode.LIVE, venue="alpaca"))
+    db_session.add(Trade(timestamp=aug + timedelta(hours=1), symbol="QQQ", side="SELL", quantity=1, price=180.0, usdt_value=180.0, mode=TradeMode.LIVE, venue="alpaca"))
+    db_session.commit()
+
+    body = get_monthly(months=12, db=db_session)
+    rows = body["months"]
+    assert [r["month"] for r in rows] == ["2026-08", "2026-07"]  # najnowszy pierwszy
+    aug_row, jul_row = rows[0], rows[1]
+    assert jul_row["realized_usd"] == 10.0 and jul_row["wins"] == 1 and jul_row["win_rate"] == 100
+    assert aug_row["realized_usd"] == -20.0 and aug_row["losses"] == 1 and aug_row["win_rate"] == 0
+
+
+def test_monthly_report_empty_when_no_closes(db_session):
+    assert get_monthly(months=12, db=db_session)["months"] == []

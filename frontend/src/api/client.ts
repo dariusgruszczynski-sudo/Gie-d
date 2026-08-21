@@ -348,6 +348,7 @@ export const api = {
     apiFetch<PositionPlansResponse>(withShare(`/api/position-plans?venue=${venue}`)),
   history: () => apiFetch<HistoryResponse>(withShare("/api/history")),
   audit: () => apiFetch<AuditResponse>(withShare("/api/audit")),
+  monthly: () => apiFetch<MonthlyResponse>(withShare("/api/monthly")),
   health: () => apiFetch<HealthReport>("/api/health"),
   newsSources: () => apiFetch<NewsSourcesResponse>("/api/news/sources"),
   healthReset: (action: string) =>
@@ -391,6 +392,9 @@ export interface HistoryResponse {
     worst: HistoryTrade | null;
   };
 }
+
+export interface MonthlyRow { month: string; realized_usd: number; closed: number; wins: number; losses: number; win_rate: number | null }
+export interface MonthlyResponse { months: MonthlyRow[] }
 
 export interface AuditEra { realized_usd: number; closed: number; wins: number; losses: number; win_rate: number | null }
 export interface AuditSymbol { symbol: string; pnl_usd: number; closed: number; win_rate: number | null }
