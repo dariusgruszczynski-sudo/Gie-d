@@ -108,6 +108,7 @@ def init_db() -> None:
     _add_column_if_missing("system_state", "monthly_deposit_plan", "FLOAT", "0.0")
     _add_column_if_missing("system_state", "goal_amount", "FLOAT", "0.0")
     _add_column_if_missing("system_state", "widget_metric", "VARCHAR(12)", "'total'")
+    _add_column_if_missing("system_state", "exit_overrides_json", "TEXT", "'{}'")
     # One-time backfill for deployments upgrading from before the lifetime
     # counter existed: seed it from this month's already-tracked spend instead
     # of a misleadingly-clean 0 (still misses months before this one, but

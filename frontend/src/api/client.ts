@@ -78,6 +78,8 @@ export interface StatusResponse {
   plan?: { monthly_deposit: number; goal: number };
   // Co widżet iOS pokazuje jako główną liczbę.
   widget_metric?: "total" | "day" | "account" | "positions";
+  // Ręczne plany wyjścia per symbol (dodatkowe, zacieśniające progi).
+  exit_overrides?: Record<string, { stop_pct?: number; take_profit_pct?: number }>;
   // Honest bottom line: realized P&L across BOTH engines (one account) and
   // that same figure minus what Claude has actually cost this month.
   realized_pnl_usd: number;
@@ -316,6 +318,9 @@ export const api = {
     apiFetch<{ monthly_deposit: number; goal: number }>(`/api/control/set-plan?monthly_deposit=${monthlyDeposit}&goal=${goal}`, { method: "POST" }),
   setWidgetMetric: (metric: "total" | "day" | "account" | "positions") =>
     apiFetch<{ widget_metric: string }>(`/api/control/set-widget-metric?metric=${metric}`, { method: "POST" }),
+  setExitOverride: (symbol: string, stopPct: number, takeProfitPct: number) =>
+    apiFetch<{ symbol: string; override: { stop_pct?: number; take_profit_pct?: number } | null }>(
+      `/api/control/set-exit-override?symbol=${encodeURIComponent(symbol)}&stop_pct=${stopPct}&take_profit_pct=${takeProfitPct}`, { method: "POST" }),
   runCycleNow: (venue: string = "alpaca") =>
     apiFetch<unknown>(`/api/control/run-cycle-now?venue=${venue}`, { method: "POST" }, LONG_TIMEOUT_MS),
   dryRun: (venue: string = "alpaca") =>

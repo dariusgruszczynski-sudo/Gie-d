@@ -138,6 +138,35 @@ def set_plan(monthly_deposit: float = 0.0, goal: float = 0.0, db: Session = Depe
     return {"monthly_deposit": state.monthly_deposit_plan, "goal": state.goal_amount}
 
 
+@router.post("/set-exit-override")
+def set_exit_override(symbol: str, stop_pct: float = 0.0, take_profit_pct: float = 0.0,
+                      db: Session = Depends(get_db), request: Request = None):
+    """Ręczny plan wyjścia dla pozycji: DODATKOWE, zacieśniające progi (stop /
+    take-profit w % od wejścia), przy których automat zamyka CAŁĄ pozycję. Nie
+    luzuje ochrony mechanicznej — tylko dokłada wcześniejsze zamknięcie. Oba <=0
+    usuwają override dla tego symbolu."""
+    import json as _json
+
+    sym = symbol.upper()
+    state = risk_manager.get_state(db)
+    try:
+        overrides = _json.loads(state.exit_overrides_json or "{}")
+    except (TypeError, ValueError):
+        overrides = {}
+    sl = max(0.0, float(stop_pct))
+    tp = max(0.0, float(take_profit_pct))
+    if sl <= 0 and tp <= 0:
+        overrides.pop(sym, None)
+        detail = f"{sym} usunięty"
+    else:
+        overrides[sym] = {k: v for k, v in (("stop_pct", sl), ("take_profit_pct", tp)) if v > 0}
+        detail = f"{sym} stop={sl:.1f} tp={tp:.1f}"
+    state.exit_overrides_json = _json.dumps(overrides)
+    db.commit()
+    audit.record(db, "set-exit-override", detail=detail, request=request)
+    return {"symbol": sym, "override": overrides.get(sym), "overrides": overrides}
+
+
 @router.post("/set-widget-metric")
 def set_widget_metric(metric: Literal["total", "day", "account", "positions"], db: Session = Depends(get_db), request: Request = None):
     """Co widżet iOS pokazuje jako główną liczbę (total/day/account/positions)."""

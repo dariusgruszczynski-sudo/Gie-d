@@ -139,6 +139,8 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "plan": {"monthly_deposit": state.monthly_deposit_plan or 0.0, "goal": state.goal_amount or 0.0},
         # Co widżet iOS pokazuje jako główną liczbę.
         "widget_metric": (state.widget_metric or "total"),
+        # Ręczne plany wyjścia per symbol (dodatkowe, zacieśniające progi).
+        "exit_overrides": (_load_regime(state.exit_overrides_json) or {}),
         # Exact per-engine tuning (Centrum Sterowania): every live knob, not
         # just the headline daily/weekly limits above.
         "profiles": {

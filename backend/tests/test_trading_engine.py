@@ -1792,3 +1792,48 @@ def test_dry_run_effective_size_matches_real_execution(db_session, settings):
     dec = trading_engine.run_cycle(db_session, s, broker2, FakeNews(),
                                    FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "x")))
     assert abs(dec.size_pct - preview_size) < 1e-9
+
+
+def test_manual_exit_override_take_profit_closes_within_min_hold(db_session, settings):
+    """Ręczny take-profit zamyka CAŁĄ pozycję gdy zysk >= próg — nawet w oknie
+    min-hold (jak stop). Brak override = zachowanie bez zmian (inne testy)."""
+    from app.services import risk_manager
+
+    s = settings.model_copy(update={"min_hold_minutes": 9999, "min_hold_profit_bypass_pct": 0.0})
+    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0})
+    trading_engine.execute_manual_trade(db_session, s, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
+    # Ustaw ręczny TP na +5%.
+    risk_manager.get_state(db_session).exit_overrides_json = '{"SPY": {"take_profit_pct": 5.0}}'
+    db_session.commit()
+
+    broker.prices["SPY"] = 106.0  # +6% >= 5%
+    pf = trading_engine.compute_portfolio(db_session, s, broker)
+    exits = trading_engine.check_take_profit_stop_loss(db_session, s, broker, pf)
+    assert len(exits) == 1 and exits[0].side == "SELL"
+    assert "ręczny take-profit" in exits[0].decision.reasoning
+
+
+def test_manual_exit_override_stop_closes_position(db_session, settings):
+    from app.services import risk_manager
+
+    s = settings.model_copy(update={"min_hold_minutes": 0, "stop_loss_vol_mult": 0.0, "stop_loss_pct": 50.0, "stop_loss_min_pct": 50.0})
+    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0})
+    trading_engine.execute_manual_trade(db_session, s, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
+    risk_manager.get_state(db_session).exit_overrides_json = '{"SPY": {"stop_pct": 3.0}}'
+    db_session.commit()
+
+    broker.prices["SPY"] = 96.0  # -4% <= -3% ręczny stop (a automat ma 50%, więc nie ruszy)
+    pf = trading_engine.compute_portfolio(db_session, s, broker)
+    exits = trading_engine.check_take_profit_stop_loss(db_session, s, broker, pf)
+    assert len(exits) == 1 and "ręczny stop" in exits[0].decision.reasoning
+
+
+def test_no_override_leaves_exits_unchanged(db_session, settings):
+    """Brak override: pozycja lekko na plusie w oknie min-hold NIE jest sprzedana
+    (dowód, że dodatek niczego nie psuje bez ustawienia)."""
+    s = settings.model_copy(update={"min_hold_minutes": 9999, "min_hold_profit_bypass_pct": 0.0, "trailing_stop_enabled": False})
+    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0})
+    trading_engine.execute_manual_trade(db_session, s, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
+    broker.prices["SPY"] = 104.0
+    pf = trading_engine.compute_portfolio(db_session, s, broker)
+    assert trading_engine.check_take_profit_stop_loss(db_session, s, broker, pf) == []

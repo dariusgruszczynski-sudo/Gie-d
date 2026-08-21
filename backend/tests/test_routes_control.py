@@ -66,3 +66,18 @@ def test_widget_primary_follows_metric(db_session, settings):
     assert body["widget_metric"] == "account"
     assert body["primary"]["metric"] == "account"
     assert body["primary"]["label"] == "Na koncie"
+
+
+def test_set_exit_override_persists_and_clears(db_session):
+    import json as _json
+
+    from app.api import routes_control
+    from app.services import risk_manager
+
+    routes_control.set_exit_override(symbol="spy", stop_pct=3, take_profit_pct=8, db=db_session)
+    ov = _json.loads(risk_manager.get_state(db_session).exit_overrides_json)
+    assert ov["SPY"] == {"stop_pct": 3.0, "take_profit_pct": 8.0}
+    # Oba <=0 -> usuwa override.
+    routes_control.set_exit_override(symbol="SPY", stop_pct=0, take_profit_pct=0, db=db_session)
+    ov2 = _json.loads(risk_manager.get_state(db_session).exit_overrides_json)
+    assert "SPY" not in ov2

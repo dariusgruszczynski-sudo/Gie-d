@@ -242,11 +242,28 @@ function SellGauge({ sp, marketClosed }: { sp: SellPlan; marketClosed?: boolean 
 /* Position as a JOURNEY: stop ── entry ── [current] ── target, plus the
    "kiedy sprzedam" gauge that says WHEN and WHY the bot will close it. Directly
    answers the owner's worry: "there's a profit — why are you still holding?" */
-export function PositionCard({ p, plan, bypassPct, marketOpen = true, onChanged }: {
+export function PositionCard({ p, plan, bypassPct, marketOpen = true, onChanged, editable, override }: {
   p: Pos; plan?: PositionPlan; bypassPct: number; marketOpen?: boolean; onChanged?: () => void;
+  editable?: boolean; override?: { stop_pct?: number; take_profit_pct?: number };
 }) {
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
+  const [sl, setSl] = useState(String(override?.stop_pct ?? ""));
+  const [tp, setTp] = useState(String(override?.take_profit_pct ?? ""));
+  const [planBusy, setPlanBusy] = useState(false);
+  const hasOverride = !!(override && ((override.stop_pct ?? 0) > 0 || (override.take_profit_pct ?? 0) > 0));
+
+  async function savePlan() {
+    setPlanBusy(true);
+    try { await api.setExitOverride(p.asset, Number(sl) || 0, Number(tp) || 0); onChanged?.(); setPlanOpen(false); }
+    finally { setPlanBusy(false); }
+  }
+  async function clearPlan() {
+    setPlanBusy(true);
+    try { await api.setExitOverride(p.asset, 0, 0); setSl(""); setTp(""); onChanged?.(); }
+    finally { setPlanBusy(false); }
+  }
   const gain = p.pnlPct ?? 0;
   const up = gain >= 0;
   const entry = plan?.basis ?? p.entry ?? null;
@@ -308,9 +325,23 @@ export function PositionCard({ p, plan, bypassPct, marketOpen = true, onChanged 
         <span className="gd-pcard-lv">wejście <b>{entry ? money(entry) : "—"}</b> · teraz <b>{money(cur)}</b>{target ? <> · cel <b>{money(target)}</b></> : null}</span>
         <div className="gd-pcard-actions">
           {(sp?.detail || plan?.thesis) && <button className="gd-pcard-why" onClick={() => setOpen((v) => !v)}>{open ? "ukryj ▲" : "szczegóły ▾"}</button>}
+          {editable && !isReadOnly && <button className={`gd-pcard-why ${hasOverride ? "on" : ""}`} onClick={() => setPlanOpen((v) => !v)}>{hasOverride ? "🎯 plan ✓" : "🎯 plan wyjścia"}</button>}
           {!isReadOnly && onChanged && <button className="gd-sell" disabled={busy} onClick={sell}>{busy ? "…" : "Sprzedaj"}</button>}
         </div>
       </div>
+      {editable && !isReadOnly && planOpen && (
+        <div className="gd-exitplan">
+          <p className="gd-note">Ręczny plan: zamknij całość gdy strata/zysk osiągnie próg. To DODATEK do automatu (zacieśnia, nie luzuje ochrony). Puste = tylko automat.</p>
+          <div className="gd-exitplan-row">
+            <label>Stop −%<input type="number" min="0" step="0.5" value={sl} placeholder="np. 3" onChange={(e) => setSl(e.target.value)} /></label>
+            <label>Take-profit +%<input type="number" min="0" step="0.5" value={tp} placeholder="np. 8" onChange={(e) => setTp(e.target.value)} /></label>
+          </div>
+          <div className="gd-btnrow">
+            <button className="gd-btn primary" disabled={planBusy} onClick={savePlan}>Zapisz plan</button>
+            {hasOverride && <button className="gd-btn" disabled={planBusy} onClick={clearPlan}>Usuń</button>}
+          </div>
+        </div>
+      )}
       {open && (
         <div className="gd-pcard-detail">
           {sp?.detail && <div className="gd-pcard-plan">{sp.detail}</div>}

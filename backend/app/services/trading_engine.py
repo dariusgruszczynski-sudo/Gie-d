@@ -820,6 +820,26 @@ def _reward_levels(settings: Settings, stop_pct: float) -> tuple[float, float, f
     return tp_arm, trailing, partial_r
 
 
+def _manual_exit(ov: dict | None, base: str, basis: float | None, price: float) -> tuple[str, str] | None:
+    """Ręczny plan wyjścia dla pozycji: zwraca (powód, kind) gdy strata/zysk od
+    wejścia osiągnął ręczny próg (zamknięcie CAŁOŚCI), inaczej None. To DODATEK,
+    który tylko ZACIEŚNIA (zamyka wcześniej) — nigdy nie luzuje automatu. Wymaga
+    znanej ceny wejścia (basis); dla adoptowanych pozycji nie działa."""
+    if not ov or not basis or basis <= 0:
+        return None
+    gain = (price - basis) / basis * 100
+    try:
+        tp = float(ov.get("take_profit_pct") or 0.0)
+        sl = float(ov.get("stop_pct") or 0.0)
+    except (TypeError, ValueError):
+        return None
+    if tp > 0 and gain >= tp:
+        return (f"{base}: ręczny take-profit +{tp:.1f}% osiągnięty ({gain:+.1f}% od wejścia) — zamykam całość.", "manual_tp")
+    if sl > 0 and price <= basis * (1 - sl / 100):
+        return (f"{base}: ręczny stop -{sl:.1f}% osiągnięty ({gain:+.1f}% od wejścia) — zamykam całość.", "manual_stop")
+    return None
+
+
 def describe_position_plan(settings: Settings, *, basis: float | None, price: float, peak: float) -> dict:
     """Plain-language 'co robię przy tym indeksie' for ONE held position, using
     the SAME reward/stop math the mechanical exits actually run (so the note
@@ -998,6 +1018,11 @@ def check_take_profit_stop_loss(
     partial_col = _state_col("partial", venue)
     peaks: dict[str, float] = json.loads(getattr(state, peaks_col) or "{}")
     partials: dict[str, bool] = json.loads(getattr(state, partial_col) or "{}")
+    # Ręczne plany wyjścia per symbol (DODATKOWE, zacieśniające progi zamknięcia).
+    try:
+        overrides: dict[str, dict] = json.loads(getattr(state, "exit_overrides_json", "") or "{}")
+    except (TypeError, ValueError):
+        overrides = {}
     new_peaks: dict[str, float] = {}
     new_partials: dict[str, bool] = {}
     executed: list[Trade] = []
@@ -1074,14 +1099,23 @@ def check_take_profit_stop_loss(
                 logger.warning("Volatility fetch failed for %s, using fixed stop", symbol, exc_info=True)
             stop_pct = dynamic_stop_loss_pct(settings, vol_pct)
 
-            reason, sell_pct, kind = _decide_mechanical_exit(
-                settings, base, basis, price, peak, stop_pct=stop_pct, partial_taken=already_partial
-            )
-            if kind is None:
-                new_peaks[symbol] = peak  # still holding, remember the peak
-                if already_partial:
-                    new_partials[symbol] = True
-                continue
+            # Ręczny plan wyjścia (jeśli ustawiony dla tego symbolu): DODATKOWY,
+            # zacieśniający próg — zamyka całość, gdy strata/zysk osiągnie ręczny
+            # poziom, ZANIM zadziała automat. Nigdy nie luzuje ochrony automatu
+            # (ten i tak biegnie niżej, gdy ręczny się nie odpalił).
+            manual = _manual_exit(overrides.get(symbol), base, basis, price)
+            if manual is not None:
+                reason, kind = manual
+                sell_pct = 100.0
+            else:
+                reason, sell_pct, kind = _decide_mechanical_exit(
+                    settings, base, basis, price, peak, stop_pct=stop_pct, partial_taken=already_partial
+                )
+                if kind is None:
+                    new_peaks[symbol] = peak  # still holding, remember the peak
+                    if already_partial:
+                        new_partials[symbol] = True
+                    continue
 
         # Minimum holding period: a just-opened position may only be exited by
         # the HARD stop-loss (or a forced delisting / adopted-position close) --
@@ -1098,7 +1132,7 @@ def check_take_profit_stop_loss(
             and gain_pct >= settings.min_hold_profit_bypass_pct
         )
         if (
-            kind not in ("stop", "delisted", "adopted_trailing")
+            kind not in ("stop", "delisted", "adopted_trailing", "manual_stop", "manual_tp")
             and not profit_bypass
             and _within_min_hold(db, symbol, settings, venue=venue)
         ):

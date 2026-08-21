@@ -281,3 +281,7 @@ class SystemState(Base):
     # Co widżet iOS pokazuje jako główną liczbę: "total" (zysk automatu),
     # "day" (zysk dnia), "account" (stan konta), "positions" (liczba pozycji).
     widget_metric: Mapped[str] = mapped_column(String(12), default="total")
+    # Ręczne plany wyjścia per symbol: {"SPY": {"stop_pct": 3.0, "take_profit_pct": 8.0}}.
+    # DODATKOWE, ZACIEŚNIAJĄCE progi zamknięcia (nie luzują automatu): pozycja jest
+    # sprzedana w całości, gdy strata/zysk osiągnie ręczny próg. Puste = tylko automat.
+    exit_overrides_json: Mapped[str] = mapped_column(Text, default="{}")

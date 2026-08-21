@@ -68,7 +68,8 @@ export function Positions({ status, alpaca, extended, decisions, onChanged }: {
         <div className="gd-pcards">
           {positions.map((p) => (
             <PositionCard key={`${p.leg}:${p.asset}`} p={p} plan={plans[`${p.leg}:${p.asset}`]}
-              bypassPct={bypassPct} marketOpen={marketOpen} onChanged={onChanged} />
+              bypassPct={bypassPct} marketOpen={marketOpen} onChanged={onChanged}
+              editable override={status.exit_overrides?.[p.asset]} />
           ))}
         </div>
       ) : <p className="gd-empty">Brak otwartych pozycji — gotówka czeka na najlepsze wejścia.</p>}
