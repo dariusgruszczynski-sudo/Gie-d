@@ -250,6 +250,23 @@ const REQUEST_TIMEOUT_MS = 12000;
 // "Przemyśl teraz". Odczyty dashboardu zostają na krótkim 12s.
 const LONG_TIMEOUT_MS = 90000;
 
+// Zamienia surową odpowiedź błędu na CZYTELNY komunikat po polsku. FastAPI zwraca
+// {"detail": "..."} -- wyciągamy to zamiast pokazywać użytkownikowi goły JSON
+// ("Error: 503: {\"detail\":...}"). Znane kody dostają zrozumiałe zdanie.
+function friendlyError(status: number, body: string): string {
+  let detail = "";
+  try {
+    const j = JSON.parse(body);
+    detail = typeof j?.detail === "string" ? j.detail : "";
+  } catch {
+    detail = body?.slice(0, 200) ?? "";
+  }
+  if (status === 401) return "Wymagane logowanie (sesja wygasła).";
+  if (status === 503 && /DASHBOARD_USERS|niezabezpieczony/i.test(detail)) return detail;
+  if (status >= 500) return detail || `Błąd serwera (${status}). Spróbuj za chwilę.`;
+  return detail || `Błąd ${status}.`;
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<T> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -261,12 +278,12 @@ async function apiFetch<T>(path: string, init?: RequestInit, timeoutMs: number =
     });
     if (!res.ok) {
       const body = await res.text();
-      throw new Error(`${res.status}: ${body}`);
+      throw new Error(friendlyError(res.status, body));
     }
     return res.json() as Promise<T>;
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") {
-      throw new Error(`timeout: serwer nie odpowiedział w ${Math.round(timeoutMs / 1000)}s`);
+      throw new Error(`Serwer nie odpowiedział w ${Math.round(timeoutMs / 1000)}s — ponawiam.`);
     }
     throw e;
   } finally {

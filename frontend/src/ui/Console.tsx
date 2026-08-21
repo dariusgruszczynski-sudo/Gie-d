@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, Decision, EngineProfile, isReadOnly, MarketRegime, PortfolioResponse, PositionPlan, SellPlan, SellState, StatusResponse } from "../api/client";
 import { useCountUp } from "../hooks/useCountUp";
-import { ago, EquityBand, money, money0, pct, PnlBand, TickerTape } from "./kit";
-import { NewsBar } from "./NewsBar";
+import { ago, money, money0, pct, PnlBand, TickerTape } from "./kit";
 import { Info } from "./Help";
 
 export type Leg = "sesja" | "poza";
@@ -204,21 +203,6 @@ export function ConvictionLadder({ held, profile }: { held: number; profile: Eng
       {profile.conviction_sizing_enabled && (
         <div className="gd-ladder-conv">⚡ Duże zakłady na mocnych sygnałach — do {profile.conviction_size_max_mult ?? 2}× (sufit ryzyka {profile.conviction_max_risk_per_trade_pct ?? 6}%/trade)</div>
       )}
-    </div>
-  );
-}
-
-const REGIME_WX: Record<string, { icon: string; label: string; cls: string }> = {
-  risk_on: { icon: "☀", label: "rynek sprzyja", cls: "on" },
-  neutral: { icon: "⛅", label: "rynek neutralny", cls: "neu" },
-  risk_off: { icon: "⛈", label: "ostrożnie — risk-off", cls: "off" },
-};
-function MarketWeather({ r }: { r: MarketRegime | null }) {
-  const wx = (r && REGIME_WX[r.regime]) || { icon: "•", label: "brak danych", cls: "neu" };
-  return (
-    <div className={`gd-wx gd-wx-${wx.cls}`}>
-      <span className="gd-wx-ico">{wx.icon}</span>
-      <span className="gd-wx-lbl">{wx.label}</span>
     </div>
   );
 }

@@ -124,7 +124,8 @@ export default function App() {
       }
     } catch (e) {
       failCount.current += 1;
-      if (failCount.current >= 3) { setError(String(e)); setReconnecting(false); }
+      const msg = e instanceof Error ? e.message : String(e);
+      if (failCount.current >= 3) { setError(msg); setReconnecting(false); }
       else setReconnecting(true);
     }
   }, []);
