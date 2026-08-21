@@ -1010,3 +1010,20 @@
 
 /* --- Scenariusz A: znacznik sizingu ważonego przekonaniem --- */
 .gd-ladder-conv { margin-top: 10px; font-size: 0.68rem; font-weight: 700; color: var(--gold); line-height: 1.35; }
+
+/* =============================================================================
+   Paczka A — Czytelność: większe, mocniej kontrastowe liczby + tryb prosty.
+   ============================================================================= */
+/* Wyższy kontrast kluczowych wartości (jaśniejszy tekst na ciemnym tle). */
+.gd { --txt: #f3f7fc; }
+/* Hero: większa, mocniejsza główna liczba. */
+.gd-hero-val { font-size: clamp(2.6rem, 12vw, 4.2rem) !important; letter-spacing: -0.02em; }
+.gd-hero-label { font-size: 0.72rem; color: #9fb0c8; }
+.gd-hero-sub { font-size: 0.9rem; }
+/* Kafle kasy / statystyk: większe cyfry. */
+.gd-stat-v { font-size: 1.42rem; }
+.gd-stat-l { color: #93a2ba; }
+.gd-skill-pct { font-size: 2.2rem; }
+.gd-hist-pnl, .gd-audit-metric b, .gd-edge-i.big b { font-size: 1.18rem; }
+/* Sekcje: mocniejsze nagłówki. */
+.gd-sec h3 { font-size: 1.15rem; }

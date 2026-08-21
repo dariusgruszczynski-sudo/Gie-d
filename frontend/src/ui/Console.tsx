@@ -444,10 +444,11 @@ function RiskScale({ status }: { status: StatusResponse }) {
   );
 }
 
-export function Console({ status, alpaca, extended, onGoPositions }: {
+export function Console({ status, alpaca, extended, simple = false, onGoPositions }: {
   status: StatusResponse;
   alpaca: PortfolioResponse | null;
   extended: PortfolioResponse | null;
+  simple?: boolean;
   onGoPositions: () => void;
 }) {
   const acc = status.account;
@@ -504,19 +505,25 @@ export function Console({ status, alpaca, extended, onGoPositions }: {
         <StatCard label="Wolna gotówka" value={money0(cash)} sub="czeka na wejścia" />
       </div>
 
-      {/* RYZYKO — jeden czytelny wskaźnik „jak ryzykownie jest teraz" */}
-      <div className="gd-sec"><h3>Ryzyko teraz</h3><span className="gd-sec-note">jak ostrożnie gra automat</span></div>
-      <RiskScale status={status} />
+      {/* RYZYKO — pełny widok: wskaźnik „jak ryzykownie jest teraz" (ukryty w trybie prostym) */}
+      {!simple && (
+        <>
+          <div className="gd-sec"><h3>Ryzyko teraz</h3><span className="gd-sec-note">jak ostrożnie gra automat</span></div>
+          <RiskScale status={status} />
+        </>
+      )}
 
-      {/* ZYSK — po ludzku: skuteczność (pasek) + wzięty vs na otwartych */}
+      {/* ZYSK — po ludzku: skuteczność (pasek) + (pełny) wzięty vs na otwartych */}
       <div className="gd-sec"><h3>Zysk bota</h3><span className="gd-sec-note">czysty wynik handlu</span></div>
       <WinBar pct={sc?.win_rate_pct ?? null} wins={sc?.wins ?? 0} losses={sc?.losses ?? 0} />
-      <div className="gd-statgrid" style={{ marginTop: 10 }}>
-        <StatCard label="Już wzięty" value={`${status.trading_pnl.realized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.realized_usd)}`}
-          tone={status.trading_pnl.realized_usd >= 0 ? "up" : "down"} sub="ze sprzedanych — masz na koncie" />
-        <StatCard label="Na otwartych" value={`${status.trading_pnl.unrealized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.unrealized_usd)}`}
-          tone={status.trading_pnl.unrealized_usd >= 0 ? "up" : "down"} sub="jeszcze trzymane" />
-      </div>
+      {!simple && (
+        <div className="gd-statgrid" style={{ marginTop: 10 }}>
+          <StatCard label="Już wzięty" value={`${status.trading_pnl.realized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.realized_usd)}`}
+            tone={status.trading_pnl.realized_usd >= 0 ? "up" : "down"} sub="ze sprzedanych — masz na koncie" />
+          <StatCard label="Na otwartych" value={`${status.trading_pnl.unrealized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.unrealized_usd)}`}
+            tone={status.trading_pnl.unrealized_usd >= 0 ? "up" : "down"} sub="jeszcze trzymane" />
+        </div>
+      )}
 
       {/* WYKRES — jeden, najważniejszy: zysk w czasie (odporny na wpłaty) */}
       <div className="gd-bandgrp">

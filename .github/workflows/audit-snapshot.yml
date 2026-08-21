@@ -50,7 +50,7 @@ jobs:
             echo
             jq -r '"**Wdrożenie:** kod \(.build_sha // "?") (zbud. \(.build_time // "?")) · duże zakłady (conviction): \(.profiles.alpaca.conviction_sizing_enabled // "?") · sufit ryzyka \(.profiles.alpaca.conviction_max_risk_per_trade_pct // "?")%"' status.json 2>/dev/null || echo "**Wdrożenie:** (brak /api/status)"
             echo
-            jq -r '"**Życiowo:** \(.eras.lifetime.closed) zamknięć · trafność \(.eras.lifetime.win_rate // "—")% · zrealizowany $\(.eras.lifetime.realized_usd)"' audit-latest.json
+            jq -r '"**Od zmiany strategii (tylko akcje):** \(.eras.lifetime.closed) zamknięć · trafność \(.eras.lifetime.win_rate // "—")% · zrealizowany $\(.eras.lifetime.realized_usd)"' audit-latest.json
             jq -r '"**7 dni:** \(.eras.d7.closed) zamknięć · \(.eras.d7.win_rate // "—")% · $\(.eras.d7.realized_usd)   |   **30 dni:** \(.eras.d30.closed) · \(.eras.d30.win_rate // "—")% · $\(.eras.d30.realized_usd)"' audit-latest.json
             jq -r '"**Edge:** śr. wygrana +$\(.edge.avg_win // "—") vs strata $\(.edge.avg_loss // "—") → na transakcję $\(.edge.per_trade // "—") (payoff \(.edge.payoff // "—")×)"' audit-latest.json
             jq -r '"**Trzymanie:** zyski ~\(.hold.avg_win_days // "—") dni · straty ~\(.hold.avg_loss_days // "—") dni"' audit-latest.json

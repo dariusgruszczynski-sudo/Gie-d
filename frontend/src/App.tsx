@@ -33,6 +33,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
   const [muted, setMuted] = useState<boolean>(isSoundMuted);
+  // Tryb Prosty vs Zaawansowany — chowa nerdowe metryki dla spokojnego widoku.
+  const [simple, setSimple] = useState<boolean>(() => { try { return localStorage.getItem("gd-simple") === "1"; } catch { return false; } });
   const [view, setView] = useState<View>("dashboard");
   const [toasts, setToasts] = useState<Array<{ id: string; kind: "buy" | "sell" | "wait"; title: string; body: string }>>([]);
   const failCount = useRef(0);
@@ -141,6 +143,7 @@ export default function App() {
   }, []);
 
   const toggleMuted = useCallback(() => setMuted((m) => { const n = !m; setSoundMuted(n); return n; }), []);
+  const toggleSimple = useCallback(() => setSimple((s) => { const n = !s; try { localStorage.setItem("gd-simple", n ? "1" : "0"); } catch { /* ignore */ } return n; }), []);
 
   return (
     <div className="gd">
@@ -170,6 +173,10 @@ export default function App() {
             </button>
           ))}
           <div className="gd-nav-sp" />
+          <button className="gd-nav" onClick={toggleSimple}>
+            <Icon name="console" />
+            <span className="gd-nav-label">{simple ? "Widok: prosty" : "Widok: pełny"}</span>
+          </button>
           <button className="gd-nav" onClick={toggleMuted}>
             <Icon name="pulse" />
             <span className="gd-nav-label">{muted ? "Dźwięk: off" : "Dźwięk: on"}</span>
@@ -192,7 +199,7 @@ export default function App() {
             {!status ? (
               <div className="gd-view"><p className="gd-empty">Łączę z automatem…</p></div>
             ) : view === "dashboard" ? (
-              <Console status={status} alpaca={portfolio} extended={extendedPortfolio} onGoPositions={() => changeView("positions")} />
+              <Console status={status} alpaca={portfolio} extended={extendedPortfolio} simple={simple} onGoPositions={() => changeView("positions")} />
             ) : view === "positions" ? (
               <Positions status={status} alpaca={portfolio} extended={extendedPortfolio} decisions={decisions} onChanged={refresh} />
             ) : view === "history" ? (
