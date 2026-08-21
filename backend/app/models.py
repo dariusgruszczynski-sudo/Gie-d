@@ -271,3 +271,6 @@ class SystemState(Base):
     # daily (tylko dzienne podsumowanie), off (żadne per-trade). Dzienny raport
     # leci niezależnie. Ustawiany z Centrum sterowania.
     push_mode: Mapped[str] = mapped_column(String(8), default="all")
+    # Dedup alertu progu dziennego P&L: "YYYY-MM-DD:up" / ":down" — ostatnio
+    # wysłany alert, żeby ten sam próg w tym samym dniu/kierunku nie spamował.
+    day_pnl_alert_stamp: Mapped[str] = mapped_column(String(16), default="")

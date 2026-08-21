@@ -14,7 +14,7 @@ from app.services.alpaca_client import AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
-from app.services.push_notifier import send_daily_summary_push
+from app.services.push_notifier import check_day_pnl_alert, send_daily_summary_push, send_weekly_summary_push
 from app.services.strategy_profiles import effective_settings
 from app.services.trading_engine import (
     build_alpaca_universe,
@@ -122,8 +122,29 @@ def _regime_job() -> None:
                 )
             except Exception:
                 logger.warning("Regime refresh (extended) failed", exc_info=True)
+        # Alert progu dziennego P&L (raz na dzień na kierunek; dedup w stanie).
+        try:
+            check_day_pnl_alert(db, settings)
+        except Exception:
+            logger.warning("Day-PnL alert check failed", exc_info=True)
     except Exception:
         logger.exception("Regime refresh job failed")
+    finally:
+        db.close()
+
+
+def _weekly_report_job() -> None:
+    """Zwięzłe podsumowanie tygodnia jako push (osobny rytm od dziennego)."""
+    settings = get_settings()
+    if not settings.weekly_report_enabled:
+        return
+    db = SessionLocal()
+    try:
+        sent = send_weekly_summary_push(db, settings)
+        if not sent:
+            logger.info("Weekly summary push not sent (push not configured / no device / no data)")
+    except Exception:
+        logger.exception("Weekly summary push failed")
     finally:
         db.close()
 
@@ -363,6 +384,19 @@ def start_scheduler() -> BackgroundScheduler:
         CronTrigger(day_of_week="fri", hour=20, minute=15, timezone="America/New_York"),
         id="whitelist_review",
     )
+    # Tygodniowe podsumowanie push (osobny rytm od dziennego). day_of_week 0-6 =
+    # pon-niedz (APScheduler), więc weekly_report_weekday=6 => niedziela.
+    if settings.weekly_report_enabled:
+        scheduler.add_job(
+            _weekly_report_job,
+            CronTrigger(
+                day_of_week=settings.weekly_report_weekday,
+                hour=settings.weekly_report_hour,
+                minute=0,
+                timezone=settings.report_timezone,
+            ),
+            id="weekly_report",
+        )
     # Codzienna kopia zapasowa bazy SQLite (job no-op, gdy wyłączona / nie-SQLite).
     if settings.db_backup_enabled:
         scheduler.add_job(

@@ -106,6 +106,10 @@ apply_knobs() { # apply_knobs FILE
   # Alarm push przy serii nieudanych logowań (nieautoryzowany dostęp).
   setenv SECURITY_ALERT_ENABLED true "$f"
   setenv SECURITY_ALERT_FAILED_LOGINS 5 "$f"
+  # Alerty wynikowe: próg dnia (+/-5%) + tygodniowe podsumowanie (niedz 18:00).
+  setenv DAY_PNL_ALERT_ENABLED true "$f"
+  setenv DAY_PNL_ALERT_PCT 5.0 "$f"
+  setenv WEEKLY_REPORT_ENABLED true "$f"
   # Codzienna kopia zapasowa bazy SQLite (data/backups/, ostatnie 14 kopii).
   setenv DB_BACKUP_ENABLED true "$f"
   setenv DB_BACKUP_KEEP 14 "$f"

@@ -83,3 +83,72 @@ def test_daily_summary_push_sends_account_total(db_session, push_settings, fake_
     assert len(fake_pywebpush) == 1
     assert "1,150" in fake_pywebpush[0]["title"]
     assert "Akcje US: 1 poz." in fake_pywebpush[0]["body"]
+
+
+def test_day_pnl_alert_fires_once_per_direction(db_session, push_settings, fake_pywebpush):
+    from app.services import risk_manager
+    db_session.add(PushSubscription(endpoint="https://push/1", p256dh="a", auth="b"))
+    db_session.add(PortfolioSnapshot(
+        timestamp=datetime.now(UTC), total_value_usdt=1150.0, usdt_balance=1000.0,
+        balances_json=json.dumps({"SPY": 1.0}), venue="alpaca",
+    ))
+    state = risk_manager.get_state(db_session)
+    state.day_start_value = 1000.0
+    state.day_start_date = "2026-08-21"
+    db_session.commit()
+
+    s = push_settings.model_copy(update={"day_pnl_alert_enabled": True, "day_pnl_alert_pct": 5.0})
+    # +15% > 5% -> jeden alert.
+    assert push_notifier.check_day_pnl_alert(db_session, s) is True
+    assert len(fake_pywebpush) == 1
+    assert "+15.0%" in fake_pywebpush[0]["title"]
+    # Ten sam dzień/kierunek -> brak drugiego alertu (dedup).
+    assert push_notifier.check_day_pnl_alert(db_session, s) is False
+    assert len(fake_pywebpush) == 1
+
+
+def test_day_pnl_alert_silent_below_threshold(db_session, push_settings, fake_pywebpush):
+    from app.services import risk_manager
+    db_session.add(PushSubscription(endpoint="https://push/1", p256dh="a", auth="b"))
+    db_session.add(PortfolioSnapshot(
+        timestamp=datetime.now(UTC), total_value_usdt=1020.0, usdt_balance=1000.0,
+        balances_json=json.dumps({"SPY": 1.0}), venue="alpaca",
+    ))
+    state = risk_manager.get_state(db_session)
+    state.day_start_value = 1000.0
+    state.day_start_date = "2026-08-21"
+    db_session.commit()
+    # +2% < próg 5% -> cisza.
+    assert push_notifier.check_day_pnl_alert(db_session, push_settings.model_copy(update={"day_pnl_alert_pct": 5.0})) is False
+    assert len(fake_pywebpush) == 0
+
+
+def test_weekly_summary_push_aggregates_last_7_days(db_session, push_settings, fake_pywebpush):
+    db_session.add(PushSubscription(endpoint="https://push/1", p256dh="a", auth="b"))
+    now = datetime.now(UTC)
+    # Zamknięcie w tym tygodniu: kup 1@100, sprzedaj 1@110 -> +10.
+    db_session.add(Trade(timestamp=now, symbol="SPY", side="BUY", quantity=1, price=100.0, usdt_value=100.0, mode=TradeMode.LIVE, venue="alpaca"))
+    db_session.add(Trade(timestamp=now, symbol="SPY", side="SELL", quantity=1, price=110.0, usdt_value=110.0, mode=TradeMode.LIVE, venue="alpaca"))
+    db_session.add(PortfolioSnapshot(timestamp=now, total_value_usdt=1010.0, usdt_balance=1010.0, venue="alpaca"))
+    db_session.commit()
+
+    assert push_notifier.send_weekly_summary_push(db_session, push_settings) is True
+    assert len(fake_pywebpush) == 1
+    assert "Tydzień" in fake_pywebpush[0]["title"]
+    assert "+$10" in fake_pywebpush[0]["title"]
+
+
+def test_buy_push_includes_claude_reasoning(db_session, push_settings, fake_pywebpush):
+    from app.models import Decision, TradeAction
+    dec = Decision(action=TradeAction.BUY, symbol="SPY", reasoning="Mocny trend wzrostowy i świeży katalizator. Wchodzę.", venue="alpaca")
+    db_session.add(dec)
+    db_session.flush()
+    trade = Trade(timestamp=datetime.now(UTC), symbol="SPY", side="BUY", quantity=1, price=100.0,
+                  usdt_value=100.0, mode=TradeMode.LIVE, venue="alpaca", decision_id=dec.id)
+    db_session.add(trade)
+    db_session.add(PushSubscription(endpoint="https://push/1", p256dh="a", auth="b"))
+    db_session.commit()
+
+    push_notifier.send_trade_push(db_session, push_settings, trade, account_total=1000.0)
+    assert len(fake_pywebpush) == 1
+    assert "Mocny trend wzrostowy" in fake_pywebpush[0]["body"]

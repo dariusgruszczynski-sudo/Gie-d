@@ -104,6 +104,7 @@ def init_db() -> None:
     _add_column_if_missing("system_state", "discovered_feeds_meta_json", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "stats_epoch", "VARCHAR(32)", "''")
     _add_column_if_missing("system_state", "push_mode", "VARCHAR(8)", "'all'")
+    _add_column_if_missing("system_state", "day_pnl_alert_stamp", "VARCHAR(16)", "''")
     # One-time backfill for deployments upgrading from before the lifetime
     # counter existed: seed it from this month's already-tracked spend instead
     # of a misleadingly-clean 0 (still misses months before this one, but

@@ -601,6 +601,17 @@ class Settings(BaseSettings):
     security_alert_enabled: bool = True
     security_alert_failed_logins: int = 5
 
+    # --- Alerty wynikowe na telefon ----------------------------------------
+    # Alert push, gdy DZIENNY wynik konta przekroczy próg (w obie strony): +X%
+    # (mocny dzień) albo -X% (duży zjazd), żeby wiedzieć bez zaglądania do apki.
+    # Leci RAZ na dzień na kierunek (dedup w SystemState). Podsumowanie tygodnia
+    # to osobny, zwięzły push raz w tygodniu (dzień/godzina niżej).
+    day_pnl_alert_enabled: bool = True
+    day_pnl_alert_pct: float = 5.0
+    weekly_report_enabled: bool = True
+    weekly_report_weekday: int = 6   # 0=pon ... 6=niedz (APScheduler day_of_week)
+    weekly_report_hour: int = 18
+
     # --- Automatyczna kopia bazy -------------------------------------------
     # Raz dziennie robimy migawkę bazy SQLite (transakcje, decyzje, staty) do
     # data/backups/ przez natywne SQLite backup API (bezpieczne na żywej bazie),

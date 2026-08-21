@@ -123,6 +123,22 @@ def _this_sell_pnl(db: Session, trade) -> dict | None:
     return None
 
 
+def _trade_reasoning(trade) -> str:
+    """Krótkie uzasadnienie Claude powiązane z tym zleceniem (Decision.reasoning),
+    przycięte do jednego zdania na powiadomienie. Best-effort -- brak decyzji /
+    lazy-load fail nie może wywalić powiadomienia."""
+    try:
+        dec = getattr(trade, "decision", None)
+        text = (getattr(dec, "reasoning", "") or "").strip() if dec is not None else ""
+        if not text:
+            return ""
+        # Jedno zdanie / max ~120 znaków, żeby baner był zwięzły.
+        first = text.split(". ")[0].strip().rstrip(".")
+        return (first[:120] + "…") if len(first) > 120 else first
+    except Exception:
+        return ""
+
+
 def send_trade_push(db: Session, settings: Settings, trade, account_total: float | None = None) -> None:
     """Powiadomienie o wykonanej transakcji: CO zrobił, ZA ILE, a przy sprzedaży
     CZY ZAROBIŁ czy STRACIŁ (kwota + %), z wizualnym kodowaniem (✅/🔻/🟢) i
@@ -145,6 +161,11 @@ def send_trade_push(db: Session, settings: Settings, trade, account_total: float
         if side == "BUY":
             title = f"🟢 KUPIŁEM {trade.symbol} — za {_fmt_usd(trade.usdt_value)}"
             body = f"{trade.quantity:g} @ {_fmt_usd(trade.price)} · silnik {venue}{acct}"
+            # Dołącz KRÓTKIE uzasadnienie Claude (czemu kupił), jeśli jest przy
+            # decyzji powiązanej z tym zleceniem -- więcej kontekstu w kieszeni.
+            why = _trade_reasoning(trade)
+            if why:
+                body = f"{body}\n„{why}"
             kind, vibrate = "buy", [20, 40, 20]
         else:
             pnl = _this_sell_pnl(db, trade)
@@ -248,4 +269,91 @@ def send_daily_summary_push(db: Session, settings: Settings) -> bool:
         f"netto (po koszcie Claude): {_fmt_usd(net)} · budżet Claude: {budget['claude_budget_pct_used']:.0f}%"
     )
     sent = send_to_all(db, settings, title=title, body=body, tag="daily-summary", url="/")
+    return sent > 0
+
+
+def _combined_account_total(db: Session) -> float | None:
+    """Łączna wartość konta (gotówka liczona RAZ + pozycje obu nóg) z najświeższych
+    snapshotów — ta sama metoda co daily summary. None, gdy brak snapshotów."""
+    a = _latest_snapshot(db, "alpaca")
+    c = _latest_snapshot(db, "extended")
+    if a is None and c is None:
+        return None
+    freshest = max((s for s in (a, c) if s is not None), key=lambda s: s.timestamp)
+    cash = freshest.usdt_balance
+    equity_value = (a.total_value_usdt - a.usdt_balance) if a else 0.0
+    extended_value = (c.total_value_usdt - c.usdt_balance) if c else 0.0
+    return cash + equity_value + extended_value
+
+
+def check_day_pnl_alert(db: Session, settings: Settings) -> bool:
+    """Alert progu dziennego P&L: gdy dzienny wynik konta przekroczy próg (w obie
+    strony), leci JEDEN push na dzień na kierunek (dedup po dniu handlowym +
+    kierunku w SystemState). Best-effort — wołane z pętli schedulera."""
+    if not settings.day_pnl_alert_enabled or not push_configured(settings):
+        return False
+    total = _combined_account_total(db)
+    if total is None:
+        return False
+    state = risk_manager.get_state(db)
+    if state.day_start_value <= 0:
+        return False
+    pct = (total - state.day_start_value) / state.day_start_value * 100
+    if abs(pct) < settings.day_pnl_alert_pct:
+        return False
+    direction = "up" if pct >= 0 else "down"
+    # Klucz dnia = ten sam dzień handlowy, którego używa risk_manager (day_start_date),
+    # więc alert auto-resetuje się przy przewinięciu doby, bez własnej logiki daty.
+    stamp = f"{state.day_start_date or ''}:{direction}"
+    if getattr(state, "day_pnl_alert_stamp", "") == stamp:
+        return False
+    usd = total - state.day_start_value
+    if direction == "up":
+        title = f"📈 Mocny dzień: +{pct:.1f}% ({_fmt_usd(usd)})"
+        body = f"Konto {_fmt_usd(total)} — bot na plusie dziś."
+    else:
+        title = f"📉 Duży zjazd dnia: {pct:.1f}% ({_fmt_usd(usd)})"
+        body = f"Konto {_fmt_usd(total)} — dziś na minusie. Zerknij, czy wszystko gra."
+    sent = send_alarm(db, settings, title=title, body=body, tag="day-pnl")
+    if sent > 0:
+        state.day_pnl_alert_stamp = stamp
+        db.commit()
+    return sent > 0
+
+
+def send_weekly_summary_push(db: Session, settings: Settings) -> bool:
+    """Zwięzłe podsumowanie TYGODNIA jako push: zysk zrealizowany z ostatnich 7
+    dni, liczba zamknięć, skuteczność, stan konta. Osobny rytm od dziennego."""
+    if not push_configured(settings):
+        return False
+    import datetime as _dt
+
+    closes = scorecard.realized_history(db, venue="alpaca", limit=500)
+    now = _dt.datetime.now(_dt.UTC)
+    week_pnl = 0.0
+    wins = closed = 0
+    for c in closes:
+        sold = c.get("sold_at")
+        if not sold:
+            continue
+        try:
+            when = _dt.datetime.fromisoformat(sold)
+        except ValueError:
+            continue
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=_dt.UTC)
+        if (now - when).days > 7 or now < when:
+            continue
+        pnl = c.get("pnl_usd") or 0.0
+        week_pnl += pnl
+        closed += 1
+        if pnl >= 0:
+            wins += 1
+    total = _combined_account_total(db)
+    win_txt = f" · skuteczność {round(wins / closed * 100)}%" if closed else ""
+    sign = "+" if week_pnl >= 0 else ""
+    title = f"🗓️ Tydzień: {sign}{_fmt_usd(week_pnl)}"
+    acct = f" · konto {_fmt_usd(total)}" if total is not None else ""
+    body = f"{closed} {'transakcja' if closed == 1 else 'transakcji'}{win_txt}{acct}"
+    sent = send_to_all(db, settings, title=title, body=body, tag="weekly-summary", url="/")
     return sent > 0
