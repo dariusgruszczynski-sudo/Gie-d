@@ -274,3 +274,10 @@ class SystemState(Base):
     # Dedup alertu progu dziennego P&L: "YYYY-MM-DD:up" / ":down" — ostatnio
     # wysłany alert, żeby ten sam próg w tym samym dniu/kierunku nie spamował.
     day_pnl_alert_stamp: Mapped[str] = mapped_column(String(16), default="")
+    # Plan oszczędzania (wygoda): miesięczna wpłata i cel kwotowy, żeby panel
+    # pokazywał postęp i prognozę dojścia. 0 = nieustawione.
+    monthly_deposit_plan: Mapped[float] = mapped_column(Float, default=0.0)
+    goal_amount: Mapped[float] = mapped_column(Float, default=0.0)
+    # Co widżet iOS pokazuje jako główną liczbę: "total" (zysk automatu),
+    # "day" (zysk dnia), "account" (stan konta), "positions" (liczba pozycji).
+    widget_metric: Mapped[str] = mapped_column(String(12), default="total")

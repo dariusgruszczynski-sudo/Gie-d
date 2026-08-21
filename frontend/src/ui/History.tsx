@@ -228,6 +228,8 @@ function Row({ t }: { t: HistoryTrade }) {
 export function History({ status }: { status: StatusResponse | null }) {
   const [data, setData] = useState<HistoryResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [outcome, setOutcome] = useState<"all" | "win" | "loss">("all");
 
   async function load() {
     try { setData(await api.history()); setErr(null); } catch (e) { setErr(String(e)); }
@@ -244,6 +246,14 @@ export function History({ status }: { status: StatusResponse | null }) {
   const losses = eq.length - wins;
   const totalPnl = eq.reduce((s2, t) => s2 + t.pnl_usd, 0);
   const best = eq.reduce<HistoryTrade | null>((b, t) => (b === null || t.pnl_usd > b.pnl_usd ? t : b), null);
+
+  // Szybki filtr LISTY (podsumowanie u góry zostaje na całości): po symbolu i
+  // po wyniku (plus/minus). Odfiltrowana lista nie zmienia statystyk zbiorczych.
+  const symbols = Array.from(new Set(eq.map((t) => t.symbol))).sort();
+  const filtered = eq.filter((t) =>
+    (!q || t.symbol.toUpperCase().includes(q.toUpperCase())) &&
+    (outcome === "all" || (outcome === "win" ? t.pnl_usd >= 0 : t.pnl_usd < 0)),
+  );
 
   return (
     <div className="gd-view">
@@ -267,13 +277,30 @@ export function History({ status }: { status: StatusResponse | null }) {
         </div>
       )}
 
+      {eq.length > 0 && (
+        <div className="gd-histfilter">
+          <input className="gd-histfilter-q" list="gd-hist-syms" placeholder="Filtruj po symbolu…" value={q}
+            onChange={(e) => setQ(e.target.value)} />
+          <datalist id="gd-hist-syms">{symbols.map((s) => <option key={s} value={s} />)}</datalist>
+          <div className="gd-histfilter-out">
+            {(["all", "win", "loss"] as const).map((o) => (
+              <button key={o} className={`gd-btn ${outcome === o ? "on" : ""}`} onClick={() => setOutcome(o)}>
+                {o === "all" ? "Wszystkie" : o === "win" ? "Na plus" : "Na minus"}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {!data ? (
         <p className="gd-empty">Wczytuję historię…</p>
       ) : eq.length === 0 ? (
         <p className="gd-empty">Jeszcze żadnej zamkniętej transakcji — historia pojawi się po pierwszej sprzedaży.</p>
+      ) : filtered.length === 0 ? (
+        <p className="gd-empty">Nic nie pasuje do filtra. <button className="gd-linkbtn" onClick={() => { setQ(""); setOutcome("all"); }}>Wyczyść</button></p>
       ) : (
         <div className="gd-histlist">
-          {eq.map((t, i) => <Row key={`${t.symbol}-${t.sold_at}-${i}`} t={t} />)}
+          {filtered.map((t, i) => <Row key={`${t.symbol}-${t.sold_at}-${i}`} t={t} />)}
         </div>
       )}
     </div>

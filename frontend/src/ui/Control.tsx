@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, AuditEntry, isReadOnly, StatusResponse } from "../api/client";
 import { PushState, usePushNotifications } from "../hooks/usePushNotifications";
+import { money0 } from "./kit";
 
 function useAction() {
   const [busy, setBusy] = useState<string | null>(null);
@@ -186,6 +187,56 @@ function PushMode({ status, onChanged }: { status: StatusResponse; onChanged: ()
   );
 }
 
+function PlanGoal({ status, onChanged }: { status: StatusResponse; onChanged: () => void }) {
+  const a = useAction();
+  const [dep, setDep] = useState(String(status.plan?.monthly_deposit ?? 0));
+  const [goal, setGoal] = useState(String(status.plan?.goal ?? 0));
+  const acct = status.account?.total_value ?? 0;
+  const g = Number(goal) || 0;
+  const prog = g > 0 ? Math.min(100, Math.round((acct / g) * 100)) : null;
+  // Prognoza: ile miesięcy do celu przy obecnym koncie + miesięcznej wpłacie
+  // (bez zakładania zysku — konserwatywnie, sam „skarbonka" efekt wpłat).
+  const monthsToGoal = g > acct && Number(dep) > 0 ? Math.ceil((g - acct) / Number(dep)) : null;
+  return (
+    <div className="gd-card">
+      <h4>🎯 Plan i cel</h4>
+      <p className="gd-note">Miesięczna wpłata i cel kwotowy — panel pokaże postęp i prognozę dojścia.</p>
+      <div className="gd-field"><label>Miesięczna wpłata (USD)</label><input type="number" min="0" value={dep} onChange={(e) => setDep(e.target.value)} /></div>
+      <div className="gd-field"><label>Cel (USD)</label><input type="number" min="0" value={goal} onChange={(e) => setGoal(e.target.value)} /></div>
+      {prog !== null && (
+        <div style={{ margin: "6px 0 10px" }}>
+          <div className="gd-anz-mtrack" style={{ height: 12 }}><i className="up" style={{ width: `${prog}%` }} /></div>
+          <div className="gd-note" style={{ marginTop: 6 }}>
+            {prog}% celu ({money0(acct)} / {money0(g)}){monthsToGoal !== null ? ` · ~${monthsToGoal} mies. przy tej wpłacie` : ""}
+          </div>
+        </div>
+      )}
+      <button className="gd-btn primary" disabled={a.busy === "plan"}
+        onClick={() => a.run("plan", () => api.setPlan(Number(dep) || 0, Number(goal) || 0).then(onChanged), "Zapisano plan.")}>Zapisz plan</button>
+      {a.msg && <div className={`gd-msg ${a.msg.ok ? "ok" : "err"}`}>{a.msg.t}</div>}
+    </div>
+  );
+}
+
+const WIDGET_METRICS = [["total", "Zysk automatu"], ["day", "Zysk dnia"], ["account", "Stan konta"], ["positions", "Liczba pozycji"]] as const;
+function WidgetMetric({ status, onChanged }: { status: StatusResponse; onChanged: () => void }) {
+  const a = useAction();
+  const cur = status.widget_metric ?? "total";
+  return (
+    <div className="gd-card">
+      <h4>📲 Widżet — co pokazuje</h4>
+      <p className="gd-note">Główna liczba na kaflu iOS. Zmiana działa od razu (widżet czyta ją z serwera).</p>
+      <div className="gd-pushmode">
+        {WIDGET_METRICS.map(([m, l]) => (
+          <button key={m} className={`gd-btn ${cur === m ? "on" : ""}`} disabled={a.busy !== null}
+            onClick={() => a.run(`wm-${m}`, () => api.setWidgetMetric(m).then(onChanged), `Widżet: ${l}.`)}>{l}</button>
+        ))}
+      </div>
+      {a.msg && <div className={`gd-msg ${a.msg.ok ? "ok" : "err"}`}>{a.msg.t}</div>}
+    </div>
+  );
+}
+
 const AUDIT_LABEL: Record<string, string> = {
   "manual-trade": "Ręczna transakcja",
   "sell-all": "Sprzedaż pozycji",
@@ -264,6 +315,8 @@ export function Control({ status, onChanged }: { status: StatusResponse; onChang
           <PanicButton onChanged={onChanged} />
           <LegControls status={status} onChanged={onChanged} />
           <PushMode status={status} onChanged={onChanged} />
+          <PlanGoal status={status} onChanged={onChanged} />
+          <WidgetMetric status={status} onChanged={onChanged} />
           <Notifications />
           <ManualTrade status={status} onChanged={onChanged} />
           <Ops onChanged={onChanged} />

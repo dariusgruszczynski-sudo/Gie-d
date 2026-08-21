@@ -27,3 +27,42 @@ def test_sell_all_404_when_nothing_held(db_session, settings, monkeypatch):
     with pytest.raises(HTTPException) as ei:
         routes_control.sell_all(symbol="XLE", venue="alpaca", db=db_session, settings=settings)
     assert ei.value.status_code == 404
+
+
+def test_set_plan_and_widget_metric_persist(db_session):
+    from app.api import routes_control
+    from app.services import risk_manager
+
+    routes_control.set_plan(monthly_deposit=300, goal=20000, db=db_session)
+    routes_control.set_widget_metric(metric="day", db=db_session)
+    state = risk_manager.get_state(db_session)
+    assert state.monthly_deposit_plan == 300.0
+    assert state.goal_amount == 20000.0
+    assert state.widget_metric == "day"
+
+
+def test_set_plan_clamps_negative_to_zero(db_session):
+    from app.api import routes_control
+
+    out = routes_control.set_plan(monthly_deposit=-5, goal=-1, db=db_session)
+    assert out == {"monthly_deposit": 0.0, "goal": 0.0}
+
+
+def test_widget_primary_follows_metric(db_session, settings):
+    import json as _json
+
+    from app.api.routes_dashboard import get_widget
+    from app.models import PortfolioSnapshot
+    from app.services import risk_manager
+
+    db_session.add(PortfolioSnapshot(
+        timestamp=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+        total_value_usdt=1200.0, usdt_balance=900.0,
+        balances_json=_json.dumps({"SPY": 3.0}), prices_json=_json.dumps({"SPY": 100.0}), venue="alpaca"))
+    risk_manager.get_state(db_session).widget_metric = "account"
+    db_session.commit()
+
+    body = get_widget(db=db_session, settings=settings)
+    assert body["widget_metric"] == "account"
+    assert body["primary"]["metric"] == "account"
+    assert body["primary"]["label"] == "Na koncie"

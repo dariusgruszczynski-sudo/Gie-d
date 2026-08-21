@@ -105,6 +105,9 @@ def init_db() -> None:
     _add_column_if_missing("system_state", "stats_epoch", "VARCHAR(32)", "''")
     _add_column_if_missing("system_state", "push_mode", "VARCHAR(8)", "'all'")
     _add_column_if_missing("system_state", "day_pnl_alert_stamp", "VARCHAR(16)", "''")
+    _add_column_if_missing("system_state", "monthly_deposit_plan", "FLOAT", "0.0")
+    _add_column_if_missing("system_state", "goal_amount", "FLOAT", "0.0")
+    _add_column_if_missing("system_state", "widget_metric", "VARCHAR(12)", "'total'")
     # One-time backfill for deployments upgrading from before the lifetime
     # counter existed: seed it from this month's already-tracked spend instead
     # of a misleadingly-clean 0 (still misses months before this one, but

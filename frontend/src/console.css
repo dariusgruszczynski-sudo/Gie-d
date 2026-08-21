@@ -1139,3 +1139,11 @@
 .gd-anz-cycact.sell { color: var(--rose); }
 .gd-anz-cycmut { font-size: 0.68rem; color: var(--dim); margin-left: auto; }
 .gd-anz-cycwhy { font-size: 0.76rem; color: var(--dim-2, var(--dim)); margin-top: 4px; }
+
+/* v29 — Wygoda: filtr historii + link-button */
+.gd-histfilter { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 12px; }
+.gd-histfilter-q { flex: 1 1 160px; min-width: 140px; padding: 8px 12px; border-radius: 10px;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--line, rgba(255,255,255,0.08)); color: var(--txt); font-size: 0.85rem; }
+.gd-histfilter-out { display: flex; gap: 6px; }
+.gd-histfilter-out .gd-btn { padding: 6px 12px; font-size: 0.78rem; }
+.gd-linkbtn { background: none; border: none; color: var(--brand, var(--mint)); text-decoration: underline; cursor: pointer; font: inherit; padding: 0; }

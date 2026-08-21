@@ -74,6 +74,10 @@ export interface StatusResponse {
   stats_epoch: string | null;
   // Tryb powiadomień push per-transakcja.
   push_mode?: "all" | "big" | "daily" | "off";
+  // Plan oszczędzania: miesięczna wpłata + cel kwotowy (0 = nieustawione).
+  plan?: { monthly_deposit: number; goal: number };
+  // Co widżet iOS pokazuje jako główną liczbę.
+  widget_metric?: "total" | "day" | "account" | "positions";
   // Honest bottom line: realized P&L across BOTH engines (one account) and
   // that same figure minus what Claude has actually cost this month.
   realized_pnl_usd: number;
@@ -308,6 +312,10 @@ export const api = {
     "/api/control/panic", { method: "POST" }, LONG_TIMEOUT_MS),
   setPushMode: (mode: "all" | "big" | "daily" | "off") =>
     apiFetch<{ push_mode: string; message: string }>(`/api/control/set-push-mode?mode=${mode}`, { method: "POST" }),
+  setPlan: (monthlyDeposit: number, goal: number) =>
+    apiFetch<{ monthly_deposit: number; goal: number }>(`/api/control/set-plan?monthly_deposit=${monthlyDeposit}&goal=${goal}`, { method: "POST" }),
+  setWidgetMetric: (metric: "total" | "day" | "account" | "positions") =>
+    apiFetch<{ widget_metric: string }>(`/api/control/set-widget-metric?metric=${metric}`, { method: "POST" }),
   runCycleNow: (venue: string = "alpaca") =>
     apiFetch<unknown>(`/api/control/run-cycle-now?venue=${venue}`, { method: "POST" }, LONG_TIMEOUT_MS),
   refreshPortfolio: (venue: string = "alpaca") =>

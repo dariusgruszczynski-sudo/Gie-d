@@ -135,6 +135,10 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "stats_epoch": scorecard.effective_epoch(state, settings)[1] or None,
         # Tryb powiadomień push per-transakcja (all/big/daily/off).
         "push_mode": (state.push_mode or "all"),
+        # Plan oszczędzania (wygoda): miesięczna wpłata + cel, do postępu/prognozy.
+        "plan": {"monthly_deposit": state.monthly_deposit_plan or 0.0, "goal": state.goal_amount or 0.0},
+        # Co widżet iOS pokazuje jako główną liczbę.
+        "widget_metric": (state.widget_metric or "total"),
         # Exact per-engine tuning (Centrum Sterowania): every live knob, not
         # just the headline daily/weekly limits above.
         "profiles": {
@@ -774,6 +778,28 @@ def get_widget(db: Session = Depends(get_db), settings: Settings = Depends(get_s
     closed = wins + losses
     sess = _serialize_session_info(settings)
 
+    # GŁÓWNA liczba widżetu wg wyboru użytkownika (widget_metric). Skrypt
+    # Scriptable czyta primary.label + primary.text, więc zmiana metryki z apki
+    # od razu przełącza, co kafel eksponuje — bez edycji skryptu na telefonie.
+    metric = state.widget_metric or "total"
+    total_v = account["total_value"] if account else None
+
+    def _usd(v):
+        return "—" if v is None else f"${v:,.0f}"
+
+    if metric == "day":
+        primary = {"metric": "day", "label": "Zysk dnia",
+                   "text": "—" if day_pnl_pct is None else f"{'+' if day_pnl_pct >= 0 else ''}{day_pnl_pct:.1f}%",
+                   "up": (day_pnl_pct or 0) >= 0}
+    elif metric == "account":
+        primary = {"metric": "account", "label": "Na koncie", "text": _usd(total_v), "up": True}
+    elif metric == "positions":
+        primary = {"metric": "positions", "label": "Pozycje", "text": str(len(positions)), "up": True}
+    else:
+        tp = trading_pnl["total_usd"]
+        primary = {"metric": "total", "label": "Zysk automatu",
+                   "text": f"{'+' if tp >= 0 else ''}{_usd(tp)}", "up": tp >= 0}
+
     return {
         "mode": "testnet" if settings.alpaca_paper else "live",
         "total": account["total_value"] if account else None,
@@ -796,6 +822,9 @@ def get_widget(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "claude_budget_remaining_usd": net["claude_budget_remaining_usd"],
         "positions": positions,
         "spark": spark,
+        # Wybrana metryka + gotowy tekst głównej liczby (widget_metric z apki).
+        "widget_metric": metric,
+        "primary": primary,
     }
 
 

@@ -126,6 +126,28 @@ def set_push_mode(mode: Literal["all", "big", "daily", "off"], db: Session = Dep
     return {"push_mode": mode, "message": f"Powiadomienia: {labels[mode]}."}
 
 
+@router.post("/set-plan")
+def set_plan(monthly_deposit: float = 0.0, goal: float = 0.0, db: Session = Depends(get_db), request: Request = None):
+    """Zapisuje plan oszczędzania: miesięczną wpłatę i cel kwotowy (wygoda —
+    panel pokazuje postęp i prognozę). Wartości <0 przycinane do 0."""
+    state = risk_manager.get_state(db)
+    state.monthly_deposit_plan = max(0.0, float(monthly_deposit))
+    state.goal_amount = max(0.0, float(goal))
+    db.commit()
+    audit.record(db, "set-plan", detail=f"wpłata={state.monthly_deposit_plan:.0f} cel={state.goal_amount:.0f}", request=request)
+    return {"monthly_deposit": state.monthly_deposit_plan, "goal": state.goal_amount}
+
+
+@router.post("/set-widget-metric")
+def set_widget_metric(metric: Literal["total", "day", "account", "positions"], db: Session = Depends(get_db), request: Request = None):
+    """Co widżet iOS pokazuje jako główną liczbę (total/day/account/positions)."""
+    state = risk_manager.get_state(db)
+    state.widget_metric = metric
+    db.commit()
+    audit.record(db, "set-widget-metric", detail=f"metric={metric}", request=request)
+    return {"widget_metric": metric}
+
+
 @router.post("/panic")
 def panic(db: Session = Depends(get_db), settings: Settings = Depends(get_settings), request: Request = None):
     """STOP WSZYSTKO (przycisk paniki): (1) wstrzymuje bota, (2) sprzedaje
