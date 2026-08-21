@@ -38,12 +38,17 @@ jobs:
           jq -e '.eras and .conclusions and .edge' audit-latest.json >/dev/null \
             || { echo "::error::Niepoprawny JSON audytu"; head -c 400 audit-latest.json; exit 1; }
           echo "OK — audyt pobrany i zweryfikowany."
+          # Stan wdrożenia: jaki kod realnie działa (build SHA) + czy „duże zakłady" ON.
+          curl -sS --max-time 30 -o status.json \
+            "${BASE_URL%/}/api/status?share=${SHARE_TOKEN}" || echo '{}' > status.json
 
       - name: Zbuduj czytelne podsumowanie (Markdown)
         run: |
           set -euo pipefail
           {
             echo "# Audyt GielDarek — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            jq -r '"**Wdrożenie:** kod \(.build_sha // "?") (zbud. \(.build_time // "?")) · duże zakłady (conviction): \(.profiles.alpaca.conviction_sizing_enabled // "?") · sufit ryzyka \(.profiles.alpaca.conviction_max_risk_per_trade_pct // "?")%"' status.json 2>/dev/null || echo "**Wdrożenie:** (brak /api/status)"
             echo
             jq -r '"**Życiowo:** \(.eras.lifetime.closed) zamknięć · trafność \(.eras.lifetime.win_rate // "—")% · zrealizowany $\(.eras.lifetime.realized_usd)"' audit-latest.json
             jq -r '"**7 dni:** \(.eras.d7.closed) zamknięć · \(.eras.d7.win_rate // "—")% · $\(.eras.d7.realized_usd)   |   **30 dni:** \(.eras.d30.closed) · \(.eras.d30.win_rate // "—")% · $\(.eras.d30.realized_usd)"' audit-latest.json
