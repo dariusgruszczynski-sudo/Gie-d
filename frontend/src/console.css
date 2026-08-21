@@ -1166,3 +1166,32 @@
 .gd-exitplan-row { display: flex; gap: 10px; margin: 6px 0 10px; }
 .gd-exitplan-row label { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 0.72rem; color: var(--dim); }
 .gd-exitplan-row input { padding: 7px 10px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--line, rgba(255,255,255,0.09)); color: var(--txt); font-size: 0.9rem; }
+
+/* v33 — Konfigurowalne kafle Pulpitu + tryb kompaktowy + puls na żywo */
+.gd-tilebar { display: flex; justify-content: flex-end; margin: 2px 0 6px; }
+.gd-tilebar-btn { background: none; border: 1px solid var(--line, rgba(255,255,255,0.1)); color: var(--dim); border-radius: 999px; padding: 4px 12px; font-size: 0.72rem; cursor: pointer; }
+.gd-tileeditor { background: rgba(255,255,255,0.03); border: 1px solid var(--line, rgba(255,255,255,0.08)); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; }
+.gd-tileeditor-compact { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--dim); margin-bottom: 8px; cursor: pointer; }
+.gd-tilerow { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+.gd-tilerow-eye { background: none; border: none; cursor: pointer; font-size: 0.95rem; }
+.gd-tilerow-name { flex: 1; font-size: 0.85rem; font-family: var(--font-display); }
+.gd-tilerow-name.off { color: var(--dim); opacity: 0.6; text-decoration: line-through; }
+.gd-tilerow-sel { background: rgba(255,255,255,0.05); border: 1px solid var(--line, rgba(255,255,255,0.1)); color: var(--txt); border-radius: 8px; padding: 3px 6px; font-size: 0.75rem; }
+.gd-tilerow-move button { background: rgba(255,255,255,0.05); border: 1px solid var(--line, rgba(255,255,255,0.1)); color: var(--txt); border-radius: 6px; width: 26px; height: 24px; margin-left: 3px; cursor: pointer; }
+.gd-tilerow-move button:disabled { opacity: 0.3; cursor: default; }
+.gd-tileeditor-reset { margin-top: 8px; background: none; border: none; color: var(--brand, var(--mint)); text-decoration: underline; cursor: pointer; font-size: 0.76rem; padding: 0; }
+
+/* Tryb kompaktowy: gęściej, mniej przewijania */
+.gd-compact .gd-sec { margin: 10px 0 6px; }
+.gd-compact .gd-sec h3 { font-size: 0.92rem; }
+.gd-compact .gd-stat { padding: 10px 12px; }
+.gd-compact .gd-stat-v { font-size: 1.15rem; }
+.gd-compact .gd-statgrid { gap: 8px; }
+.gd-compact .gd-hero-val { font-size: clamp(2.2rem, 9vw, 3.4rem) !important; }
+.gd-compact .gd-band { height: 120px; }
+
+/* Puls na żywo: delikatne tętnienie znacznika trybu (respektuje reduced-motion) */
+@media (prefers-reduced-motion: no-preference) {
+  .gd-mode.live .gd-blip { animation: gd-livepulse 2.4s ease-in-out infinite; }
+}
+@keyframes gd-livepulse { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, var(--mint) 55%, transparent); } 50% { opacity: 0.75; box-shadow: 0 0 0 5px transparent; } }

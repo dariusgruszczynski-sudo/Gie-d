@@ -470,6 +470,99 @@ function RiskScale({ status }: { status: StatusResponse }) {
   );
 }
 
+// ——— Konfigurowalne kafle Pulpitu ———
+type TileKey = "kasa" | "ryzyko" | "zysk" | "wykres" | "free";
+const TILE_META: Array<{ key: TileKey; label: string }> = [
+  { key: "kasa", label: "Twoja kasa" },
+  { key: "ryzyko", label: "Ryzyko teraz" },
+  { key: "zysk", label: "Zysk bota" },
+  { key: "wykres", label: "Wykres zysku w czasie" },
+  { key: "free", label: "Kafel własny" },
+];
+const DEFAULT_ORDER: TileKey[] = ["kasa", "ryzyko", "zysk", "wykres", "free"];
+const DEFAULT_HIDDEN: TileKey[] = ["free"];
+
+const FREE_METRICS: Array<{ key: string; label: string; sub: string; get: (s: StatusResponse) => { text: string; tone: "up" | "down" | "neu" } }> = [
+  { key: "day", label: "Zysk dnia", sub: "od początku dnia", get: (s) => ({ text: s.day_pnl_pct === null ? "—" : pct(s.day_pnl_pct), tone: (s.day_pnl_pct ?? 0) >= 0 ? "up" : "down" }) },
+  { key: "realized", label: "Już wzięty", sub: "ze sprzedanych", get: (s) => ({ text: money(s.trading_pnl.realized_usd), tone: s.trading_pnl.realized_usd >= 0 ? "up" : "down" }) },
+  { key: "unrealized", label: "Na otwartych", sub: "jeszcze trzymane", get: (s) => ({ text: money(s.trading_pnl.unrealized_usd), tone: s.trading_pnl.unrealized_usd >= 0 ? "up" : "down" }) },
+  { key: "net", label: "Wynik netto", sub: "po koszcie Claude", get: (s) => ({ text: money(s.net_result_usd), tone: s.net_result_usd >= 0 ? "up" : "down" }) },
+  { key: "cash", label: "Wolna gotówka", sub: "czeka na wejścia", get: (s) => ({ text: money0(s.account?.cash ?? 0), tone: "neu" }) },
+];
+
+interface PulpitLayout {
+  order: TileKey[]; hidden: TileKey[]; compact: boolean; freeMetric: string; editing: boolean;
+  toggleEditor: () => void; move: (k: TileKey, dir: -1 | 1) => void; toggleHidden: (k: TileKey) => void;
+  toggleCompact: () => void; setFreeMetric: (m: string) => void; reset: () => void;
+}
+function usePulpitLayout(): PulpitLayout {
+  const [order, setOrder] = useState<TileKey[]>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("gd-pulpit-order") || "null");
+      if (Array.isArray(raw)) {
+        const valid = raw.filter((k) => TILE_META.some((t) => t.key === k));
+        const missing = DEFAULT_ORDER.filter((k) => !valid.includes(k));
+        return [...valid, ...missing];
+      }
+    } catch { /* ignore */ }
+    return DEFAULT_ORDER;
+  });
+  const [hidden, setHidden] = useState<TileKey[]>(() => {
+    try { const raw = JSON.parse(localStorage.getItem("gd-pulpit-hidden") || "null"); if (Array.isArray(raw)) return raw; } catch { /* ignore */ }
+    return DEFAULT_HIDDEN;
+  });
+  const [compact, setCompact] = useState<boolean>(() => { try { return localStorage.getItem("gd-density") === "compact"; } catch { return false; } });
+  const [freeMetric, setFreeM] = useState<string>(() => { try { return localStorage.getItem("gd-free-metric") || "day"; } catch { return "day"; } });
+  const [editing, setEditing] = useState(false);
+
+  const save = (o: TileKey[], h: TileKey[]) => {
+    try { localStorage.setItem("gd-pulpit-order", JSON.stringify(o)); localStorage.setItem("gd-pulpit-hidden", JSON.stringify(h)); } catch { /* ignore */ }
+  };
+  return {
+    order, hidden, compact, freeMetric, editing,
+    toggleEditor: () => setEditing((v) => !v),
+    move: (k, dir) => setOrder((o) => {
+      const i = o.indexOf(k); const j = i + dir;
+      if (i < 0 || j < 0 || j >= o.length) return o;
+      const n = [...o]; [n[i], n[j]] = [n[j], n[i]]; save(n, hidden); return n;
+    }),
+    toggleHidden: (k) => setHidden((h) => { const n = h.includes(k) ? h.filter((x) => x !== k) : [...h, k]; save(order, n); return n; }),
+    toggleCompact: () => setCompact((v) => { const n = !v; try { localStorage.setItem("gd-density", n ? "compact" : "full"); } catch { /* ignore */ } return n; }),
+    setFreeMetric: (m) => { setFreeM(m); try { localStorage.setItem("gd-free-metric", m); } catch { /* ignore */ } },
+    reset: () => { setOrder(DEFAULT_ORDER); setHidden(DEFAULT_HIDDEN); save(DEFAULT_ORDER, DEFAULT_HIDDEN); },
+  };
+}
+
+function TileEditor({ layout }: { layout: PulpitLayout }) {
+  return (
+    <div className="gd-tileeditor">
+      <label className="gd-tileeditor-compact">
+        <input type="checkbox" checked={layout.compact} onChange={layout.toggleCompact} /> Tryb kompaktowy (gęściej)
+      </label>
+      {layout.order.map((k, i) => {
+        const meta = TILE_META.find((t) => t.key === k)!;
+        const shown = !layout.hidden.includes(k);
+        return (
+          <div className="gd-tilerow" key={k}>
+            <button className="gd-tilerow-eye" onClick={() => layout.toggleHidden(k)} title={shown ? "ukryj" : "pokaż"}>{shown ? "👁" : "🚫"}</button>
+            <span className={`gd-tilerow-name ${shown ? "" : "off"}`}>{meta.label}</span>
+            {k === "free" && shown && (
+              <select className="gd-tilerow-sel" value={layout.freeMetric} onChange={(e) => layout.setFreeMetric(e.target.value)}>
+                {FREE_METRICS.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+              </select>
+            )}
+            <span className="gd-tilerow-move">
+              <button disabled={i === 0} onClick={() => layout.move(k, -1)}>▲</button>
+              <button disabled={i === layout.order.length - 1} onClick={() => layout.move(k, 1)}>▼</button>
+            </span>
+          </div>
+        );
+      })}
+      <button className="gd-tileeditor-reset" onClick={layout.reset}>Przywróć domyślne</button>
+    </div>
+  );
+}
+
 export function Console({ status, alpaca, extended, simple = false, onGoPositions }: {
   status: StatusResponse;
   alpaca: PortfolioResponse | null;
@@ -497,8 +590,65 @@ export function Console({ status, alpaca, extended, simple = false, onGoPosition
 
   const pnlUp = status.trading_pnl.total_usd >= 0;
 
+  // ——— Kafle Pulpitu: kolejność / ukryj-pokaż / kompakt / wolny kafel ———
+  const layout = usePulpitLayout();
+  const freeVal = FREE_METRICS.find((m) => m.key === layout.freeMetric) ?? FREE_METRICS[0];
+  const renderTile = (key: TileKey) => {
+    switch (key) {
+      case "kasa":
+        return (
+          <div key="kasa">
+            <div className="gd-sec"><h3>Twoja kasa</h3><span className="gd-sec-note">gdzie są pieniądze</span></div>
+            <div className="gd-statgrid gd-statgrid-3">
+              <StatCard label="Na koncie" value={acc ? money0(acc.total_value) : "…"} sub="wszystkie środki razem" />
+              <StatCard label="W akcjach" value={money0(invested)} sub={`${sesjaCount} ${sesjaCount === 1 ? "pozycja" : "pozycji"} · ${invPct}% konta`} />
+              <StatCard label="Wolna gotówka" value={money0(cash)} sub="czeka na wejścia" />
+            </div>
+          </div>
+        );
+      case "ryzyko":
+        return simple ? null : (
+          <div key="ryzyko">
+            <div className="gd-sec"><h3>Ryzyko teraz<Info term="ryzyko" /></h3><span className="gd-sec-note">jak ostrożnie gra automat</span></div>
+            <RiskScale status={status} />
+          </div>
+        );
+      case "zysk":
+        return (
+          <div key="zysk">
+            <div className="gd-sec"><h3>Zysk bota<Info term="skutecznosc" /></h3><span className="gd-sec-note">czysty wynik handlu</span></div>
+            <WinBar pct={sc?.win_rate_pct ?? null} wins={sc?.wins ?? 0} losses={sc?.losses ?? 0} />
+            {!simple && (
+              <div className="gd-statgrid" style={{ marginTop: 10 }}>
+                <StatCard label="Już wzięty" value={`${status.trading_pnl.realized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.realized_usd)}`}
+                  tone={status.trading_pnl.realized_usd >= 0 ? "up" : "down"} sub="ze sprzedanych — masz na koncie" />
+                <StatCard label="Na otwartych" value={`${status.trading_pnl.unrealized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.unrealized_usd)}`}
+                  tone={status.trading_pnl.unrealized_usd >= 0 ? "up" : "down"} sub="jeszcze trzymane" />
+              </div>
+            )}
+          </div>
+        );
+      case "wykres":
+        return (
+          <div key="wykres" className="gd-bandgrp">
+            <div className="gd-band-h">Zysk automatu w czasie <small>bez Twoich wpłat — czysty wynik handlu</small></div>
+            <div className="gd-band"><PnlBand series={alpaca?.pnl_history ?? []} /></div>
+          </div>
+        );
+      case "free": {
+        const v = freeVal.get(status);
+        return (
+          <div key="free">
+            <div className="gd-sec"><h3>{freeVal.label}</h3><span className="gd-sec-note">Twój kafel</span></div>
+            <div className="gd-statgrid"><StatCard label={freeVal.label} value={v.text} tone={v.tone} sub={freeVal.sub} /></div>
+          </div>
+        );
+      }
+    }
+  };
+
   return (
-    <div className="gd-view">
+    <div className={`gd-view ${layout.compact ? "gd-compact" : ""}`}>
       <TickerTape sesja={status.whitelist} poza={status.extended_enabled ? status.extended_whitelist : []} prices={livePrices} />
       <div className="gd-topline">
         <span className="gd-kicker">Pulpit · {new Date().toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })}</span>
@@ -523,39 +673,12 @@ export function Console({ status, alpaca, extended, simple = false, onGoPosition
         </div>
       </div>
 
-      {/* KASA — trzy proste liczby: gdzie są pieniądze */}
-      <div className="gd-sec"><h3>Twoja kasa</h3><span className="gd-sec-note">gdzie są pieniądze</span></div>
-      <div className="gd-statgrid gd-statgrid-3">
-        <StatCard label="Na koncie" value={acc ? money0(acc.total_value) : "…"} sub="wszystkie środki razem" />
-        <StatCard label="W akcjach" value={money0(invested)} sub={`${sesjaCount} ${sesjaCount === 1 ? "pozycja" : "pozycji"} · ${invPct}% konta`} />
-        <StatCard label="Wolna gotówka" value={money0(cash)} sub="czeka na wejścia" />
+      {/* KAFLE — konfigurowalne: kolejność, ukryj/pokaż, wolny kafel, kompakt */}
+      <div className="gd-tilebar">
+        <button className="gd-tilebar-btn" onClick={layout.toggleEditor}>{layout.editing ? "Gotowe ✓" : "⚙ Ułóż kafle"}</button>
       </div>
-
-      {/* RYZYKO — pełny widok: wskaźnik „jak ryzykownie jest teraz" (ukryty w trybie prostym) */}
-      {!simple && (
-        <>
-          <div className="gd-sec"><h3>Ryzyko teraz<Info term="ryzyko" /></h3><span className="gd-sec-note">jak ostrożnie gra automat</span></div>
-          <RiskScale status={status} />
-        </>
-      )}
-
-      {/* ZYSK — po ludzku: skuteczność (pasek) + (pełny) wzięty vs na otwartych */}
-      <div className="gd-sec"><h3>Zysk bota<Info term="skutecznosc" /></h3><span className="gd-sec-note">czysty wynik handlu</span></div>
-      <WinBar pct={sc?.win_rate_pct ?? null} wins={sc?.wins ?? 0} losses={sc?.losses ?? 0} />
-      {!simple && (
-        <div className="gd-statgrid" style={{ marginTop: 10 }}>
-          <StatCard label="Już wzięty" value={`${status.trading_pnl.realized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.realized_usd)}`}
-            tone={status.trading_pnl.realized_usd >= 0 ? "up" : "down"} sub="ze sprzedanych — masz na koncie" />
-          <StatCard label="Na otwartych" value={`${status.trading_pnl.unrealized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.unrealized_usd)}`}
-            tone={status.trading_pnl.unrealized_usd >= 0 ? "up" : "down"} sub="jeszcze trzymane" />
-        </div>
-      )}
-
-      {/* WYKRES — jeden, najważniejszy: zysk w czasie (odporny na wpłaty) */}
-      <div className="gd-bandgrp">
-        <div className="gd-band-h">Zysk automatu w czasie <small>bez Twoich wpłat — czysty wynik handlu</small></div>
-        <div className="gd-band"><PnlBand series={alpaca?.pnl_history ?? []} /></div>
-      </div>
+      {layout.editing && <TileEditor layout={layout} />}
+      {layout.order.filter((k) => !layout.hidden.includes(k)).map((k) => renderTile(k))}
 
       <NowStrip status={status} />
 
