@@ -193,6 +193,9 @@ export function ConvictionLadder({ held, profile }: { held: number; profile: Eng
           </>
         )}
       </div>
+      {profile.conviction_sizing_enabled && (
+        <div className="gd-ladder-conv">⚡ Duże zakłady na mocnych sygnałach — do {profile.conviction_size_max_mult ?? 2}× (sufit ryzyka {profile.conviction_max_risk_per_trade_pct ?? 6}%/trade)</div>
+      )}
     </div>
   );
 }

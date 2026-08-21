@@ -73,6 +73,11 @@ apply_knobs() { # apply_knobs FILE
   setenv MIN_BUY_CONFIDENCE 0.55 "$f"           # bazowy próg dla 1. wejścia
   setenv PROGRESSIVE_CONFIDENCE_STEP 0.03 "$f"  # +0.03 pewności za każdą trzymaną pozycję
   setenv PROGRESSIVE_CONFIDENCE_CAP 0.9 "$f"
+  # Scenariusz A (2026-08-18, na odpowiedzialność właściciela): sizing ważony
+  # przekonaniem — mocny sygnał do 2× większa pozycja, TWARDY sufit 6% ryzyka/trade.
+  setenv CONVICTION_SIZING_ENABLED true "$f"
+  setenv CONVICTION_SIZE_MAX_MULT 2.0 "$f"
+  setenv CONVICTION_MAX_RISK_PER_TRADE_PCT 6.0 "$f"
   setenv MAX_CONCURRENT_POSITIONS 12 "$f"
   setenv MAX_NEW_POSITIONS_PER_DAY 8 "$f"
   setenv MAX_POSITION_PCT 90 "$f"

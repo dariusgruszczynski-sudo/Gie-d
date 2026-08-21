@@ -1007,3 +1007,6 @@
 .gd-edge-i.big b { font-size: 1.35rem; }
 .gd-edge-sep, .gd-edge-arrow { color: var(--dim); font-weight: 700; font-size: 0.85rem; }
 .gd-edge-arrow { color: var(--brand); font-size: 1.1rem; margin: 0 2px; }
+
+/* --- Scenariusz A: znacznik sizingu ważonego przekonaniem --- */
+.gd-ladder-conv { margin-top: 10px; font-size: 0.68rem; font-weight: 700; color: var(--gold); line-height: 1.35; }

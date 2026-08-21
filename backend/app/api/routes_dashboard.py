@@ -176,6 +176,10 @@ def _engine_profile_view(settings: Settings, venue: str) -> dict:
         "full_analysis_every_minutes": s.full_analysis_every_minutes,
         "volatility_reference_pct": s.volatility_reference_pct,
         "allocation_pct": s.extended_allocation_pct if venue == "extended" else s.alpaca_allocation_pct,
+        # Sizing ważony przekonaniem (Scenariusz A) — transparentnie widoczny.
+        "conviction_sizing_enabled": s.conviction_sizing_enabled,
+        "conviction_size_max_mult": s.conviction_size_max_mult,
+        "conviction_max_risk_per_trade_pct": s.conviction_max_risk_per_trade_pct,
     }
 
 

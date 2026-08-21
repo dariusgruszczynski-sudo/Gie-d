@@ -747,20 +747,38 @@ def venue_allocation_room(db: Session, settings: Settings, portfolio: dict, venu
     return min(cash, room)
 
 
-def risk_based_size_cap(settings: Settings, portfolio: dict, stop_dist_pct: float) -> float:
+def risk_based_size_cap(settings: Settings, portfolio: dict, stop_dist_pct: float, risk_pct: float | None = None) -> float:
     """Cap on a BUY's size (% of free cash) so that hitting its stop costs at
-    most risk_per_trade_pct of the WHOLE account. Returns 100.0 (no cap) when
-    disabled or when inputs are missing. Composed with the other size limits via
-    min(), so it can only ever SHRINK a position, never grow it."""
-    if settings.risk_per_trade_pct <= 0 or stop_dist_pct <= 0:
+    most `risk_pct` of the WHOLE account (defaults to risk_per_trade_pct). The
+    override lets conviction-weighted sizing raise the ceiling for a high-
+    confidence trade -- but the caller clamps it to conviction_max_risk_per_trade_pct,
+    so a single trade can never risk more than that hard limit. Returns 100.0
+    (no cap) when disabled or inputs are missing."""
+    rp = settings.risk_per_trade_pct if risk_pct is None else risk_pct
+    if rp <= 0 or stop_dist_pct <= 0:
         return 100.0
     total = portfolio.get("total_value_usdt", 0.0)
     free = portfolio.get("usdt_balance", 0.0)
     if total <= 0 or free <= 0:
         return 100.0
-    risk_usd = total * settings.risk_per_trade_pct / 100
+    risk_usd = total * rp / 100
     max_position_value = risk_usd / (stop_dist_pct / 100)
     return round(max_position_value / free * 100, 4)
+
+
+def conviction_multiplier(settings: Settings, confidence: float) -> float:
+    """Sizing ważony przekonaniem: mnożnik wielkości pozycji rosnący z pewnością
+    sygnału. 1,0 przy progu wejścia (min_buy_confidence), liniowo do
+    conviction_size_max_mult przy pełnej pewności (progressive_confidence_cap).
+    Wyłączony => zawsze 1,0 (zachowanie jak dotąd)."""
+    if not getattr(settings, "conviction_sizing_enabled", False):
+        return 1.0
+    lo = settings.min_buy_confidence
+    hi = settings.progressive_confidence_cap
+    if hi <= lo:
+        return 1.0
+    frac = max(0.0, min(1.0, (confidence - lo) / (hi - lo)))
+    return round(1.0 + (settings.conviction_size_max_mult - 1.0) * frac, 4)
 
 
 def dynamic_stop_loss_pct(settings: Settings, vol_pct: float | None) -> float:
@@ -1396,11 +1414,18 @@ def _process_decision(
     if decision_data.action == "BUY":
         ticker_vol = (market_data.get(decision_data.symbol) or {}).get("technical", {}).get("volatility_pct_1h")
         effective_size_pct = volatility_adjusted_size(settings, decision_data.size_pct, ticker_vol)
+        # SIZING WAŻONY PRZEKONANIEM: mocny sygnał (wysoka pewność) dostaje większą
+        # pozycję (do conviction_size_max_mult×) -- uruchamia gotówkę i gra na
+        # przewadze. Słaby sygnał: mnożnik 1,0 (bez zmian).
+        mult = conviction_multiplier(settings, decision_data.confidence)
+        effective_size_pct = effective_size_pct * mult
         # Risk-based cap: hitting this ticker's (vol-scaled) stop must not cost
-        # more than risk_per_trade_pct of the whole account -- a wider stop
-        # implies a smaller slice. Composed via min(), so it only ever shrinks.
+        # more than the (conviction-scaled) risk budget of the whole account --
+        # ale z TWARDYM sufitem conviction_max_risk_per_trade_pct, więc pojedyncza
+        # transakcja nigdy nie ryzykuje więcej. Composed via min(), tylko zmniejsza.
         stop_dist = dynamic_stop_loss_pct(settings, ticker_vol)
-        effective_size_pct = round(min(effective_size_pct, risk_based_size_cap(settings, portfolio, stop_dist)), 4)
+        eff_risk = min(settings.conviction_max_risk_per_trade_pct, settings.risk_per_trade_pct * mult)
+        effective_size_pct = round(min(100.0, effective_size_pct, risk_based_size_cap(settings, portfolio, stop_dist, risk_pct=eff_risk)), 4)
         # Wide-spread / thinner names pay more on every round trip -> haircut
         # their size so they only earn a slot when the edge is proportionally big.
         if decision_data.symbol in settings.high_spread_symbol_list and settings.high_spread_size_scale < 1.0:

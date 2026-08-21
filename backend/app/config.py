@@ -565,6 +565,17 @@ class Settings(BaseSettings):
     # SystemState.stats_epoch (ręczny reset) nadpisuje tę datę, gdy ustawione.
     stats_epoch_default: str = "2026-08-10T20:11:29+00:00"
 
+    # SIZING WAŻONY PRZEKONANIEM (Scenariusz A, 2026-08-18, na odpowiedzialność
+    # właściciela): mocny sygnał (wysoka pewność) dostaje większą pozycję — do
+    # conviction_size_max_mult× — żeby uruchomić leżącą gotówkę i realnie grać na
+    # przewadze. TWARDY SUFIT: żadna pojedyncza transakcja nie ryzykuje więcej niż
+    # conviction_max_risk_per_trade_pct% konta (blow-up protection). Mnożnik rośnie
+    # liniowo od 1,0 przy progu wejścia (min_buy_confidence) do max przy pełnej
+    # pewności (progressive_confidence_cap). OFF => zachowanie jak dotąd (1,0).
+    conviction_sizing_enabled: bool = True
+    conviction_size_max_mult: float = 2.0
+    conviction_max_risk_per_trade_pct: float = 6.0
+
     database_url: str = "sqlite:///./data/trading.db"
 
     # --- Powiadomienia PUSH (telefon / Apple Watch przez PWA) ----------------

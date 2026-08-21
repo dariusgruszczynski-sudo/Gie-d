@@ -115,6 +115,10 @@ export interface EngineProfile {
   full_analysis_every_minutes: number;
   volatility_reference_pct: number;
   allocation_pct: number;
+  // Sizing ważony przekonaniem (Scenariusz A).
+  conviction_sizing_enabled?: boolean;
+  conviction_size_max_mult?: number;
+  conviction_max_risk_per_trade_pct?: number;
 }
 
 export interface PortfolioSnapshot {
