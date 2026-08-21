@@ -1,4 +1,3 @@
-import logging
 import os
 import threading
 from contextlib import asynccontextmanager
@@ -15,11 +14,12 @@ from app.api.routes_push import router as push_router
 from app.auth import SessionAuthMiddleware
 from app.config import get_settings
 from app.db import init_db
+from app.logging_setup import configure_logging
 from app.security_headers import SecurityHeadersMiddleware
 from app.services.scheduler import prime_portfolio_snapshots, start_scheduler, stop_scheduler
 from app.session_secret import get_session_secret, init_session_secret
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+configure_logging()
 
 FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "static")
 
