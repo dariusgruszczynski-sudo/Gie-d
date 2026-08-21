@@ -326,3 +326,20 @@ def test_monthly_report_buckets_closes_by_calendar_month(db_session):
 
 def test_monthly_report_empty_when_no_closes(db_session):
     assert get_monthly(months=12, db=db_session)["months"] == []
+
+
+def test_widget_includes_edge_and_last_trade(db_session, settings):
+    from app.api.routes_dashboard import get_widget
+    from app.models import Trade, TradeMode
+
+    now = datetime.now(UTC)
+    db_session.add(Trade(timestamp=now, symbol="SPY", side="BUY", quantity=1, price=100.0, usdt_value=100.0, mode=TradeMode.LIVE, venue="alpaca"))
+    db_session.add(Trade(timestamp=now + timedelta(minutes=1), symbol="SPY", side="SELL", quantity=1, price=110.0, usdt_value=110.0, mode=TradeMode.LIVE, venue="alpaca"))
+    db_session.add(PortfolioSnapshot(timestamp=now, total_value_usdt=1010.0, usdt_balance=1010.0, venue="alpaca"))
+    db_session.commit()
+
+    body = get_widget(db=db_session, settings=settings)
+    assert "edge" in body and "last_trade" in body
+    assert body["edge"]["avg_win_usd"] == 10.0
+    assert body["last_trade"]["symbol"] == "SPY"
+    assert body["last_trade"]["pnl_usd"] == 10.0

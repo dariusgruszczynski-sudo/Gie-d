@@ -1,5 +1,34 @@
 # Widget na ekran główny iPhone (żywy podgląd konta)
 
+## ⭐ Wersja v3 (zalecana) — `gieldarek-widget-v3.js`
+
+Jeden skrypt obsługuje **wiele rozmiarów i miejsc**:
+
+- **Ekran główny:**
+  - **mały** — jedna wielka liczba (metryka wybrana w apce) + konto/dzień,
+  - **średni** — liczba + sparkline + ostatni ruch bota,
+  - **duży** — liczba + wykres + skuteczność/edge + lista pozycji.
+- **Ekran blokady (iOS 16+):** kołowy / prostokątny / liniowy — zysk dnia i konto
+  na jedno spojrzenie, bez odblokowywania (przytrzymaj Lock Screen → Dostosuj →
+  dodaj widżet → Scriptable → wybierz „GielDarek v3”).
+- **Motyw:** u góry skryptu `THEME` = `"auto"` / `"dark"` / `"light"` / `"cyber"`.
+- **Główna liczba** (Zysk automatu / dnia / konto / pozycje): wybierasz **w apce**
+  (Sterowanie → „📲 Widżet — co pokazuje”); skrypt czyta ją z serwera.
+- Adres i token są już wpisane; stopka pokazuje czas ostatniej aktualizacji.
+
+**Uczciwie o granicach iOS:** kafel na ekranie głównym się nie animuje (iOS sam
+odświeża co kilka minut). **Apple Watch:** Scriptable nie robi komplikacji tarczy
+— najbliżej „na nadgarstku” jest widżet na ekranie **blokady** iPhone’a.
+**Live Activity** (pasek tuż po transakcji) nie jest możliwa z wklejanego skryptu
+— zamiast tego działają **powiadomienia push** per-transakcja (włącz w apce).
+
+Instalacja jak niżej, tylko wklej `gieldarek-widget-v3.js`.
+
+---
+
+# (starsze wersje poniżej)
+# Widget v1/v2 — `gieldarek-widget.js` / `gieldarek-widget-v2.js`
+
 iOS nie pozwala zrobić natywnego widgetu z PWA, ale darmowa apka **Scriptable**
 uruchamia JavaScript jako pełnoprawny widget na ekranie głównym. Skrypt
 `gieldarek-widget.js` ciąga dane z Twojego **linku tylko do odczytu**

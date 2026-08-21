@@ -802,6 +802,29 @@ def get_widget(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         primary = {"metric": "total", "label": "Zysk automatu",
                    "text": f"{'+' if tp >= 0 else ''}{_usd(tp)}", "up": tp >= 0}
 
+    # Edge (średnia wygrana vs strata) + ostatnia zamknięta transakcja — dla
+    # bogatszego widżetu (duży kafel / edge / ostatni ruch). Z historii zamknięć.
+    closes_hist = scorecard.realized_history(db, venue="alpaca", limit=200)
+    win_pnls = [c["pnl_usd"] for c in closes_hist if (c.get("pnl_usd") or 0) >= 0]
+    loss_pnls = [c["pnl_usd"] for c in closes_hist if (c.get("pnl_usd") or 0) < 0]
+    avg_win = round(sum(win_pnls) / len(win_pnls), 2) if win_pnls else None
+    avg_loss = round(sum(loss_pnls) / len(loss_pnls), 2) if loss_pnls else None
+    edge = {
+        "avg_win_usd": avg_win,
+        "avg_loss_usd": avg_loss,
+        "payoff": round(avg_win / abs(avg_loss), 2) if (avg_win is not None and avg_loss) else None,
+    }
+    last_close = closes_hist[0] if closes_hist else None  # najnowsze pierwsze
+    last_trade = None
+    if last_close is not None:
+        last_trade = {
+            "symbol": last_close["symbol"],
+            "pnl_usd": last_close["pnl_usd"],
+            "pnl_pct": last_close.get("pnl_pct"),
+            "proceeds_usd": last_close.get("proceeds_usd"),
+            "sold_at": last_close.get("sold_at"),
+        }
+
     return {
         "mode": "testnet" if settings.alpaca_paper else "live",
         "total": account["total_value"] if account else None,
@@ -827,6 +850,9 @@ def get_widget(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         # Wybrana metryka + gotowy tekst głównej liczby (widget_metric z apki).
         "widget_metric": metric,
         "primary": primary,
+        # Bogatszy widżet: średnia wygrana/strata + ostatni zamknięty ruch bota.
+        "edge": edge,
+        "last_trade": last_trade,
     }
 
 
