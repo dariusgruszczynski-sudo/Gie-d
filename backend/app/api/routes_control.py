@@ -103,6 +103,45 @@ def sell_all(symbol: str, venue: str = "alpaca", db: Session = Depends(get_db), 
     return serialize(trade)
 
 
+@router.post("/set-push-mode")
+def set_push_mode(mode: Literal["all", "big", "daily", "off"], db: Session = Depends(get_db)):
+    """Tryb powiadomień push per-transakcja (Centrum sterowania): all / big /
+    daily / off. Dzienne podsumowanie leci niezależnie od tego ustawienia."""
+    state = risk_manager.get_state(db)
+    state.push_mode = mode
+    db.commit()
+    labels = {"all": "każda transakcja", "big": "tylko duże ruchy", "daily": "tylko dzienne podsumowanie", "off": "wyłączone"}
+    return {"push_mode": mode, "message": f"Powiadomienia: {labels[mode]}."}
+
+
+@router.post("/panic")
+def panic(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """STOP WSZYSTKO (przycisk paniki): (1) wstrzymuje bota, (2) sprzedaje
+    WSZYSTKIE trzymane pozycje sesji. Saldo czytane na żywo z brokera; każda
+    nazwa best-effort — jedna nieudana sprzedaż nie blokuje reszty. Zwraca, co
+    sprzedano i co się nie udało."""
+    risk_manager.pause(db, "alpaca")
+    broker = AlpacaClient(settings)
+    try:
+        balances = broker.get_account_balances()
+    except AlpacaAPIError as exc:
+        raise HTTPException(status_code=502, detail=f"Wstrzymano bota, ale nie odczytano pozycji: {exc}") from exc
+    sold: list[str] = []
+    failed: list[str] = []
+    for raw, q in balances.items():
+        sym = str(raw).upper()
+        qty = float(q or 0.0)
+        if qty <= 0:
+            continue
+        try:
+            execute_manual_trade(db, settings, broker, symbol=sym, side="SELL", quantity=qty, venue="alpaca", whitelist=[sym])
+            sold.append(sym)
+        except Exception:  # best-effort: nie przerywaj na jednej nazwie
+            failed.append(sym)
+    return {"paused": True, "sold": sold, "failed": failed,
+            "message": f"Wstrzymano bota. Sprzedano: {len(sold)}." + (f" Nie udało się: {', '.join(failed)}." if failed else "")}
+
+
 class ManualTradeRequest(BaseModel):
     symbol: str
     side: Literal["BUY", "SELL"]

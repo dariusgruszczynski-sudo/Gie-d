@@ -72,6 +72,8 @@ export interface StatusResponse {
   share_enabled: boolean;
   // „Od kiedy mierzymy" skuteczność/edge (Świeży start). null = od zawsze.
   stats_epoch: string | null;
+  // Tryb powiadomień push per-transakcja.
+  push_mode?: "all" | "big" | "daily" | "off";
   // Honest bottom line: realized P&L across BOTH engines (one account) and
   // that same figure minus what Claude has actually cost this month.
   realized_pnl_usd: number;
@@ -285,6 +287,10 @@ export const api = {
   logout: () => apiFetch<{ message: string }>("/api/auth/logout", { method: "POST" }),
   pause: (venue: string = "alpaca") => apiFetch<unknown>(`/api/control/pause?venue=${venue}`, { method: "POST" }),
   resume: (venue: string = "alpaca") => apiFetch<unknown>(`/api/control/resume?venue=${venue}`, { method: "POST" }),
+  panic: () => apiFetch<{ paused: boolean; sold: string[]; failed: string[]; message: string }>(
+    "/api/control/panic", { method: "POST" }, LONG_TIMEOUT_MS),
+  setPushMode: (mode: "all" | "big" | "daily" | "off") =>
+    apiFetch<{ push_mode: string; message: string }>(`/api/control/set-push-mode?mode=${mode}`, { method: "POST" }),
   runCycleNow: (venue: string = "alpaca") =>
     apiFetch<unknown>(`/api/control/run-cycle-now?venue=${venue}`, { method: "POST" }, LONG_TIMEOUT_MS),
   refreshPortfolio: (venue: string = "alpaca") =>

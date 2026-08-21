@@ -134,6 +134,8 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         # start albo domyślny start strategii z configu). Frontend liczy od niej
         # i pomija krypto/POZA SESJĄ.
         "stats_epoch": scorecard.effective_epoch(state, settings)[1] or None,
+        # Tryb powiadomień push per-transakcja (all/big/daily/off).
+        "push_mode": (state.push_mode or "all"),
         # Exact per-engine tuning (Centrum Sterowania): every live knob, not
         # just the headline daily/weekly limits above.
         "profiles": {

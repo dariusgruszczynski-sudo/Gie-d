@@ -9,7 +9,7 @@
  */
 // Bump on asset changes (new icons/theme) so the activate handler purges the
 // old cache and clients re-fetch the fixed-name assets (icons, favicon).
-const CACHE = "gield-v23";
+const CACHE = "gield-v24";
 const SHELL = ["/", "/index.html"];
 
 self.addEventListener("install", (event) => {

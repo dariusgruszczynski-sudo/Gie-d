@@ -250,3 +250,7 @@ class SystemState(Base):
     # NIE kasuje transakcji (historia zostaje) — tylko przesuwa punkt startu
     # statystyk, żeby stara epoka churnu nie zaniżała obrazu nowej strategii.
     stats_epoch: Mapped[str] = mapped_column(String(32), default="")
+    # Tryb powiadomień push per-transakcja: all (każda), big (tylko duże ruchy),
+    # daily (tylko dzienne podsumowanie), off (żadne per-trade). Dzienny raport
+    # leci niezależnie. Ustawiany z Centrum sterowania.
+    push_mode: Mapped[str] = mapped_column(String(8), default="all")

@@ -130,6 +130,14 @@ def send_trade_push(db: Session, settings: Settings, trade, account_total: float
     if not push_configured(settings):
         return
     try:
+        # Tryb powiadomień: all / big (tylko duże ruchy) / daily / off.
+        mode = getattr(risk_manager.get_state(db), "push_mode", "all") or "all"
+        if mode in ("off", "daily"):
+            return
+        if mode == "big":
+            big = max(15.0, 0.03 * account_total) if account_total else 15.0
+            if abs(getattr(trade, "usdt_value", 0.0) or 0.0) < big:
+                return
         side = trade.side.upper()
         venue = _venue_label(getattr(trade, "venue", "alpaca"))
         acct = f" · konto {_fmt_usd(account_total)}" if account_total is not None else ""

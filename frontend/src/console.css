@@ -1071,3 +1071,15 @@
 .gd-onboard-skip { border: none; background: none; color: var(--dim); font-weight: 600; cursor: pointer; padding: 8px 12px; }
 .gd-onboard-next { border: none; border-radius: 999px; padding: 10px 22px; font-weight: 800; cursor: pointer; color: var(--ink);
   background: linear-gradient(90deg, var(--brand), var(--brand2, var(--iris))); }
+
+/* =============================================================================
+   Paczka C — Sterowanie: STOP wszystko + wybór powiadomień.
+   ============================================================================= */
+.gd-panic-card { border-color: color-mix(in srgb, var(--rose) 40%, var(--line)); }
+.gd-panic-btn { width: 100%; margin-top: 8px; padding: 14px; font-size: 0.95rem; font-weight: 800;
+  color: #fff !important; border: none !important;
+  background: linear-gradient(90deg, var(--rose), #ff8199) !important; box-shadow: 0 6px 20px -6px var(--rose); }
+.gd-panic-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.gd-pushmode { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.gd-pushmode .gd-btn.on { color: var(--brand) !important; border-color: color-mix(in srgb, var(--brand) 45%, transparent) !important; background: color-mix(in srgb, var(--brand) 12%, transparent) !important; }
+.gd-ok { color: var(--mint); font-size: 0.8rem; font-weight: 700; }

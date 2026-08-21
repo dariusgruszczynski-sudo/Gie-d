@@ -73,7 +73,14 @@ function NowStrip({ status }: { status: StatusResponse }) {
       </div>
       <div className="gd-now-sep" />
       <div className="gd-now-item">
-        <span className="k">Podgląd rynku</span>
+        <span className="k">Bot teraz</span>
+        <span className="v" style={{ color: status.is_halted ? "var(--rose)" : status.is_paused ? "var(--gold)" : "var(--mint)" }}>
+          {status.is_halted ? "wstrzymany (HALT)" : status.is_paused ? "wstrzymany" : open ? "pilnuje pozycji" : "czeka na otwarcie"}
+        </span>
+      </div>
+      <div className="gd-now-sep" />
+      <div className="gd-now-item">
+        <span className="k">Analiza rynku</span>
         <span className="v">co ~{status.poll_interval_minutes} min</span>
       </div>
       <div className="gd-now-sep" />
@@ -280,7 +287,10 @@ export function PositionCard({ p, plan, bypassPct, marketOpen = true, onChanged 
   const fillFrom = Math.min(xEntry ?? 50, xCur ?? 50), fillTo = Math.max(xEntry ?? 50, xCur ?? 50);
 
   async function sell() {
-    if (!window.confirm(`Sprzedać CAŁĄ pozycję ${p.asset} (~${money(p.value)})? Realne zlecenie.`)) return;
+    const eff = p.pnlUsd !== null && p.pnlUsd !== undefined
+      ? `\n\nDostaniesz ~${money(p.value)}. To ${p.pnlUsd >= 0 ? "ZYSK" : "STRATA"} ~${money(Math.abs(p.pnlUsd))}${p.pnlPct !== null ? ` (${p.pnlPct >= 0 ? "+" : ""}${p.pnlPct.toFixed(1)}%)` : ""}.`
+      : `\n\nDostaniesz ~${money(p.value)}.`;
+    if (!window.confirm(`Sprzedać CAŁĄ pozycję ${p.asset}?${eff}\n\nRealne zlecenie.`)) return;
     setBusy(true);
     try { await api.sellAll(p.asset, p.venue); onChanged?.(); } finally { setBusy(false); }
   }

@@ -145,6 +145,47 @@ function ManualTrade({ status, onChanged }: { status: StatusResponse; onChanged:
   );
 }
 
+function PanicButton({ onChanged }: { onChanged: () => void }) {
+  const a = useAction();
+  async function panic() {
+    if (!window.confirm("🛑 STOP WSZYSTKO?\n\nTo WSTRZYMA bota i SPRZEDA wszystkie pozycje (po cenie rynkowej, albo na otwarciu gdy rynek zamknięty). Nieodwracalne. Kontynuować?")) return;
+    await a.run("panic", async () => {
+      const r = await api.panic();
+      window.alert(r.message || "Zrobione.");
+      onChanged();
+    }, "Wstrzymano bota i sprzedano pozycje.");
+  }
+  return (
+    <div className="gd-card gd-panic-card">
+      <h4>🛑 STOP wszystko</h4>
+      <p className="gd-note">Awaryjne zatrzymanie: wstrzymuje bota i sprzedaje wszystkie pozycje. Na wypadek paniki.</p>
+      <button className="gd-btn gd-panic-btn" disabled={a.busy === "panic"} onClick={panic}>
+        {a.busy === "panic" ? "Zamykam wszystko…" : "🛑 STOP — sprzedaj wszystko i wstrzymaj"}
+      </button>
+      {a.msg && <div className={a.msg.ok ? "gd-ok" : "gd-ribbon"} style={{ marginTop: 8 }}>{a.msg.t}</div>}
+    </div>
+  );
+}
+
+function PushMode({ status, onChanged }: { status: StatusResponse; onChanged: () => void }) {
+  const a = useAction();
+  const cur = status.push_mode ?? "all";
+  const opts = [["all", "Każda transakcja"], ["big", "Tylko duże ruchy"], ["daily", "Tylko dzienne"], ["off", "Wyłączone"]] as const;
+  return (
+    <div className="gd-card">
+      <h4>Powiadomienia — co dostajesz na telefon</h4>
+      <p className="gd-note">Dzienne podsumowanie leci niezależnie od tego wyboru.</p>
+      <div className="gd-pushmode">
+        {opts.map(([m, l]) => (
+          <button key={m} className={`gd-btn ${cur === m ? "on" : ""}`} disabled={a.busy !== null}
+            onClick={() => a.run(`pm-${m}`, async () => { await api.setPushMode(m); onChanged(); }, `Ustawiono: ${l}.`)}>{l}</button>
+        ))}
+      </div>
+      {a.msg && <div className={a.msg.ok ? "gd-ok" : "gd-ribbon"} style={{ marginTop: 8 }}>{a.msg.t}</div>}
+    </div>
+  );
+}
+
 export function Control({ status, onChanged }: { status: StatusResponse; onChanged: () => void }) {
   return (
     <div className="gd-view">
@@ -153,7 +194,9 @@ export function Control({ status, onChanged }: { status: StatusResponse; onChang
         <p className="gd-empty">Widok tylko do odczytu — sterowanie ukryte.</p>
       ) : (
         <>
+          <PanicButton onChanged={onChanged} />
           <LegControls status={status} onChanged={onChanged} />
+          <PushMode status={status} onChanged={onChanged} />
           <Notifications />
           <ManualTrade status={status} onChanged={onChanged} />
           <Ops onChanged={onChanged} />
