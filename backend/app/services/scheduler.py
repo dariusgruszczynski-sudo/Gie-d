@@ -1,7 +1,7 @@
 import json
 import logging
 import math
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -9,14 +9,20 @@ from apscheduler.triggers.cron import CronTrigger
 from app.config import get_settings
 from app.db import SessionLocal
 from app.models import SystemState
+from app.services import market_hours, news_client
 from app.services.alpaca_client import AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
-from app.services import market_hours, news_client
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.push_notifier import send_daily_summary_push
 from app.services.strategy_profiles import effective_settings
-from app.services.trading_engine import build_alpaca_universe, compute_and_cache_regime, compute_portfolio, migrate_extended_into_session, run_cycle
+from app.services.trading_engine import (
+    build_alpaca_universe,
+    compute_and_cache_regime,
+    compute_portfolio,
+    migrate_extended_into_session,
+    run_cycle,
+)
 from app.services.whitelist_review import get_extended_whitelist, run_whitelist_review
 
 logger = logging.getLogger(__name__)
@@ -219,7 +225,7 @@ def _news_discovery_job() -> None:
         news_client.set_discovered_feeds(merged)
         state.discovered_feeds_json = json.dumps([[n, u] for (n, u) in merged], ensure_ascii=False)
         state.discovered_feeds_meta_json = json.dumps({
-            "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "date": datetime.now(UTC).strftime("%Y-%m-%d"),
             "added": len(found),
             "dropped": len(current) - len(kept),
             "total": len(merged),

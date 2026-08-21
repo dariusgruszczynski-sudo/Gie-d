@@ -7,8 +7,8 @@ week, plain text, budget-tracked like any other Claude usage."""
 
 import json
 import logging
-from datetime import date, datetime, timedelta, timezone
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, date, datetime, timedelta
 
 import anthropic
 from sqlalchemy import select
@@ -69,7 +69,7 @@ def run_self_review(
     """Runs the weekly review and returns the updated lessons list. Never
     raises -- a failed review just leaves the previous lessons in place."""
     state = risk_manager.get_state(db)
-    since = datetime.now(timezone.utc) - timedelta(days=7)
+    since = datetime.now(UTC) - timedelta(days=7)
     trades = list(
         db.execute(
             select(Trade)

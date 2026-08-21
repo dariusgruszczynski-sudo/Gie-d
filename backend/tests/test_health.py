@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -7,7 +7,7 @@ from app.services import health, risk_manager
 
 def test_age_minutes_handles_naive_and_aware():
     assert health._age_minutes(None) is None
-    aware = datetime.now(timezone.utc) - timedelta(minutes=10)
+    aware = datetime.now(UTC) - timedelta(minutes=10)
     assert 9 < health._age_minutes(aware) < 11
     naive = datetime.utcnow() - timedelta(minutes=5)  # treated as UTC
     assert 4 < health._age_minutes(naive) < 6

@@ -7,9 +7,9 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app import models  # noqa: F401  (registers tables on Base)
 from app.config import Settings
 from app.db import Base
-from app import models  # noqa: F401  (registers tables on Base)
 
 
 @pytest.fixture
@@ -47,6 +47,10 @@ def settings():
         min_buy_confidence=0.0,
         max_new_positions_per_day=0,
         min_hold_minutes=0,
+        # Furtka „realizuj zysk mimo min-hold" ships ON (3%) in production; OFF in
+        # the baseline so min-hold exit tests are deterministic. A dedicated test
+        # enables it to prove a >=3% winner may exit inside the min-hold window.
+        min_hold_profit_bypass_pct=0.0,
         # Hard take-profit ceiling OFF in the baseline so trailing/partial tests
         # stay focused; the dedicated test enables it via model_copy.
         hard_take_profit_pct=0.0,
@@ -64,4 +68,9 @@ def settings():
         # tests feed empty news deliberately, so keep it OFF here (a dedicated
         # test enables it explicitly).
         news_blackout_halt_enabled=False,
+        # Conviction-weighted sizing (Scenariusz A) ships ON in production, but
+        # like every other Pakiet guard above it's OFF in the baseline fixture so
+        # the many base-sizing tests assert the plain math; the dedicated
+        # conviction test enables it via model_copy.
+        conviction_sizing_enabled=False,
     )

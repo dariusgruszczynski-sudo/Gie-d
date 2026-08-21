@@ -20,7 +20,6 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.config import Settings
-from app.models import SystemState
 from app.services import push_notifier, risk_manager
 
 logger = logging.getLogger(__name__)

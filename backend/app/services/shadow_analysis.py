@@ -28,7 +28,12 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.models import Decision
 from app.services import signals
-from app.services.trading_engine import _base_asset, _decide_mechanical_exit, compute_symbol_stats, dynamic_stop_loss_pct
+from app.services.trading_engine import (
+    _base_asset,
+    _decide_mechanical_exit,
+    compute_symbol_stats,
+    dynamic_stop_loss_pct,
+)
 
 # Fixed notional per shadow "position" -- isolates each symbol's trade quality
 # from the real account's cash constraints / position sizing, so the

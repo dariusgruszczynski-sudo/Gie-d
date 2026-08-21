@@ -1,4 +1,4 @@
-from app.services.alpaca_client import AlpacaAPIError, AlpacaClient, TRADING_LIVE_URL, TRADING_PAPER_URL
+from app.services.alpaca_client import TRADING_LIVE_URL, TRADING_PAPER_URL, AlpacaAPIError, AlpacaClient
 
 
 def test_paper_setting_selects_paper_trading_url(settings):

@@ -12,7 +12,7 @@ failure -- and the caller must treat "unknown" as "no known earnings" rather
 than blocking trades, so a scraper outage never halts the bot."""
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 import httpx
 
@@ -74,7 +74,7 @@ def get_days_until_earnings(tickers: list[str]) -> dict[str, int]:
     tickers reporting within LOOKAHEAD_DAYS. Never raises -- returns the last
     good cache (or {}) on failure."""
     global _cache, _cache_computed_at, _cache_key
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     key = tuple(sorted(t.upper() for t in tickers))
     cache_fresh = (
         _cache is not None
@@ -86,7 +86,7 @@ def get_days_until_earnings(tickers: list[str]) -> dict[str, int]:
         return _cache
 
     try:
-        result = _compute_days_until_earnings(list(tickers), datetime.now(timezone.utc).date())
+        result = _compute_days_until_earnings(list(tickers), datetime.now(UTC).date())
     except Exception:
         logger.warning("Earnings calendar lookup failed entirely", exc_info=True)
         return _cache if _cache is not None else {}

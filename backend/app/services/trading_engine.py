@@ -4,15 +4,25 @@ everything."""
 
 import json
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models import Decision, PortfolioSnapshot, Trade, TradeAction, TradeMode, TriggerType
-from app.services import adaptive_risk, budget_tracker, earnings_calendar, email_reporter, market_hours, push_notifier, risk_manager, scorecard, signals
-from app.services.alpaca_client import AlpacaAPIError, AlpacaClient
+from app.services import (
+    adaptive_risk,
+    budget_tracker,
+    earnings_calendar,
+    email_reporter,
+    market_hours,
+    push_notifier,
+    risk_manager,
+    scorecard,
+    signals,
+)
+from app.services.alpaca_client import AlpacaAPIError
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.market_context import MarketContextClient
 from app.services.market_hours import SessionInfo
@@ -99,7 +109,7 @@ def _news_blackout_active(db: Session, settings: Settings, headlines: list, venu
     if not settings.news_blackout_halt_enabled:
         return False
     dark = len(headlines) < max(0, settings.news_min_headlines)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if not dark:
         _news_blackout_alarm_at.pop(venue, None)  # feeds are back -> re-arm alarm
         return False
@@ -340,7 +350,7 @@ def check_trigger(
     if not triggered and settings.full_analysis_every_minutes > 0 and last_at_iso:
         try:
             last_at = datetime.fromisoformat(last_at_iso)
-            overdue = datetime.now(timezone.utc) - last_at >= timedelta(minutes=settings.full_analysis_every_minutes)
+            overdue = datetime.now(UTC) - last_at >= timedelta(minutes=settings.full_analysis_every_minutes)
         except ValueError:
             overdue = True
         if overdue:
@@ -501,7 +511,7 @@ def _set_stop_loss_cooldown(db: Session, symbol: str, minutes: int, *, venue: st
     state = risk_manager.get_state(db)
     col = _state_col("cooldowns", venue)
     cooldowns = json.loads(getattr(state, col) or "{}")
-    cooldowns[symbol] = (datetime.now(timezone.utc) + timedelta(minutes=minutes)).isoformat()
+    cooldowns[symbol] = (datetime.now(UTC) + timedelta(minutes=minutes)).isoformat()
     setattr(state, col, json.dumps(cooldowns))
     db.commit()
 
@@ -515,7 +525,7 @@ def stop_loss_cooldown_active(db: Session, symbol: str, *, venue: str = "alpaca"
     if not until:
         return False, None
     until_dt = datetime.fromisoformat(until)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if now >= until_dt:
         return False, None
     mins_left = int((until_dt - now).total_seconds() // 60) + 1
@@ -528,7 +538,7 @@ def _record_stop_loss_streak_and_cooldown(db: Session, symbol: str, settings: Se
     auto_blacklist_window_hours it is QUARANTINED for auto_blacklist_hours (a
     long cooldown) instead of the normal short one -- a setup that keeps failing
     is parked rather than retried into the same loss."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     minutes = settings.stop_loss_cooldown_minutes
     if settings.auto_blacklist_stop_count > 0:
         state = risk_manager.get_state(db)
@@ -599,14 +609,14 @@ def _within_min_hold(db: Session, symbol: str, settings: Settings, *, venue: str
     if entered is None:
         return False
     if entered.tzinfo is None:
-        entered = entered.replace(tzinfo=timezone.utc)
-    return datetime.now(timezone.utc) - entered < timedelta(minutes=settings.min_hold_minutes)
+        entered = entered.replace(tzinfo=UTC)
+    return datetime.now(UTC) - entered < timedelta(minutes=settings.min_hold_minutes)
 
 
 def count_new_entries_today(db: Session, *, venue: str = "alpaca") -> int:
     """How many automated BUY trades this venue has executed today (UTC) --
     drives the per-day new-entry cap that curbs churn on a small account."""
-    start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     rows = db.execute(
         select(Trade).where(
             Trade.venue == venue,
@@ -1179,7 +1189,7 @@ def _mark_analysis_done_today(db: Session, *, venue: str = "alpaca") -> None:
     Claude/network failure doesn't burn today's scheduled-fallback trigger
     (and leaves the heartbeat overdue, retrying next poll)."""
     state = risk_manager.get_state(db)
-    _set_analysis_marks(state, venue, date.today().isoformat(), datetime.now(timezone.utc).isoformat())
+    _set_analysis_marks(state, venue, date.today().isoformat(), datetime.now(UTC).isoformat())
     db.commit()
 
 

@@ -8,7 +8,7 @@ starsze. Best-effort: każdy błąd jest logowany, nigdy nie wywraca apki."""
 import logging
 import os
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.config import Settings
 
@@ -41,7 +41,7 @@ def run_backup(settings: Settings) -> str | None:
     dest_dir = _backups_dir(db_path)
     try:
         os.makedirs(dest_dir, exist_ok=True)
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         dest = os.path.join(dest_dir, f"trading-{stamp}.db")
         # Online Backup API: spójna kopia nawet przy równoległym zapisie.
         src = sqlite3.connect(db_path)

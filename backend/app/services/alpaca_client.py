@@ -16,7 +16,7 @@ separate asset class here."""
 import logging
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx
 
@@ -125,7 +125,7 @@ class AlpacaClient:
         technicals as its reason to HOLD)."""
         timeframe = _TIMEFRAMES.get(interval, "1Hour")
         minutes = _TIMEFRAME_MINUTES.get(interval, 60)
-        start = datetime.now(timezone.utc) - timedelta(minutes=minutes * limit * _CALENDAR_SPAN_FACTOR)
+        start = datetime.now(UTC) - timedelta(minutes=minutes * limit * _CALENDAR_SPAN_FACTOR)
         data = self._request(
             self._data,
             "GET",

@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -14,7 +14,7 @@ def test_account_view_counts_shared_cash_once(db_session):
     SAME account cash. The account view must count that cash ONCE plus each
     engine's position value -- not sum the two snapshot totals (which would
     double-count the cash, the "two portfolios" bug)."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # cash=100 in both; equities holds 50 of positions, extended holds 30.
     db_session.add(PortfolioSnapshot(timestamp=now, total_value_usdt=150.0, usdt_balance=100.0, venue="alpaca"))
     db_session.add(PortfolioSnapshot(timestamp=now, total_value_usdt=130.0, usdt_balance=100.0, venue="extended"))
@@ -40,7 +40,7 @@ def test_portfolio_cost_basis_covers_non_whitelist_held(db_session, settings):
     pętla szła tylko po whiteliście, więc taka pozycja nie pokazywała zysku."""
     from app.models import Trade, TradeMode
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # TSLA nie jest w domyślnej trading_whitelist -- kupione z uniwersum.
     db_session.add(Trade(timestamp=now, symbol="TSLA", side="BUY", quantity=2.0, price=200.0,
                          usdt_value=400.0, mode=TradeMode.LIVE, venue="alpaca"))
@@ -58,7 +58,7 @@ def test_pnl_series_is_deposit_proof(db_session, settings):
     samych pozycjach i cenach, sam wzrost gotówki (dopłata) nie zmienia P&L."""
     from app.models import Trade, TradeMode
 
-    t0 = datetime.now(timezone.utc) - timedelta(hours=2)
+    t0 = datetime.now(UTC) - timedelta(hours=2)
     db_session.add(Trade(timestamp=t0, symbol="SPY", side="BUY", quantity=1.0, price=100.0,
                          usdt_value=100.0, mode=TradeMode.LIVE, venue="alpaca"))
     # Snapshot 1: cash 100. Snapshot 2: cash 400 (wpłata +300), te same pozycje/ceny.
@@ -81,7 +81,7 @@ def test_status_net_result_is_realized_pnl_minus_claude_spend(db_session, settin
     from app.models import Trade, TradeMode
     from app.services import budget_tracker
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     db_session.add(Trade(
         timestamp=now, symbol="SPY", side="BUY", quantity=1, price=100.0, usdt_value=100.0,
         mode=TradeMode.LIVE, venue="alpaca",
@@ -107,7 +107,7 @@ def test_status_net_result_uses_lifetime_spend_not_just_this_month(db_session, s
     from app.models import SystemState, Trade, TradeMode
     from app.services import budget_tracker
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     db_session.add(Trade(
         timestamp=now, symbol="SPY", side="BUY", quantity=1, price=100.0, usdt_value=100.0,
         mode=TradeMode.LIVE, venue="alpaca",
@@ -144,7 +144,7 @@ def test_widget_endpoint_returns_compact_payload(db_session, settings):
     from app.api.routes_dashboard import get_widget
     from app.models import Trade, TradeMode
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # A held position + a couple of value snapshots for the sparkline.
     db_session.add(Trade(
         timestamp=now, symbol="SPY", side="BUY", quantity=2, price=100.0, usdt_value=200.0,
@@ -189,7 +189,7 @@ def test_claude_edge_endpoint_returns_both_sides(db_session, settings):
 def test_portfolio_venue_filter_separates_portfolios(db_session, settings):
     """/api/portfolio?venue=... must return only that venue's snapshots, so the
     equities and extended portfolios never bleed into each other on the dashboard."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     db_session.add(
         PortfolioSnapshot(timestamp=now, total_value_usdt=500.0, usdt_balance=500.0, venue="alpaca")
     )
@@ -210,7 +210,7 @@ def test_portfolio_inception_is_the_very_first_snapshot_even_beyond_limit(db_ses
     """/api/portfolio's `limit` truncates `history`, but `inception` must
     still reflect the true first-ever snapshot so "since the beginning" P&L
     doesn't quietly drift once more than `limit` snapshots have accumulated."""
-    base = datetime.now(timezone.utc) - timedelta(days=10)
+    base = datetime.now(UTC) - timedelta(days=10)
     for i in range(5):
         db_session.add(
             PortfolioSnapshot(
@@ -248,11 +248,11 @@ def test_day_pnl_uses_combined_account_not_whichever_venue_polled_last(db_sessio
 
     # Equities holds a real position on top of shared cash: cash 1000, $2000 in
     # stock -> total 3000. This was the day's opening baseline.
-    morning = datetime.now(timezone.utc) - timedelta(hours=6)
+    morning = datetime.now(UTC) - timedelta(hours=6)
     db_session.add(PortfolioSnapshot(timestamp=morning, total_value_usdt=3000.0, usdt_balance=1000.0, venue="alpaca"))
     db_session.commit()
     state = risk_manager.get_state(db_session)
-    state.day_start_date = datetime.now(timezone.utc).date().isoformat()
+    state.day_start_date = datetime.now(UTC).date().isoformat()
     state.day_start_value = 3000.0
     db_session.commit()
 
@@ -260,7 +260,7 @@ def test_day_pnl_uses_combined_account_not_whichever_venue_polled_last(db_sessio
     # shared cash, holding nothing -> its OWN snapshot total is just 1000.
     # Naively using "the latest snapshot across either venue" here would read
     # 1000 and compare it to the 3000 baseline -> a fake -66% "loss".
-    just_now = datetime.now(timezone.utc)
+    just_now = datetime.now(UTC)
     db_session.add(PortfolioSnapshot(timestamp=just_now, total_value_usdt=1000.0, usdt_balance=1000.0, venue="extended"))
     db_session.commit()
 
@@ -278,7 +278,9 @@ def test_status_includes_market_session_and_bounds(db_session, settings, monkeyp
         regular_open=now,
         regular_close=now,
     )
-    monkeypatch.setattr(routes_dashboard.market_hours, "get_session_info", lambda broker: info)
+    # /api/status czyta sesję WYŁĄCZNIE z cache (bez synchronicznego wywołania
+    # brokera -- grzeje je scheduler/prime w tle), więc patchujemy cache.
+    monkeypatch.setattr(routes_dashboard.market_hours, "cached_session_info", lambda: info)
 
     body = get_status(db=db_session, settings=settings)
 
@@ -287,14 +289,13 @@ def test_status_includes_market_session_and_bounds(db_session, settings, monkeyp
 
 
 def test_status_degrades_gracefully_when_session_lookup_fails(db_session, settings, monkeypatch):
-    def failing_get_session_info(broker):
-        raise RuntimeError("Alpaca calendar unavailable")
-
-    monkeypatch.setattr(routes_dashboard.market_hours, "get_session_info", failing_get_session_info)
+    # Zimny/pusty cache sesji (broker jeszcze nie odpytany) -> pola null, a reszta
+    # endpointu i tak działa. To zastąpiło dawny synchroniczny lookup w /api/status.
+    monkeypatch.setattr(routes_dashboard.market_hours, "cached_session_info", lambda: None)
 
     body = get_status(db=db_session, settings=settings)
 
     assert body["market_session"] is None
     assert body["session_bounds"] is None
-    # The rest of the endpoint must still work despite the session lookup failure.
+    # The rest of the endpoint must still work despite the cold session cache.
     assert "is_paused" in body

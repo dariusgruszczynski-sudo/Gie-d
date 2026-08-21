@@ -15,7 +15,7 @@ mają własne testy, więc tutaj są wyłączone, żeby BUY był deterministyczn
 """
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta, timezone
 
 import pytest
 
@@ -146,6 +146,9 @@ def _prod_like_settings() -> Settings:
         # Blackout newsów off w bazie -- News() zwraca [] celowo; dedykowany
         # test włącza go jawnie.
         news_blackout_halt_enabled=False,
+        # Sizing ważony przekonaniem (prod ON) off w bazie, żeby rozmiar wejścia
+        # był czystą bazą (10% = $100), a nie ×mnożnik pewności.
+        conviction_sizing_enabled=False,
     )
 
 
@@ -208,7 +211,7 @@ def test_heartbeat_wakes_claude_after_interval(db_session):
     # Cofnij znacznik ostatniej analizy o 200 min (> próg 120), zostawiając datę
     # dnia jako dziś (żeby wyzwalaczem był WYŁĄCZNIE heartbeat, nie "nowy dzień").
     state = risk_manager.get_state(db_session)
-    stale = (datetime.now(timezone.utc) - timedelta(minutes=200)).isoformat()
+    stale = (datetime.now(UTC) - timedelta(minutes=200)).isoformat()
     trading_engine._set_analysis_marks(state, "alpaca", date.today().isoformat(), stale)
     db_session.commit()
 

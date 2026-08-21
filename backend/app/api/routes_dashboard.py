@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 # Stempel wersji wstrzyknięty przy buildzie (Dockerfile ARG -> ENV). Pozwala
 # apce pokazać, JAKI kod realnie działa, żeby nie zgadywać "czy się wdrożyło".
@@ -20,7 +20,6 @@ from app.db import SessionLocal, get_db
 from app.models import Decision, PortfolioSnapshot, SystemState, Trade
 from app.serialization import serialize
 from app.services import budget_tracker, market_hours, risk_manager, scorecard, shadow_analysis
-from app.services.alpaca_client import AlpacaClient
 from app.services.strategy_profiles import effective_settings
 from app.services.trading_engine import _state_col, average_cost_basis, describe_position_plan, position_opened_at
 from app.services.whitelist_review import get_extended_whitelist
@@ -532,7 +531,7 @@ def get_position_plans(venue: str = "alpaca", db: Session = Depends(get_db), set
         opened = position_opened_at(db, full, venue=venue)
         days_held = None
         if opened is not None:
-            delta = datetime.now(timezone.utc) - (opened if opened.tzinfo else opened.replace(tzinfo=timezone.utc))
+            delta = datetime.now(UTC) - (opened if opened.tzinfo else opened.replace(tzinfo=UTC))
             days_held = max(0, delta.days)
         stop_price = None
         target_price = None
@@ -595,9 +594,9 @@ def _sell_timing(
     release: datetime | None = None
     within_hold = False
     if opened is not None and settings.min_hold_minutes > 0:
-        o = opened if opened.tzinfo else opened.replace(tzinfo=timezone.utc)
+        o = opened if opened.tzinfo else opened.replace(tzinfo=UTC)
         release = o + timedelta(minutes=settings.min_hold_minutes)
-        within_hold = datetime.now(timezone.utc) < release
+        within_hold = datetime.now(UTC) < release
 
     gain = change if change is not None else 0.0
 
@@ -879,7 +878,7 @@ def _realized_since(trades, cutoff, alpaca_only: bool = False) -> tuple[float, i
             avg = cost_by[sym] / held
             sell_qty = min(t.quantity, held)
             pnl = (t.price - avg) * sell_qty
-            ts = t.timestamp if t.timestamp.tzinfo else t.timestamp.replace(tzinfo=timezone.utc)
+            ts = t.timestamp if t.timestamp.tzinfo else t.timestamp.replace(tzinfo=UTC)
             counts = ts >= cutoff and (not alpaca_only or getattr(t, "venue", "alpaca") == "alpaca")
             if counts:
                 realized += pnl
@@ -905,7 +904,7 @@ def get_audit(db: Session = Depends(get_db), settings: Settings = Depends(get_se
     trades = db.execute(select(Trade).order_by(Trade.timestamp.asc())).scalars().all()
     buys = [t for t in trades if t.side.upper() == "BUY"]
     sells = [t for t in trades if t.side.upper() == "SELL"]
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Domyślnie liczymy TYLKO akcje sesji (bez krypto / POZA SESJĄ) i OD OSTATNIEJ
     # ZMIANY (auto: Świeży start albo domyślny start strategii z configu).
@@ -913,7 +912,7 @@ def get_audit(db: Session = Depends(get_db), settings: Settings = Depends(get_se
     epoch, epoch_raw = scorecard.effective_epoch(_st, settings)
 
     # „Życiowo" tu = od epoki, tylko akcje sesji — zaszłości nie zaniżają obrazu.
-    realized, wins, losses = _realized_since(trades, epoch or datetime.min.replace(tzinfo=timezone.utc), alpaca_only=True)
+    realized, wins, losses = _realized_since(trades, epoch or datetime.min.replace(tzinfo=UTC), alpaca_only=True)
     closed = wins + losses
 
     def _era_from(cutoff):
@@ -975,7 +974,7 @@ def get_audit(db: Session = Depends(get_db), settings: Settings = Depends(get_se
             avg = cb[sym] / held
             sq = min(t.quantity, held)
             pnl = (t.price - avg) * sq
-            ts_e = t.timestamp if (t.timestamp and t.timestamp.tzinfo) else (t.timestamp.replace(tzinfo=timezone.utc) if t.timestamp else None)
+            ts_e = t.timestamp if (t.timestamp and t.timestamp.tzinfo) else (t.timestamp.replace(tzinfo=UTC) if t.timestamp else None)
             counts = getattr(t, "venue", "alpaca") == "alpaca" and (epoch is None or (ts_e is not None and ts_e >= epoch))
             if counts:
                 st = sym_stats.setdefault(sym, {"pnl": 0.0, "w": 0, "l": 0})
@@ -1158,7 +1157,7 @@ async def get_news_sources(db: Session = Depends(get_db), settings: Settings = D
     plus złączoną próbkę realnego feedu (z sentymentem). Cache 120 s, bo to
     ~40 zapytań na fan-out."""
     import time
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from app.services.news_client import NewsClient
     from app.services.trading_engine import _base_asset
@@ -1198,7 +1197,7 @@ async def get_news_sources(db: Session = Depends(get_db), settings: Settings = D
             "added_last": discovery_meta.get("added", 0),
             "date": discovery_meta.get("date"),
         },
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
     _sources_cache.update(ts=now, data=data)
     return {**data, "cached": False}

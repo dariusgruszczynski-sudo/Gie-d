@@ -12,7 +12,7 @@ threadpool endpoint and show a spinner.
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from sqlalchemy import func, select
 
@@ -34,8 +34,8 @@ def _age_minutes(ts: datetime | None) -> float | None:
     if ts is None:
         return None
     if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
-    return (datetime.now(timezone.utc) - ts).total_seconds() / 60.0
+        ts = ts.replace(tzinfo=UTC)
+    return (datetime.now(UTC) - ts).total_seconds() / 60.0
 
 
 # --- individual probes ------------------------------------------------------
@@ -120,7 +120,7 @@ def _probe_news(db, settings):
 def _probe_anthropic_usage(db, settings):
     """Realne zużycie Claude prosto od Anthropic (Admin API), gdy skonfigurowany
     Admin key; inaczej lokalny szacunek aplikacji (też live)."""
-    from app.services import anthropic_usage, budget_tracker
+    from app.services import anthropic_usage
 
     key = getattr(settings, "anthropic_admin_api_key", "") or ""
     b = budget_tracker.get_budget_status(db, settings)
@@ -265,7 +265,7 @@ def run_health_checks(db, settings: Settings) -> dict:
     order = {"down": 0, "warn": 1, "off": 2, "ok": 3}
     worst = min((c["status"] for c in checks), key=lambda s: order[s], default="ok")
     counts = {k: sum(1 for c in checks if c["status"] == k) for k in ("ok", "warn", "down", "off")}
-    return {"overall": worst, "counts": counts, "checks": checks, "checked_at": datetime.now(timezone.utc).isoformat()}
+    return {"overall": worst, "counts": counts, "checks": checks, "checked_at": datetime.now(UTC).isoformat()}
 
 
 # --- resets -----------------------------------------------------------------
@@ -361,10 +361,10 @@ def _reset_fresh_start(db, settings):
       2) re-kotwiczy baseline dnia/tygodnia, szczyt i benchmark SPY do bieżącego
          stanu (rebaseline_pnl), więc wpłata/wypłata nie udaje zysku ani obsunięcia.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     state = risk_manager.get_state(db)
-    state.stats_epoch = datetime.now(timezone.utc).isoformat()
+    state.stats_epoch = datetime.now(UTC).isoformat()
     db.commit()
     base = _reset_rebaseline_pnl(db, settings)
     return "Świeży start — skuteczność i edge liczone OD TERAZ (historia zostaje). " + base

@@ -5,6 +5,7 @@ win/loss tally on closed trades. Without this the whole strategy is unmeasured
 Claude's own decision context ("you're underperforming buy-and-hold, rethink")."""
 
 from collections import defaultdict
+from datetime import UTC
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -24,7 +25,6 @@ def _walk_realized(db: Session, since=None, alpaca_only: bool = False) -> tuple[
     the P&L per sale is correct. `alpaca_only` pomija w liczeniu nogę POZA SESJĄ
     (venue!=alpaca) -- czyli krypto i inne zaszłości. Oba filtry pozwalają
     pokazać „staty od ostatniej zmiany, bez krypto" bez kasowania transakcji."""
-    from datetime import timezone as _tz
 
     trades = db.execute(select(Trade).order_by(Trade.timestamp.asc())).scalars().all()
     qty_by: dict[str, float] = defaultdict(float)
@@ -46,7 +46,7 @@ def _walk_realized(db: Session, since=None, alpaca_only: bool = False) -> tuple[
             pnl = (t.price - avg_cost) * sell_qty
             in_window = True
             if since is not None and t.timestamp is not None:
-                ts = t.timestamp if t.timestamp.tzinfo else t.timestamp.replace(tzinfo=_tz.utc)
+                ts = t.timestamp if t.timestamp.tzinfo else t.timestamp.replace(tzinfo=UTC)
                 in_window = ts >= since
             if alpaca_only and getattr(t, "venue", "alpaca") != "alpaca":
                 in_window = False
@@ -75,11 +75,11 @@ def _parse_epoch(raw: str | None):
     """ISO string z SystemState.stats_epoch -> aware datetime (albo None)."""
     if not raw:
         return None
-    from datetime import datetime, timezone as _tz
+    from datetime import datetime
 
     try:
         dt = datetime.fromisoformat(raw)
-        return dt if dt.tzinfo else dt.replace(tzinfo=_tz.utc)
+        return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
     except (TypeError, ValueError):
         return None
 

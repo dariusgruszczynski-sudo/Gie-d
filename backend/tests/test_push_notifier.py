@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 
 import pytest
 
@@ -70,7 +70,7 @@ def test_daily_summary_push_false_when_no_snapshots(db_session, push_settings):
 
 def test_daily_summary_push_sends_account_total(db_session, push_settings, fake_pywebpush):
     db_session.add(PushSubscription(endpoint="https://push/1", p256dh="a", auth="b"))
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     db_session.add(PortfolioSnapshot(
         timestamp=now, total_value_usdt=1150.0, usdt_balance=1000.0,
         balances_json=json.dumps({"SPY": 1.0}), venue="alpaca",

@@ -14,8 +14,8 @@ from app.api.routes_health import router as health_router
 from app.api.routes_push import router as push_router
 from app.auth import SessionAuthMiddleware
 from app.config import get_settings
-from app.security_headers import SecurityHeadersMiddleware
 from app.db import init_db
+from app.security_headers import SecurityHeadersMiddleware
 from app.services.scheduler import prime_portfolio_snapshots, start_scheduler, stop_scheduler
 from app.session_secret import get_session_secret, init_session_secret
 

@@ -10,7 +10,7 @@ import logging
 import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from itertools import zip_longest
 
 import httpx
@@ -315,7 +315,7 @@ def _finnhub_items(raw: list | dict, limit: int, label: str) -> list[dict]:
         ts = it.get("datetime")
         if ts:
             try:
-                published_at = datetime.fromtimestamp(int(ts), tz=timezone.utc).isoformat()
+                published_at = datetime.fromtimestamp(int(ts), tz=UTC).isoformat()
             except (ValueError, OSError, OverflowError):
                 published_at = ""
         outlet = it.get("source") or "Finnhub"
@@ -434,7 +434,7 @@ def _av_items(feed: list, limit: int) -> list[dict]:
         published_at = ""
         if raw_ts:
             try:
-                published_at = datetime.strptime(raw_ts, "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc).isoformat()
+                published_at = datetime.strptime(raw_ts, "%Y%m%dT%H%M%S").replace(tzinfo=UTC).isoformat()
             except ValueError:
                 published_at = ""
         outlet = it.get("source") or "AlphaVantage"

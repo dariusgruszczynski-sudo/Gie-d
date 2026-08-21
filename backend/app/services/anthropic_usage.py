@@ -13,7 +13,7 @@ przy każdym odświeżeniu)."""
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -32,7 +32,7 @@ def _headers(key: str) -> dict:
 
 
 def _month_start_iso() -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     return start.isoformat().replace("+00:00", "Z")
 

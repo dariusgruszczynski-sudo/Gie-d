@@ -11,7 +11,7 @@ windows so the two trading legs can be gated correctly:
 
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from app.services.alpaca_client import AlpacaClient
@@ -109,7 +109,7 @@ def cached_session_info() -> SessionInfo | None:
 
 def get_session_info(broker: AlpacaClient, *, force_refresh: bool = False) -> SessionInfo:
     global _cache, _cache_computed_at
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cache_is_fresh = (
         not force_refresh
         and _cache is not None

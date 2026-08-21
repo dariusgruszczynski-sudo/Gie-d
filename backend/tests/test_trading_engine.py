@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 
@@ -136,6 +136,41 @@ def test_buy_decision_executes_trade(db_session, settings):
     assert broker.orders[0].symbol == "SPY"
     assert broker.orders[0].side == "BUY"
     # 10% of 1000 USD starting balance
+    assert abs(broker.orders[0].usdt_value - 100.0) < 1e-6
+
+
+def test_conviction_sizing_boosts_high_confidence_buy(db_session, settings):
+    """Scenariusz A (prod ON): mocny sygnał (pełna pewność) dostaje większą
+    pozycję -- do conviction_size_max_mult× -- żeby uruchomić leżącą gotówkę.
+    Przy pewności == progressive_confidence_cap mnożnik jest maksymalny."""
+    s = settings.model_copy(update={
+        "conviction_sizing_enabled": True,
+        "conviction_size_max_mult": 2.0,
+        "min_buy_confidence": 0.0,
+        "progressive_confidence_cap": 0.9,
+        "max_position_pct": 90.0,
+    })
+    broker = FakeAlpaca()
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Bardzo mocny setup."))
+
+    decision = trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor)
+
+    assert decision.executed is True
+    assert len(broker.orders) == 1
+    # Baza 10% z 1000 USD = 100; przy pełnej pewności ×2 = 200.
+    assert abs(broker.orders[0].usdt_value - 200.0) < 1e-6
+
+
+def test_conviction_sizing_disabled_keeps_base_size(db_session, settings):
+    """Z wyłączonym sizingiem przekonania (jak w bazowej fixturze) rozmiar to
+    czysta baza -- mnożnik nie rusza pozycji."""
+    s = settings.model_copy(update={"conviction_sizing_enabled": False})
+    broker = FakeAlpaca()
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Mocny setup, ale mnożnik off."))
+
+    decision = trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor)
+
+    assert decision.executed is True
     assert abs(broker.orders[0].usdt_value - 100.0) < 1e-6
 
 
@@ -391,8 +426,8 @@ def test_owned_ticker_stays_on_the_leg_that_opened_it(db_session, settings):
     -- valued there with its real cost basis -- even though it also sits on the
     extended whitelist. It must NOT be re-attributed to the extended leg as an
     entry-less adopted position."""
-    from app.models import Trade, TradeMode
     from app.api.routes_dashboard import _account_view
+    from app.models import Trade, TradeMode
 
     s = settings.model_copy(update={"trading_whitelist": "SPY,XLF", "extended_whitelist": "XLF,GDX"})
     db_session.add(
@@ -510,9 +545,10 @@ def test_position_opened_at_tracks_current_holding(db_session, settings):
     """'Ile dni trzymana' liczy się od otwarcia BIEŻĄCEGO ciągu pozycji: pełne
     zamknięcie zeruje licznik, a wcześniejsze zamknięte round-tripy się nie liczą."""
     from datetime import datetime, timedelta, timezone
+
     from app.models import Trade, TradeMode
 
-    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
     # Round trip 1: kup t0, sprzedaj całość t1 (zamknięte -> nie liczy się).
     db_session.add(Trade(timestamp=base, symbol="SPY", side="BUY", quantity=1.0, price=100.0, usdt_value=100.0, mode=TradeMode.LIVE, venue="alpaca"))
     db_session.add(Trade(timestamp=base + timedelta(days=1), symbol="SPY", side="SELL", quantity=1.0, price=105.0, usdt_value=105.0, mode=TradeMode.LIVE, venue="alpaca"))
@@ -1079,7 +1115,7 @@ def test_heartbeat_triggers_analysis_after_interval(db_session, settings):
     assert trading_engine.check_trigger(db_session, heartbeat, {"SPY": 100.0, "QQQ": 400.0})[0] is False
 
     # Backdate the last analysis past the interval -> heartbeat fires.
-    state.last_analysis_at = (datetime.now(timezone.utc) - timedelta(minutes=121)).isoformat()
+    state.last_analysis_at = (datetime.now(UTC) - timedelta(minutes=121)).isoformat()
     db_session.commit()
     triggered, reason = trading_engine.check_trigger(db_session, heartbeat, {"SPY": 100.0, "QQQ": 400.0})
     assert triggered is True
@@ -1092,7 +1128,7 @@ def test_heartbeat_disabled_when_zero(db_session, settings):
     no_heartbeat = settings.model_copy(update={"full_analysis_every_minutes": 0})
     trading_engine._mark_analysis_done_today(db_session)
     state = risk_manager.get_state(db_session)
-    state.last_analysis_at = (datetime.now(timezone.utc) - timedelta(hours=10)).isoformat()
+    state.last_analysis_at = (datetime.now(UTC) - timedelta(hours=10)).isoformat()
     db_session.commit()
 
     assert trading_engine.check_trigger(db_session, no_heartbeat, {"SPY": 100.0, "QQQ": 400.0})[0] is False
@@ -1272,6 +1308,26 @@ def test_min_hold_blocks_non_stop_exit_but_never_the_stop(db_session, settings):
     assert "Stop-loss" in exits[0].decision.reasoning
 
 
+def test_min_hold_profit_bypass_lets_winner_exit_early(db_session, settings):
+    """Furtka na realizację zysku (prod ON, 3%): pozycja na >= bypass% od wejścia
+    MOŻE wyjść zyskiem nawet w oknie min-hold -- odpowiedź na 'jest zysk, a bot
+    czeka'. Anty-churn (min-hold) trzyma tylko pozycje ~zero/na minusie."""
+    s = settings.model_copy(update={
+        "min_hold_minutes": 30,
+        "trailing_stop_enabled": False,
+        "min_hold_profit_bypass_pct": 3.0,
+    })
+    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
+    trading_engine.execute_manual_trade(db_session, s, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
+
+    # +4% (>= 3% furtka) -> realny zysk brany OD RAZU mimo świeżej pozycji.
+    broker.prices["SPY"] = 104.0
+    portfolio = trading_engine.compute_portfolio(db_session, s, broker)
+    exits = trading_engine.check_take_profit_stop_loss(db_session, s, broker, portfolio)
+    assert len(exits) == 1
+    assert exits[0].side == "SELL"
+
+
 # ============================================================================
 # Pakiet 3 -- risk-based sizing + market-regime gate
 # ============================================================================
@@ -1413,7 +1469,8 @@ def test_extended_regime_gate_blocks_new_longs_in_risk_off(db_session, settings,
 # ============================================================================
 def test_auto_blacklist_after_stop_streak_extends_cooldown(db_session, settings):
     import json as _json
-    from datetime import datetime as _dt, timezone as _tz
+    from datetime import datetime as _dt
+    from datetime import timezone as _tz
 
     s = settings.model_copy(update={
         "auto_blacklist_stop_count": 2, "auto_blacklist_window_hours": 24,
@@ -1432,7 +1489,7 @@ def test_auto_blacklist_after_stop_streak_extends_cooldown(db_session, settings)
     def _cooldown_minutes_left():
         state = risk_manager.get_state(db_session)
         until = _dt.fromisoformat(_json.loads(state.stop_loss_cooldowns_json)["SPY"])
-        return (until - _dt.now(_tz.utc)).total_seconds() / 60
+        return (until - _dt.now(UTC)).total_seconds() / 60
 
     _stop_once(broker)  # 1st stop -> normal 60-min cooldown
     assert _cooldown_minutes_left() < 120

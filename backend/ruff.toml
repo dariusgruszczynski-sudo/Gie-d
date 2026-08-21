@@ -1,0 +1,21 @@
+# Linter backendu (ruff). Zestaw skupiony na REALNYCH błędach, nie na stylu:
+#  F  — pyflakes (martwe importy, nieużyte zmienne, redefinicje)
+#  I  — sortowanie importów
+#  B  — bugbear (typowe pułapki), C4 — komprehensje, UP — modernizacja składni
+# Świadomie NIE egzekwujemy długości linii (E501): kod ma gęste komentarze-eseje
+# opisujące decyzje strategii i ich łamanie nic nie wnosi.
+line-length = 120
+target-version = "py311"
+
+[lint]
+select = ["F", "I", "B", "C4", "UP"]
+# B008: `Depends(...)` w domyślnym argumencie to idiom FastAPI, nie błąd.
+# B904/B007/B905: drobne, stylistyczne — nie ruszamy istniejącej logiki tylko dla nich.
+# UP042: `class X(str, Enum)` -> `StrEnum` mogłoby subtelnie zmienić serializację
+# enumów w API/DB, więc celowo NIE wymuszamy (zachowanie bez zmian).
+ignore = ["B008", "B904", "B007", "B905", "UP042"]
+
+[lint.per-file-ignores]
+# Testy: nieużyte importy fixture'ów, redefinicje, oraz stylistyka typowa dla
+# asercji testowych (B011 assert-False, C408 dict()) — nie egzekwujemy w testach.
+"tests/**" = ["F401", "F811", "B011", "C408"]

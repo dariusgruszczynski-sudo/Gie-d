@@ -9,10 +9,9 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.serialization import serialize
-from app.services import audit, risk_manager
+from app.services import audit, push_notifier, risk_manager
 from app.services.alpaca_client import AlpacaAPIError, AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
-from app.services import push_notifier
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.strategy_profiles import effective_settings

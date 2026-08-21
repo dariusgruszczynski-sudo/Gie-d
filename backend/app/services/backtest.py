@@ -25,7 +25,7 @@ default Alpaca feed alone only reaches back a few years.
 import math
 from collections import OrderedDict
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.config import Settings
 from app.services import signals
@@ -66,8 +66,8 @@ def _yearly_breakdown(timeline: list[float], equity_curve: list[float], bench_cu
     single aggregate number can't show."""
     if not timeline:
         return []
-    year_of = [datetime.fromtimestamp(t, tz=timezone.utc).year for t in timeline]
-    bounds: "OrderedDict[int, list[int]]" = OrderedDict()
+    year_of = [datetime.fromtimestamp(t, tz=UTC).year for t in timeline]
+    bounds: OrderedDict[int, list[int]] = OrderedDict()
     for i, y in enumerate(year_of):
         if y not in bounds:
             bounds[y] = [i, i]
@@ -125,7 +125,7 @@ def run_backtest(
 
     cash = starting_cash
     positions: dict[str, _Pos] = {}
-    idx = {s: 0 for s in symbols}  # bars with time <= current step
+    idx = dict.fromkeys(symbols, 0)  # bars with time <= current step
     equity_curve: list[float] = []
     bench_curve: list[float | None] = []
     sell_returns_r: list[float] = []
