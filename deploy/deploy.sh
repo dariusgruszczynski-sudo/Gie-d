@@ -102,6 +102,14 @@ apply_knobs() { # apply_knobs FILE
   # Bezpieczeństwo danych: brak newsów = stop nowych wejść + alarm.
   setenv NEWS_BLACKOUT_HALT_ENABLED true "$f"
   setenv NEWS_MIN_HEADLINES 3 "$f"
+  # --- Bezpieczeństwo (paczka, 2026-08-21) ---
+  # Alarm push przy serii nieudanych logowań (nieautoryzowany dostęp).
+  setenv SECURITY_ALERT_ENABLED true "$f"
+  setenv SECURITY_ALERT_FAILED_LOGINS 5 "$f"
+  # Codzienna kopia zapasowa bazy SQLite (data/backups/, ostatnie 14 kopii).
+  setenv DB_BACKUP_ENABLED true "$f"
+  setenv DB_BACKUP_KEEP 14 "$f"
+  setenv DB_BACKUP_HOUR 3 "$f"
   # Read-only token dla WIDGETU iPhone (Scriptable) i linku podglądu: pozwala
   # TYLKO na GET dashboardu (status/portfel/widget/historia/audyt) — ŻADNEGO
   # handlu ani sterowania. Bez niego /api/widget?share=... zwraca 401. Chcesz
@@ -118,6 +126,14 @@ for K in ALPHA_VANTAGE_API_KEY NEWSAPI_API_KEY SERPAPI_API_KEY; do
     echo "   UWAGA: brak $K w .env -- to źródło newsów będzie pominięte (Alpaca News i tak działa)."
   fi
 done
+
+# FAIL-CLOSED: bez DASHBOARD_USERS panel jest teraz ZABLOKOWANY (503 na /api),
+# a nie otwarty dla każdego. To sekret (login:hasło), więc skrypt go NIE wpisuje
+# -- tylko krzyczy, gdyby go brakowało, żeby prod nie został bez sterowania.
+if ! grep -qE "^DASHBOARD_USERS=.+" .env 2>/dev/null; then
+  echo "   !! UWAGA: brak DASHBOARD_USERS w .env -- panel będzie ZABLOKOWANY (fail-closed)."
+  echo "      Ustaw:  echo 'DASHBOARD_USERS=login:HASLO' >> .env   i zrestartuj (docker compose up -d)."
+fi
 
 # --- 3) Build + restart ----------------------------------------------------
 # Stempel wersji do obrazu: apka pokaże ten sam SHA co niżej, więc jednym

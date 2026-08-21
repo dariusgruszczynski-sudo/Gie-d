@@ -89,6 +89,14 @@ def _extract_cookie(cookie_header: str, name: str) -> str | None:
     return None
 
 
+def _path_matches_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
+    """Zaostrzone dopasowanie: token RO wpuszcza TYLKO ścieżkę dokładnie równą
+    prefiksowi albo jego pod-ścieżkę (prefix + "/"). Gołe `startswith` wpuściłoby
+    też przyszły endpoint, który przypadkiem DZIELI prefiks (np. /api/audit-log
+    ~ /api/audit), rozszczelniając link podglądu -- ta granica temu zapobiega."""
+    return any(path == p or path.startswith(p + "/") for p in prefixes)
+
+
 class SessionAuthMiddleware:
     def __init__(self, app, credentials: dict[str, str], get_secret, get_share_token=None):
         self.app = app
@@ -97,11 +105,42 @@ class SessionAuthMiddleware:
         # Callable returning the current read-only share token ("" = disabled).
         self.get_share_token = get_share_token or (lambda: "")
 
+    def _share_ok(self, scope, path: str) -> bool:
+        """Read-only share link: valid token + GET + an allowed dashboard path."""
+        share_token = self.get_share_token()
+        if not share_token:
+            return False
+        provided = _extract_query_param(scope.get("query_string", b""), "share")
+        return bool(
+            provided
+            and hmac.compare_digest(provided, share_token)
+            and scope.get("method", "GET") == "GET"
+            and _path_matches_prefix(path, _SHARE_READONLY_PREFIXES)
+        )
+
     async def __call__(self, scope, receive, send):
         path = scope.get("path", "")
         exempt = not path.startswith("/api") or path in _EXEMPT_PATHS
-        if scope["type"] != "http" or not self.credentials or exempt:
+        if scope["type"] != "http" or exempt:
             await self.app(scope, receive, send)
+            return
+
+        # FAIL-CLOSED (żywa kasa): gdy NIE ustawiono żadnego użytkownika panelu
+        # (DASHBOARD_USERS puste), sterowanie botem stałoby otworem dla każdego,
+        # kto zna adres -- na realnych środkach to niedopuszczalne. Zamiast po
+        # cichu ufać każdemu (dawne zachowanie "brak loginu = brak bramki"),
+        # blokujemy wszystko poza czytelnym linkiem RO i zwracamy 503 z jasną
+        # diagnozą, żeby błędna/pusta konfiguracja była WIDOCZNA, nie ukryta.
+        if not self.credentials:
+            if self._share_ok(scope, path):
+                await self.app(scope, receive, send)
+                return
+            response = Response(
+                status_code=503,
+                content='{"detail":"Panel niezabezpieczony: ustaw DASHBOARD_USERS (login:hasło) w .env i zrestartuj. Sterowanie zablokowane do czasu konfiguracji."}',
+                media_type="application/json",
+            )
+            await response(scope, receive, send)
             return
 
         headers = dict(scope["headers"])
@@ -112,18 +151,9 @@ class SessionAuthMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Read-only share link: valid token + GET + an allowed dashboard path.
-        share_token = self.get_share_token()
-        if share_token:
-            provided = _extract_query_param(scope.get("query_string", b""), "share")
-            if (
-                provided
-                and hmac.compare_digest(provided, share_token)
-                and scope.get("method", "GET") == "GET"
-                and any(path.startswith(p) for p in _SHARE_READONLY_PREFIXES)
-            ):
-                await self.app(scope, receive, send)
-                return
+        if self._share_ok(scope, path):
+            await self.app(scope, receive, send)
+            return
 
         response = Response(
             status_code=401,

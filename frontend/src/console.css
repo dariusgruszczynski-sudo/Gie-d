@@ -1095,3 +1095,13 @@
 .gd-weekbar-col i.up { background: linear-gradient(180deg, var(--mint-soft), var(--mint)); box-shadow: 0 0 10px color-mix(in srgb, var(--mint) 40%, transparent); }
 .gd-weekbar-col i.down { background: linear-gradient(180deg, var(--rose-soft), var(--rose)); }
 .gd-weekbar-l { font-size: 0.66rem; color: var(--dim); font-weight: 700; }
+
+/* v26 — Bezpieczeństwo: dziennik operacji (audit log) */
+.gd-auditlog { display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow-y: auto; margin-top: 6px; }
+.gd-auditrow { padding: 8px 10px; border-radius: 10px; background: var(--card-2, rgba(255,255,255,0.03));
+  border: 1px solid var(--line, rgba(255,255,255,0.06)); }
+.gd-auditrow.err { border-color: var(--rose, #f5637a); background: rgba(245,99,122,0.08); }
+.gd-auditrow-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.gd-auditrow-top b { font-family: var(--font-display); font-size: 0.86rem; }
+.gd-auditrow-when { font-size: 0.7rem; color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gd-auditrow-detail { font-size: 0.74rem; color: var(--dim-2, var(--dim)); margin-top: 2px; word-break: break-word; }

@@ -92,9 +92,31 @@ def _build_test_app(credentials: dict[str, str], secret: str = SECRET, share_tok
     return app
 
 
-def test_middleware_allows_all_when_unconfigured():
+def test_middleware_fail_closed_when_unconfigured():
+    """FAIL-CLOSED: brak zdefiniowanych użytkowników = /api zablokowane (503),
+    nie otwarte dla każdego. Na żywej kasie otwarte sterowanie jest niedopuszczalne."""
     client = TestClient(_build_test_app({}))
-    assert client.get("/api/status").status_code == 200
+    resp = client.get("/api/status")
+    assert resp.status_code == 503
+
+
+def test_middleware_fail_closed_blocks_control_when_unconfigured():
+    client = TestClient(_build_test_app({}))
+    assert client.post("/api/control/pause").status_code == 503
+
+
+def test_middleware_fail_closed_still_serves_static_shell():
+    """Even fail-closed, the static shell must load so the app can render a
+    message telling the owner to configure DASHBOARD_USERS."""
+    client = TestClient(_build_test_app({}))
+    assert client.get("/").status_code == 200
+
+
+def test_middleware_fail_closed_allows_readonly_share():
+    """A configured read-only share link keeps working even with no login users
+    -- it's GET-only dashboard data, never control."""
+    client = TestClient(_build_test_app({}, share_token="s3cret-share"))
+    assert client.get("/api/status?share=s3cret-share").status_code == 200
 
 
 def test_middleware_blocks_api_without_cookie():
@@ -162,3 +184,18 @@ def test_wrong_share_token_rejected():
 def test_share_disabled_when_no_token_configured():
     client = TestClient(_build_test_app({"Darek": "secret"}, share_token=""))
     assert client.get("/api/status?share=anything").status_code == 401
+
+
+def test_share_prefix_matching_respects_path_boundary():
+    """Zawężenie tokenu RO: link podglądu wpuszcza dokładny prefiks lub jego
+    pod-ścieżkę, ale NIE endpoint, który tylko DZIELI prefiks (np. /api/audit-log
+    ~ /api/audit) -- gołe startswith by to rozszczelniło."""
+    from app.auth import _path_matches_prefix
+
+    prefixes = ("/api/status", "/api/audit")
+    assert _path_matches_prefix("/api/status", prefixes) is True
+    assert _path_matches_prefix("/api/audit", prefixes) is True
+    assert _path_matches_prefix("/api/status/detail", prefixes) is True
+    # Współdzielą tylko prefiks tekstowy -> muszą zostać ODRZUCONE.
+    assert _path_matches_prefix("/api/audit-log", prefixes) is False
+    assert _path_matches_prefix("/api/status-secret", prefixes) is False

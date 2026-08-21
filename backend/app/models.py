@@ -103,6 +103,23 @@ class RiskEvent(Base):
     details: Mapped[str] = mapped_column(Text, default="")
 
 
+class AuditLog(Base):
+    """Ślad audytowy operacji WRAŻLIWYCH wykonanych z panelu: ręczna transakcja,
+    STOP-wszystko (panic), sprzedaż pozycji, pauza/wznowienie, restart, zmiana
+    budżetu. Zapisujemy CO, KIEDY, z jakiego IP i skrót parametrów -- żeby gdyby
+    coś nieoczekiwanie ruszyło pozycje na żywej kasie, był czytelny dowód „kto,
+    kiedy, co". Nigdy nie trzyma sekretów (tylko symbol/kwota/strona)."""
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    action: Mapped[str] = mapped_column(String(32), index=True)
+    detail: Mapped[str] = mapped_column(String(255), default="")
+    client_ip: Mapped[str] = mapped_column(String(64), default="")
+    outcome: Mapped[str] = mapped_column(String(16), default="ok")  # ok | error
+
+
 class PushSubscription(Base):
     """A browser/PWA Web Push endpoint the user opted into. One row per device
     that pressed "Włącz powiadomienia" -- phone, watch-mirroring iPhone, laptop.

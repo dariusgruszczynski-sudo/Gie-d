@@ -2,14 +2,14 @@ import os
 import time
 from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, model_validator
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.serialization import serialize
-from app.services import risk_manager
+from app.services import audit, risk_manager
 from app.services.alpaca_client import AlpacaAPIError, AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services import push_notifier
@@ -31,19 +31,28 @@ def share_link(settings: Settings = Depends(get_settings)):
 
 
 @router.post("/pause")
-def pause(venue: str = "alpaca", db: Session = Depends(get_db)):
+def pause(venue: str = "alpaca", db: Session = Depends(get_db), request: Request = None):
     state = risk_manager.pause(db, venue)
+    audit.record(db, "pause", detail=f"venue={venue}", request=request)
     return serialize(state)
 
 
 @router.post("/resume")
-def resume(venue: str = "alpaca", db: Session = Depends(get_db)):
+def resume(venue: str = "alpaca", db: Session = Depends(get_db), request: Request = None):
     state = risk_manager.resume(db, venue)
+    audit.record(db, "resume", detail=f"venue={venue}", request=request)
     return serialize(state)
 
 
+@router.get("/audit-log")
+def audit_log(db: Session = Depends(get_db)):
+    """Dziennik operacji wrażliwych (najnowsze pierwsze). Pod /api/control, więc
+    dostęp TYLKO dla zalogowanego właściciela -- link RO nigdy go nie zobaczy."""
+    return {"entries": audit.recent(db, limit=100)}
+
+
 @router.post("/set-budget")
-def set_budget(amount: float, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+def set_budget(amount: float, db: Session = Depends(get_db), settings: Settings = Depends(get_settings), request: Request = None):
     """Ręczne ustawienie miesięcznego budżetu tokenów z aplikacji (bez wchodzenia
     na serwer). Zapisuje nadpisanie w bazie (wygrywa nad .env). amount<=0 zdejmuje
     nadpisanie (wraca wartość z .env)."""
@@ -52,6 +61,7 @@ def set_budget(amount: float, db: Session = Depends(get_db), settings: Settings 
     state = risk_manager.get_state(db)
     state.claude_monthly_budget_override = max(0.0, float(amount))
     db.commit()
+    audit.record(db, "set-budget", detail=f"amount={max(0.0, float(amount)):.2f}", request=request)
     return {"claude_budget": budget_tracker.get_budget_status(db, settings)}
 
 
@@ -76,7 +86,7 @@ def _broker_for(venue: str, settings: Settings):
 
 
 @router.post("/sell-all")
-def sell_all(symbol: str, venue: str = "alpaca", db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+def sell_all(symbol: str, venue: str = "alpaca", db: Session = Depends(get_db), settings: Settings = Depends(get_settings), request: Request = None):
     """One-click full exit of a held position: sells the EXACT quantity the
     account currently holds (read live from the broker), so a dollar amount that
     rounds to more shares than held can't cause an 'insufficient qty' reject.
@@ -99,23 +109,26 @@ def sell_all(symbol: str, venue: str = "alpaca", db: Session = Depends(get_db), 
             db, settings, broker, symbol=sym, side="SELL", quantity=qty, venue=venue, whitelist=wl
         )
     except (ValueError, AlpacaAPIError) as exc:
+        audit.record(db, "sell-all", detail=f"{sym} venue={venue} FAILED", request=request, outcome="error")
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
+    audit.record(db, "sell-all", detail=f"{sym} qty={qty:g} venue={venue}", request=request)
     return serialize(trade)
 
 
 @router.post("/set-push-mode")
-def set_push_mode(mode: Literal["all", "big", "daily", "off"], db: Session = Depends(get_db)):
+def set_push_mode(mode: Literal["all", "big", "daily", "off"], db: Session = Depends(get_db), request: Request = None):
     """Tryb powiadomień push per-transakcja (Centrum sterowania): all / big /
     daily / off. Dzienne podsumowanie leci niezależnie od tego ustawienia."""
     state = risk_manager.get_state(db)
     state.push_mode = mode
     db.commit()
+    audit.record(db, "set-push-mode", detail=f"mode={mode}", request=request)
     labels = {"all": "każda transakcja", "big": "tylko duże ruchy", "daily": "tylko dzienne podsumowanie", "off": "wyłączone"}
     return {"push_mode": mode, "message": f"Powiadomienia: {labels[mode]}."}
 
 
 @router.post("/panic")
-def panic(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+def panic(db: Session = Depends(get_db), settings: Settings = Depends(get_settings), request: Request = None):
     """STOP WSZYSTKO (przycisk paniki): (1) wstrzymuje bota, (2) sprzedaje
     WSZYSTKIE trzymane pozycje sesji. Saldo czytane na żywo z brokera; każda
     nazwa best-effort — jedna nieudana sprzedaż nie blokuje reszty. Zwraca, co
@@ -125,6 +138,7 @@ def panic(db: Session = Depends(get_db), settings: Settings = Depends(get_settin
     try:
         balances = broker.get_account_balances()
     except AlpacaAPIError as exc:
+        audit.record(db, "panic", detail="paused; balances read FAILED", request=request, outcome="error")
         raise HTTPException(status_code=502, detail=f"Wstrzymano bota, ale nie odczytano pozycji: {exc}") from exc
     sold: list[str] = []
     failed: list[str] = []
@@ -138,6 +152,8 @@ def panic(db: Session = Depends(get_db), settings: Settings = Depends(get_settin
             sold.append(sym)
         except Exception:  # best-effort: nie przerywaj na jednej nazwie
             failed.append(sym)
+    audit.record(db, "panic", detail=f"paused; sold={','.join(sold) or '—'}; failed={','.join(failed) or '—'}",
+                 request=request, outcome="error" if failed else "ok")
     return {"paused": True, "sold": sold, "failed": failed,
             "message": f"Wstrzymano bota. Sprzedano: {len(sold)}." + (f" Nie udało się: {', '.join(failed)}." if failed else "")}
 
@@ -161,6 +177,7 @@ def manual_trade(
     req: ManualTradeRequest,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    request: Request = None,
 ):
     if req.venue == "extended":
         if not settings.extended_enabled:
@@ -183,7 +200,11 @@ def manual_trade(
             whitelist=whitelist,
         )
     except (ValueError, AlpacaAPIError) as exc:
+        audit.record(db, "manual-trade", detail=f"{req.side} {req.symbol.upper()} venue={req.venue} FAILED",
+                     request=request, outcome="error")
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    amt = f"${req.usdt_amount:g}" if req.usdt_amount is not None else f"{req.quantity:g} szt."
+    audit.record(db, "manual-trade", detail=f"{req.side} {req.symbol.upper()} {amt} venue={req.venue}", request=request)
     return serialize(trade)
 
 
@@ -265,8 +286,9 @@ def _exit_after_response() -> None:
 
 
 @router.post("/restart")
-def restart(background_tasks: BackgroundTasks):
+def restart(background_tasks: BackgroundTasks, db: Session = Depends(get_db), request: Request = None):
     """Restarts the backend process -- useful for clearing a stuck scheduler
     or in-memory state without SSH-ing into the server."""
+    audit.record(db, "restart", detail="proces backendu", request=request)
     background_tasks.add_task(_exit_after_response)
     return {"message": "Restart zainicjowany, aplikacja wróci za kilka sekund."}

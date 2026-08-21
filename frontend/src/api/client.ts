@@ -318,6 +318,7 @@ export const api = {
   resetBudgetMeter: () =>
     apiFetch<{ claude_budget: ClaudeBudget }>("/api/control/reset-budget-meter", { method: "POST" }),
   shareLink: () => apiFetch<{ enabled: boolean; token: string }>("/api/control/share-link"),
+  auditLog: () => apiFetch<{ entries: AuditEntry[] }>("/api/control/audit-log"),
   claudeEdge: (venue: string = "alpaca") =>
     apiFetch<ClaudeEdge>(withShare(`/api/claude-edge?venue=${venue}`)),
   pushConfig: () => apiFetch<{ enabled: boolean; vapid_public_key: string }>("/api/push/config"),
@@ -338,6 +339,15 @@ export const api = {
       body: JSON.stringify({ action }),
     }),
 };
+
+export interface AuditEntry {
+  id: number;
+  timestamp: string | null;
+  action: string;
+  detail: string;
+  client_ip: string;
+  outcome: string;
+}
 
 export interface HistoryTrade {
   symbol: string;

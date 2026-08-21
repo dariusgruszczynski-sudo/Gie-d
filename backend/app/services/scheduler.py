@@ -142,6 +142,17 @@ def _report_job() -> None:
         db.close()
 
 
+def _db_backup_job() -> None:
+    """Codzienna kopia zapasowa bazy SQLite (patrz db_backup). Best-effort."""
+    from app.services import db_backup
+
+    settings = get_settings()
+    try:
+        db_backup.run_backup(settings)
+    except Exception:
+        logger.exception("Kopia bazy (job) nie powiodła się")
+
+
 def _self_review_job() -> None:
     from app.services.self_review import run_self_review
 
@@ -346,6 +357,13 @@ def start_scheduler() -> BackgroundScheduler:
         CronTrigger(day_of_week="fri", hour=20, minute=15, timezone="America/New_York"),
         id="whitelist_review",
     )
+    # Codzienna kopia zapasowa bazy SQLite (job no-op, gdy wyłączona / nie-SQLite).
+    if settings.db_backup_enabled:
+        scheduler.add_job(
+            _db_backup_job,
+            CronTrigger(hour=settings.db_backup_hour, minute=30, timezone=settings.report_timezone),
+            id="db_backup",
+        )
     # Codzienne auto-odkrywanie źródeł newsów (~10% nowych osiągalnych feedów).
     if settings.news_discovery_enabled:
         scheduler.add_job(

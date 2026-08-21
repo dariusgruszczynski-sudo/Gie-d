@@ -1,0 +1,38 @@
+# Skan podatności zależności (GitHub Dependabot).
+# Zgłasza znane dziury CVE w bibliotekach backendu (pip), frontu (npm) i w
+# samych GitHub Actions — plus otwiera PR-y z bezpiecznymi podbiciami wersji.
+# Nie wymaga żadnych sekretów. Grupujemy drobne aktualizacje w jeden PR, żeby
+# nie zasypać skrzynki; realne alarmy bezpieczeństwa i tak lecą osobno.
+version: 2
+updates:
+  # --- Backend (FastAPI/SQLAlchemy/...) -------------------------------------
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "backend", "security"]
+    groups:
+      backend-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # --- Frontend (React/Vite/TypeScript) -------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "frontend", "security"]
+    groups:
+      frontend-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # --- GitHub Actions używane w repo ----------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels: ["dependencies", "ci"]

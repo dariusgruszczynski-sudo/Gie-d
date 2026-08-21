@@ -14,6 +14,7 @@ from app.api.routes_health import router as health_router
 from app.api.routes_push import router as push_router
 from app.auth import SessionAuthMiddleware
 from app.config import get_settings
+from app.security_headers import SecurityHeadersMiddleware
 from app.db import init_db
 from app.services.scheduler import prime_portfolio_snapshots, start_scheduler, stop_scheduler
 from app.session_secret import get_session_secret, init_session_secret
@@ -54,6 +55,9 @@ app.add_middleware(
     get_secret=get_session_secret,
     get_share_token=lambda: get_settings().share_token,
 )
+# Dodane OSTATNIE = warstwa NAJBARDZIEJ zewnętrzna: nagłówki bezpieczeństwa
+# (HSTS itd.) trafiają na KAŻDĄ odpowiedź, także 401/503 z bramki logowania.
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(auth_router)
 app.include_router(dashboard_router)

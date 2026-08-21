@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { api, isReadOnly, StatusResponse } from "../api/client";
+import { useEffect, useState } from "react";
+import { api, AuditEntry, isReadOnly, StatusResponse } from "../api/client";
 import { PushState, usePushNotifications } from "../hooks/usePushNotifications";
 
 function useAction() {
@@ -186,6 +186,73 @@ function PushMode({ status, onChanged }: { status: StatusResponse; onChanged: ()
   );
 }
 
+const AUDIT_LABEL: Record<string, string> = {
+  "manual-trade": "Ręczna transakcja",
+  "sell-all": "Sprzedaż pozycji",
+  panic: "🛑 STOP wszystko",
+  pause: "Zatrzymanie silnika",
+  resume: "Wznowienie silnika",
+  restart: "Restart backendu",
+  "set-push-mode": "Zmiana powiadomień",
+  "set-budget": "Zmiana budżetu",
+  login: "Logowanie",
+  "login-fail": "❗ Błędne logowanie",
+};
+
+function fmtWhen(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function OpsLog() {
+  const [entries, setEntries] = useState<AuditEntry[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
+  async function load() {
+    setErr(null);
+    try { const r = await api.auditLog(); setEntries(r.entries); }
+    catch (e) { setErr(String(e)); }
+  }
+  useEffect(() => { if (open && entries === null) load(); }, [open, entries]);
+
+  return (
+    <div className="gd-card">
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <h4 style={{ margin: 0 }}>🧾 Dziennik operacji</h4>
+        <button className="gd-btn" onClick={() => { setOpen((o) => !o); if (open) { setEntries(null); } }}>
+          {open ? "Ukryj" : "Pokaż"}
+        </button>
+      </div>
+      <p className="gd-note">Ślad wrażliwych akcji: transakcje ręczne, STOP, restart, logowania — kto, kiedy, z jakiego IP.</p>
+      {open && (
+        <>
+          <div className="gd-btnrow" style={{ marginBottom: 8 }}>
+            <button className="gd-btn" onClick={() => { setEntries(null); load(); }}>⟳ Odśwież</button>
+          </div>
+          {err && <div className="gd-ribbon">{err}</div>}
+          {!entries && !err && <p className="gd-empty">Wczytuję…</p>}
+          {entries && entries.length === 0 && <p className="gd-empty">Brak wpisów.</p>}
+          {entries && entries.length > 0 && (
+            <div className="gd-auditlog">
+              {entries.map((e) => (
+                <div key={e.id} className={`gd-auditrow ${e.outcome === "error" ? "err" : ""}`}>
+                  <div className="gd-auditrow-top">
+                    <b>{AUDIT_LABEL[e.action] ?? e.action}</b>
+                    <span className="gd-auditrow-when">{fmtWhen(e.timestamp)}</span>
+                  </div>
+                  <div className="gd-auditrow-detail">{e.detail}{e.client_ip ? ` · ${e.client_ip}` : ""}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function Control({ status, onChanged }: { status: StatusResponse; onChanged: () => void }) {
   return (
     <div className="gd-view">
@@ -200,6 +267,7 @@ export function Control({ status, onChanged }: { status: StatusResponse; onChang
           <Notifications />
           <ManualTrade status={status} onChanged={onChanged} />
           <Ops onChanged={onChanged} />
+          <OpsLog />
         </>
       )}
     </div>

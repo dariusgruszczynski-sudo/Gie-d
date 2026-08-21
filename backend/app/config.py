@@ -589,9 +589,26 @@ class Settings(BaseSettings):
     vapid_subject: str = "mailto:darius.gruszczynski@gmail.com"
     push_enabled: bool = True
 
-    # Empty = no login required (backward-compatible default for existing
-    # deployments). Format: "user1:pass1,user2:pass2".
+    # Format: "user1:pass1,user2:pass2". PUSTE = FAIL-CLOSED: panel zwraca 503 na
+    # /api (poza linkiem RO), zamiast wpuszczać każdego -- na żywej kasie otwarte
+    # sterowanie jest niedopuszczalne. Ustaw login:hasło, żeby odblokować panel.
     dashboard_users: str = ""
+
+    # --- Alarm bezpieczeństwa: nieautoryzowany dostęp -----------------------
+    # Gdy z jednego IP posypie się seria błędnych logowań (>= progu w 15 min),
+    # leci JEDEN alarm push (z cooldownem), żeby właściciel wiedział, że ktoś
+    # próbuje wejść do sterowania botem. Ślad każdej próby ląduje w audit_log.
+    security_alert_enabled: bool = True
+    security_alert_failed_logins: int = 5
+
+    # --- Automatyczna kopia bazy -------------------------------------------
+    # Raz dziennie robimy migawkę bazy SQLite (transakcje, decyzje, staty) do
+    # data/backups/ przez natywne SQLite backup API (bezpieczne na żywej bazie),
+    # trzymając ostatnie db_backup_keep kopii. Awaria dysku/pliku nie kasuje
+    # wtedy całej historii bota. Działa tylko dla bazy SQLite (domyślna).
+    db_backup_enabled: bool = True
+    db_backup_keep: int = 14
+    db_backup_hour: int = 3
 
     # Read-only share link: gdy ustawisz sekret, każdy z linkiem
     # https://.../?share=<SEKRET> zobaczy dashboard TYLKO DO ODCZYTU (bez
