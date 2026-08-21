@@ -1147,3 +1147,15 @@
 .gd-histfilter-out { display: flex; gap: 6px; }
 .gd-histfilter-out .gd-btn { padding: 6px 12px; font-size: 0.78rem; }
 .gd-linkbtn { background: none; border: none; color: var(--brand, var(--mint)); text-decoration: underline; cursor: pointer; font: inherit; padding: 0; }
+
+/* v30 — Analiza: krzywa vs SPY */
+.gd-anz-spy { margin: 4px 0 6px; }
+.gd-anz-spysvg { width: 100%; height: 96px; display: block; }
+.gd-anz-zero { stroke: rgba(255,255,255,0.14); stroke-width: 1; stroke-dasharray: 3 4; }
+.gd-anz-spline { stroke-width: 2; vector-effect: non-scaling-stroke; }
+.gd-anz-spline.bot { stroke: var(--mint); }
+.gd-anz-spline.spy { stroke: var(--dim, #8aa); opacity: 0.7; }
+.gd-anz-spylegend { display: flex; gap: 12px; align-items: center; font-size: 0.74rem; margin-top: 4px; flex-wrap: wrap; }
+.gd-anz-spylegend .bot { color: var(--mint); }
+.gd-anz-spylegend .spy { color: var(--dim); }
+.gd-anz-spylegend b { margin-left: auto; }

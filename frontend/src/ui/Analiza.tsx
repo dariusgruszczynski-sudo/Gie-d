@@ -1,6 +1,53 @@
 import { useEffect, useState } from "react";
-import { api, AuditResponse, Decision, MonthlyRow } from "../api/client";
+import { api, AuditResponse, Decision, MonthlyRow, PortfolioResponse } from "../api/client";
 import { money } from "./kit";
+
+/* Krzywa: wzrost automatu (deposit-proof %) vs wzrost SPY (%) od początku okna.
+   Obie linie startują od 0% — uczciwe „czy bijesz zwykłe trzymanie indeksu".
+   Bot% = skumulowany zysk automatu (odporny na wpłaty) jako % konta na starcie;
+   SPY% = zmiana ceny SPY. Liczone z danych, które /api/portfolio już zwraca. */
+function VsSpy({ pf }: { pf: PortfolioResponse | null }) {
+  const hist = pf?.history ?? [];
+  const pnl = pf?.pnl_history ?? [];
+  if (hist.length < 2 || pnl.length !== hist.length) return null;
+  const base = hist[0].total_value_usdt || 0;
+  const spyAt = (i: number): number | null => {
+    try { const p = JSON.parse(hist[i].prices_json || "{}"); return typeof p.SPY === "number" ? p.SPY : null; } catch { return null; }
+  };
+  const spy0 = spyAt(0);
+  if (base <= 0 || spy0 === null || spy0 <= 0) return null;
+  const pts = hist.map((_, i) => {
+    const s = spyAt(i);
+    return { bot: (pnl[i] / base) * 100, spy: s !== null ? (s / spy0 - 1) * 100 : null };
+  });
+  const botVals = pts.map((p) => p.bot);
+  const spyVals = pts.map((p) => p.spy).filter((v): v is number => v !== null);
+  const all = [...botVals, ...spyVals, 0];
+  const lo = Math.min(...all), hi = Math.max(...all);
+  const span = hi - lo || 1;
+  const W = 320, H = 90;
+  const x = (i: number) => (i / (pts.length - 1)) * W;
+  const y = (v: number) => H - ((v - lo) / span) * H;
+  const line = (key: "bot" | "spy") => pts.map((p, i) => (p[key] === null ? null : `${x(i).toFixed(1)},${y(p[key] as number).toFixed(1)}`))
+    .filter(Boolean).join(" ");
+  const botNow = botVals[botVals.length - 1];
+  const spyNow = spyVals.length ? spyVals[spyVals.length - 1] : null;
+  const beating = spyNow !== null && botNow >= spyNow;
+  return (
+    <div className="gd-anz-spy">
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="gd-anz-spysvg">
+        <line x1="0" y1={y(0)} x2={W} y2={y(0)} className="gd-anz-zero" />
+        <polyline points={line("spy")} className="gd-anz-spline spy" fill="none" />
+        <polyline points={line("bot")} className="gd-anz-spline bot" fill="none" />
+      </svg>
+      <div className="gd-anz-spylegend">
+        <span className="bot">● Automat {botNow >= 0 ? "+" : ""}{botNow.toFixed(1)}%</span>
+        <span className="spy">● SPY {spyNow !== null ? `${spyNow >= 0 ? "+" : ""}${spyNow.toFixed(1)}%` : "—"}</span>
+        {spyNow !== null && <b className={beating ? "gd-up" : "gd-down"}>{beating ? "bijesz indeks" : "poniżej indeksu"}</b>}
+      </div>
+    </div>
+  );
+}
 
 /* EKRAN ANALIZA (Funkcjonalności — wgląd): trzy pierwszoklasowe widoki, dotąd
    schowane w „szczegółach" Historii albo w ogóle niepokazane:
@@ -19,14 +66,15 @@ export function Analiza() {
   const [audit, setAudit] = useState<AuditResponse | null>(null);
   const [months, setMonths] = useState<MonthlyRow[] | null>(null);
   const [decisions, setDecisions] = useState<Decision[] | null>(null);
+  const [pf, setPf] = useState<PortfolioResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     let dead = false;
     (async () => {
       try {
-        const [a, m, d] = await Promise.all([api.audit(), api.monthly(), api.decisions("alpaca")]);
-        if (!dead) { setAudit(a); setMonths(m.months); setDecisions(d); }
+        const [a, m, d, p] = await Promise.all([api.audit(), api.monthly(), api.decisions("alpaca"), api.portfolio("alpaca")]);
+        if (!dead) { setAudit(a); setMonths(m.months); setDecisions(d); setPf(p); }
       } catch (e) {
         if (!dead) setErr(String(e));
       }
@@ -55,6 +103,10 @@ export function Analiza() {
         <span className="gd-kicker">Analiza · wgląd w wyniki</span>
       </div>
       {err && <div className="gd-ribbon">{err}</div>}
+
+      {/* 0) KRZYWA vs SPY */}
+      <div className="gd-sec"><h3>Ty vs trzymanie SPY</h3><span className="gd-sec-note">wzrost automatu (bez wpłat) vs indeks, od początku</span></div>
+      {pf ? (<VsSpy pf={pf} />) : <p className="gd-empty">Liczę…</p>}
 
       {/* 1) MIESIĘCZNY RAPORT */}
       <div className="gd-sec"><h3>Miesiąc po miesiącu</h3><span className="gd-sec-note">zysk zrealizowany per miesiąc</span></div>
