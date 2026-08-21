@@ -1,8 +1,12 @@
 # --- Stage 1: build the React dashboard ---
 FROM node:20-slim AS frontend-build
 WORKDIR /frontend
-COPY frontend/package.json ./
-RUN npm install
+# Kopiujemy TAKŻE package-lock.json i instalujemy przez `npm ci` -- instaluje
+# DOKŁADNIE przetestowane wersje z locka, zamiast re-resolvować zakresy przy
+# każdym buildzie (co groziło niespójnym/pękającym buildem proda, a przez to
+# brakiem wdrożenia poprawek frontu). Reprodukowalny build.
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
