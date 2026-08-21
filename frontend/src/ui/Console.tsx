@@ -3,6 +3,7 @@ import { api, Decision, EngineProfile, isReadOnly, MarketRegime, PortfolioRespon
 import { useCountUp } from "../hooks/useCountUp";
 import { ago, EquityBand, money, money0, pct, PnlBand, TickerTape } from "./kit";
 import { NewsBar } from "./NewsBar";
+import { Info } from "./Help";
 
 export type Leg = "sesja" | "poza";
 export interface Pos {
@@ -485,7 +486,7 @@ export function Console({ status, alpaca, extended, simple = false, onGoPosition
 
       {/* HERO — jedna, wielka liczba: ile bot dorobił. Reszta niżej, w sekcjach. */}
       <div className="gd-hero">
-        <div className="gd-hero-label">💰 Zysk automatu · ile bot dorobił (bez Twoich wpłat)</div>
+        <div className="gd-hero-label">💰 Zysk automatu · ile bot dorobił (bez Twoich wpłat)<Info term="zysk_automatu" /></div>
         <div className={`gd-hero-val ${pnlUp ? "gd-up" : "gd-down"}`}>
           {acc ? `${pnlUp ? "+" : ""}${money(status.trading_pnl.total_usd)}` : "…"}
         </div>
@@ -508,13 +509,13 @@ export function Console({ status, alpaca, extended, simple = false, onGoPosition
       {/* RYZYKO — pełny widok: wskaźnik „jak ryzykownie jest teraz" (ukryty w trybie prostym) */}
       {!simple && (
         <>
-          <div className="gd-sec"><h3>Ryzyko teraz</h3><span className="gd-sec-note">jak ostrożnie gra automat</span></div>
+          <div className="gd-sec"><h3>Ryzyko teraz<Info term="ryzyko" /></h3><span className="gd-sec-note">jak ostrożnie gra automat</span></div>
           <RiskScale status={status} />
         </>
       )}
 
       {/* ZYSK — po ludzku: skuteczność (pasek) + (pełny) wzięty vs na otwartych */}
-      <div className="gd-sec"><h3>Zysk bota</h3><span className="gd-sec-note">czysty wynik handlu</span></div>
+      <div className="gd-sec"><h3>Zysk bota<Info term="skutecznosc" /></h3><span className="gd-sec-note">czysty wynik handlu</span></div>
       <WinBar pct={sc?.win_rate_pct ?? null} wins={sc?.wins ?? 0} losses={sc?.losses ?? 0} />
       {!simple && (
         <div className="gd-statgrid" style={{ marginTop: 10 }}>

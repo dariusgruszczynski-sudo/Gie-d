@@ -6,6 +6,7 @@ import { Health } from "./ui/Health";
 import { History } from "./ui/History";
 import { News } from "./ui/News";
 import { Positions } from "./ui/Positions";
+import { HelpModal, Onboarding, useOnboarding } from "./ui/Help";
 import { Icon } from "./ui/kit";
 import { isSoundMuted, playTradeSound, setSoundMuted } from "./tradeSound";
 
@@ -35,6 +36,8 @@ export default function App() {
   const [muted, setMuted] = useState<boolean>(isSoundMuted);
   // Tryb Prosty vs Zaawansowany — chowa nerdowe metryki dla spokojnego widoku.
   const [simple, setSimple] = useState<boolean>(() => { try { return localStorage.getItem("gd-simple") === "1"; } catch { return false; } });
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [showOnboard, doneOnboard] = useOnboarding();
   const [view, setView] = useState<View>("dashboard");
   const [toasts, setToasts] = useState<Array<{ id: string; kind: "buy" | "sell" | "wait"; title: string; body: string }>>([]);
   const failCount = useRef(0);
@@ -149,6 +152,9 @@ export default function App() {
     <div className="gd">
       <div className="gd-bg" aria-hidden="true"><span /><span /><span /></div>
 
+      {showOnboard && <Onboarding onDone={doneOnboard} />}
+      {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
+
       {toasts.length > 0 && (
         <div className="gd-toasts" role="status" aria-live="polite">
           {toasts.map((t) => (
@@ -173,6 +179,10 @@ export default function App() {
             </button>
           ))}
           <div className="gd-nav-sp" />
+          <button className="gd-nav" onClick={() => setHelpOpen(true)}>
+            <Icon name="news" />
+            <span className="gd-nav-label">Pomoc</span>
+          </button>
           <button className="gd-nav" onClick={toggleSimple}>
             <Icon name="console" />
             <span className="gd-nav-label">{simple ? "Widok: prosty" : "Widok: pełny"}</span>
