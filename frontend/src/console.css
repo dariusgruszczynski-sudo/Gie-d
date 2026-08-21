@@ -334,18 +334,21 @@
 @keyframes gd-halo { 0%,100% { opacity: 0.18; r: 8px; } 50% { opacity: 0.4; r: 12px; } }
 
 /* Hero figure: a slow legible sheen sweeps across the number. */
-.gd-hero-val {
-  background: linear-gradient(100deg, var(--txt) 34%, #d9fff2 50%, var(--txt) 66%);
-  background-size: 220% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: gd-sheen 7s linear infinite;
+/* NAJWAŻNIEJSZA liczba na panelu ("Zysk automatu") MUSI być zawsze widoczna, na
+   każdym urządzeniu. Dlatego SOLIDNY kolor — nigdy przezroczysty tekst.
+   Wcześniej używała triku background-clip:text + color:transparent z animowanym
+   gradientem („sheen"): na iOS/Safari klip potrafi się rozjechać i gradient maluje
+   cały prostokąt jako kolorowy PAS, a tekst (przezroczysty) znika za nim — dokładnie
+   ten zgłoszony bug. @supports nie pomaga (iOS deklaruje wsparcie, a mimo to źle
+   renderuje), więc trik usunięty całkowicie. Delikatny „oddech" jasności zamiast
+   sheenu — czysto kosmetyczny, NIGDY nie ukryje wartości. */
+.gd-hero-val { color: var(--txt); -webkit-text-fill-color: currentColor; }
+.gd-hero-val.gd-up { color: var(--mint); -webkit-text-fill-color: currentColor; }
+.gd-hero-val.gd-down { color: var(--rose); -webkit-text-fill-color: currentColor; }
+@media (prefers-reduced-motion: no-preference) {
+  .gd-hero-val { animation: gd-hero-breathe 6s ease-in-out infinite; }
 }
-@keyframes gd-sheen { from { background-position: 200% center; } to { background-position: -60% center; } }
-/* Hero pokazuje "Zysk automatu" -> zielono/czerwono (z zachowaniem sheenu). */
-.gd-hero-val.gd-up { background: linear-gradient(100deg, var(--mint) 34%, #d6fff0 50%, var(--mint) 66%); }
-.gd-hero-val.gd-down { background: linear-gradient(100deg, var(--rose) 34%, #ffd6de 50%, var(--rose) 66%); }
+@keyframes gd-hero-breathe { 0%, 100% { filter: none; } 50% { filter: brightness(1.12); } }
 
 /* Lanes: a light sweep on hover. */
 .gd-lane::after {
