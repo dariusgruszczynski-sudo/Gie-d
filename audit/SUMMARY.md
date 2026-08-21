@@ -1,30 +1,30 @@
-# Audyt GielDarek — 2026-08-20T06:31:08Z
+# Audyt GielDarek — 2026-08-21T06:31:57Z
 
-**Życiowo:** 20 zamknięć · trafność 25.0% · zrealizowany $6.84
-**7 dni:** 14 zamknięć · 28.6% · $6.18   |   **30 dni:** 109 · 23.9% · $5.51
-**Edge:** śr. wygrana +$3.34 vs strata $-0.66 → na transakcję $0.34 (payoff 5.06×)
-**Trzymanie:** zyski ~7.2 dni · straty ~1.9 dni
+**Życiowo:** 28 zamknięć · trafność 28.6% · zrealizowany $10.09
+**7 dni:** 20 zamknięć · 35.0% · $10.23   |   **30 dni:** 117 · 24.8% · $8.76
+**Edge:** śr. wygrana +$2.74 vs strata $-0.59 → na transakcję $0.36 (payoff 4.64×)
+**Trzymanie:** zyski ~5.6 dni · straty ~1.9 dni
 
 ## Wnioski
-- (neu) Trafność 7 dni 29% vs 30 dni 24% — stabilna.
-- (good) Ostatnie 7 dni: +6.18 $ z 14 zamknięć.
-- (good) Średnia wygrana +$3.34 vs strata −$0.66 (wygrana 5.06× większa) → na transakcję +$0.34. Zarabia mimo <50% trafności — edge dodatni.
-- (bad) ⚠ Zyski trzymane dłużej (~7 dni) niż straty (~2 dni) — automat zwleka z realizacją zysku.
+- (good) Trafność 7 dni 35% vs 30 dni 25% — rośnie.
+- (good) Ostatnie 7 dni: +10.23 $ z 20 zamknięć.
+- (good) Średnia wygrana +$2.74 vs strata −$0.59 (wygrana 4.64× większa) → na transakcję +$0.36. Zarabia mimo <50% trafności — edge dodatni.
+- (bad) ⚠ Zyski trzymane dłużej (~6 dni) niż straty (~2 dni) — automat zwleka z realizacją zysku.
 - (neu) Największy przeciek: AMZN (-2.22 $, 1 zamk.) — kandydat do wyrzucenia z listy.
 - (neu) Limit wejść bywa osiągany (5 dni) — podniesienie może dołożyć wejść.
-- (neu) Najczęstszy powód pominięcia wejścia: „Zbyt niska pewność: 0.60 < próg 0.73 (baza 0.55 + 6 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału” (24× z ostatnich 300 decyzji).
+- (neu) Najczęstszy powód pominięcia wejścia: „Zbyt niska pewność: 0.60 < próg 0.70 (baza 0.55 + 5 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału” (25× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
 - AMZN: $-2.22 (1 zamk., 0%)
 - LITE: $-0.8 (2 zamk., 0%)
 - DIS: $-0.76 (2 zamk., 0%)
+- UGI: $-0.75 (1 zamk., 0%)
+- TGT: $-0.68 (1 zamk., 0%)
 - MSFT: $-0.59 (2 zamk., 0%)
 - WBD: $-0.42 (1 zamk., 0%)
 - AVGO: $-0.39 (1 zamk., 0%)
-- NTRA: $-0.17 (2 zamk., 0%)
-- SMH: $-0.12 (1 zamk., 0%)
-- CRWV: $-0.09 (1 zamk., 0%)
-- QQQ: $0.82 (1 zamk., 100%)
+- MRK: $-0.26 (1 zamk., 0%)
+- PTCT: $-0.2 (1 zamk., 0%)
 
 ## Wejścia vs limit
 - cap 8/dzień · max w dniu 57 · dni z limitem 5 · hamuje: true
