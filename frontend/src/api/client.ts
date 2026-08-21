@@ -318,6 +318,8 @@ export const api = {
     apiFetch<{ widget_metric: string }>(`/api/control/set-widget-metric?metric=${metric}`, { method: "POST" }),
   runCycleNow: (venue: string = "alpaca") =>
     apiFetch<unknown>(`/api/control/run-cycle-now?venue=${venue}`, { method: "POST" }, LONG_TIMEOUT_MS),
+  dryRun: (venue: string = "alpaca") =>
+    apiFetch<DryRunResponse>(`/api/control/dry-run?venue=${venue}`, { method: "POST" }, LONG_TIMEOUT_MS),
   refreshPortfolio: (venue: string = "alpaca") =>
     apiFetch<{
       total_value: number;
@@ -399,6 +401,22 @@ export interface HistoryResponse {
     best: HistoryTrade | null;
     worst: HistoryTrade | null;
   };
+}
+
+export interface DryRunProposal {
+  symbol: string | null;
+  action: "BUY" | "SELL" | "HOLD";
+  confidence: number;
+  requested_size_pct: number;
+  effective_size_pct: number;
+  reasoning: string;
+}
+export interface DryRunResponse {
+  dry_run: boolean;
+  venue: string;
+  proposals: DryRunProposal[];
+  regime?: string | null;
+  note?: string;
 }
 
 export interface MonthlyRow { month: string; realized_usd: number; closed: number; wins: number; losses: number; win_rate: number | null }

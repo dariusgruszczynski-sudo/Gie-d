@@ -251,6 +251,32 @@ def run_cycle_now(venue: str = "alpaca", db: Session = Depends(get_db), settings
     return serialize(decision) if decision is not None else {"message": "Brak danych rynkowych w tym cyklu"}
 
 
+@router.post("/dry-run")
+def dry_run(venue: str = "alpaca", db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """SYMULACJA: odpala pełną analizę Claude na ŻYWYCH danych (jak „Przemyśl
+    teraz"), ale NIC nie zleca, nie persystuje decyzji ani nie oznacza analizy
+    jako zrobionej. Zwraca propozycje (co bot BY zrobił) z orientacyjnym rozmiarem
+    liczonym tą samą mechaniką co egzekucja. Do sprawdzenia strategii bez ryzyka.
+    Koszt Claude jest realny (wywołanie się odbyło)."""
+    if venue == "extended" and not settings.extended_enabled:
+        raise HTTPException(status_code=400, detail="Silnik poza sesją jest wyłączony (EXTENDED_ENABLED=false)")
+    broker, whitelist, always_open = _broker_for(venue, settings)
+    news = NewsClient(settings)
+    advisor = ClaudeAdvisor(settings)
+    market_ctx = MarketContextClient()
+    try:
+        result = run_cycle(
+            db, effective_settings(settings, venue), broker, news, advisor, market_ctx, force=True,
+            venue=venue, whitelist=whitelist, always_open=always_open, dry_run=True,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
+    if isinstance(result, dict):
+        return result
+    # Wczesny wyjątek toru (np. brak danych rynkowych) -> pusty podgląd z notką.
+    return {"dry_run": True, "venue": venue, "proposals": [], "note": "Brak danych rynkowych w tym cyklu."}
+
+
 @router.post("/refresh-portfolio")
 def refresh_portfolio(venue: str = "alpaca", db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     """Reads the live account balance + current prices from the venue's broker

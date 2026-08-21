@@ -1389,6 +1389,26 @@ def _advise_portfolio(advisor, **kwargs) -> list:
     return [d] if d is not None else []
 
 
+def effective_buy_size_pct(settings: Settings, decision_data, market_data: dict, portfolio: dict) -> float:
+    """Rozmiar pozycji dla BUY po pełnej mechanice sizingu: skala zmiennością →
+    mnożnik przekonania → sufit ryzyka (z twardym conviction_max_risk) → haircut
+    szerokiego spreadu. HOLD/SELL zwraca surowy size_pct bez zmian. Czysta funkcja
+    (bez efektów ubocznych) — używana i przez egzekucję (_process_decision), i
+    przez PODGLĄD (dry-run), żeby oba liczyły identycznie."""
+    effective_size_pct = decision_data.size_pct
+    if decision_data.action == "BUY":
+        ticker_vol = (market_data.get(decision_data.symbol) or {}).get("technical", {}).get("volatility_pct_1h")
+        effective_size_pct = volatility_adjusted_size(settings, decision_data.size_pct, ticker_vol)
+        mult = conviction_multiplier(settings, decision_data.confidence)
+        effective_size_pct = effective_size_pct * mult
+        stop_dist = dynamic_stop_loss_pct(settings, ticker_vol)
+        eff_risk = min(settings.conviction_max_risk_per_trade_pct, settings.risk_per_trade_pct * mult)
+        effective_size_pct = round(min(100.0, effective_size_pct, risk_based_size_cap(settings, portfolio, stop_dist, risk_pct=eff_risk)), 4)
+        if decision_data.symbol in settings.high_spread_symbol_list and settings.high_spread_size_scale < 1.0:
+            effective_size_pct = round(effective_size_pct * settings.high_spread_size_scale, 4)
+    return effective_size_pct
+
+
 def _process_decision(
     db: Session,
     settings: Settings,
@@ -1419,27 +1439,9 @@ def _process_decision(
     exits and the shared per-cycle context (market_data, regime, ...) are computed
     once by the caller and passed in."""
     # Volatility-aware sizing: scale a BUY down for a more-volatile ticker so
-    # one wild name (MSTR) can't dominate P&L. HOLD/SELL are untouched.
-    effective_size_pct = decision_data.size_pct
-    if decision_data.action == "BUY":
-        ticker_vol = (market_data.get(decision_data.symbol) or {}).get("technical", {}).get("volatility_pct_1h")
-        effective_size_pct = volatility_adjusted_size(settings, decision_data.size_pct, ticker_vol)
-        # SIZING WAŻONY PRZEKONANIEM: mocny sygnał (wysoka pewność) dostaje większą
-        # pozycję (do conviction_size_max_mult×) -- uruchamia gotówkę i gra na
-        # przewadze. Słaby sygnał: mnożnik 1,0 (bez zmian).
-        mult = conviction_multiplier(settings, decision_data.confidence)
-        effective_size_pct = effective_size_pct * mult
-        # Risk-based cap: hitting this ticker's (vol-scaled) stop must not cost
-        # more than the (conviction-scaled) risk budget of the whole account --
-        # ale z TWARDYM sufitem conviction_max_risk_per_trade_pct, więc pojedyncza
-        # transakcja nigdy nie ryzykuje więcej. Composed via min(), tylko zmniejsza.
-        stop_dist = dynamic_stop_loss_pct(settings, ticker_vol)
-        eff_risk = min(settings.conviction_max_risk_per_trade_pct, settings.risk_per_trade_pct * mult)
-        effective_size_pct = round(min(100.0, effective_size_pct, risk_based_size_cap(settings, portfolio, stop_dist, risk_pct=eff_risk)), 4)
-        # Wide-spread / thinner names pay more on every round trip -> haircut
-        # their size so they only earn a slot when the edge is proportionally big.
-        if decision_data.symbol in settings.high_spread_symbol_list and settings.high_spread_size_scale < 1.0:
-            effective_size_pct = round(effective_size_pct * settings.high_spread_size_scale, 4)
+    # one wild name (MSTR) can't dominate P&L. HOLD/SELL are untouched. Wydzielone
+    # do czystej funkcji, żeby PODGLĄD (dry-run) liczył DOKŁADNIE ten sam rozmiar.
+    effective_size_pct = effective_buy_size_pct(settings, decision_data, market_data, portfolio)
 
     decision = Decision(
         symbol=decision_data.symbol,
@@ -1704,7 +1706,8 @@ def run_cycle(
     venue: str = "alpaca",
     whitelist: list[str] | None = None,
     always_open: bool = False,
-) -> Decision | None:
+    dry_run: bool = False,
+) -> Decision | None | dict:
     """force=True bypasses the trigger gate and always asks Claude -- this is
     what the dashboard's "Wymuś analizę" button needs. Without it the manual
     button just ran a normal cycle, which returns None (does nothing) whenever
@@ -1997,6 +2000,31 @@ def run_cycle(
         trigger_reason=trigger_reason.value,
         venue=venue,
     )
+    # PODGLĄD (dry-run): mamy już propozycje Claude z ŻYWYCH danych. Policz
+    # orientacyjny rozmiar tą SAMĄ funkcją co egzekucja, ale NIC nie zlecaj, nie
+    # persystuj decyzji ani nie oznaczaj analizy jako zrobionej (żeby nie zaburzyć
+    # realnej kadencji). Koszt Claude jest realny (wywołanie się odbyło), więc go
+    # zapisujemy. Zwraca dict — cały żywy tor egzekucji niżej pozostaje nietknięty.
+    if dry_run:
+        budget_tracker.record_usage_cost(
+            db,
+            sum(d.cost_usd for d in decisions_data),
+            sum(d.input_tokens for d in decisions_data),
+            sum(d.output_tokens for d in decisions_data),
+        )
+        proposals = [
+            {
+                "symbol": dd.symbol,
+                "action": dd.action,
+                "confidence": dd.confidence,
+                "requested_size_pct": dd.size_pct,
+                "effective_size_pct": effective_buy_size_pct(settings, dd, market_data, portfolio),
+                "reasoning": dd.reasoning,
+            }
+            for dd in decisions_data
+        ]
+        return {"dry_run": True, "venue": venue, "proposals": proposals, "regime": regime.get("regime") if isinstance(regime, dict) else None}
+
     _mark_analysis_done_today(db, venue=venue)
     # One API call regardless of how many actions came back: the portfolio path
     # parks the whole call's cost/tokens on the first element (0 on the rest),

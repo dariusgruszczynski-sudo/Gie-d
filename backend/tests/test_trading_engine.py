@@ -1754,3 +1754,41 @@ def test_hard_take_profit_floor_banks_strong_gain_even_with_trailing(settings):
     # +5% (below the ceiling) -> the floor does NOT fire.
     reason2, _pct2, kind2 = trading_engine._decide_mechanical_exit(s, "SPY", 100.0, 105.0, 105.0)
     assert kind2 != "take_profit"
+
+
+def test_dry_run_previews_without_executing_or_persisting(db_session, settings):
+    """Symulacja (dry_run): zwraca propozycje z żywej analizy, ale NIE składa
+    zleceń, NIE persystuje decyzji i NIE oznacza analizy jako zrobionej."""
+    from app.models import Decision, Trade
+
+    broker = FakeAlpaca()
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "Mocny setup."))
+
+    result = trading_engine.run_cycle(db_session, settings, broker, FakeNews(), advisor, force=True, dry_run=True)
+
+    assert isinstance(result, dict) and result["dry_run"] is True
+    assert len(result["proposals"]) == 1
+    p = result["proposals"][0]
+    assert p["symbol"] == "SPY" and p["action"] == "BUY"
+    assert p["effective_size_pct"] > 0
+    # ŻADNEGO efektu ubocznego handlu:
+    assert broker.orders == []
+    assert db_session.query(Trade).count() == 0
+    assert db_session.query(Decision).count() == 0
+
+
+def test_dry_run_effective_size_matches_real_execution(db_session, settings):
+    """Rozmiar z podglądu == rozmiar realnej egzekucji (ta sama funkcja sizingu),
+    żeby symulacja nie kłamała o wielkości pozycji."""
+    s = settings.model_copy(update={"conviction_sizing_enabled": True, "conviction_size_max_mult": 2.0,
+                                    "min_buy_confidence": 0.0, "progressive_confidence_cap": 0.9, "max_position_pct": 90.0})
+    # Podgląd:
+    broker1 = FakeAlpaca()
+    prev = trading_engine.run_cycle(db_session, s, broker1, FakeNews(),
+                                    FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "x")), force=True, dry_run=True)
+    preview_size = prev["proposals"][0]["effective_size_pct"]
+    # Realne wykonanie:
+    broker2 = FakeAlpaca()
+    dec = trading_engine.run_cycle(db_session, s, broker2, FakeNews(),
+                                   FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.9, "x")))
+    assert abs(dec.size_pct - preview_size) < 1e-9

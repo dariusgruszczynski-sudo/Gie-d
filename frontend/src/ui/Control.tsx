@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, AuditEntry, isReadOnly, StatusResponse } from "../api/client";
+import { api, AuditEntry, DryRunResponse, isReadOnly, StatusResponse } from "../api/client";
 import { PushState, usePushNotifications } from "../hooks/usePushNotifications";
 import { money0 } from "./kit";
 
@@ -187,6 +187,49 @@ function PushMode({ status, onChanged }: { status: StatusResponse; onChanged: ()
   );
 }
 
+function DryRun() {
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<DryRunResponse | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  async function run() {
+    setBusy(true); setErr(null); setRes(null);
+    try { setRes(await api.dryRun("alpaca")); } catch (e) { setErr(String(e)); } finally { setBusy(false); }
+  }
+  const acts = (res?.proposals ?? []).filter((p) => p.action !== "HOLD");
+  return (
+    <div className="gd-card">
+      <h4>🧪 Symulacja (nic nie zleca)</h4>
+      <p className="gd-note">Odpala analizę Claude na żywych danych i pokazuje, co bot BY zrobił — bez składania zleceń. Do sprawdzenia strategii bez ryzyka (wywołanie Claude kosztuje tokeny).</p>
+      <button className="gd-btn primary" disabled={busy} onClick={run}>{busy ? "Analizuję…" : "▶ Odpal symulację"}</button>
+      {err && <div className="gd-msg err" style={{ marginTop: 8 }}>{err}</div>}
+      {res && (
+        <div style={{ marginTop: 10 }}>
+          {res.regime && <div className="gd-note" style={{ marginBottom: 6 }}>Reżim rynku: <b>{res.regime}</b></div>}
+          {res.proposals.length === 0 ? (
+            <p className="gd-empty">{res.note || "Brak propozycji w tym cyklu."}</p>
+          ) : acts.length === 0 ? (
+            <p className="gd-empty">Bot by nie handlował — wszystko na HOLD (czeka).</p>
+          ) : (
+            <div className="gd-anz-cyc">
+              {acts.map((p, i) => (
+                <div className="gd-anz-cycrow" key={i}>
+                  <div className="gd-anz-cyctop">
+                    <b>{p.symbol ?? "—"}</b>
+                    <span className={`gd-anz-cycact ${p.action === "BUY" ? "buy" : "sell"}`}>{p.action}</span>
+                    <span className="gd-anz-cycmut">pewność {Math.round(p.confidence * 100)}% · rozmiar ~{p.effective_size_pct.toFixed(1)}%</span>
+                  </div>
+                  <div className="gd-anz-cycwhy">{p.reasoning}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="gd-note" style={{ marginTop: 6 }}>To PODGLĄD propozycji Claude (rozmiar liczony jak w realnej egzekucji). Nic nie zlecono.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PlanGoal({ status, onChanged }: { status: StatusResponse; onChanged: () => void }) {
   const a = useAction();
   const [dep, setDep] = useState(String(status.plan?.monthly_deposit ?? 0));
@@ -314,6 +357,7 @@ export function Control({ status, onChanged }: { status: StatusResponse; onChang
         <>
           <PanicButton onChanged={onChanged} />
           <LegControls status={status} onChanged={onChanged} />
+          <DryRun />
           <PushMode status={status} onChanged={onChanged} />
           <PlanGoal status={status} onChanged={onChanged} />
           <WidgetMetric status={status} onChanged={onChanged} />
