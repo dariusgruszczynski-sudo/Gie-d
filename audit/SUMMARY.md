@@ -1,9 +1,9 @@
-# Audyt GielDarek — 2026-08-21T18:36:11Z
+# Audyt GielDarek — 2026-08-22T06:24:57Z
 
-**Wdrożenie:** kod cb43313 (zbud. 2026-08-21T18:31Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 0163a7c (zbud. 2026-08-21T20:57Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
-**Życiowo:** 30 zamknięć · trafność 30.0% · zrealizowany $13.96
-**7 dni:** 17 zamknięć · 35.3% · $11.35   |   **30 dni:** 118 · 25.4% · $13.91
+**Od zmiany strategii (tylko akcje):** 30 zamknięć · trafność 30.0% · zrealizowany $13.96
+**7 dni:** 17 zamknięć · 35.3% · $11.35   |   **30 dni:** 117 · 24.8% · $11.71
 **Edge:** śr. wygrana +$2.98 vs strata $-0.61 → na transakcję $0.46 (payoff 4.89×)
 **Trzymanie:** zyski ~5.0 dni · straty ~1.8 dni
 
