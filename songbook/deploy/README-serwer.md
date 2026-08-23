@@ -69,6 +69,19 @@ bash songbook/deploy/spiewnik.sh                            # ponowny start/prze
 
 > Otwórz port w firewallu, jeśli masz zaporę (np. `ufw allow 8090/tcp`).
 
+### 4. (zalecane) Auto-deploy bez terminala
+Żeby nie odpalać `spiewnik.sh` ręcznie po każdej zmianie, zainstaluj RAZ własny
+auto-deploy śpiewnika (osobny od GielDarka, nie rusza jego gita):
+
+```bash
+sudo bash songbook/deploy/install-spiewnik-autodeploy.sh
+```
+
+Od tej chwili, gdy w repo pojawią się zmiany w kodzie śpiewnika, timer sam
+przebuduje **tylko** stack śpiewnika w ciągu ~5 min. Repo utrzymuje aktualnym
+autopull GielDarka (albo Twój `git pull`) — śpiewnik gita nie dotyka, więc nie
+ma wyścigu. Log: `journalctl -u spiewnik-autodeploy.service -f`.
+
 ---
 
 ## (opcjonalnie, CIĘŻKIE) Wykrywanie akordów z audio
