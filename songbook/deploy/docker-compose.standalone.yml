@@ -1,0 +1,66 @@
+# ŚPIEWNIK — w pełni SAMODZIELNY stack (osobny projekt compose "spiewnik").
+#
+# Cel: śpiewnik NIE dzieli niczego z GielDarkiem — ma własny projekt, własną
+# sieć, własny wolumen danych i publikuje się na WŁASNYM porcie HTTP. Nie ma go
+# w docker-compose.yml, deploy.sh ani Caddyfile GielDarka. Można go uruchamiać,
+# przebudowywać i zatrzymywać zupełnie niezależnie, bez ryzyka dla innych apek.
+#
+# Uruchomienie (z ~/gie-d):
+#   bash songbook/deploy/spiewnik.sh
+# albo ręcznie:
+#   docker compose -p spiewnik --project-directory . \
+#     -f songbook/deploy/docker-compose.standalone.yml up -d --build songbook
+#
+# Adres: http://<IP-serwera>:8090  (port zmienisz przez SPIEWNIK_PORT w .env).
+# Moduł audio (ciężki, opcjonalny) — dołóż profil "audio":
+#   ... --profile audio up -d --build
+name: spiewnik
+
+services:
+  songbook:
+    build:
+      context: ./songbook
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
+        BUILD_TIME: ${BUILD_TIME:-}
+    environment:
+      - PORT=8080
+      - SONGBOOK_DATA_DIR=/app/data
+      # Token dostępu — ustaw SONGBOOK_TOKEN w ~/gie-d/.env. Pusty = otwarty dostęp
+      # (używaj tylko, jeśli adres/port jest prywatny).
+      - SONGBOOK_TOKEN=${SONGBOOK_TOKEN:-}
+      # Wyszukiwarka opracowań z chwytami. WŁASNY klucz śpiewnika (zalecane), żeby
+      # NIE współdzielić limitu z GielDarkiem. Bez klucza — DuckDuckGo (mniej pewne).
+      - SONGBOOK_SEARCH_KEY=${SONGBOOK_SEARCH_KEY:-}
+      # Adres opcjonalnego modułu audio (aktywny tylko z profilem "audio").
+      - SONGBOOK_AUDIO_URL=${SONGBOOK_AUDIO_URL:-}
+    volumes:
+      # Trwałe dane (piosenki/listy) — te same, co dotychczas, więc nic nie ginie.
+      - ./songbook-data:/app/data
+    ports:
+      # WŁASNY port na hoście (nie 80/443 — te należą do Caddy GielDarka).
+      - "${SPIEWNIK_PORT:-8090}:8080"
+    restart: unless-stopped
+
+  # --- OPCJONALNE: moduł wykrywania akordów z audio (profil "audio") ---------
+  songbook-audio:
+    profiles: ["audio"]
+    build:
+      context: ./songbook/audio
+    expose:
+      - "8100"
+    volumes:
+      - ./songbook-audio-cookies:/app/cookies:ro
+    environment:
+      - SONGBOOK_YTDLP_COOKIES=/app/cookies/cookies.txt
+      - SONGBOOK_POT_PROVIDER_URL=http://bgutil-provider:4416
+    depends_on:
+      - bgutil-provider
+    restart: unless-stopped
+
+  bgutil-provider:
+    profiles: ["audio"]
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    expose:
+      - "4416"
+    restart: unless-stopped
