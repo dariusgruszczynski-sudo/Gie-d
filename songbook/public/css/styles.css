@@ -387,3 +387,14 @@ body.perf-mode { overflow: hidden; }
   .song-body { color: #000; }
   .cp-chord { color: #000 !important; }
 }
+
+/* ⚡ Szybkie dodawanie + 🎸 Opracowania (kilka opcji) */
+.quick-capture .input { margin-bottom: 10px; }
+.quick-capture .field-label { margin: 6px 0 4px; }
+.quick-added { min-height: 18px; margin-top: 8px; color: var(--accent); }
+.arr-list { display: flex; flex-direction: column; gap: 14px; }
+.arr-option { border: 1px solid var(--border); border-radius: 10px; padding: 10px; background: var(--surface); }
+.arr-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.arr-badge { font-size: 12px; font-weight: 700; color: var(--accent); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; white-space: nowrap; }
+.arr-actions { display: flex; gap: 8px; margin-top: 8px; }
+.preview-frame { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: var(--surface-2); }
