@@ -16,6 +16,7 @@ tsconfig.tsbuildinfo
 
 # Server-local: ostatnio udanie wdrożony commit (autopull)
 .last_deployed_sha
+.last_deployed_spiewnik_sha
 
 # Sekret: cookies YouTube dla mikroserwisu audio (nie commituj)
 songbook-audio-cookies/cookies.txt
