@@ -1,15 +1,66 @@
-# Caddyfile for the DOCKERISED Caddy (deploy/docker-compose.caddy.yml).
-# Same as deploy/Caddyfile but proxies to the app over the Docker network
-# (service name "app") instead of 127.0.0.1 -- so no host install is needed.
+# Caddyfile dla DOCKEROWEGO Caddy (deploy/docker-compose.caddy.yml).
+# Caddy terminuje HTTPS na 80/443 i sam wystawia ZAUFANE certy Let's Encrypt dla
+# nazw sslip.io (wskazują na IP serwera). Zielona kłódka, PWA-installable.
+# Zmień IP tutaj, jeśli zmieni się adres serwera.
 #
-# Trusted Let's Encrypt cert via sslip.io (public DNS name -> your IP). Green
-# padlock, no warning, PWA-installable. Change the IP here if the server IP
-# changes. For your own domain, replace the hostname with it (rekord A -> IP).
-46.225.229.113.sslip.io {
-    encode zstd gzip
-    reverse_proxy app:8000
+# Cztery apki serwera, KAŻDA na własnej nazwie + HTTPS:
+#   - GielDarek (bot, LIVE)  -> 46.225.229.113.sslip.io           -> app:8000 (sieć compose)
+#   - Śpiewnik               -> spiewnik.46.225.229.113.sslip.io  -> host:8090 (osobny stack)
+#   - Zdrowie / fit-tracker  -> zdrowie.46.225.229.113.sslip.io   -> host:8001 (osobna apka)
+#   - Nauka IT               -> it.46.225.229.113.sslip.io        -> host:8002 (osobna apka)
+#
+# ROZDZIELENIE + BEZPIECZEŃSTWO: tylko GielDarek jest w TYM projekcie compose
+# (app:8000). Śpiewnik, fit-tracker i Nauka IT to SAMODZIELNE stacki/procesy
+# opublikowane na portach HOSTA (8090/8001/8002) -- Caddy jedynie kładzie im HTTPS
+# z przodu przez host.docker.internal (patrz extra_hosts w docker-compose.caddy.yml),
+# NIE ruszając ich kontenerów. Apki zostają rozdzielone (własne stacki), a mimo to
+# każda dostaje szyfrowanie + zaufany cert zamiast gołego http://IP:port. Złe
+# wskazanie portu = tylko 502 tej jednej strony; GielDarek działa dalej.
+
+# --- Wspólne nagłówki bezpieczeństwa (import do każdej strony) ---
+(sec) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "same-origin"
+		-Server
+	}
 }
 
-# (Śpiewnik jest teraz osobnym stackiem na własnym porcie HTTP — patrz
-#  songbook/deploy/spiewnik.sh — i celowo NIE jest tu trasowany, żeby nie
-#  mieszać się GielDarkowi ani innym apkom.)
+# --- GielDarek (bot, LIVE) ---
+46.225.229.113.sslip.io {
+	import sec
+	encode zstd gzip
+	reverse_proxy app:8000
+}
+
+# --- Śpiewnik (samodzielny stack na porcie hosta 8090; Caddy daje mu tylko HTTPS) ---
+spiewnik.46.225.229.113.sslip.io {
+	import sec
+	encode zstd gzip
+	reverse_proxy host.docker.internal:8090
+}
+
+# --- Zdrowie / fit-tracker (osobna apka, port hosta 8001) ---
+zdrowie.46.225.229.113.sslip.io {
+	import sec
+	encode zstd gzip
+	# LOGIN (ZALECANY -- ta apka nie ma własnego): wygeneruj hash i ODKOMENTUJ blok:
+	#   docker exec $(docker ps --filter ancestor=caddy:2 -q) caddy hash-password --plaintext 'TWOJE-HASLO'
+	# basic_auth {
+	#     darek WKLEJ_TU_HASH_BCRYPT
+	# }
+	reverse_proxy host.docker.internal:8001
+}
+
+# --- Nauka IT (osobna apka, port hosta 8002) ---
+it.46.225.229.113.sslip.io {
+	import sec
+	encode zstd gzip
+	# LOGIN (ZALECANY): jak wyżej -- wygeneruj hash i odkomentuj:
+	# basic_auth {
+	#     darek WKLEJ_TU_HASH_BCRYPT
+	# }
+	reverse_proxy host.docker.internal:8002
+}

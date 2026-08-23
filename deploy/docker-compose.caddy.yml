@@ -15,6 +15,11 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    # Pozwala dockerowemu Caddy sięgnąć apek opublikowanych na PORTACH HOSTA
+    # (Śpiewnik :8090, fit-tracker :8001, Nauka IT :8002) przez host.docker.internal
+    # -- patrz bloki spiewnik./zdrowie./it. w deploy/Caddyfile.docker.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./deploy/Caddyfile.docker:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

@@ -10,9 +10,51 @@
 # ikona na pulpicie/telefonie). Nic nie kupujesz, nie ustawiasz DNS. Caddy sam
 # ogarnia cert i przekierowanie HTTP -> HTTPS dla tego hosta.
 # (Jeśli zmienisz IP serwera, podmień je też w tej nazwie.)
+#
+# UWAGA: na żywym serwerze działa wariant DOCKEROWY (deploy/Caddyfile.docker) —
+# to on jest źródłem prawdy. Ten plik trzymamy w parytecie dla instalacji Caddy
+# bezpośrednio na hoście (proxy do 127.0.0.1:PORT).
+
+# --- Wspólne nagłówki bezpieczeństwa ---
+(sec) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+}
+
+# --- GielDarek (bot, LIVE) ---
 46.225.229.113.sslip.io {
-    encode zstd gzip
-    reverse_proxy 127.0.0.1:8000
+	import sec
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8000
+}
+
+# --- Śpiewnik (samodzielny stack, port hosta 8090) ---
+spiewnik.46.225.229.113.sslip.io {
+	import sec
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8090
+}
+
+# --- Zdrowie / fit-tracker (port hosta 8001) ---
+zdrowie.46.225.229.113.sslip.io {
+	import sec
+	encode zstd gzip
+	# LOGIN (ZALECANY): caddy hash-password --plaintext 'HASLO' -> odkomentuj:
+	# basic_auth { darek WKLEJ_HASH }
+	reverse_proxy 127.0.0.1:8001
+}
+
+# --- Nauka IT (port hosta 8002) ---
+it.46.225.229.113.sslip.io {
+	import sec
+	encode zstd gzip
+	# basic_auth { darek WKLEJ_HASH }
+	reverse_proxy 127.0.0.1:8002
 }
 
 # --- Wariant A: masz własną domenę (też daje zaufany cert + PWA) ---
