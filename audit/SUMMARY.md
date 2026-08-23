@@ -1,14 +1,14 @@
-# Audyt GielDarek — 2026-08-22T06:24:57Z
+# Audyt GielDarek — 2026-08-23T06:26:40Z
 
-**Wdrożenie:** kod 0163a7c (zbud. 2026-08-21T20:57Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod e286df2 (zbud. 2026-08-22T07:10Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 30 zamknięć · trafność 30.0% · zrealizowany $13.96
-**7 dni:** 17 zamknięć · 35.3% · $11.35   |   **30 dni:** 117 · 24.8% · $11.71
+**7 dni:** 17 zamknięć · 35.3% · $11.35   |   **30 dni:** 109 · 26.6% · $16.24
 **Edge:** śr. wygrana +$2.98 vs strata $-0.61 → na transakcję $0.46 (payoff 4.89×)
 **Trzymanie:** zyski ~5.0 dni · straty ~1.8 dni
 
 ## Wnioski
-- (good) Trafność 7 dni 35% vs 30 dni 25% — rośnie.
+- (good) Trafność 7 dni 35% vs 30 dni 27% — rośnie.
 - (good) Ostatnie 7 dni: +11.35 $ z 17 zamknięć.
 - (good) Średnia wygrana +$2.98 vs strata −$0.61 (wygrana 4.89× większa) → na transakcję +$0.46. Zarabia mimo <50% trafności — edge dodatni.
 - (bad) ⚠ Zyski trzymane dłużej (~5 dni) niż straty (~2 dni) — automat zwleka z realizacją zysku.
