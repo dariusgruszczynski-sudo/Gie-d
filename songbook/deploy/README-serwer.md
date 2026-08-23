@@ -22,14 +22,16 @@ Dostajesz:
 
 ## Wdrożenie (izolowane, nie dotyka GielDarka)
 
-### 1. Token dostępu (zalecane)
-Dopisz do `~/gie-d/.env` jedną linię (śpiewnik ją odczyta):
+### 1. Token dostępu (DOMYŚLNIE WYŁĄCZONY)
+Śpiewnik startuje **bez tokenu** — żadnego pytania o hasło. Nie używa już
+współdzielonego `SONGBOOK_TOKEN` GielDarka. Chcesz mimo to chronić hasłem?
+Dopisz do `~/gie-d/.env` **osobną** linię:
 
 ```
-SONGBOOK_TOKEN=twoj-dlugi-losowy-token
+SPIEWNIK_TOKEN=twoj-dlugi-losowy-token
 ```
 
-Bez tokenu każdy, kto zna adres i port, ma dostęp do Twoich piosenek.
+Pusty/brak = otwarty dostęp (każdy, kto zna adres i port).
 
 ### 1b. (opcjonalnie) Lepsza wyszukiwarka
 Wyszukiwarka domyślnie używa DuckDuckGo (bez klucza). Dla pewniejszych wyników

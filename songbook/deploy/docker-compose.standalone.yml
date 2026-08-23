@@ -26,9 +26,10 @@ services:
     environment:
       - PORT=8080
       - SONGBOOK_DATA_DIR=/app/data
-      # Token dostępu — ustaw SONGBOOK_TOKEN w ~/gie-d/.env. Pusty = otwarty dostęp
-      # (używaj tylko, jeśli adres/port jest prywatny).
-      - SONGBOOK_TOKEN=${SONGBOOK_TOKEN:-}
+      # Token dostępu — DOMYŚLNIE WYŁĄCZONY (brak pytania o token). Śpiewnik NIE
+      # bierze już współdzielonego SONGBOOK_TOKEN GielDarka. Chcesz chronić hasłem?
+      # Ustaw własny SPIEWNIK_TOKEN w ~/gie-d/.env. Pusty = otwarty dostęp.
+      - SONGBOOK_TOKEN=${SPIEWNIK_TOKEN:-}
       # Wyszukiwarka opracowań z chwytami. WŁASNY klucz śpiewnika (zalecane), żeby
       # NIE współdzielić limitu z GielDarkiem. Bez klucza — DuckDuckGo (mniej pewne).
       - SONGBOOK_SEARCH_KEY=${SONGBOOK_SEARCH_KEY:-}
