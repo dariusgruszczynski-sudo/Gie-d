@@ -1,135 +1,130 @@
-# Śpiewnik na serwerze GielDarka (ten sam VPS)
+# Śpiewnik na serwerze — OSOBNY, izolowany stack
 
-Śpiewnik może działać na tym samym serwerze co GielDarek, obok niego, jako
-osobna usługa w Dockerze. Dostajesz wtedy:
+Śpiewnik działa na tym samym VPS co GielDarek, ale jako **całkowicie osobna
+aplikacja**: własny projekt Dockera (`spiewnik`), własna sieć, własny wolumen
+danych i **własny port HTTP**. Nie ma go w `docker-compose.yml`, `deploy.sh`
+ani `Caddyfile` GielDarka — możesz go budować, restartować i zatrzymywać
+niezależnie, **bez najmniejszego ryzyka dla GielDarka i innych apek**.
 
-- **stały adres HTTPS** z zaufanym certyfikatem (zielona kłódka, PWA — „ikona na
-  telefonie”): `https://spiewnik.46.225.229.113.sslip.io`
-  *(subdomena sslip.io wskazuje na ten sam IP — nic nie kupujesz, nie ustawiasz DNS)*;
+Dostajesz:
+
 - **synchronizację między urządzeniami** — piosenki i listy trzymane są na
   serwerze (wolumen `songbook-data`), więc widzisz je wszędzie po zalogowaniu;
-- **wyszukiwanie w sieci** (pobieranie tekstów, import po URL) — bo jest backend.
+- **wyszukiwanie w sieci** (teksty z chwytami, import po URL) — bo jest backend;
+- **adres:** `http://<IP-serwera>:8090` (domyślny port, zmienialny).
 
-To jest wariant „z serwerem”. Artefakt Claude nadal istnieje jako wersja
-podręczna (offline, dane na urządzeniu) — patrz `../README.md`.
+> **Uwaga o HTTPS/PWA:** ten izolowany wariant chodzi po HTTP na własnym porcie,
+> bo porty 80/443 należą do Caddy GielDarka, a świadomie go NIE ruszamy. Jeśli
+> kiedyś zechcesz zieloną kłódkę i instalację PWA — patrz sekcja „Opcjonalnie:
+> HTTPS przez Caddy" na końcu (to jedyne miejsce, które dokłada 1 wpis do Caddy).
 
 ---
 
-## Jak to jest wpięte (bez ruszania produkcji GielDarka)
+## Wdrożenie (izolowane, nie dotyka GielDarka)
 
-- **Osobna usługa** `songbook` w nakładce `songbook/deploy/docker-compose.songbook.yml`
-  (nie zmienia głównego `docker-compose.yml`).
-- **Caddy** dostał dodatkowy blok w `deploy/Caddyfile.docker` na subdomenę
-  `spiewnik.*` → kontener `songbook:8080`.
-- **`deploy/deploy.sh`** dołącza nakładkę do TEJ SAMEJ komendy compose (jak Caddy),
-  ale tylko gdy plik nakładki istnieje — więc reszta działa jak dawniej.
-
-## Wdrożenie
-
-### 1. Ustaw token dostępu (zalecane)
-Adres jest publiczny, więc chroń śpiewnik hasłem. Dopisz do pliku `.env` w repo
-(`~/gie-d/.env`) jedną linię:
+### 1. Token dostępu (zalecane)
+Dopisz do `~/gie-d/.env` jedną linię (śpiewnik ją odczyta):
 
 ```
 SONGBOOK_TOKEN=twoj-dlugi-losowy-token
 ```
 
-Bez tokenu każdy z adresem miałby dostęp do Twoich piosenek. Token podajesz raz
-na każdym urządzeniu (aplikacja zapamiętuje go w przeglądarce).
+Bez tokenu każdy, kto zna adres i port, ma dostęp do Twoich piosenek.
 
-### 1b. (opcjonalnie) Wyszukiwarka opracowań z chwytami
-Wyszukiwarka szuka w sieci opracowań z chwytami i daje listę wyników do wyboru.
-Domyślnie używa DuckDuckGo (bez klucza, ale bywa mniej pewne). Dla najlepszych
-wyników użyj SerpAPI:
-- podaj własny klucz: `SONGBOOK_SEARCH_KEY=...` w `.env`, **albo**
-- pozwól reużyć klucz GielDarka — nakładka przekazuje `SERPAPI_API_KEY` z `.env`
-  (uwaga: współdzielony limit zapytań z botem).
+### 1b. (opcjonalnie) Lepsza wyszukiwarka
+Wyszukiwarka domyślnie używa DuckDuckGo (bez klucza). Dla pewniejszych wyników
+dodaj **własny** klucz SerpAPI w `.env` (osobny od GielDarka — bez współdzielenia
+limitu):
 
-### 1c. (opcjonalnie, CIĘŻKIE) Wykrywanie akordów z audio (YouTube)
-Osobny mikroserwis (librosa + ffmpeg + yt-dlp) analizuje dźwięk i zwraca
-przybliżoną progresję akordów — punkt startowy do ręcznej poprawki w edytorze.
+```
+SONGBOOK_SEARCH_KEY=twoj-klucz-serpapi
+```
 
-- **Uwaga:** obraz jest duży, analiza obciąża CPU, a wynik jest **przybliżony**
-  (~70–85% na prostym popie). Pobieranie audio z YouTube bywa niezgodne z
-  regulaminem serwisu — używaj prywatnie i na własną odpowiedzialność.
-- Włączenie (jednorazowo): `touch songbook/deploy/audio.enabled`
-  Wtedy `deploy.sh` sam dokłada usługę `songbook-audio` i podłącza ją do apki
-  (endpoint `/api/chords`, przycisk „🎧 Akordy z YT" w Poczekalni przy linkach YT).
-- Wyłączenie: `rm songbook/deploy/audio.enabled` i przebuduj.
-
-#### Gdy YouTube pokazuje „Sign in to confirm you're not a bot"
-Z serwera (IP data-center) YouTube często blokuje pobieranie i żąda logowania.
-
-**Automatyczne obejście (domyślnie włączone, bez cookies):** nakładka audio
-uruchamia mały serwis `bgutil-provider`, który mintuje PO-tokeny. `yt-dlp`
-próbuje z nimi jako pierwszy — często to wystarcza i nic nie musisz robić. Gdy
-YouTube i to utnie, użyj cookies (niżej) albo drogi „🎵 Z pliku audio".
-
-**Obejście przez cookies:** podłóż ciasteczka zalogowanej sesji YouTube w
-formacie Netscape.
-
-1. **Użyj konta „na zapas"** (nie głównego Google) — pobieranie audio bywa
-   niezgodne z regulaminem YouTube i grozi ograniczeniem konta.
-2. W przeglądarce zaloguj się na YouTube tym kontem.
-3. Wyeksportuj cookies do pliku `cookies.txt` w formacie Netscape — np.
-   rozszerzeniem „Get cookies.txt LOCALLY" (Chrome/Firefox), będąc na
-   `https://www.youtube.com`.
-4. Wgraj plik na serwer do:
-   ```
-   ~/gie-d/songbook-audio-cookies/cookies.txt
-   ```
-   (katalog jest już podmontowany do kontenera jako `/app/cookies`, tylko-do-odczytu).
-5. Odtwórz kontener audio, żeby złapał wolumen:
-   ```bash
-   cd ~/gie-d
-   docker compose -f docker-compose.yml \
-     -f deploy/docker-compose.caddy.yml \
-     -f songbook/deploy/docker-compose.songbook.yml \
-     -f songbook/deploy/docker-compose.audio.yml up -d --build songbook-audio
-   ```
-   (albo po prostu `bash deploy/deploy.sh`).
-
-**Uwaga:** cookies wygasają po pewnym czasie — jeśli błąd wróci, wyeksportuj je
-ponownie. Plik `cookies.txt` jest w `.gitignore` (to sekret — nie commituj go).
-
-> Alternatywa bez cookies: przycisk **„🔎 + chwyty"** w piosence/wyszukiwarce —
-> szuka gotowych opracowań z chwytami po tytule i zespole. Dla znanych utworów
-> to zwykle szybsza i pewniejsza droga niż analiza audio.
-
-### 2. Zbuduj i uruchom
+### 2. Uruchom
 Na serwerze, w katalogu repo (`~/gie-d`), po `git pull`:
 
 ```bash
-bash deploy/deploy.sh
+bash songbook/deploy/spiewnik.sh
 ```
 
-`deploy.sh` sam wykryje nakładkę śpiewnika, zbuduje kontener `songbook`
-i przeładuje Caddy z nową subdomeną. GielDarek (prod + staging) buduje się jak
-wcześniej.
-
-**Albo ręcznie**, jednym compose (z `~/gie-d`):
+To zbuduje i wystawi WYŁĄCZNIE śpiewnika (projekt `spiewnik`, port 8090).
+GielDarek i inne apki pozostają nietknięte. Inny port:
 
 ```bash
-docker compose \
-  -f docker-compose.yml \
-  -f deploy/docker-compose.caddy.yml \
-  -f songbook/deploy/docker-compose.songbook.yml \
-  up -d --build songbook caddy
+SPIEWNIK_PORT=9000 bash songbook/deploy/spiewnik.sh
+```
+
+Zatrzymanie / restart tylko śpiewnika:
+
+```bash
+docker compose -p spiewnik --project-directory . \
+  -f songbook/deploy/docker-compose.standalone.yml down     # stop
+bash songbook/deploy/spiewnik.sh                            # ponowny start/przebudowa
 ```
 
 ### 3. Wejdź
-`https://spiewnik.46.225.229.113.sslip.io` → podaj token → gotowe. Na telefonie
-„Dodaj do ekranu głównego”, by mieć ikonę jak aplikacja.
+`http://<IP-serwera>:8090` → podaj token → gotowe.
 
-> Jeśli IP serwera się zmieni — podmień je w `deploy/Caddyfile.docker`
-> (blok `spiewnik.…`) i tu, w adresach.
+> Otwórz port w firewallu, jeśli masz zaporę (np. `ufw allow 8090/tcp`).
+
+---
+
+## (opcjonalnie, CIĘŻKIE) Wykrywanie akordów z audio
+Osobny profil `audio` dokłada mikroserwis (librosa + ffmpeg + yt-dlp) oraz
+`bgutil-provider` (PO-token, obejście bot-checku YouTube). Uruchom z profilem:
+
+```bash
+bash songbook/deploy/spiewnik.sh --audio
+```
+
+- Obraz jest duży, analiza obciąża CPU, wynik jest **przybliżony** (~70–85% na
+  prostym popie) — punkt startowy do poprawki w edytorze.
+- Pobieranie audio z YouTube bywa niezgodne z regulaminem — używaj prywatnie.
+
+### Gdy YouTube pokazuje „Sign in to confirm you're not a bot"
+Z serwerowni YouTube często blokuje pobieranie. `yt-dlp` próbuje po kolei:
+PO-token (bgutil) → klient android → domyślny. Gdy wszystko utnie:
+
+**Cookies (Netscape):**
+1. Konto **„na zapas"** (nie główne Google).
+2. Zaloguj się na `youtube.com`, wyeksportuj `cookies.txt` (rozszerzenie
+   „Get cookies.txt LOCALLY").
+3. Wgraj do `~/gie-d/songbook-audio-cookies/cookies.txt`.
+4. `bash songbook/deploy/spiewnik.sh --audio` (odtworzy kontener audio).
+
+Cookies wygasają — jak błąd wróci, wyeksportuj ponownie. Plik jest w `.gitignore`.
+
+> **Pewna droga bez YouTube:** przycisk **„🎵 Z pliku audio"** — wgrywasz mp3/m4a,
+> analiza idzie lokalnie, bez bot-checku. Albo **„🔎 + chwyty"** — gotowe
+> opracowania z chwytami po tytule.
+
+---
 
 ## Kopia zapasowa danych
-Piosenki leżą w `~/gie-d/songbook-data/library.json`. Wystarczy backup tego pliku
-(albo przycisk **Eksport kopii** w aplikacji).
+Piosenki leżą w `~/gie-d/songbook-data/library.json` — zrób backup tego pliku
+(albo przycisk **Eksport kopii** w aplikacji). Te same dane działają dalej po
+przejściu na izolowany stack (ten sam katalog jest podmontowany).
 
 ## Rozwiązywanie problemów
-- `docker compose ... logs -f songbook` — logi śpiewnika.
-- „Wymagany token” po wpisaniu → token w `.env` ≠ ten wpisany; sprawdź i podaj ponownie.
-- Brak zielonej kłódki od razu → Caddy potrzebuje chwili na cert Let's Encrypt;
-  wymaga otwartych portów 80/443 (te same, których używa GielDarek).
+- Logi: `docker compose -p spiewnik logs -f songbook`.
+- „Wymagany token" → `SONGBOOK_TOKEN` w `.env` ≠ ten wpisany w apce.
+- Nie otwiera się na porcie → sprawdź firewall (otwórz `8090/tcp`) i `docker ps`.
+
+---
+
+## Opcjonalnie: HTTPS przez Caddy (jeśli chcesz kłódkę i PWA)
+To JEDYNY wariant, który dokłada wpis do Caddy GielDarka. Caddy trasuje po nazwie
+hosta, więc taki blok **nie wchodzi w drogę** innym apkom — obsługuje tylko
+subdomenę śpiewnika. Wymaga, by Caddy widział kontener śpiewnika w sieci.
+
+Najprościej: dołącz Caddy GielDarka do sieci `spiewnik_default` i dodaj blok:
+
+```
+spiewnik.46.225.229.113.sslip.io {
+    encode zstd gzip
+    reverse_proxy songbook:8080
+}
+```
+
+Jeśli tego chcesz — powiedz, przygotuję dokładne kroki pod Twój `Caddyfile`
+tak, żeby nadal nic nie groziło GielDarkowi.

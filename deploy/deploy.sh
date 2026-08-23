@@ -152,14 +152,9 @@ export BUILD_TIME="$(date -u +%Y-%m-%dT%H:%MZ)"
 # obecny -- app i Caddy są zarządzane jako jeden projekt i nigdy się nie rozjadą.
 COMPOSE="docker compose -f docker-compose.yml"
 [ -f "$ROOT/deploy/docker-compose.caddy.yml" ] && COMPOSE="$COMPOSE -f $ROOT/deploy/docker-compose.caddy.yml"
-# Śpiewnik (osobna apka) — dołączamy do TEGO SAMEGO projektu compose, żeby Caddy
-# widział kontener `songbook` i nic się nie rozłączało przy przebudowie. Guard na
-# istnienie pliku: gdy nakładki nie ma, cała reszta działa jak dawniej.
-[ -f "$ROOT/songbook/deploy/docker-compose.songbook.yml" ] && COMPOSE="$COMPOSE -f $ROOT/songbook/deploy/docker-compose.songbook.yml"
-# Opcjonalny, CIĘŻKI moduł audio (wykrywanie akordów z YT) — tylko gdy świadomie
-# włączony plikiem-znacznikiem: `touch songbook/deploy/audio.enabled`.
-AUDIO_ON=0
-[ -f "$ROOT/songbook/deploy/audio.enabled" ] && [ -f "$ROOT/songbook/deploy/docker-compose.audio.yml" ] && { COMPOSE="$COMPOSE -f $ROOT/songbook/deploy/docker-compose.audio.yml"; AUDIO_ON=1; }
+# UWAGA: śpiewnik jest teraz CAŁKOWICIE osobnym stackiem (projekt compose
+# "spiewnik", własna sieć/port) i NIE jest częścią tego deployu — patrz
+# songbook/deploy/spiewnik.sh. Ten skrypt dotyczy wyłącznie GielDarka.
 echo "==> Przebudowuję i restartuję kontenery (prod + staging) -- wersja $GIT_SHA"
 # Buildkit potrafi rzucić przejściowym "rpc error: EOF" (dwa obrazy naraz na
 # ciaśniejszej maszynie). Najpierw pewny PROD (app), potem staging; każdy z
@@ -172,15 +167,6 @@ build_with_retry() { # build_with_retry SERVICE
   done
   [ "$ok" = 1 ]
 }
-# Śpiewnik budujemy NAJPIERW i NIEZALEŻNIE od proda — dzięki temu ewentualna
-# awaria builda GielDarka (który niżej robi `exit 1`) nie blokuje aktualizacji
-# śpiewnika. Śpiewnik to osobne kontenery, więc kolejność nie ma znaczenia.
-if [ -f "$ROOT/songbook/deploy/docker-compose.songbook.yml" ]; then
-  build_with_retry songbook || echo "   UWAGA: songbook build nieudany -- reszta działa, śpiewnik pominięty."
-fi
-if [ "$AUDIO_ON" = 1 ]; then
-  build_with_retry songbook-audio || echo "   UWAGA: moduł audio build nieudany -- reszta działa, audio pominięte."
-fi
 build_with_retry app || { echo "!! PROD build nieudany po 3 próbach -- zostaje poprzednia wersja"; exit 1; }
 build_with_retry app-staging || echo "   UWAGA: staging build nieudany -- prod działa, staging pominięty."
 # Upewnij się, że Caddy (HTTPS) stoi i jest na aktualnej sieci proda.
