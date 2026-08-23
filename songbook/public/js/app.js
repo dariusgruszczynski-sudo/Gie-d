@@ -1,6 +1,6 @@
 // app.js — główny moduł aplikacji Śpiewnik.
 import { store } from './store.js';
-import { render as renderChordPro, extractChords, transposeSource, plainToChordPro, stretchChords } from './chordpro.js';
+import { render as renderChordPro, extractChords, transposeSource, plainToChordPro, stretchChords, consensusVocabulary, scoreArrangement } from './chordpro.js';
 import { chordDiagram, hasShape } from './chords.js';
 import { searchLyrics, importUrl, searchWeb, resolveLink, detectChords, detectChordsFile } from './search-client.js';
 import { sync } from './sync.js';
@@ -265,6 +265,161 @@ function newSong(partial) {
   go('songs', { songId: s.id, editing: true });
 }
 
+// ⚡ Szybkie dodawanie (mobile-first): wpisz szybko tytuł albo „Wykonawca – Tytuł",
+// wybierz playlistę i dodaj. Opracowanie z chwytami sprawdzasz PÓŹNIEJ (z opcjami).
+// Zostaje otwarte, żeby wrzucać kolejne jedno po drugim.
+function quickCaptureModal() {
+  const input = el('input', {
+    class: 'input', autocomplete: 'off', autocapitalize: 'words', enterkeyhint: 'done',
+    placeholder: 'Tytuł albo „Wykonawca – Tytuł"',
+  });
+  // Lista docelowa: istniejące + „(bez listy)" + „➕ nowa lista".
+  const listSel = el('select', { class: 'input' });
+  const rebuildLists = (sel) => {
+    listSel.innerHTML = '';
+    listSel.append(el('option', { value: '' }, '(bez listy)'));
+    store.lists().forEach((l) => listSel.append(el('option', { value: l.id }, l.name || 'Lista')));
+    listSel.append(el('option', { value: '__new__' }, '➕ nowa lista…'));
+    if (sel) listSel.value = sel;
+  };
+  rebuildLists(store.settings.lastQuickList || '');
+  listSel.addEventListener('change', () => {
+    if (listSel.value !== '__new__') return;
+    const name = (prompt('Nazwa nowej listy:') || '').trim();
+    if (name) { const l = store.createList(name); rebuildLists(l.id); }
+    else rebuildLists('');
+  });
+
+  const added = el('div', { class: 'quick-added muted-sm' });
+  let count = 0;
+
+  const commit = (thenSearch) => {
+    const raw = input.value.trim();
+    if (!raw) { input.focus(); return; }
+    // „Wykonawca – Tytuł" (myślnik/półpauza) → rozdziel; inaczej całość = tytuł.
+    let artist = '', ttl = raw;
+    const m = raw.match(/^(.{1,60}?)\s*[-–—]\s*(.+)$/);
+    if (m) { artist = m[1].trim(); ttl = m[2].trim(); }
+    const s = store.createSong({ title: ttl || 'Bez tytułu', artist, tags: ['do sprawdzenia'] });
+    const listId = listSel.value && listSel.value !== '__new__' ? listSel.value : '';
+    if (listId) { store.addToList(listId, s.id); store.updateSettings({ lastQuickList: listId }); }
+    count++;
+    added.textContent = `Dodano ${count}: „${(artist ? artist + ' – ' : '') + (ttl || 'Bez tytułu')}"${listId ? ' → ' + (store.list(listId)?.name || 'lista') : ''}`;
+    updateInboxBadge();
+    input.value = '';
+    if (thenSearch) { app.pendingSearch = { q: ttl, artist }; document.querySelector('.modal-overlay')?.remove(); go('search'); return; }
+    input.focus();
+  };
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); commit(false); } });
+
+  modal({
+    title: '⚡ Szybko dodaj',
+    body: el('div', { class: 'quick-capture' },
+      el('p', { class: 'muted-sm', text: 'Wpisz szybko, co wpadło Ci do głowy. Dobór opracowania z chwytami sprawdzisz później (z kilkoma opcjami).' }),
+      input,
+      el('label', { class: 'field-label', text: 'Do playlisty:' }), listSel,
+      added,
+    ),
+    actions: [
+      el('button', { class: 'btn', onClick: () => document.querySelector('.modal-overlay')?.remove() }, 'Gotowe'),
+      el('button', { class: 'btn', title: 'Dodaj i od razu poszukaj chwytów', onClick: () => commit(true) }, '＋ i szukaj chwytów'),
+      el('button', { class: 'btn btn-primary', onClick: () => commit(false) }, '＋ Dodaj (kolejny)'),
+    ],
+  });
+  setTimeout(() => input.focus(), 50);
+}
+
+// 🎸 „Sprawdź opracowanie (kilka opcji)": pobiera kilka wersji z sieci, czyta
+// akordy, USTALA KONSENSUS akordów między opracowaniami (żeby wiedzieć, które
+// litery to naprawdę chwyty), formatuje chwyty nad tekstem, ocenia i pokazuje
+// najlepsze do wyboru. `meta`: { artist, title, songId? }.
+async function findArrangementsModal(meta) {
+  const m = modal({
+    title: '🎸 Szukam opracowań z chwytami…',
+    wide: true,
+    body: el('div', { class: 'help' }, el('div', { class: 'searching' }, el('span', { class: 'spinner' }), ' Porównuję kilka wersji, żeby dobrze rozpoznać chwyty…')),
+    actions: [],
+  });
+  const closeBtn = () => document.querySelector('.modal-overlay')?.remove();
+
+  const sr = await searchWeb({ q: [meta.artist, meta.title].filter(Boolean).join(' ').trim() || meta.title, artist: meta.artist || '' });
+  if (!sr.ok || !sr.items.length) {
+    closeBtn();
+    modal({ title: '🎸 Brak opracowań', body: el('div', { class: 'help' }, el('p', {}, sr.ok ? 'Nic nie znalazłem. Spróbuj w module „🔎 Wyszukaj" innych słów albo wklej link.' : ('⚠︎ ' + sr.error))),
+      actions: [el('button', { class: 'btn btn-primary', onClick: closeBtn }, 'OK')] });
+    return;
+  }
+
+  // Pobierz kilka najlepszych wyników równolegle (z limitem), zbierz surowy tekst.
+  const top = sr.items.slice(0, 5);
+  const fetched = await Promise.all(top.map(async (item) => {
+    const r = await importUrl(item.url);
+    if (!r.ok || !r.text) return null;
+    const converted = plainToChordPro(r.text);
+    const chords = (converted.match(/\[[A-Ha-h][^\]]*\]/g) || []).length;
+    return chords >= 2 ? { item, raw: r.text, converted } : null;
+  }));
+  const good = fetched.filter(Boolean);
+  if (!good.length) {
+    closeBtn();
+    modal({ title: '🎸 Znalazłem strony, ale bez chwytów', body: el('div', { class: 'help' }, el('p', {}, 'Wyniki nie miały czytelnych chwytów. Otwórz „🔎 Wyszukaj", żeby przejrzeć listę ręcznie.')),
+      actions: [
+        el('button', { class: 'btn', onClick: closeBtn }, 'OK'),
+        el('button', { class: 'btn btn-primary', onClick: () => { closeBtn(); app.pendingSearch = { q: meta.title, artist: meta.artist }; go('search'); } }, '🔎 Otwórz wyszukiwarkę'),
+      ] });
+    return;
+  }
+
+  // KONSENSUS akordów z kilku wersji → przeparsuj każdą z tą wiedzą i oceń.
+  const consensus = consensusVocabulary(good.map((g) => g.converted));
+  good.forEach((g) => { g.body = plainToChordPro(g.raw, consensus); g.score = scoreArrangement(g.body); });
+  good.sort((a, b) => b.score - a.score);
+
+  closeBtn();
+  const box = el('div', { class: 'arr-list' });
+  good.forEach((g, i) => {
+    const vocab = [...new Set((g.body.match(/\[([^\]]+)\]/g) || []).map((x) => x.slice(1, -1)))].slice(0, 12).join(' ');
+    const nchords = (g.body.match(/\[[^\]]+\]/g) || []).length;
+    const preview = el('div', { class: 'song-body preview-frame', style: 'max-height:230px;overflow:auto' });
+    preview.innerHTML = renderChordPro(g.body, { showChords: true });
+    box.append(el('div', { class: 'arr-option' },
+      el('div', { class: 'arr-head' },
+        el('span', { class: 'arr-badge', text: i === 0 ? '★ najlepsze' : `opcja ${i + 1}` }),
+        el('span', { class: 'result-source', text: g.item.source }),
+        el('span', { class: 'muted-sm', text: `${nchords} chwytów · ${vocab}` }),
+      ),
+      preview,
+      el('div', { class: 'arr-actions' },
+        el('a', { class: 'btn btn-sm', href: g.item.url, target: '_blank', rel: 'noopener' }, '↗ Źródło'),
+        el('button', { class: 'btn btn-sm btn-primary', onClick: () => useArrangement(meta, g) }, '✓ Użyj tego'),
+      ),
+    ));
+  });
+
+  modal({
+    title: `🎸 Opracowania (${good.length}) — wybierz`,
+    wide: true,
+    body: el('div', { class: 'help' },
+      el('p', { class: 'muted-sm', text: consensus.size ? `Wspólne akordy z porównania wersji: ${[...consensus].slice(0, 14).join(' ')}` : 'Porównałem dostępne wersje.' }),
+      box,
+    ),
+    actions: [el('button', { class: 'btn', onClick: () => document.querySelector('.modal-overlay')?.remove() }, 'Zamknij')],
+  });
+}
+
+function useArrangement(meta, g) {
+  document.querySelector('.modal-overlay')?.remove();
+  if (meta.songId && store.song(meta.songId)) {
+    store.updateSong(meta.songId, { body: g.body });
+    toast('Wstawiono opracowanie — sprawdź i popraw ✓', 'success');
+    go('songs', { songId: meta.songId, editing: true });
+  } else {
+    const s = store.createSong({ title: meta.title || 'Bez tytułu', artist: meta.artist || '', body: g.body, notes: 'Źródło: ' + g.item.url });
+    toast('Zapisano opracowanie ✓', 'success');
+    go('songs', { songId: s.id, editing: true });
+  }
+}
+
 // ------------------------------------------------ Szczegóły / widok piosenki
 // Transpozycja jest ZAPISYWANA przy piosence (i synchronizuje się między urządzeniami).
 function currentSteps(id) { const s = store.song(id); return (s && s.transpose) || 0; }
@@ -282,6 +437,7 @@ function renderSongDetail(view, actions) {
     el('button', { class: 'btn btn-sm', onClick: () => go('songs') }, '‹ Wróć'),
     el('button', { class: 'btn btn-sm', onClick: () => { app.editing = true; render(); } }, '✏️ Edytuj'),
     el('button', { class: 'btn btn-sm', onClick: () => openPerformance(s.id) }, '▶︎ Występ'),
+    el('button', { class: 'btn btn-sm', title: 'Pobierz i porównaj opracowania z chwytami (kilka opcji)', onClick: () => findArrangementsModal({ artist: s.artist, title: s.title, songId: s.id }) }, '🎸 Sprawdź opracowanie'),
     el('button', { class: 'btn btn-sm', onClick: () => window.print() }, '🖨 Drukuj'),
     el('button', { class: 'btn btn-sm', onClick: () => addToListDialog(s.id) }, '＋ Do listy'),
     el('button', { class: 'btn btn-sm', onClick: () => { store.duplicateSong(s.id); toast('Skopiowano piosenkę'); go('songs'); } }, '⧉'),
@@ -305,6 +461,15 @@ function renderSongReader(s, { withControls = false } = {}) {
   wrap.append(head);
 
   // Piosenka zapisana w „surowej" formie (chwyty nie nad tekstem)? Zaproponuj naprawę.
+  // Piosenka bez treści (np. z „⚡ Szybko dodaj") — zaproponuj dobór opracowania.
+  if (withControls && !String(s.body || '').replace(/\{[^}]*\}/g, '').trim()) {
+    wrap.append(el('div', { class: 'notice notice-ok no-print' },
+      el('span', {}, '📝 Ta piosenka nie ma jeszcze tekstu ani chwytów.'),
+      el('button', { class: 'btn btn-sm btn-primary', onClick: () => findArrangementsModal({ artist: s.artist, title: s.title, songId: s.id }) }, '🎸 Sprawdź opracowanie (kilka opcji)'),
+      el('button', { class: 'btn btn-sm', onClick: () => { app.editing = true; render(); } }, '✏️ Wpisz ręcznie'),
+    ));
+  }
+
   if (withControls) {
     const fix = autoChordify(s.body);
     if (fix.converted) {
@@ -1437,6 +1602,7 @@ async function setupSync() {
 // ------------------------------------------------------------------ init
 function bind() {
   $$('.nav-item').forEach((b) => b.addEventListener('click', () => go(b.dataset.view, b.dataset.view === 'songs' ? { songId: null } : b.dataset.view === 'lists' ? { listId: null } : {})));
+  $('#btnQuickAdd')?.addEventListener('click', () => quickCaptureModal());
   $('#btnNewSong').addEventListener('click', () => newSong());
   $('#btnNewList').addEventListener('click', () => { const l = store.createList(); go('lists', { listId: l.id }); });
   $('#menuToggle').addEventListener('click', () => $('#sidebar').classList.toggle('open'));

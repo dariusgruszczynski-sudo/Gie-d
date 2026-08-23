@@ -193,18 +193,74 @@ export function normalizeChordToken(raw) {
   return core + rest + bass;
 }
 
-function isChordLine(line) {
+// `known` (opcjonalny Set znormalizowanych akordów) = słownik akordów, o których
+// WIEMY, że należą do tego utworu (z pewnych linii chwytów w tym samym tekście
+// albo z porównania kilku opracowań). Token, który normalizuje się do akordu z
+// tego zbioru, traktujemy jako pewny — dzięki temu poprawnie czytamy nawet
+// pojedyncze litery („a", „e", „h"), których inaczej nie ruszamy (polskie słowa).
+function isChordLine(line, known) {
   const tokens = line.trim().split(/\s+/).filter(Boolean);
   if (!tokens.length) return false;
   let chords = 0, strong = 0;
   for (const t of tokens) {
     const n = normalizeChordToken(t);
-    if (n) { chords++; if (t.length >= 2 || /[A-H]/.test(t[0])) strong++; }
+    if (n) {
+      chords++;
+      if (t.length >= 2 || /[A-H]/.test(t[0]) || (known && known.has(n))) strong++;
+    }
   }
   // Akceptujemy linię, gdy ≥60% tokenów to akordy ORAZ jest ≥2 akordy (np. „a e")
-  // albo choć jeden „mocny" akord (duża litera / dłuższy token). Chroni to przed
-  // uznaniem pojedynczej małej literki („a" jako polskie słowo) za akord.
+  // albo choć jeden „mocny" akord (duża litera / dłuższy token / znany akord).
   return chords / tokens.length >= 0.6 && (chords >= 2 || strong >= 1);
+}
+
+// Bardzo pewna linia chwytów (do budowy słownika): prawie same akordy i ≥1 mocny.
+function isStrongChordLine(line) {
+  const tokens = line.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length < 1) return false;
+  let chords = 0, strong = 0;
+  for (const t of tokens) {
+    const n = normalizeChordToken(t);
+    if (n) { chords++; if (t.length >= 2 || /[A-H]/.test(t[0]) || /[#b]/.test(t)) strong++; }
+  }
+  return chords === tokens.length && strong >= 1;
+}
+
+// Zbiera słownik akordów utworu: z gotowych [nawiasów] ORAZ z pewnych linii chwytów.
+// To podstawa „rozumowania, które litery to akordy" — poznajemy realny zestaw akordów.
+export function getChordVocabulary(text) {
+  const set = new Set();
+  const src = String(text).replace(/\r\n/g, '\n');
+  // 1) już oznaczone chwyty [X]
+  for (const m of src.matchAll(/\[([^\]]+)\]/g)) {
+    const n = normalizeChordToken(m[1]); if (n) set.add(n);
+  }
+  // 2) pewne linie chwytów (nawet zlepki „CGC")
+  for (const line of src.split('\n')) {
+    if (!isStrongChordLine(line)) continue;
+    for (const t of line.trim().split(/\s+/)) {
+      const n = normalizeChordToken(t);
+      if (n) { set.add(n); continue; }
+      const run = splitChordRun(t);
+      if (run) run.forEach((c) => { const nc = normalizeChordToken(c); if (nc) set.add(nc); });
+    }
+  }
+  return set;
+}
+
+// Konsensus z KILKU opracowań: akord uznajemy za „prawdziwy dla utworu", gdy
+// pojawia się w ≥2 wersjach (albo jest tylko jedna wersja). Odsiewa literówki i
+// przypadkowe słowa uznane gdzieś błędnie za akord.
+export function consensusVocabulary(texts) {
+  const counts = new Map();
+  const list = (texts || []).filter(Boolean);
+  for (const t of list) {
+    for (const c of getChordVocabulary(t)) counts.set(c, (counts.get(c) || 0) + 1);
+  }
+  const min = list.length >= 2 ? 2 : 1;
+  const set = new Set();
+  for (const [c, n] of counts) if (n >= min) set.add(c);
+  return set;
 }
 
 // Łączy linię chwytów z linią tekstu w jedną linię ChordPro na podstawie pozycji kolumn.
@@ -231,12 +287,16 @@ function mergeChordLyric(chordLine, lyricLine) {
 
 // Czy token to na tyle jednoznaczny akord, że można go bezpiecznie oznaczyć
 // WEWNĄTRZ linii z tekstem (bez psucia zwykłych słów)?
-function looksLikeChordStrong(t) {
-  if (!normalizeChordToken(t)) return false;
+function looksLikeChordStrong(t, known) {
+  const n = normalizeChordToken(t);
+  if (!n) return false;
   const bare = t.replace(/^[("']+/, '').replace(/[).,;:!?"']+$/, '');
   if (/[#b]/.test(bare)) return true;          // z krzyżykiem/bemolem: F#, Bb…
   if (bare.length >= 2) return true;            // z sufiksem: Am, G7, Dm7, C/E…
   if (/^[BCDEFGH]$/.test(bare)) return true;    // duża litera nutowa (bez „A", bo to polskie słowo)
+  // Gołą pojedynczą MAŁĄ literę (a, e, h, c…) uznajemy za akord WEWNĄTRZ tekstu
+  // tylko wyjątkowo — bo to polskie słowa („a", „e", „i"). Słownik `known` NIE
+  // wystarcza (miałby oznaczać każde „a"/„e" w zwrotce). Zostawiamy jako tekst.
   return false;
 }
 
@@ -275,7 +335,7 @@ function placeChordsOverLine(lyric, chords) {
 
 // Oznacza chwyty ZAPISANE W LINII Z TEKSTEM (w środku, między słowami, po prawej)
 // oraz w nawiasach „(C)". Pozostawia tekst nietknięty tam, gdzie akordów nie ma.
-export function inlineChords(line) {
+export function inlineChords(line, known) {
   if (line.includes('[')) return line; // już w formacie ChordPro
   // chwyty w nawiasach: (C), (Am7), (F#) -> [C] [Am7] [F#]
   line = line.replace(/\(([A-Ha-h][#b]?[^\s()]{0,6})\)/g, (full, inner) => {
@@ -305,30 +365,54 @@ export function inlineChords(line) {
   return line.replace(/\S+/g, (tok) => {
     const m = tok.match(/^([("']?)([A-Ha-h][^\s]*?)([).,;:!?"']*)$/);
     if (!m) return tok;
-    if (!looksLikeChordStrong(m[2])) return tok;
+    if (!looksLikeChordStrong(m[2], known)) return tok;
     const n = normalizeChordToken(m[2]);
     return n ? `${m[1]}[${n}]${m[3]}` : tok;
   });
 }
 
-export function plainToChordPro(text) {
-  const lines = String(text).replace(/\r\n/g, '\n').split('\n');
+// `known` (opcjonalny Set) = akordy pewne dla tego utworu (np. konsensus z kilku
+// opracowań). Nawet bez niego robimy DWA przebiegi: najpierw poznajemy słownik
+// akordów z pewnych linii chwytów w samym tekście, potem parsujemy z tą wiedzą —
+// dzięki temu dwuznaczne litery („a", „e", „h") czytamy poprawnie.
+export function plainToChordPro(text, known) {
+  const raw = String(text).replace(/\r\n/g, '\n');
+  // Przebieg 1: słownik akordów utworu (z pewnych linii chwytów) + ewentualny konsensus.
+  const vocab = new Set(getChordVocabulary(raw));
+  if (known) for (const c of known) vocab.add(c);
+
+  const lines = raw.split('\n');
   const out = [];
   for (let i = 0; i < lines.length; i++) {
     const cur = lines[i];
     const next = lines[i + 1];
-    if (isChordLine(cur) && next !== undefined && !isChordLine(next) && next.trim() !== '') {
+    if (isChordLine(cur, vocab) && next !== undefined && !isChordLine(next, vocab) && next.trim() !== '') {
       out.push(mergeChordLyric(cur, next));
       i++; // pomijamy zużytą linię tekstu
-    } else if (isChordLine(cur) && (next === undefined || next.trim() === '')) {
+    } else if (isChordLine(cur, vocab) && (next === undefined || next.trim() === '')) {
       // sama linia chwytów (np. wstęp) — zamień tokeny na [akordy]
       out.push(cur.trim().split(/\s+/).map((t) => normalizeChordToken(t)).filter(Boolean).map((c) => `[${c}]`).join(' '));
     } else {
       // zwykła linia tekstu — ale mogą w niej siedzieć chwyty (w środku/po prawej/w nawiasach)
-      out.push(inlineChords(cur));
+      out.push(inlineChords(cur, vocab));
     }
   }
   return out.join('\n');
+}
+
+// Ocena, jak dobre jest opracowanie (do wyboru najlepszej wersji z kilku):
+// premiujemy dużo różnych akordów rozłożonych NAD tekstem i obecność słów.
+export function scoreArrangement(chordproText) {
+  const src = String(chordproText || '');
+  const chordCount = (src.match(/\[[^\]]+\]/g) || []).length;
+  const vocab = getChordVocabulary(src).size;
+  const lyricLines = src.split('\n').filter((l) => {
+    const t = l.replace(/\[[^\]]*\]/g, '').replace(/\{[^}]*\}/g, '').trim();
+    return t.length > 3;
+  }).length;
+  if (chordCount === 0 || lyricLines === 0) return 0;
+  // różnorodność akordów + gęstość, z premią za obecność realnego tekstu
+  return vocab * 4 + Math.min(chordCount, 120) + Math.min(lyricLines, 80);
 }
 
 // Rozciąga chwyty na resztę utworu: bierze pierwszą zwrotkę i pierwszy refren
