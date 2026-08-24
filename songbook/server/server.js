@@ -166,51 +166,126 @@ async function searchSerp(query, max) {
   } finally { clearTimeout(t); }
 }
 
-// DuckDuckGo (bez klucza) — parsujemy HTML wyników.
-async function searchDuck(query, max) {
-  const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=pl-pl`;
+// Prawdziwy User-Agent — DuckDuckGo odrzuca oczywiste boty (stąd „nie działa").
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
+// Wyodrębnia prawdziwy URL z linku-przekierowania DuckDuckGo (…/l/?uddg=…).
+function unwrapDuck(href) {
+  href = decodeEntities(href);
+  const ud = href.match(/[?&]uddg=([^&]+)/);
+  if (ud) { try { href = decodeURIComponent(ud[1]); } catch { /* keep */ } }
+  if (href.startsWith('//')) href = 'https:' + href;
+  return href;
+}
+
+// DuckDuckGo LITE (bez klucza) — najbardziej „scraper-friendly" endpoint. POST z
+// formularzem, wyniki w prostej tabeli. Dużo pewniejszy niż html.duckduckgo.com.
+async function searchDuckLite(query, max) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 12000);
   try {
-    const r = await fetch(url, {
+    const r = await fetch('https://lite.duckduckgo.com/lite/', {
+      method: 'POST',
       signal: ctrl.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SpiewnikBot/1.0)', 'Accept': 'text/html' },
+      headers: {
+        'User-Agent': BROWSER_UA,
+        'Accept': 'text/html',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Referer': 'https://lite.duckduckgo.com/',
+      },
+      body: new URLSearchParams({ q: query, kl: 'pl-pl' }).toString(),
     });
-    if (!r.ok) return { ok: false, error: `Wyszukiwarka zwróciła status ${r.status}` };
-    const html = await r.text();
-    return { ok: true, items: parseDuck(html).slice(0, max) };
+    if (!r.ok) return { ok: false, error: `DuckDuckGo lite status ${r.status}` };
+    return { ok: true, items: parseDuckLite(await r.text()).slice(0, max) };
   } catch (e) {
     return { ok: false, error: e.name === 'AbortError' ? 'Przekroczono czas wyszukiwania.' : String(e.message || e) };
   } finally { clearTimeout(t); }
 }
 
-// Pure — parsuje stronę wyników DuckDuckGo HTML na listę {title,url,snippet,source}.
-function parseDuck(html) {
+// Wyłuskuje z tagu <a …> atrybut o danej nazwie (kolejność atrybutów dowolna).
+function attr(tag, name) {
+  const m = tag.match(new RegExp(name + '\\s*=\\s*"([^"]*)"', 'i'));
+  return m ? m[1] : '';
+}
+
+// Parsuje wynik DDG lite: linki wyników mają class="result-link" (atrybuty w
+// DOWOLNEJ kolejności — href bywa przed class, dlatego nie zakładamy porządku).
+function parseDuckLite(html) {
   const items = [];
-  const re = /<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  const re = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
   let m;
   while ((m = re.exec(html))) {
-    let href = decodeEntities(m[1]);
-    // DDG owija link w redirect z parametrem uddg=
-    const ud = href.match(/[?&]uddg=([^&]+)/);
-    if (ud) { try { href = decodeURIComponent(ud[1]); } catch { /* keep */ } }
-    if (href.startsWith('//')) href = 'https:' + href;
+    const tag = m[1];
+    if (!/class\s*=\s*"[^"]*result-link/i.test(tag)) continue;
+    const href = unwrapDuck(attr('<a ' + tag + '>', 'href'));
     const title = stripTags(m[2]);
-    if (href && title) items.push({ title, url: href, snippet: '', source: hostnameOf(href) });
+    if (href && title && /^https?:/.test(href)) items.push({ title, url: href, snippet: '', source: hostnameOf(href) });
   }
-  // dorzuć snippety (kolejność zwykle zgodna z wynikami)
+  const snips = [...html.matchAll(/<td[^>]*class="[^"]*result-snippet[^"]*"[^>]*>([\s\S]*?)<\/td>/gi)].map((x) => stripTags(x[1]));
+  items.forEach((it, i) => { if (snips[i]) it.snippet = snips[i]; });
+  return items;
+}
+
+// DuckDuckGo HTML (zapasowo) — parsujemy klasyczne wyniki.
+async function searchDuckHtml(query, max) {
+  const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=pl-pl`;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal, headers: { 'User-Agent': BROWSER_UA, 'Accept': 'text/html' } });
+    if (!r.ok) return { ok: false, error: `DuckDuckGo status ${r.status}` };
+    return { ok: true, items: parseDuck(await r.text()).slice(0, max) };
+  } catch (e) {
+    return { ok: false, error: e.name === 'AbortError' ? 'Przekroczono czas wyszukiwania.' : String(e.message || e) };
+  } finally { clearTimeout(t); }
+}
+
+// Pure — parsuje klasyczną stronę wyników DuckDuckGo HTML (atrybuty w dowolnej kolejności).
+function parseDuck(html) {
+  const items = [];
+  const re = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+  let m;
+  while ((m = re.exec(html))) {
+    const tag = m[1];
+    if (!/class\s*=\s*"[^"]*result__a/i.test(tag)) continue;
+    const href = unwrapDuck(attr('<a ' + tag + '>', 'href'));
+    const title = stripTags(m[2]);
+    if (href && title && /^https?:/.test(href)) items.push({ title, url: href, snippet: '', source: hostnameOf(href) });
+  }
   const snips = [...html.matchAll(/<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/gi)].map((x) => stripTags(x[1]));
   items.forEach((it, i) => { if (snips[i]) it.snippet = snips[i]; });
   return items;
+}
+
+// Keyless: najpierw lite (pewniejszy), potem klasyczny html jako zapas.
+async function searchDuck(query, max) {
+  const lite = await searchDuckLite(query, max);
+  if (lite.ok && lite.items.length) return lite;
+  const html = await searchDuckHtml(query, max);
+  if (html.ok && html.items.length) return html;
+  // Zwróć cokolwiek „ok", nawet puste, żeby webSearch dał sensowny komunikat.
+  return lite.ok ? lite : html;
 }
 
 async function webSearch(params) {
   const query = buildSearchQuery(params);
   if (!query) return { ok: false, error: 'Podaj tytuł, zespół lub fragment tekstu.' };
   const max = Math.min(Math.max(parseInt(params.max) || 12, 1), 20);
-  const res = SEARCH_KEY ? await searchSerp(query, max) : await searchDuck(query, max);
-  if (!res.ok) return res;
-  return { ok: true, query, provider: SEARCH_KEY ? 'serpapi' : 'duckduckgo', items: res.items };
+
+  let provider = SEARCH_KEY ? 'serpapi' : 'duckduckgo';
+  let res = SEARCH_KEY ? await searchSerp(query, max) : await searchDuck(query, max);
+  // SerpAPI padło lub puste → spróbuj DuckDuckGo (żeby wyszukiwarka działała mimo wszystko).
+  if (SEARCH_KEY && (!res.ok || !(res.items && res.items.length))) {
+    const ddg = await searchDuck(query, max);
+    if (ddg.ok && ddg.items.length) { res = ddg; provider = 'duckduckgo'; }
+  }
+  if (!res.ok) return { ok: false, error: res.error || 'Wyszukiwarka jest chwilowo niedostępna.' };
+  if (!res.items || !res.items.length) {
+    return { ok: false, error: SEARCH_KEY
+      ? 'Brak wyników dla tego zapytania. Spróbuj innych słów (np. dodaj „chwyty").'
+      : 'Brak wyników z DuckDuckGo. Dla pewnych wyników dodaj własny klucz SerpAPI (SONGBOOK_SEARCH_KEY w .env) albo wklej link do strony z chwytami poniżej.' };
+  }
+  return { ok: true, query, provider, items: res.items };
 }
 
 // --- Rozpoznanie linku (poczekalnia): tytuł/wykonawca z oEmbed lub <title> ---
