@@ -1,14 +1,14 @@
-# Audyt GielDarek — 2026-08-29T12:01:17Z
+# Audyt GielDarek — 2026-08-30T10:57:45Z
 
 **Wdrożenie:** kod f514c50 (zbud. 2026-08-24T17:06Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 40 zamknięć · trafność 30.0% · zrealizowany $9.43
-**7 dni:** 10 zamknięć · 30.0% · $-4.52   |   **30 dni:** 61 · 27.9% · $12.54
+**7 dni:** 10 zamknięć · 30.0% · $-4.52   |   **30 dni:** 55 · 29.1% · $15.41
 **Edge:** śr. wygrana +$2.98 vs strata $-0.94 → na transakcję $0.24 (payoff 3.17×)
 **Trzymanie:** zyski ~4.5 dni · straty ~2.1 dni
 
 ## Wnioski
-- (neu) Trafność 7 dni 30% vs 30 dni 28% — stabilna.
+- (neu) Trafność 7 dni 30% vs 30 dni 29% — stabilna.
 - (bad) Ostatnie 7 dni: -4.52 $ z 10 zamknięć.
 - (good) Średnia wygrana +$2.98 vs strata −$0.94 (wygrana 3.17× większa) → na transakcję +$0.24. Zarabia mimo <50% trafności — edge dodatni.
 - (bad) ⚠ Zyski trzymane dłużej (~4 dni) niż straty (~2 dni) — automat zwleka z realizacją zysku.
