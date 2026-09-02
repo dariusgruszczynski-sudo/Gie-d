@@ -23,5 +23,56 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!--
+      Watchdog BIAŁEGO EKRANU. Bundle JS ma hashowaną nazwę (index-XXXX.js) i po
+      deployu zmienia się na nową. Jeśli stary service worker (albo cache PWA)
+      poda stary index.html wskazujący na JUŻ USUNIĘTY hash -> 404 -> pusty
+      #root -> biały ekran „na zawsze". Ten skrypt jest INLINE (wykonuje się
+      nawet gdy główny bundle w ogóle nie wystartuje): gdy po ~6 s panel się nie
+      zamontował, RAZ czyści service-workery + cache i przeładowuje; jeśli to nie
+      pomoże, pokazuje przycisk ręcznego czyszczenia (bez pętli przeładowań).
+      Timer startuje przy parsowaniu (NIE na zdarzeniu `load`) — po reload zdarzenie
+      `load` potrafi już nie odpalić dodanego listenera, więc na nim nie polegamy.
+    -->
+    <script>
+      (function () {
+        var KEY = "gd-selfheal";
+        function get() { try { return sessionStorage.getItem(KEY); } catch (e) { return null; } }
+        function set(v) { try { sessionStorage.setItem(KEY, v); } catch (e) {} }
+        function nuke(then) {
+          var fired = false;
+          function once() { if (fired) return; fired = true; then(); } // reload DOKŁADNIE raz
+          var jobs = [];
+          try {
+            if (window.caches && caches.keys)
+              jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+            if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations)
+              jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+          } catch (e) {}
+          Promise.all(jobs).then(once, once);
+          setTimeout(once, 2000); // twardy fallback, gdyby obietnice zawisły
+        }
+        function fallback() {
+          var root = document.getElementById("root");
+          if (!root || root.childElementCount > 0) return;
+          root.innerHTML =
+            '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:#7c8aa2;font-family:system-ui,sans-serif;text-align:center;padding:24px">' +
+            '<div style="font-size:15px;color:#c7d2e3">Nie udało się załadować panelu.</div>' +
+            '<button id="gd-heal" style="padding:10px 18px;border-radius:10px;border:1px solid #2a3a53;background:#0f1826;color:#e6edf6;font-size:14px;cursor:pointer">Wyczyść i odśwież</button>' +
+            "</div>";
+          var b = document.getElementById("gd-heal");
+          if (b) b.onclick = function () { set("1"); nuke(function () { location.reload(); }); };
+        }
+        // Start liczenia od parsowania skryptu (odporne na brak zdarzenia `load`
+        // po location.reload()).
+        setTimeout(function () {
+          var root = document.getElementById("root");
+          if (root && root.childElementCount > 0) { set(""); return; } // panel wstał
+          if (get() === "1") { fallback(); return; }                   // już próbowaliśmy raz
+          set("1");
+          nuke(function () { location.reload(); });
+        }, 6000);
+      })();
+    </script>
   </body>
 </html>
