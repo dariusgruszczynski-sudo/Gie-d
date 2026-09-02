@@ -179,10 +179,20 @@ build_with_retry() { # build_with_retry SERVICE
   done
   [ "$ok" = 1 ]
 }
-build_with_retry app || { echo "!! PROD build nieudany po 3 próbach -- zostaje poprzednia wersja"; exit 1; }
+# Podpięcie Caddy (HTTPS) do sieci proda MUSI biec ZAWSZE -- także gdy build apki
+# padnie. Inaczej przy nieudanym buildzie skrypt kończył PRZED tym krokiem i
+# zostawiał Caddy osieroconego (publiczny adres = BIAŁY EKRAN), mimo że stara,
+# działająca wersja apki dalej chodziła. Dlatego reconnect jest w trap EXIT.
+reconnect_caddy() {
+  $COMPOSE up -d caddy 2>/dev/null && echo "   Caddy podpięty do sieci proda (HTTPS OK)" \
+    || echo "   (Caddy pominięty -- brak pliku caddy albo portów 80/443)"
+}
+trap reconnect_caddy EXIT
+build_with_retry app || { echo "!! PROD build nieudany po 3 próbach -- zostaje poprzednia wersja (Caddy i tak podpięty)"; exit 1; }
 build_with_retry app-staging || echo "   UWAGA: staging build nieudany -- prod działa, staging pominięty."
 # Upewnij się, że Caddy (HTTPS) stoi i jest na aktualnej sieci proda.
-$COMPOSE up -d caddy 2>/dev/null || echo "   (Caddy pominięty -- brak pliku caddy albo portów 80/443)"
+reconnect_caddy
+trap - EXIT
 
 # --- 4) Health -------------------------------------------------------------
 echo "==> Status kontenerów"
