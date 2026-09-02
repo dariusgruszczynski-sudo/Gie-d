@@ -47,6 +47,9 @@ export interface StatusResponse {
   halted_reason: string | null;
   day_pnl_pct: number | null;
   week_pnl_pct: number | null;
+  // Rekomendacja #5: ZREALIZOWANY dziś wynik (deposit-proof) — konkretna kasa
+  // zaksięgowana dziś, obok dziennego P&L (wyceny), żeby „-7%" nie straszyło.
+  day_realized_usd?: number;
   daily_loss_limit_pct: number;
   weekly_loss_limit_pct: number;
   max_drawdown_halt_pct: number;
@@ -395,6 +398,11 @@ export interface HistoryTrade {
   opened_at: string | null;
   sold_at: string | null;
   days_held: number | null;
+  // Dziennik decyzji (rekomendacja C): po co wchodziłem, dlaczego wyszedłem i
+  // czy teza się sprawdziła (proxy: zamknięcie na plusie).
+  entry_thesis?: string | null;
+  exit_reason?: string | null;
+  thesis_worked?: boolean;
 }
 export interface HistoryResponse {
   trades: HistoryTrade[];

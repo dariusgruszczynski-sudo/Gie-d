@@ -1195,3 +1195,21 @@
   .gd-mode.live .gd-blip { animation: gd-livepulse 2.4s ease-in-out infinite; }
 }
 @keyframes gd-livepulse { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, var(--mint) 55%, transparent); } 50% { opacity: 0.75; box-shadow: 0 0 0 5px transparent; } }
+
+/* ——— Rekomendacje audytu 2026-09-02 (v34) ————————————————————————— */
+/* #5: dzień = WYCENA (papierowa) obok ZAKSIĘGOWANEGO dziś — dwie liczby jasno
+   rozdzielone, żeby „-7%" wyceny nie było mylone z realnym wynikiem. */
+.gd-daynote { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline;
+  margin-top: 10px; font-size: 0.82rem; color: var(--dim, var(--txt)); }
+.gd-daynote b { font-weight: 700; }
+.gd-daynote .gd-up { color: var(--mint, #34d399); }
+.gd-daynote .gd-down { color: var(--rose, #f87171); }
+
+/* C: dziennik decyzji w Historii — rozwijane „dlaczego wchodziłem". */
+.gd-hist-why { flex-basis: 100%; margin-top: 6px; font-size: 0.8rem; }
+.gd-hist-why summary { cursor: pointer; color: var(--dim, var(--txt)); list-style: none; user-select: none; }
+.gd-hist-why summary::-webkit-details-marker { display: none; }
+.gd-hist-why summary::before { content: "▸ "; }
+.gd-hist-why[open] summary::before { content: "▾ "; }
+.gd-hist-thesis { margin: 6px 0 0; color: var(--txt); line-height: 1.4; }
+.gd-hist-thesis b { color: var(--dim, var(--txt)); font-weight: 600; }

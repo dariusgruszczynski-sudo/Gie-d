@@ -221,6 +221,14 @@ function Row({ t }: { t: HistoryTrade }) {
         <span className={`gd-hist-pnl ${up ? "gd-up" : "gd-down"}`}>{up ? "+" : ""}{money(t.pnl_usd)}</span>
         <span className={`gd-hist-pct ${up ? "gd-up" : "gd-down"}`}>{t.pnl_pct !== null ? pct(t.pnl_pct) : "—"}</span>
       </div>
+      {/* Dziennik decyzji (rekomendacja C): po co wchodziłem + czy się sprawdziło. */}
+      {t.entry_thesis && (
+        <details className="gd-hist-why">
+          <summary>{t.thesis_worked ? "✓ teza się sprawdziła" : "✗ teza się nie sprawdziła"} · dlaczego wchodziłem</summary>
+          <p className="gd-hist-thesis"><b>Teza wejścia:</b> {t.entry_thesis}</p>
+          {t.exit_reason && <p className="gd-hist-thesis"><b>Wyjście:</b> {t.exit_reason}</p>}
+        </details>
+      )}
     </div>
   );
 }

@@ -483,9 +483,15 @@ const DEFAULT_ORDER: TileKey[] = ["kasa", "ryzyko", "zysk", "wykres", "free"];
 const DEFAULT_HIDDEN: TileKey[] = ["free"];
 
 const FREE_METRICS: Array<{ key: string; label: string; sub: string; get: (s: StatusResponse) => { text: string; tone: "up" | "down" | "neu" } }> = [
-  { key: "day", label: "Zysk dnia", sub: "od początku dnia", get: (s) => ({ text: s.day_pnl_pct === null ? "—" : pct(s.day_pnl_pct), tone: (s.day_pnl_pct ?? 0) >= 0 ? "up" : "down" }) },
+  // #5: „Zysk dnia" to WYCENA (mark-to-market) otwartych — papierowa, potrafi
+  // straszyć na minusie mimo dodatniego wyniku całościowego. Doprecyzowany opis.
+  { key: "day", label: "Zmiana dziś (wycena)", sub: "papierowa, otwarte pozycje", get: (s) => ({ text: s.day_pnl_pct === null ? "—" : pct(s.day_pnl_pct), tone: (s.day_pnl_pct ?? 0) >= 0 ? "up" : "down" }) },
+  // #5: deposit-proof, zaksięgowany dziś — konkret obok papierowej wyceny.
+  { key: "day_realized", label: "Wzięte dziś", sub: "zaksięgowane (bez wpłat)", get: (s) => ({ text: money(s.day_realized_usd ?? 0), tone: (s.day_realized_usd ?? 0) >= 0 ? "up" : "down" }) },
   { key: "realized", label: "Już wzięty", sub: "ze sprzedanych", get: (s) => ({ text: money(s.trading_pnl.realized_usd), tone: s.trading_pnl.realized_usd >= 0 ? "up" : "down" }) },
   { key: "unrealized", label: "Na otwartych", sub: "jeszcze trzymane", get: (s) => ({ text: money(s.trading_pnl.unrealized_usd), tone: s.trading_pnl.unrealized_usd >= 0 ? "up" : "down" }) },
+  // #7: automat vs zwykłe trzymanie SPY — czy w ogóle warto zamiast DCA w indeks.
+  { key: "alpha", label: "vs SPY", sub: "bijemy zwykłe DCA?", get: (s) => ({ text: s.alpha_vs_spy ? `${s.alpha_vs_spy.alpha_usd >= 0 ? "+" : ""}${money(s.alpha_vs_spy.alpha_usd)}` : "—", tone: (s.alpha_vs_spy?.alpha_usd ?? 0) >= 0 ? "up" : "down" }) },
   { key: "net", label: "Wynik netto", sub: "po koszcie Claude", get: (s) => ({ text: money(s.net_result_usd), tone: s.net_result_usd >= 0 ? "up" : "down" }) },
   { key: "cash", label: "Wolna gotówka", sub: "czeka na wejścia", get: (s) => ({ text: money0(s.account?.cash ?? 0), tone: "neu" }) },
 ];
@@ -619,11 +625,26 @@ export function Console({ status, alpaca, extended, simple = false, onGoPosition
             <div className="gd-sec"><h3>Zysk bota<Info term="skutecznosc" /></h3><span className="gd-sec-note">czysty wynik handlu</span></div>
             <WinBar pct={sc?.win_rate_pct ?? null} wins={sc?.wins ?? 0} losses={sc?.losses ?? 0} />
             {!simple && (
-              <div className="gd-statgrid" style={{ marginTop: 10 }}>
+              <div className="gd-statgrid gd-statgrid-3" style={{ marginTop: 10 }}>
                 <StatCard label="Już wzięty" value={`${status.trading_pnl.realized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.realized_usd)}`}
                   tone={status.trading_pnl.realized_usd >= 0 ? "up" : "down"} sub="ze sprzedanych — masz na koncie" />
                 <StatCard label="Na otwartych" value={`${status.trading_pnl.unrealized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.unrealized_usd)}`}
                   tone={status.trading_pnl.unrealized_usd >= 0 ? "up" : "down"} sub="jeszcze trzymane" />
+                {/* #7: automat vs zwykłe trzymanie SPY — czy warto zamiast DCA w indeks. */}
+                {status.alpha_vs_spy && (
+                  <StatCard label="vs SPY" value={`${status.alpha_vs_spy.alpha_usd >= 0 ? "+" : ""}${money(status.alpha_vs_spy.alpha_usd)}`}
+                    tone={status.alpha_vs_spy.alpha_usd >= 0 ? "up" : "down"}
+                    sub={status.alpha_vs_spy.alpha_pct != null ? `${status.alpha_vs_spy.alpha_pct >= 0 ? "bijemy indeks o " : "za indeksem o "}${Math.abs(status.alpha_vs_spy.alpha_pct).toFixed(1)}%` : "bijemy zwykłe DCA?"} />
+                )}
+              </div>
+            )}
+            {/* #5: dzień = WYCENA (papierowa) obok ZAKSIĘGOWANEGO dziś — żeby „-7%"
+                wyceny nie straszyło; wzięte dziś to konkret, odporny na wpłaty. */}
+            {!simple && (
+              <div className="gd-daynote">
+                <span>Dziś: <b className={(status.day_pnl_pct ?? 0) >= 0 ? "gd-up" : "gd-down"}>{status.day_pnl_pct == null ? "—" : pct(status.day_pnl_pct)}</b> wycena (papierowa)</span>
+                <span>·</span>
+                <span>wzięte dziś <b className={(status.day_realized_usd ?? 0) >= 0 ? "gd-up" : "gd-down"}>{`${(status.day_realized_usd ?? 0) >= 0 ? "+" : ""}${money(status.day_realized_usd ?? 0)}`}</b> (zaksięgowane)</span>
               </div>
             )}
           </div>

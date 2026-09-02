@@ -100,6 +100,9 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "halted_reason": state.halted_reason,
         "day_pnl_pct": day_pnl_pct,
         "week_pnl_pct": week_pnl_pct,
+        # Rekomendacja #5: ZREALIZOWANY dziś wynik (deposit-proof, zaksięgowany) --
+        # towarzyszy dziennemu P&L (wycena), żeby „-7%" nie straszyło samo.
+        "day_realized_usd": _day_realized_usd(db),
         "daily_loss_limit_pct": settings.daily_loss_limit_pct,
         "weekly_loss_limit_pct": settings.weekly_loss_limit_pct,
         "max_drawdown_halt_pct": settings.max_drawdown_halt_pct,
@@ -285,6 +288,20 @@ def _trading_pnl_view(db: Session, settings: Settings | None = None) -> dict:
         "unrealized_usd": round(unrealized, 2),
         "total_usd": round(realized + unrealized, 2),
     }
+
+
+def _day_realized_usd(db: Session) -> float:
+    """Rekomendacja #5: ZREALIZOWANY dziś wynik automatu (deposit-proof) --
+    suma zysków/strat z pozycji ZAMKNIĘTYCH od północy (UTC). W przeciwieństwie do
+    dziennego P&L (wycena mark-to-market otwartych pozycji, który potrafi straszyć
+    „-7%" mimo dodatniego wyniku całościowego), to jest konkretna, zaksięgowana
+    kasa z dziś -- odporna na wpłaty i na papierowe wahania otwartych pozycji."""
+    from datetime import datetime as _dt
+
+    cutoff = _dt.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    trades = db.execute(select(Trade).order_by(Trade.timestamp.asc())).scalars().all()
+    realized, _w, _l = _realized_since(trades, cutoff)
+    return realized
 
 
 def _alpha_view(db: Session, settings: Settings, account: dict | None) -> dict | None:
