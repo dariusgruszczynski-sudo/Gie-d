@@ -87,6 +87,10 @@ export interface StatusResponse {
   // that same figure minus what Claude has actually cost this month.
   realized_pnl_usd: number;
   net_result_usd: number;
+  // Rekomendacja A (skala kapitału): koszt Claude od początku i jaki to % konta —
+  // na małym koncie koszt stały jest głównym progiem rentowności.
+  claude_cost_lifetime_usd?: number;
+  cost_vs_account_pct?: number | null;
   // Every live tuning knob per venue, resolved through the same
   // effective_settings() the engine itself runs with -- exact, not a guess.
   profiles: { alpaca: EngineProfile; extended: EngineProfile };

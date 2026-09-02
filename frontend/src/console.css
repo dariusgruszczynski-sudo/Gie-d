@@ -1213,3 +1213,10 @@
 .gd-hist-why[open] summary::before { content: "▾ "; }
 .gd-hist-thesis { margin: 6px 0 0; color: var(--txt); line-height: 1.4; }
 .gd-hist-thesis b { color: var(--dim, var(--txt)); font-weight: 600; }
+
+/* A: ostrzeżenie o koszcie AI vs konto (skala kapitału). */
+.gd-costwarn { margin-top: 10px; padding: 9px 12px; border-radius: 10px; font-size: 0.82rem;
+  line-height: 1.45; color: var(--txt);
+  background: color-mix(in srgb, var(--amber, #f59e0b) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber, #f59e0b) 40%, transparent); }
+.gd-costwarn b { font-weight: 700; }

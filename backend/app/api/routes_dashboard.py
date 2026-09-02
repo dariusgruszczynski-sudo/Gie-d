@@ -203,9 +203,18 @@ def _net_result_view(db: Session, settings: Settings) -> dict:
     budget = budget_tracker.get_budget_status(db, settings)
     realized = scorecard.total_realized_pnl(db)
     lifetime_spend = risk_manager.get_state(db).claude_spend_usd_lifetime
+    # Rekomendacja A (skala kapitału): ile koszt AV zjada w stosunku do KONTA i do
+    # zysku. Na małym koncie koszt stały (Claude + spread) jest głównym progiem
+    # rentowności -- pokazujemy to wprost, żeby świadomie wybrać tryb
+    # „laboratorium" vs „zarabianie". cost_vs_account_pct = koszt życia / konto.
+    account = _account_view(db, settings)
+    account_total = account["total_value"] if account else 0.0
+    cost_vs_account_pct = round(lifetime_spend / account_total * 100, 1) if account_total > 0 else None
     return {
         "realized_pnl_usd": realized,
         "net_result_usd": round(realized - lifetime_spend, 2),
+        "claude_cost_lifetime_usd": round(lifetime_spend, 2),
+        "cost_vs_account_pct": cost_vs_account_pct,
         **budget,
     }
 
