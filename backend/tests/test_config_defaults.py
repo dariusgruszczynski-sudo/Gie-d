@@ -34,7 +34,10 @@ def test_sizing_and_entry_defaults():
     assert _S.conviction_sizing_enabled is True
     assert _S.conviction_size_max_mult == 2.0
     assert _S.conviction_max_risk_per_trade_pct == 6.0
-    assert _S.min_buy_confidence == 0.55
+    assert _S.conviction_edge_adaptive_enabled is True
+    assert _S.conviction_edge_min_payoff == 2.0
+    assert _S.conviction_edge_full_payoff == 4.0
+    assert _S.min_buy_confidence == 0.60
     assert _S.progressive_confidence_step == 0.03
     assert _S.progressive_confidence_cap == 0.9
     assert _S.max_new_positions_per_day == 8
@@ -50,7 +53,8 @@ def test_cadence_and_universe_defaults():
     assert _S.poll_interval_minutes == 30
     assert _S.price_move_trigger_pct == 3.0
     assert _S.full_analysis_every_minutes == 0
-    assert _S.dynamic_universe_enabled is True
+    assert _S.claude_min_reanalysis_minutes == 20
+    assert _S.dynamic_universe_enabled is False
     assert _S.universe_max_symbols == 24
     assert _S.extended_enabled is False
 

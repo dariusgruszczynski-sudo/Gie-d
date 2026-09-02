@@ -325,7 +325,7 @@ def check_trigger(
     anchors: dict[str, float] = json.loads(getattr(state, anchors_col) or "{}")
     last_full_date, last_at_iso = _get_analysis_marks(state, venue)
 
-    triggered = False
+    price_move = False
     reason = TriggerType.SCHEDULED_DAILY
 
     for symbol, current_price in prices.items():
@@ -333,33 +333,59 @@ def check_trigger(
         if anchor > 0:
             move_pct = abs(current_price - anchor) / anchor * 100
             if move_pct >= threshold:
-                triggered = True
+                price_move = True
                 reason = TriggerType.PRICE_MOVE
                 logger.info("Trigger: %s przesunął się %.2f%% od kotwicy (próg %.2f%%)", symbol, move_pct, threshold)
         else:
             # First sighting -- set the anchor without triggering.
             anchors[symbol] = current_price
 
-    if last_full_date != today_str:
-        triggered = True
-        if reason != TriggerType.PRICE_MOVE:
-            reason = TriggerType.SCHEDULED_DAILY
+    first_of_day = last_full_date != today_str
 
     # Heartbeat: force a periodic full look at the market during tradable
     # hours even without a sharp move.
-    if not triggered and settings.full_analysis_every_minutes > 0 and last_at_iso:
+    heartbeat = False
+    if not price_move and not first_of_day and settings.full_analysis_every_minutes > 0 and last_at_iso:
         try:
             last_at = datetime.fromisoformat(last_at_iso)
-            overdue = datetime.now(UTC) - last_at >= timedelta(minutes=settings.full_analysis_every_minutes)
+            heartbeat = datetime.now(UTC) - last_at >= timedelta(minutes=settings.full_analysis_every_minutes)
         except ValueError:
-            overdue = True
-        if overdue:
-            triggered = True
-            reason = TriggerType.SCHEDULED_DAILY
+            heartbeat = True
+        if heartbeat:
             logger.info(
                 "Trigger: heartbeat -- ostatnia pełna analiza starsza niż %d min",
                 settings.full_analysis_every_minutes,
             )
+
+    # Rekomendacja #3 (oszczędność Claude): dławienie re-analizy. Jeśli JEDYNYM
+    # powodem cyklu jest ruch ceny (nie pierwszy cykl dnia, nie heartbeat), a
+    # ostatnia pełna analiza była świeższa niż claude_min_reanalysis_minutes,
+    # NIE budzimy (płatnego) Claude i NIE przekotwiczamy -- ruch zostaje "wiszący"
+    # i wyzwoli się dopiero po upływie odstępu (albo gdy urośnie o kolejny próg).
+    # Mechaniczne wyjścia biegną w run_cycle niezależnie, więc pozycje chronione.
+    # News (osobny wyzwalacz) i force omijają to (liczone poza check_trigger).
+    if price_move and not first_of_day and not heartbeat and settings.claude_min_reanalysis_minutes > 0 and last_at_iso:
+        try:
+            last_at = datetime.fromisoformat(last_at_iso)
+            throttled = datetime.now(UTC) - last_at < timedelta(minutes=settings.claude_min_reanalysis_minutes)
+        except ValueError:
+            throttled = False
+        if throttled:
+            logger.info(
+                "Trigger zdławiony: ruch ceny w oknie %d min od ostatniej analizy -- odkładam (ruch wisi)",
+                settings.claude_min_reanalysis_minutes,
+            )
+            # Nie przekotwiczamy: zapisujemy tylko nowo-zaobserwowane kotwice
+            # (pierwsze sighting), ruch zostaje mierzony dalej.
+            setattr(state, anchors_col, json.dumps(anchors))
+            db.commit()
+            return False, TriggerType.PRICE_MOVE
+
+    triggered = price_move or first_of_day or heartbeat
+    if first_of_day and reason != TriggerType.PRICE_MOVE:
+        reason = TriggerType.SCHEDULED_DAILY
+    if heartbeat:
+        reason = TriggerType.SCHEDULED_DAILY
 
     if triggered:
         # Re-anchor everything: the analysis that follows becomes the new
@@ -776,11 +802,30 @@ def risk_based_size_cap(settings: Settings, portfolio: dict, stop_dist_pct: floa
     return round(max_position_value / free * 100, 4)
 
 
-def conviction_multiplier(settings: Settings, confidence: float) -> float:
+def conviction_edge_scale(settings: Settings, edge_payoff: float | None) -> float:
+    """Współczynnik 0..1 ściągający mnożnik conviction, gdy ŚWIEŻA PRZEWAGA
+    (payoff = śr. wygrana / śr. strata) słabnie (rekomendacja #4). Przy payoff
+    <= conviction_edge_min_payoff => 0.0 (mnożnik ściągany do 1,0, brak
+    wzmacniania), przy >= conviction_edge_full_payoff => 1.0 (pełny mnożnik).
+    Działa TYLKO w dół. Wyłączone / brak danych => 1.0 (bez zmiany)."""
+    if not getattr(settings, "conviction_edge_adaptive_enabled", False) or edge_payoff is None:
+        return 1.0
+    lo = settings.conviction_edge_min_payoff
+    hi = settings.conviction_edge_full_payoff
+    if hi <= lo:
+        return 1.0
+    return max(0.0, min(1.0, (edge_payoff - lo) / (hi - lo)))
+
+
+def conviction_multiplier(settings: Settings, confidence: float, edge_payoff: float | None = None) -> float:
     """Sizing ważony przekonaniem: mnożnik wielkości pozycji rosnący z pewnością
     sygnału. 1,0 przy progu wejścia (min_buy_confidence), liniowo do
     conviction_size_max_mult przy pełnej pewności (progressive_confidence_cap).
-    Wyłączony => zawsze 1,0 (zachowanie jak dotąd)."""
+    Wyłączony => zawsze 1,0 (zachowanie jak dotąd).
+
+    Rekomendacja #4: nadwyżka nad 1,0 (samo wzmacnianie) jest dodatkowo skalowana
+    świeżą przewagą (conviction_edge_scale) -- słaby edge => mniejsze wzmacnianie,
+    nigdy nie schodzi poniżej 1,0 (bazowy rozmiar zostaje nietknięty)."""
     if not getattr(settings, "conviction_sizing_enabled", False):
         return 1.0
     lo = settings.min_buy_confidence
@@ -788,7 +833,58 @@ def conviction_multiplier(settings: Settings, confidence: float) -> float:
     if hi <= lo:
         return 1.0
     frac = max(0.0, min(1.0, (confidence - lo) / (hi - lo)))
-    return round(1.0 + (settings.conviction_size_max_mult - 1.0) * frac, 4)
+    boost = (settings.conviction_size_max_mult - 1.0) * frac
+    boost *= conviction_edge_scale(settings, edge_payoff)
+    return round(1.0 + boost, 4)
+
+
+def recent_edge_payoff(db: Session, settings: Settings, *, venue: str = "alpaca") -> float | None:
+    """Świeża PRZEWAGA (payoff = śr. wygrana / śr. strata) z ostatnich zamknięć
+    na tej nodze, liczona od epoki statystyk -- napędza adaptację conviction (#4).
+    Zwraca None, gdy za mało danych (brak strat albo brak zamknięć) => brak
+    skalowania. Chodzi po księdze transakcji jak compute_symbol_stats, ale
+    agreguje KWOTY wygranych/strat na ostatnich N zamknięciach."""
+    from collections import defaultdict, deque
+
+    lookback = max(1, getattr(settings, "conviction_edge_lookback_trades", 20))
+    epoch, _raw = scorecard.effective_epoch(risk_manager.get_state(db), settings)
+    trades = db.execute(
+        select(Trade).where(Trade.venue == venue).order_by(Trade.timestamp.asc())
+    ).scalars().all()
+    qty: dict[str, float] = defaultdict(float)
+    cost: dict[str, float] = defaultdict(float)
+    pnls: deque = deque(maxlen=lookback)  # (timestamp, pnl) ostatnie N zamknięć
+    for t in trades:
+        s = t.symbol
+        if t.side.upper() == "BUY":
+            qty[s] += t.quantity
+            cost[s] += t.usdt_value
+        else:
+            held = qty[s]
+            if held <= 1e-12:
+                continue
+            avg = cost[s] / held
+            sell_qty = min(t.quantity, held)
+            pnl = (t.price - avg) * sell_qty
+            cost[s] -= avg * sell_qty
+            qty[s] -= sell_qty
+            if qty[s] <= 1e-12:
+                qty[s] = 0.0
+                cost[s] = 0.0
+            ts = t.timestamp
+            if ts is not None and ts.tzinfo is None:
+                ts = ts.replace(tzinfo=UTC)
+            if epoch is None or ts is None or ts >= epoch:
+                pnls.append(pnl)
+    wins = [p for p in pnls if p >= 0]
+    losses = [p for p in pnls if p < 0]
+    if not wins or not losses:
+        return None
+    avg_win = sum(wins) / len(wins)
+    avg_loss = abs(sum(losses) / len(losses))
+    if avg_loss <= 0:
+        return None
+    return avg_win / avg_loss
 
 
 def dynamic_stop_loss_pct(settings: Settings, vol_pct: float | None) -> float:
@@ -1423,17 +1519,20 @@ def _advise_portfolio(advisor, **kwargs) -> list:
     return [d] if d is not None else []
 
 
-def effective_buy_size_pct(settings: Settings, decision_data, market_data: dict, portfolio: dict) -> float:
+def effective_buy_size_pct(
+    settings: Settings, decision_data, market_data: dict, portfolio: dict, edge_payoff: float | None = None
+) -> float:
     """Rozmiar pozycji dla BUY po pełnej mechanice sizingu: skala zmiennością →
-    mnożnik przekonania → sufit ryzyka (z twardym conviction_max_risk) → haircut
-    szerokiego spreadu. HOLD/SELL zwraca surowy size_pct bez zmian. Czysta funkcja
-    (bez efektów ubocznych) — używana i przez egzekucję (_process_decision), i
-    przez PODGLĄD (dry-run), żeby oba liczyły identycznie."""
+    mnożnik przekonania (skalowany świeżą przewagą, #4) → sufit ryzyka (z twardym
+    conviction_max_risk) → haircut szerokiego spreadu. HOLD/SELL zwraca surowy
+    size_pct bez zmian. Czysta funkcja (bez efektów ubocznych) — używana i przez
+    egzekucję (_process_decision), i przez PODGLĄD (dry-run), żeby oba liczyły
+    identycznie."""
     effective_size_pct = decision_data.size_pct
     if decision_data.action == "BUY":
         ticker_vol = (market_data.get(decision_data.symbol) or {}).get("technical", {}).get("volatility_pct_1h")
         effective_size_pct = volatility_adjusted_size(settings, decision_data.size_pct, ticker_vol)
-        mult = conviction_multiplier(settings, decision_data.confidence)
+        mult = conviction_multiplier(settings, decision_data.confidence, edge_payoff)
         effective_size_pct = effective_size_pct * mult
         stop_dist = dynamic_stop_loss_pct(settings, ticker_vol)
         eff_risk = min(settings.conviction_max_risk_per_trade_pct, settings.risk_per_trade_pct * mult)
@@ -1464,6 +1563,7 @@ def _process_decision(
     session_info: SessionInfo | None,
     venue: str,
     symbols: list[str],
+    edge_payoff: float | None = None,
 ) -> Decision:
     """Runs ONE Claude action (from the portfolio set) through the full risk
     pipeline -- volatility sizing, all BUY gates, halt/pause, min-hold, cooldown,
@@ -1475,7 +1575,7 @@ def _process_decision(
     # Volatility-aware sizing: scale a BUY down for a more-volatile ticker so
     # one wild name (MSTR) can't dominate P&L. HOLD/SELL are untouched. Wydzielone
     # do czystej funkcji, żeby PODGLĄD (dry-run) liczył DOKŁADNIE ten sam rozmiar.
-    effective_size_pct = effective_buy_size_pct(settings, decision_data, market_data, portfolio)
+    effective_size_pct = effective_buy_size_pct(settings, decision_data, market_data, portfolio, edge_payoff)
 
     decision = Decision(
         symbol=decision_data.symbol,
@@ -1951,6 +2051,9 @@ def run_cycle(
         regime_gate_on = settings.regime_gate_enabled and not settings.adaptive_risk_enabled
         defensive_list = settings.defensive_symbol_list
     performance_context = build_performance_context(db, settings, portfolio, venue=venue, whitelist=symbols)
+    # Rekomendacja #4: świeża przewaga (payoff) tego cyklu -> skaluje mnożnik
+    # conviction (słaby edge => ostrożniejszy sizing). Liczona raz na cykl.
+    edge_payoff = recent_edge_payoff(db, settings, venue=venue)
     # Upcoming earnings per ticker (days until next report). Best-effort --
     # never blocks the cycle if the calendar lookup fails. Only meaningful for
     # equities -- extended has no earnings, so the extended venue skips it.
@@ -2052,7 +2155,7 @@ def run_cycle(
                 "action": dd.action,
                 "confidence": dd.confidence,
                 "requested_size_pct": dd.size_pct,
-                "effective_size_pct": effective_buy_size_pct(settings, dd, market_data, portfolio),
+                "effective_size_pct": effective_buy_size_pct(settings, dd, market_data, portfolio, edge_payoff),
                 "reasoning": dd.reasoning,
             }
             for dd in decisions_data
@@ -2095,6 +2198,7 @@ def run_cycle(
             session_info=session_info,
             venue=venue,
             symbols=symbols,
+            edge_payoff=edge_payoff,
         )
         if primary is None:
             primary = dec
@@ -2127,7 +2231,18 @@ def _execute_trade(
         room = portfolio.get("allocation_room")
         if room is not None:
             usdt_amount = min(usdt_amount, room)
-        result = broker.place_order_for_session(symbol, "BUY", usdt_amount=usdt_amount, session=session)
+        # Rekomendacja B: nazwy o szerokim spreadzie kupujemy marketable-LIMIT
+        # (mniej poślizgu); reszta zostaje market. Fallback na market jest w
+        # place_order_for_session, gdy kawałek < 1 akcja (małe konto, ułamki).
+        prefer_limit = (
+            session == market_hours.REGULAR
+            and getattr(settings, "regular_marketable_limit_enabled", False)
+            and symbol in settings.high_spread_symbol_list
+        )
+        result = broker.place_order_for_session(
+            symbol, "BUY", usdt_amount=usdt_amount, session=session,
+            prefer_limit=prefer_limit, limit_buffer_pct=settings.regular_limit_buffer_pct,
+        )
     elif action == "SELL":
         base_balance = portfolio["balances"].get(_base_asset(symbol, settings.quote_currency), 0.0)
         quantity = base_balance * (size_pct / 100)

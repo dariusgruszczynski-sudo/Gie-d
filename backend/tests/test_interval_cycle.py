@@ -63,7 +63,7 @@ class Broker:
     def get_account_balances(self):
         return dict(self.balances)
 
-    def place_order_for_session(self, symbol, side, *, session="regular", usdt_amount=None, quantity=None):
+    def place_order_for_session(self, symbol, side, *, session="regular", usdt_amount=None, quantity=None, prefer_limit=False, limit_buffer_pct=0.0):
         price = self.prices[symbol]
         if usdt_amount is not None:
             qty, val = usdt_amount / price, usdt_amount
@@ -122,6 +122,9 @@ def _prod_like_settings() -> Settings:
         # Kadencja jak na prodzie: ruch 3% budzi Claude, heartbeat co 120 min.
         price_move_trigger_pct=3.0,
         full_analysis_every_minutes=120,
+        # Dławienie re-analizy (rekomendacja #3) off w bazie, żeby ruch ceny budził
+        # Claude natychmiast jak dotąd; dedykowany test sprawdza dławienie osobno.
+        claude_min_reanalysis_minutes=0,
         # Stały take-profit, żeby wyjście było deterministyczne w teście:
         # stop 5% × RR 1.0 => take-profit uzbraja się na +5%.
         trailing_stop_enabled=False,

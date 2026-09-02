@@ -100,12 +100,17 @@ def realized_history(db: Session, *, venue: str | None = None, limit: int = 300)
     qty_by: dict[str, float] = defaultdict(float)
     cost_by: dict[str, float] = defaultdict(float)      # łączny koszt trzymanej ilości
     opened_by: dict[str, object] = {}                   # kiedy zaczęła się bieżąca partia
+    thesis_by: dict[str, str] = {}                      # DZIENNIK: teza wejścia (reasoning BUY, który otworzył partię)
     out: list[dict] = []
     for t in trades:
         sym = t.symbol
         if t.side.upper() == "BUY":
             if qty_by[sym] <= 1e-12:
                 opened_by[sym] = t.timestamp            # partia rusza od zera
+                # Dziennik decyzji (rekomendacja C): zapamiętaj tezę wejścia z
+                # uzasadnienia BUY, który otworzył partię -- przy zamknięciu
+                # pokażemy „po co wchodziłem" obok wyniku.
+                thesis_by[sym] = _trade_reason(t)
             qty_by[sym] += t.quantity
             cost_by[sym] += t.usdt_value
         else:  # SELL
@@ -137,6 +142,11 @@ def realized_history(db: Session, *, venue: str | None = None, limit: int = 300)
                 "opened_at": opened.isoformat() if opened is not None else None,
                 "sold_at": t.timestamp.isoformat() if t.timestamp is not None else None,
                 "days_held": days,
+                # DZIENNIK DECYZJI (rekomendacja C): teza wejścia, powód wyjścia i
+                # czy teza się „sprawdziła" (prosty proxy: zamknięcie na plusie).
+                "entry_thesis": thesis_by.get(sym) or None,
+                "exit_reason": _trade_reason(t) or None,
+                "thesis_worked": pnl >= 0,
             })
             cost_by[sym] -= cost_usd
             qty_by[sym] -= sell_qty
@@ -144,8 +154,20 @@ def realized_history(db: Session, *, venue: str | None = None, limit: int = 300)
                 qty_by[sym] = 0.0
                 cost_by[sym] = 0.0
                 opened_by.pop(sym, None)
+                thesis_by.pop(sym, None)
     out.reverse()  # najnowsze pierwsze
     return out[:limit]
+
+
+def _trade_reason(t) -> str:
+    """Krótkie uzasadnienie decyzji stojącej za transakcją (do dziennika C).
+    Best-effort: pusty string, gdy transakcja nie ma powiązanej decyzji."""
+    try:
+        reason = t.decision.reasoning if t.decision else ""
+    except Exception:
+        reason = ""
+    reason = (reason or "").strip()
+    return reason[:220]
 
 
 def update_benchmark_baseline(db: Session, settings: Settings, portfolio: dict) -> SystemState:

@@ -41,6 +41,10 @@ def settings():
         # Earnings guard off by default in tests; the dedicated earnings test
         # sets it explicitly. (The calendar lookup itself is mocked to {}.)
         earnings_blackout_days=0,
+        # Dławienie re-analizy (rekomendacja #3) ships ON (20 min) in production;
+        # OFF in the baseline so the anchor/price-move trigger tests fire on the
+        # move as before. A dedicated test enables it to prove throttling.
+        claude_min_reanalysis_minutes=0,
         # New profit/risk guards (Pakiet 1-4) default OFF here so the many
         # existing exit/cycle tests keep their original behaviour; each
         # dedicated test enables exactly the one it exercises via model_copy.

@@ -71,7 +71,7 @@ class FakeAlpaca:
         self.orders.append(order)
         return order
 
-    def place_order_for_session(self, symbol, side, *, session="regular", usdt_amount=None, quantity=None):
+    def place_order_for_session(self, symbol, side, *, session="regular", usdt_amount=None, quantity=None, prefer_limit=False, limit_buffer_pct=0.0):
         self.last_order_session = session
         if usdt_amount is not None:
             return self.place_market_order_usdt_amount(symbol, side, usdt_amount)
@@ -947,7 +947,7 @@ def test_failed_mechanical_exit_surfaces_real_reason(db_session, settings):
     instead of a one-size-fits-all guess."""
 
     class FailingSellBroker(FakeAlpaca):
-        def place_order_for_session(self, symbol, side, *, session="regular", usdt_amount=None, quantity=None):
+        def place_order_for_session(self, symbol, side, *, session="regular", usdt_amount=None, quantity=None, prefer_limit=False, limit_buffer_pct=0.0):
             if side.upper() == "SELL":
                 raise ValueError("Alpaca 403 insufficient qty available")
             return super().place_order_for_session(symbol, side, session=session, usdt_amount=usdt_amount, quantity=quantity)

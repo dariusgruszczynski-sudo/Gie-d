@@ -314,6 +314,24 @@ class AlpacaClient:
         )
         return self._resolve_fill_or_cancel(order, price, symbol)
 
+    def _try_regular_marketable_limit_buy(
+        self, symbol: str, usdt_amount: float, buffer_pct: float
+    ) -> OrderResult | None:
+        """Rekomendacja B: KUPNO w sesji regularnej jako „marketable LIMIT" --
+        cena z buforem buffer_pct% NAD ostatnią, więc wypełnia się od razu jak
+        market, ale z SUFITEM ceny (chroni przed poślizgiem na szerokim spreadzie).
+        Alpaca: LIMIT wymaga CAŁYCH akcji, więc gdy zamierzony kawałek nie starcza
+        na >=1 sztukę zwraca None -> wołający spada na zwykły market/ułamki."""
+        price = self.get_price(symbol)
+        if price <= 0:
+            return None
+        limit_price = round(price * (1 + buffer_pct / 100), 2)
+        shares = int(usdt_amount // limit_price)
+        if shares < 1:
+            return None
+        order = self._submit_order(symbol, "BUY", qty=float(shares), order_type="limit", limit_price=limit_price)
+        return self._resolve_fill(order, price, symbol)
+
     def place_order_for_session(
         self,
         symbol: str,
@@ -322,13 +340,23 @@ class AlpacaClient:
         session: str = "regular",
         usdt_amount: float | None = None,
         quantity: float | None = None,
+        prefer_limit: bool = False,
+        limit_buffer_pct: float = 0.0,
     ) -> OrderResult:
         """Routes by session: pre-/after-market ("pre"/"post") go through the
         whole-share extended-hours LIMIT path; the regular session uses plain
         MARKET/notional orders (fractional-friendly, essential for a small
-        account)."""
+        account).
+
+        `prefer_limit` (regular session, BUY by notional only) first tries a
+        whole-share marketable LIMIT to cap slippage on wide-spread names; if the
+        slice is smaller than one share it transparently falls back to MARKET."""
         if session in ("pre", "post"):
             return self.place_extended_limit_order(symbol, side, usdt_amount=usdt_amount, quantity=quantity)
+        if prefer_limit and side.upper() == "BUY" and usdt_amount is not None:
+            res = self._try_regular_marketable_limit_buy(symbol, usdt_amount, limit_buffer_pct)
+            if res is not None:
+                return res
         if usdt_amount is not None:
             return self.place_market_order_usdt_amount(symbol, side, usdt_amount)
         return self.place_market_order_quantity(symbol, side, quantity)

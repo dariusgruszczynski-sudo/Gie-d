@@ -221,7 +221,10 @@ class Settings(BaseSettings):
     # Efektywny próg rośnie o progressive_confidence_step za każdą już trzymaną
     # pozycję (patrz niżej), więc luzujemy pułap pozycji, ale każde kolejne
     # wejście musi być coraz mocniejsze. 0.6 -> 0.55 (łatwiejsze pierwsze wejścia).
-    min_buy_confidence: float = 0.55
+    # 2026-09-02 (rekomendacja #2, anty-churn): 0.55 -> 0.60. Audyt (363 transakcje,
+    # ~30% trafności, edge słabnący 4.89x->3.31x) pokazał ZA DUŻO słabych wejść;
+    # podniesiony bazowy próg = mniej, ale mocniejszych wejść. Twardy stop i tak chroni.
+    min_buy_confidence: float = 0.60
     # Progresywny próg wejścia: efektywny próg pewności = min_buy_confidence +
     # progressive_confidence_step * (liczba już trzymanych pozycji), przycięty do
     # progressive_confidence_cap. Dzięki temu bot może otworzyć WIĘCEJ pozycji,
@@ -324,6 +327,19 @@ class Settings(BaseSettings):
     # their BUY size by high_spread_size_scale (1.0 = no haircut).
     high_spread_symbols: str = "SH,PSQ,IWM,XLE,TLT,SLV,EEM,EFA,XLU,XLP,XLI"
     high_spread_size_scale: float = 0.6
+    # --- Zlecenia z limitem na nazwach o szerokim spreadzie (rekomendacja B) ---
+    # Na cieńszych/szerokospreadowych nazwach market-order potrafi wejść po gorszej
+    # cenie (poślizg zjada przewagę zanim rynek się ruszy). Gdy włączone, KUPNO
+    # takiej nazwy (z high_spread_symbols) idzie jako „marketable LIMIT": cena z
+    # buforem regular_limit_buffer_pct% NAD ostatnią (wypełnia się od razu jak
+    # market, ale z SUFITEM ceny -- chroni przed złym printem). Ograniczenia
+    # Alpaca: LIMIT wymaga CAŁYCH akcji, więc używamy go TYLKO gdy zamierzony
+    # kawałek (slice) starcza na >=1 sztukę; inaczej spada na zwykły market/ułamki
+    # (małe konto dalej może kupować drogie nazwy ułamkowo). SPRZEDAŻ zostaje
+    # zawsze rynkowa -- nigdy nie ryzykujemy zablokowanego wyjścia dla oszczędności
+    # na spreadzie. OFF => wszystko market jak dotąd.
+    regular_marketable_limit_enabled: bool = True
+    regular_limit_buffer_pct: float = 0.3
     # --- Sizing oparty na ryzyku + reżim rynku (Pakiet 3) -------------------
     # Risk-based position cap: size a BUY so that hitting its stop costs at most
     # risk_per_trade_pct of the WHOLE account (position_value * stop_dist =
@@ -381,7 +397,14 @@ class Settings(BaseSettings):
     # Roster changes are safe: check_take_profit_stop_loss() force-closes any
     # held position whose symbol is no longer on this list, so trimming/adding
     # names never orphans a position.
-    trading_whitelist: str = "SPY,QQQ,AAPL,MSFT,NVDA,AMZN,GOOGL,META,SMH,GLD,TLT"
+    # 2026-09-02 (rekomendacja #1): rozszerzone do ~17 GŁĘBOKO PŁYNNYCH nazw
+    # (mega-capy + core ETF) i przejście na uniwersum STATYCZNE (dynamic OFF).
+    # Audyt pokazał, że największe przecieki (JAZZ, NDSN, ROST) przyszły z
+    # dynamicznego skanu newsów -- to loteria, nie przewaga. Ciasna, płynna lista
+    # = węższe spready, tańsze cykle (mniej danych/tokenów) i brak śmieciowych nazw.
+    trading_whitelist: str = (
+        "SPY,QQQ,AAPL,MSFT,NVDA,AMZN,GOOGL,META,AVGO,NFLX,COST,JPM,V,LLY,SMH,GLD,TLT"
+    )
 
     # --- Dynamiczne uniwersum: whitelista przestaje być klatką ----------------
     # 2026-07-22 (decyzja właściciela): "whitelista zbędna -- Claude patrzy na
@@ -393,7 +416,12 @@ class Settings(BaseSettings):
     # to twardy pas bezpieczeństwa przeciw śmieciowym/halucynowanym tickerom.
     # OFF -> zachowanie jak dotąd (stała trading_whitelist). Noga POZA SESJĄ ma
     # twarde ograniczenie całych tanich akcji, więc trzyma swoją kuratorską listę.
-    dynamic_universe_enabled: bool = True
+    # 2026-09-02 (rekomendacja #1): WYŁĄCZONE. Dynamiczny skan newsów wciągał
+    # śmieciowe pojedyncze nazwy (JAZZ, NDSN, ROST -- największe przecieki audytu)
+    # bez realnej przewagi. Bot gra teraz WYŁĄCZNIE ciasną, płynną trading_whitelist.
+    # UWAGA: pozycje trzymane w nazwach spoza whitelisty zostaną domknięte
+    # (force-close) przy najbliższym cyklu -- to zamierzone (wyjście ze śmieci).
+    dynamic_universe_enabled: bool = False
     universe_max_symbols: int = 24
     # Nazwy WYKLUCZANE z dynamicznego uniwersum niezależnie od newsów: lewarowane
     # i odwrotne ETP (dzienny rebalans -> zabójcze na dłuższym trzymaniu), których
@@ -407,7 +435,11 @@ class Settings(BaseSettings):
         "SH,XLE,XLU,XLF,XLP,XLI,"
         # 2026-08-10: SLV (srebro) — poza tezą tech-owego bota, największy
         # przeciek w audycie; wyrzucone, żeby nie wracało z dynamicznego universe.
-        "SLV"
+        "SLV,"
+        # 2026-09-02 (rekomendacja #1): śmieciowe pojedyncze nazwy z dynamicznego
+        # skanu newsów, które w audycie tylko traciły (JAZZ -$4.31, NDSN, ROST).
+        # Zostają na czarnej liście, gdyby ktoś kiedyś włączył dynamic universe.
+        "JAZZ,NDSN,ROST"
     )
     # Benchmark the whole strategy against simply buying and holding this
     # ticker -- if the bot can't beat holding SPY, it isn't earning its
@@ -460,6 +492,14 @@ class Settings(BaseSettings):
     # 120 -> 30 (2026-07-22): PM-mode gra często, więc heartbeat co 30 min daje
     # regularny pełny przegląd portfela nawet bez ostrego ruchu.
     full_analysis_every_minutes: int = 0
+    # --- Oszczędność Claude (rekomendacja #3): minimalny odstęp re-analizy -----
+    # Nawet gdy zadziała wyzwalacz ruchu (>= price_move_trigger_pct), NIE pytamy
+    # Claude częściej niż co tyle minut -- nazwa oscylująca wokół +/-3% potrafiła
+    # budzić (płatną) analizę co poll. Mechaniczne wyjścia (stop/trailing) biegną
+    # co poll NIEZALEŻNIE od tego, więc otwarte pozycje są chronione tak samo.
+    # Wyjątki, które ZAWSZE przechodzą (nie są dławione): świeży news per-ticker
+    # (NEWS_EVENT) i ręczne „Wymuś analizę" (force). 0 = wyłączone (jak dotąd).
+    claude_min_reanalysis_minutes: int = 20
     # US stocks/ETFs trade the regular session only (9:30-16:00 ET). Pre-market
     # and after-hours were removed: on a small account a position slice is
     # smaller than one whole share (extended hours reject fractional/notional
@@ -575,6 +615,19 @@ class Settings(BaseSettings):
     conviction_sizing_enabled: bool = True
     conviction_size_max_mult: float = 2.0
     conviction_max_risk_per_trade_pct: float = 6.0
+    # SIZING WAŻONY PRZEKONANIEM — ADAPTACJA DO ŚWIEŻEJ PRZEWAGI (rekomendacja #4,
+    # 2026-09-02). Conviction-sizing wzmacnia pozycje; gdy PRZEWAGA (payoff = śr.
+    # wygrana / śr. strata z ostatnich zamknięć) SŁABNIE, wzmacnianie amplifikuje
+    # też słabe wybory. Gdy włączone, efektywny mnożnik conviction jest skalowany
+    # LINIOWO przewagą: przy payoff <= conviction_edge_min_payoff mnożnik ściągany
+    # do 1,0 (brak wzmacniania), przy payoff >= conviction_edge_full_payoff pełny
+    # (do conviction_size_max_mult). Działa TYLKO w dół (nigdy nie dodaje agresji)
+    # — to bezpiecznik: słaby edge => grasz ostrożniej. OFF => stały mnożnik.
+    conviction_edge_adaptive_enabled: bool = True
+    conviction_edge_min_payoff: float = 2.0
+    conviction_edge_full_payoff: float = 4.0
+    # Ile ostatnich ZAMKNIĘĆ (od epoki statystyk) liczy „świeżą" przewagę do #4.
+    conviction_edge_lookback_trades: int = 20
 
     database_url: str = "sqlite:///./data/trading.db"
 
@@ -611,6 +664,12 @@ class Settings(BaseSettings):
     weekly_report_enabled: bool = True
     weekly_report_weekday: int = 6   # 0=pon ... 6=niedz (APScheduler day_of_week)
     weekly_report_hour: int = 18
+    # --- Alert słabnącej przewagi (rekomendacja #6) -------------------------
+    # Tygodniowy push-raport pokazuje teraz linię PRZEWAGI (payoff = śr. wygrana /
+    # śr. strata). Gdy payoff spadnie poniżej edge_alert_payoff_floor, raport
+    # dokleja ostrzeżenie „przewaga słabnie" -- żeby zobaczyć degradację strategii
+    # zanim zje wynik (audyt złapał spadek 4.89x -> 3.31x w tydzień). 0 = bez alertu.
+    edge_alert_payoff_floor: float = 2.5
 
     # --- Automatyczna kopia bazy -------------------------------------------
     # Raz dziennie robimy migawkę bazy SQLite (transakcje, decyzje, staty) do

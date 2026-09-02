@@ -60,6 +60,7 @@ apply_knobs() { # apply_knobs FILE
   setenv PRICE_MOVE_TRIGGER_PCT 3.0 "$f"         # anty-churn: budzenie na >=3% (mniej reaktywnej sprzedaży)
   setenv EXTENDED_PRICE_MOVE_TRIGGER_PCT 3.0 "$f"
   setenv EXTENDED_FULL_ANALYSIS_EVERY_MINUTES 0 "$f"
+  setenv CLAUDE_MIN_REANALYSIS_MINUTES 20 "$f"   # rekom. #3: nie pytaj Claude częściej niż co 20 min (oscylacje +/-3%)
   # JEDEN SILNIK: noga POZA SESJĄ (extended/after-hours) WYŁĄCZONA -- cały handel
   # prowadzi jeden zdyscyplinowany silnik pozycyjny (sesja regularna).
   setenv EXTENDED_ENABLED false "$f"
@@ -70,7 +71,7 @@ apply_knobs() { # apply_knobs FILE
   setenv STOP_LOSS_MIN_PCT 3.0 "$f"
   setenv TRAILING_STOP_FRAC 0.6 "$f"
   # Progresywne wejścia: więcej pozycji, ale każda kolejna wymaga mocniejszego sygnału
-  setenv MIN_BUY_CONFIDENCE 0.55 "$f"           # bazowy próg dla 1. wejścia
+  setenv MIN_BUY_CONFIDENCE 0.60 "$f"           # rekom. #2 (anty-churn): 0.55 -> 0.60, mniej ale mocniejszych wejść
   setenv PROGRESSIVE_CONFIDENCE_STEP 0.03 "$f"  # +0.03 pewności za każdą trzymaną pozycję
   setenv PROGRESSIVE_CONFIDENCE_CAP 0.9 "$f"
   # Scenariusz A (2026-08-18, na odpowiedzialność właściciela): sizing ważony
@@ -78,6 +79,11 @@ apply_knobs() { # apply_knobs FILE
   setenv CONVICTION_SIZING_ENABLED true "$f"
   setenv CONVICTION_SIZE_MAX_MULT 2.0 "$f"
   setenv CONVICTION_MAX_RISK_PER_TRADE_PCT 6.0 "$f"
+  # Rekom. #4: gdy PRZEWAGA (payoff) słabnie, ściągnij mnożnik conviction do 1,0
+  # (tylko w dół -- słaby edge => ostrożniej). Payoff 2.0..4.0 -> mnożnik 1x..pełny.
+  setenv CONVICTION_EDGE_ADAPTIVE_ENABLED true "$f"
+  setenv CONVICTION_EDGE_MIN_PAYOFF 2.0 "$f"
+  setenv CONVICTION_EDGE_FULL_PAYOFF 4.0 "$f"
   setenv MAX_CONCURRENT_POSITIONS 12 "$f"
   setenv MAX_NEW_POSITIONS_PER_DAY 8 "$f"
   setenv MAX_POSITION_PCT 90 "$f"
@@ -87,10 +93,12 @@ apply_knobs() { # apply_knobs FILE
   setenv ADAPTIVE_RISK_ENABLED false "$f"
   setenv REGIME_GATE_ENABLED true "$f"
   setenv DEFENSIVE_SYMBOLS GLD,TLT "$f"
-  # Uniwersum jakości; strukturalni przegrani na czarnej liście
-  setenv TRADING_WHITELIST SPY,QQQ,AAPL,MSFT,NVDA,AMZN,GOOGL,META,SMH,GLD,TLT "$f"
-  setenv SYMBOL_BLACKLIST TQQQ,SQQQ,SOXL,SOXS,TNA,TZA,SPXL,SPXS,UPRO,SPXU,UDOW,SDOW,TMF,TMV,LABU,LABD,YINN,YANG,NUGT,DUST,JNUG,JDST,BOIL,KOLD,UVXY,SVXY,VIXY,UVIX,SVIX,SH,XLE,XLU,XLF,XLP,XLI,SLV "$f"
-  setenv DYNAMIC_UNIVERSE_ENABLED true "$f"
+  # Rekom. #1: ciasne, GŁĘBOKO PŁYNNE uniwersum STATYCZNE (dynamic OFF). Śmieciowe
+  # pojedyncze nazwy z dynamicznego skanu (JAZZ/NDSN/ROST -- przecieki audytu) na
+  # czarnej liście. Pozycje spoza whitelisty zostaną domknięte przy najbliższym cyklu.
+  setenv TRADING_WHITELIST SPY,QQQ,AAPL,MSFT,NVDA,AMZN,GOOGL,META,AVGO,NFLX,COST,JPM,V,LLY,SMH,GLD,TLT "$f"
+  setenv SYMBOL_BLACKLIST TQQQ,SQQQ,SOXL,SOXS,TNA,TZA,SPXL,SPXS,UPRO,SPXU,UDOW,SDOW,TMF,TMV,LABU,LABD,YINN,YANG,NUGT,DUST,JNUG,JDST,BOIL,KOLD,UVXY,SVXY,VIXY,UVIX,SVIX,SH,XLE,XLU,XLF,XLP,XLI,SLV,JAZZ,NDSN,ROST "$f"
+  setenv DYNAMIC_UNIVERSE_ENABLED false "$f"
   setenv UNIVERSE_MAX_SYMBOLS 24 "$f"
   # Tokeny: NIE haltujemy na brak (właściciel auto-doładowuje). Budżet to tylko
   # kotwica licznika "zostało $" na UI (pauza i tak wyłączona). Prod .env miał
@@ -110,6 +118,10 @@ apply_knobs() { # apply_knobs FILE
   setenv DAY_PNL_ALERT_ENABLED true "$f"
   setenv DAY_PNL_ALERT_PCT 5.0 "$f"
   setenv WEEKLY_REPORT_ENABLED true "$f"
+  setenv EDGE_ALERT_PAYOFF_FLOOR 2.5 "$f"       # rekom. #6: ostrzeż w raporcie gdy payoff < 2.5x
+  # Rekom. B: kupno nazw o szerokim spreadzie jako marketable-LIMIT (mniej poślizgu).
+  setenv REGULAR_MARKETABLE_LIMIT_ENABLED true "$f"
+  setenv REGULAR_LIMIT_BUFFER_PCT 0.3 "$f"
   # Codzienna kopia zapasowa bazy SQLite (data/backups/, ostatnie 14 kopii).
   setenv DB_BACKUP_ENABLED true "$f"
   setenv DB_BACKUP_KEEP 14 "$f"

@@ -141,6 +141,7 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
         else 0
     )
 
+    newly_halted = False
     if not state.is_halted:
         if day_loss_pct >= settings.daily_loss_limit_pct:
             state.is_halted = True
@@ -149,6 +150,7 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
                 f"(limit {settings.daily_loss_limit_pct}%)"
             )
             _log_event(db, "daily_stop_triggered", state.halted_reason)
+            newly_halted = True
         elif week_loss_pct >= settings.weekly_loss_limit_pct:
             state.is_halted = True
             state.halted_reason = (
@@ -156,6 +158,7 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
                 f"(limit {settings.weekly_loss_limit_pct}%)"
             )
             _log_event(db, "weekly_stop_triggered", state.halted_reason)
+            newly_halted = True
         elif settings.max_drawdown_halt_pct > 0 and drawdown_pct >= settings.max_drawdown_halt_pct:
             state.is_halted = True
             state.halted_reason = (
@@ -163,9 +166,29 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
                 f"(limit {settings.max_drawdown_halt_pct}%, szczyt ${state.peak_account_value:,.2f})"
             )
             _log_event(db, "drawdown_stop_triggered", state.halted_reason)
+            newly_halted = True
 
     db.commit()
     db.refresh(state)
+
+    # Rekomendacja #8: gdy AUTO-STOP właśnie się załączył (limit dnia/tygodnia/
+    # spadku od szczytu), wyślij natychmiastowy alarm push -- właściciel ma
+    # wiedzieć od razu, że automat wstrzymał handel, bez zaglądania do apki.
+    # Best-effort: import leniwy (unik cyklu), błąd pusha nigdy nie wywala cyklu.
+    if newly_halted:
+        try:
+            from app.services import push_notifier
+
+            push_notifier.send_alarm(
+                db,
+                settings,
+                title="⛔ Automat ZATRZYMANY (limit strat)",
+                body=state.halted_reason or "Przekroczony limit strat — handel automatyczny wstrzymany.",
+                tag="risk-halt",
+            )
+        except Exception:  # pragma: no cover - powiadomienie nie może wywalić kontroli ryzyka
+            pass
+
     return state
 
 

@@ -355,5 +355,46 @@ def send_weekly_summary_push(db: Session, settings: Settings) -> bool:
     title = f"🗓️ Tydzień: {sign}{_fmt_usd(week_pnl)}"
     acct = f" · konto {_fmt_usd(total)}" if total is not None else ""
     body = f"{closed} {'transakcja' if closed == 1 else 'transakcji'}{win_txt}{acct}"
+
+    # Rekomendacja #6: linia PRZEWAGI (payoff = śr. wygrana / śr. strata) z
+    # ostatnich zamknięć + ostrzeżenie, gdy przewaga spadnie poniżej progu --
+    # żeby zobaczyć degradację strategii zanim zje wynik.
+    edge_line = _weekly_edge_line(settings, closes)
+    if edge_line:
+        body = f"{body}\n{edge_line}"
+
     sent = send_to_all(db, settings, title=title, body=body, tag="weekly-summary", url="/")
     return sent > 0
+
+
+def _weekly_edge_line(settings: Settings, closes: list[dict]) -> str | None:
+    """Linia „przewaga: payoff N.Nx" z ostatnich zamknięć (do lookbacku), z
+    dopiskiem ostrzegawczym gdy payoff < edge_alert_payoff_floor (#6). None, gdy
+    za mało danych (brak wygranych albo brak strat)."""
+    import datetime as _dt
+
+    lookback = max(1, getattr(settings, "conviction_edge_lookback_trades", 20))
+
+    def _sold_key(c: dict):
+        raw = c.get("sold_at") or ""
+        try:
+            dt = _dt.datetime.fromisoformat(raw)
+            return dt if dt.tzinfo else dt.replace(tzinfo=_dt.UTC)
+        except (TypeError, ValueError):
+            return _dt.datetime.min.replace(tzinfo=_dt.UTC)
+
+    recent = sorted([c for c in closes if c.get("sold_at")], key=_sold_key)[-lookback:]
+    wins = [c["pnl_usd"] for c in recent if (c.get("pnl_usd") or 0.0) >= 0]
+    losses = [c["pnl_usd"] for c in recent if (c.get("pnl_usd") or 0.0) < 0]
+    if not wins or not losses:
+        return None
+    avg_win = sum(wins) / len(wins)
+    avg_loss = abs(sum(losses) / len(losses))
+    if avg_loss <= 0:
+        return None
+    payoff = avg_win / avg_loss
+    line = f"⚖️ Przewaga: payoff {payoff:.2f}× (śr. wygrana {_fmt_usd(avg_win)} vs strata {_fmt_usd(-avg_loss)})"
+    floor = getattr(settings, "edge_alert_payoff_floor", 0.0)
+    if floor > 0 and payoff < floor:
+        line = f"{line} ⚠️ przewaga słabnie (< {floor:.1f}×) — rozważ zaostrzenie wejść."
+    return line
