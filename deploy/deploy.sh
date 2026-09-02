@@ -75,9 +75,14 @@ apply_knobs() { # apply_knobs FILE
   setenv PROGRESSIVE_CONFIDENCE_STEP 0.03 "$f"  # +0.03 pewności za każdą trzymaną pozycję
   setenv PROGRESSIVE_CONFIDENCE_CAP 0.9 "$f"
   # Scenariusz A (2026-08-18, na odpowiedzialność właściciela): sizing ważony
-  # przekonaniem — mocny sygnał do 2× większa pozycja, TWARDY sufit 6% ryzyka/trade.
+  # przekonaniem — mocny sygnał do WIĘKSZEJ pozycji, TWARDY sufit 6% ryzyka/trade.
+  # Audyt 2026-09-02 (12 transakcji od wdrożenia 2×): payoff 4.89×→3.1×,
+  # edge/trade $0.46→$0.17, śr. STRATA pogłębiona −0.61→−0.96 przy PŁASKIEJ
+  # śr. wygranej (2× powiększało przegrane, nie wygrane). Zgodnie z planem
+  # z docs/zalozenia-analiza.md (2.1/4.2) cofnięto mnożnik 2.0 → 1.5 —
+  # miękkie przycięcie amplifikacji strat, teza sizingu częściowo utrzymana.
   setenv CONVICTION_SIZING_ENABLED true "$f"
-  setenv CONVICTION_SIZE_MAX_MULT 2.0 "$f"
+  setenv CONVICTION_SIZE_MAX_MULT 1.5 "$f"
   setenv CONVICTION_MAX_RISK_PER_TRADE_PCT 6.0 "$f"
   # Rekom. #4: gdy PRZEWAGA (payoff) słabnie, ściągnij mnożnik conviction do 1,0
   # (tylko w dół -- słaby edge => ostrożniej). Payoff 2.0..4.0 -> mnożnik 1x..pełny.
