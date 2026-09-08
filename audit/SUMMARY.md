@@ -1,15 +1,15 @@
-# Audyt GielDarek — 2026-09-07T11:08:36Z
+# Audyt GielDarek — 2026-09-08T10:20:28Z
 
 **Wdrożenie:** kod 6b2e00a (zbud. 2026-09-02T16:15Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 45 zamknięć · trafność 26.7% · zrealizowany $0.04
-**7 dni:** 5 zamknięć · 0.0% · $-9.39   |   **30 dni:** 46 · 26.1% · $-0.05
+**7 dni:** 3 zamknięć · 0.0% · $-6.91   |   **30 dni:** 46 · 26.1% · $-0.05
 **Edge:** śr. wygrana +$2.98 vs strata $-1.08 → na transakcję $0.0 (payoff 2.76×)
 **Trzymanie:** zyski ~4.5 dni · straty ~2.5 dni
 
 ## Wnioski
 - (bad) Trafność 7 dni 0% vs 30 dni 26% — spada.
-- (bad) Ostatnie 7 dni: -9.39 $ z 5 zamknięć.
+- (bad) Ostatnie 7 dni: -6.91 $ z 3 zamknięć.
 - (good) Średnia wygrana +$2.98 vs strata −$1.08 (wygrana 2.76× większa) → na transakcję +$0.00. Zarabia mimo <50% trafności — edge dodatni.
 - (bad) ⚠ Zyski trzymane dłużej (~4 dni) niż straty (~2 dni) — automat zwleka z realizacją zysku.
 - (neu) Największy przeciek: JAZZ (-4.31 $, 1 zamk.) — kandydat do wyrzucenia z listy.
