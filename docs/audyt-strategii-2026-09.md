@@ -40,11 +40,13 @@ Trajektoria zrealizowanego P&L (tylko akcje, od epoki 2026-08-10):
 
 Trzy wnioski, w kolejności ważności:
 
-### ① Edge jest DODATNI, ale cienki — i prawdopodobnie UJEMNY po koszcie AI
-To najważniejsza rzecz w całym audycie. +$0.17/transakcję to **brutto**. Przy koncie ~$600 i koszcie Claude rzędu $15–30/mies. (to **2.5–5% konta/mies.**), koszt AI z dużym prawdopodobieństwem **przekracza** obecny zysk brutto. Czyli *netto ostatnie tygodnie mogą być na zero lub pod kreską* — nie dlatego, że strategia jest zła, tylko dlatego, że gramy o kwoty mniejsze niż koszt „myślenia" bota. **Koszt AI jako % konta to liczba, która decyduje o wszystkim.**
+### ① Edge jest DODATNI, ale bardzo cienki — pytanie brzmi, czy jest PRAWDZIWY
++$0.17/transakcję (payoff 3.1×) to realna, ale mikra przewaga. Cały wynik wisi na kilku dużych wygranych (ARGX, COIN, MU) przy ~30% trafności — to znaczy, że pojedynczy słaby tydzień potrafi oddać cały życiowy zysk (i dokładnie to zrobił: z +$17 na szczycie do ~$0 dziś). Nie jest to wada strategii, tylko natura asymetrii przy małej próbce. Kluczowe nie jest więc „ile to kosztuje", tylko: czy te +$0.17 to przewaga, czy szum (patrz ②).
+
+> **Koszt tokenów AI świadomie POMIJAM w tej ocenie.** Właściciel kupuje tokeny do wielu zastosowań — to budżet dzielony/utopiony, nie marginalny wydatek doliczany do P&L bota. Doliczanie go do wyniku handlu byłoby błędem księgowym.
 
 ### ② „Predykcje mają sens" — NIE jest jeszcze udowodnione statystycznie
-42–54 zamknięć to za mała próbka, żeby odróżnić przewagę od szczęścia na ogonie. Trafność ~30% + payoff 3–5× jest spójna ZARÓWNO z realną przewagą, JAK I z fartem małej próbki. Ostatnie 7 dni (12.5%, −$10) to przypomnienie, jak szumny jest ten sygnał. **Uczciwy werdykt: predykcje prawdopodobnie coś wnoszą, ale to hipoteza, nie fakt.** W kodzie jest `shadow_analysis` (co zrobiłaby sama mechanika) — dopóki nie porównasz „Claude vs mechanika" na tej samej próbce miesiąc do miesiąca, nie wiesz, czy płacisz za AI wartość, czy za hałas.
+42–54 zamknięć to za mała próbka, żeby odróżnić przewagę od szczęścia na ogonie. Trafność ~30% + payoff 3–5× jest spójna ZARÓWNO z realną przewagą, JAK I z fartem małej próbki. Ostatnie 7 dni (12.5%, −$10) to przypomnienie, jak szumny jest ten sygnał. **Uczciwy werdykt: predykcje prawdopodobnie coś wnoszą, ale to hipoteza, nie fakt.** W kodzie jest `shadow_analysis` (co zrobiłaby sama mechanika) — dopóki nie porównasz „Claude vs mechanika" na tej samej próbce miesiąc do miesiąca, nie wiesz, czy AI realnie dokłada przewagę, czy tylko naśladuje mechanikę (którą miałbyś za darmo).
 
 ### ③ Sam projekt strategii jest zdrowy
 Asymetria idzie we właściwą stronę (wygrane trzymane ~4.5 dnia, straty ~2.1), churn spadł (118→54 zamknięć/30d), twarde limity ryzyka działają, najgorsze przecieki (JAZZ, NDSN, ROST) już na blackliście. Cofnięcie 2×→1.5× (2026-09-02) jest słuszne — era 2× **pogłębiała straty (−0.61→−0.96), nie podnosząc wygranych** (płaskie ~2.98), więc amplifikowała złą stronę asymetrii.
@@ -53,21 +55,21 @@ Asymetria idzie we właściwą stronę (wygrane trzymane ~4.5 dnia, straty ~2.1)
 
 ## 3. Predykcje (ocena, dokąd to zmierza)
 
-- **Przy obecnym kapitale bot jest laboratorium, nie źródłem dochodu.** ~$14/mies. brutto przy 2.3% na $600, minus koszt AI, minus szum → w horyzoncie 12–18 mies. **wynik zdominują wpłaty ($100–300/mies.), nie zysk bota.** Realny „drugi strumień" zaczyna się ~$20–50k.
-- **Bez zmierzenia i przycięcia kosztu AI ryzyko jest takie, że bot netto przegrywa ze zwykłym trzymaniem SPY/QQQ** — nie przez strategię, przez koszt stały na małym koncie.
-- **Strategia w projekcie jest dobra i skaluje się w górę** — te same knoby na $10k+ mają sens, bo koszt AI staje się ułamkiem procenta. Problem jest wyłącznie skali kapitału, nie logiki.
+- **Przy obecnym kapitale bot jest laboratorium, nie źródłem dochodu.** Życiowo ~$0 na małej próbce; nawet w dobrym scenariuszu ~$14/mies. brutto przy 2.3% na $600 → w horyzoncie 12–18 mies. **wynik zdominują wpłaty ($100–300/mies.), nie zysk bota.** Realny „drugi strumień" zaczyna się ~$20–50k.
+- **Główne ryzyko to nie rynek, tylko że „przewaga" okaże się szumem** — na 45 zamknięciach nie da się tego jeszcze rozstrzygnąć. Dlatego test vs mechanika (§4) jest ważniejszy niż kręcenie parametrami.
+- **Strategia w projekcie jest dobra i skaluje się w górę** — te same knoby na $10k+ mają sens; problem jest wyłącznie skali kapitału (mikre kwoty przy małym koncie), nie logiki.
 
 ---
 
 ## 4. Rekomendacje (priorytetowo)
 
-1. **Zmierz koszt Claude jako % konta — teraz.** Licznik jest w apce. Liczba make-or-break. Jeśli >3%/mies. → wydłuż poll 30→60 min albo mocniej bramkuj wyzwalacz. Nic nie da więcej niż to.
-2. **Włącz miesięczny test „Claude vs mechanika"** (shadow-analysis). Dopóki Claude nie bije mechaniki na edge netto — teza o wartości predykcji jest nieudowodniona.
-3. **Zostaw conviction 1.5× na ~2 tygodnie, potem re-audyt.** Zmiana właśnie weszła — nie mieszaj drugiej zmiennej (ryzyko/trade 6%→4%) w tym samym oknie.
-4. **Ustaw oczekiwania w kaflu „Plan i cel":** to walidacja przewagi na małych stawkach, nie pensja.
-5. **Rozważ czysty A/B:** mechanika-only na stagingu (:8092) vs Claude na prodzie przez miesiąc — da porównanie, którego teza potrzebuje, bez ryzyka realną kasą.
+1. **Włącz miesięczny test „Claude vs mechanika"** (shadow-analysis). To make-or-break: dopóki Claude nie bije samej mechaniki na tej samej próbce — teza o wartości predykcji jest nieudowodniona. Najważniejsza rzecz do zrobienia.
+2. **Zostaw conviction 1.5× na ~2 tygodnie, potem re-audyt.** Zmiana właśnie weszła — nie mieszaj drugiej zmiennej (ryzyko/trade 6%→4%) w tym samym oknie.
+3. **Rozważ czysty A/B:** mechanika-only na stagingu (:8092) vs Claude na prodzie przez miesiąc — da porównanie, którego teza potrzebuje, bez ryzyka realną kasą.
+4. **Ustaw oczekiwania w kaflu „Plan i cel":** to walidacja przewagi na małych stawkach, nie pensja. Kwoty przyjdą z kapitału.
+5. **Pilnuj powtarzalnych przecieków** (CRWD, OKTA, JAZZ i spółka) — dorzucanie recydywistów do blacklisty to najtańsza poprawa edge.
 
-**Nadrzędna prawda:** strategia jest dobrze zaprojektowana i ma (cienką) dodatnią przewagę brutto. Ale przy $600 **największym wrogiem jest koszt AI, nie rynek** — i to on, nie logika strategii, zdecyduje czy to „ma sens". Zmierz go, udowodnij przewagę nad mechaniką, i pozwól kapitałowi rosnąć.
+**Nadrzędna prawda:** strategia jest dobrze zaprojektowana i ma (cienką) dodatnią przewagę brutto. Pytanie nie brzmi „ile kosztuje", tylko **czy ta przewaga jest prawdziwa, czy to szum małej próbki** — i to rozstrzygnie porównanie z mechaniką, nie kręcenie parametrami. Udowodnij przewagę nad mechaniką i pozwól kapitałowi rosnąć.
 
 ---
 
