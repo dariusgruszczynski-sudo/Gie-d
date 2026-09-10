@@ -1,0 +1,27 @@
+name: Diag frontend
+on: { workflow_dispatch: {} }
+permissions: { contents: read }
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    env:
+      BASE: https://46.225.229.113.sslip.io
+      SHARE: gd-ro-8f3ktq29xr7v
+    steps:
+      - name: Log decyzji + claude-edge
+        run: |
+          set +e
+          echo "===== /api/decisions — podsumowanie ====="
+          curl -sS -m 40 "$BASE/api/decisions?limit=250&share=$SHARE" | jq '
+            { total: length,
+              by_action: (group_by(.action)|map({key:.[0].action, n:length})|from_entries),
+              executed: (map(select(.executed))|length),
+              nieexekwowane: (map(select(.executed|not))|length),
+              top_powody_odrzucenia: (map(select(.rejection_reason!=null and .rejection_reason!="").rejection_reason)|group_by(.)|map({n:length, reason:.[0]})|sort_by(-.n)[:10]),
+              rozkład_pewności_BUY: (map(select(.action=="BUY"))|map(.confidence)|{n:length, min:(min//0), max:(max//0), avg:((add//0)/(length|if .==0 then 1 else . end))}) }' 2>/dev/null
+          echo "===== /api/decisions — ostatnie 30 (t, symbol, akcja, pewność, wykonane, odrzucenie) ====="
+          curl -sS -m 40 "$BASE/api/decisions?limit=250&share=$SHARE" | jq -r '
+            sort_by(.timestamp)|reverse[:30][] |
+            "\(.timestamp[5:16])  \(.symbol//"—" | .[0:6])  \(.action)  conf=\(.confidence)  exec=\(.executed)  \((.rejection_reason//"")[0:70])"' 2>/dev/null
+          echo "===== /api/claude-edge (mechanika vs Claude) ====="
+          curl -sS -m 40 "$BASE/api/claude-edge?share=$SHARE" | jq '.' 2>/dev/null
