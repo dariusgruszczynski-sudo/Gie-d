@@ -1,0 +1,24 @@
+name: Diag frontend
+on: { workflow_dispatch: {} }
+permissions: { contents: read }
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    env:
+      BASE: https://46.225.229.113.sslip.io
+      SHARE: gd-ro-8f3ktq29xr7v
+    steps:
+      - name: Pełny stan konta (read-only /api)
+        run: |
+          set +e
+          g() { curl -sS -m 40 "$BASE$1?share=$SHARE"; }
+          echo "===== /api/status ====="
+          g /api/status | jq '{account_value:(.account_value//.total_value//.portfolio_value//.total_value_usdt), cash, is_paused, is_halted, day_change_pct, week_change_pct, positions_count:((.positions//[])|length), build_sha, build_time}' 2>/dev/null || g /api/status
+          echo "===== /api/portfolio (bieżąca wycena + pozycje + koszt) ====="
+          g /api/portfolio | jq '{current:{total:.current.total_value_usdt, ts:.current.timestamp, balances:(.current.balances_json|fromjson? // .current.balances)}, cost_basis, scorecard:.scorecard, benchmark:.benchmark}' 2>/dev/null
+          echo "===== /api/portfolio RAW current (fallback) ====="
+          g /api/portfolio | jq '.current' 2>/dev/null | head -40
+          echo "===== /api/monthly ====="
+          g /api/monthly | jq '.' 2>/dev/null | head -60
+          echo "===== /api/events (ostatnie 20) ====="
+          g /api/events | jq '(.events//.)[:20]' 2>/dev/null | head -120
