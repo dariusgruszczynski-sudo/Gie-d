@@ -14,8 +14,8 @@
   --mint-soft: #7fd0ba;
   --amber: #c9a24a;         /* brass */
   --gold: #e2bf6a;          /* bright brass — ripe-to-take */
-  --iris: #cf8a4d;          /* copper accent (progressive widgets) */
-  --iris-soft: #e6a970;
+  --iris: #d98a45;          /* copper accent (progressive widgets) */
+  --iris-soft: #ecab6a;
   --rose: #e35d6b;          /* losses */
   --rose-soft: #ef8b95;
   --ink: #0a0806;
@@ -130,7 +130,7 @@
 
 /* hero figure ---------------------------------------------------------------- */
 .gd-hero { margin-bottom: 8px; }
-.gd-hero-label { font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim); }
+.gd-hero-label { font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--brand-soft); }
 .gd-hero-val {
   font-family: var(--font-display);
   font-weight: 700;
@@ -795,9 +795,9 @@
    a spinning brand halo, a live scan-line on the engine card, shimmering rungs.
    ============================================================================= */
 .gd {
-  --brand: #34dcff;        /* electric cyan — new primary chrome */
-  --brand-2: #9b6bff;      /* violet — co-primary */
-  --brand-soft: #9fefff;
+  --brand: #d98a45;        /* polerowana miedź — główny chrome (nav, przyciski, akcenty) */
+  --brand-2: #c9a24a;      /* mosiądz — co-primary (gradienty) */
+  --brand-soft: #ecc39a;   /* jasna miedź/srebro — miękki tekst chrome */
 }
 
 /* backdrop: swap the green orb for cyan, punch up violet — new overall hue */
@@ -1022,7 +1022,7 @@
 .gd { --txt: #f3f7fc; }
 /* Hero: większa, mocniejsza główna liczba. */
 .gd-hero-val { font-size: clamp(2.6rem, 12vw, 4.2rem) !important; letter-spacing: -0.02em; }
-.gd-hero-label { font-size: 0.72rem; color: #9fb0c8; }
+.gd-hero-label { font-size: 0.72rem; color: #c7ccd2; }
 .gd-hero-sub { font-size: 0.9rem; }
 /* Kafle kasy / statystyk: większe cyfry. */
 .gd-stat-v { font-size: 1.42rem; }
@@ -1203,7 +1203,7 @@
 .gd-daynote { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline;
   margin-top: 10px; font-size: 0.82rem; color: var(--dim, var(--txt)); }
 .gd-daynote b { font-weight: 700; }
-.gd-daynote .gd-up { color: var(--mint, #34d399); }
+.gd-daynote .gd-up { color: var(--mint, #4fb79a); }
 .gd-daynote .gd-down { color: var(--rose, #f87171); }
 
 /* C: dziennik decyzji w Historii — rozwijane „dlaczego wchodziłem". */

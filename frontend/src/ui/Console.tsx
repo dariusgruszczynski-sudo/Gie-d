@@ -79,6 +79,13 @@ function NowStrip({ status }: { status: StatusResponse }) {
       </div>
       <div className="gd-now-sep" />
       <div className="gd-now-item">
+        <span className="k">Strateg</span>
+        <span className="v" style={{ color: status.opus_controller?.enabled ? "var(--brand)" : "var(--dim)" }}>
+          {status.opus_controller?.enabled ? "🤖 Opus steruje" : "ręczne knoby"}
+        </span>
+      </div>
+      <div className="gd-now-sep" />
+      <div className="gd-now-item">
         <span className="k">Analiza rynku</span>
         <span className="v">co ~{status.poll_interval_minutes} min</span>
       </div>
