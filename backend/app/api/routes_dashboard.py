@@ -1120,6 +1120,24 @@ def get_audit(db: Session = Depends(get_db), settings: Settings = Depends(get_se
     if closed < 3:
         concl.append({"t": f"Za mało zamkniętych transakcji ({closed}) na mocne wnioski — bot dopiero zbiera próbkę.", "tone": "neu"})
     else:
+        # UCZCIWY NAGŁÓWEK (U6): jedno zdanie prawdy na górze, żeby rosy „edge
+        # dodatni" nie był pierwszym, co widać, gdy konto realnie drepcze. Werdykt
+        # po WIELKOŚCI, nie po samym znaku: mikrowynik = „w miejscu", nie sukces.
+        _epoch_lbl = f" od {epoch.strftime('%d.%m')}" if epoch is not None else ""
+        if realized > 5:
+            _hv, _htone = f"realnie zarabia (+${realized:.2f}).", "good"
+        elif realized < -2:
+            _hv, _htone = f"pod kreską (−${abs(realized):.2f}).", "bad"
+        else:
+            _hv, _htone = (
+                f"praktycznie na zero ({'+' if realized >= 0 else '−'}${abs(realized):.2f}) — drepcze w miejscu.",
+                "neu",
+            )
+        concl.append({
+            "t": f"Wynik zamkniętych transakcji{_epoch_lbl}: {closed} zamknięć, trafność "
+                 f"{(round(wins / closed * 100) if closed else 0)}% — {_hv}",
+            "tone": _htone,
+        })
         d7, d30 = eras["d7"], eras["d30"]
         if d7["win_rate"] is not None and d30["win_rate"] is not None:
             diff = d7["win_rate"] - d30["win_rate"]
@@ -1133,13 +1151,24 @@ def get_audit(db: Session = Depends(get_db), settings: Settings = Depends(get_se
         })
         # EDGE — ważniejsze niż trafność: czy średnia wygrana bije średnią stratę.
         if avg_win is not None and avg_loss is not None and per_trade is not None:
-            good = per_trade >= 0
+            # Werdykt po WIELKOŚCI: cienki dodatni edge (< $0.20/trade) to jeszcze
+            # nie sukces — to szum małej próbki. Nie chwal się nim jak zyskiem.
+            thin = 0 <= per_trade < 0.20
+            if per_trade < 0:
+                _verdict, _etone = "Wygrane za małe wobec strat — to psuje wynik.", "bad"
+            elif thin:
+                _verdict, _etone = (
+                    "Edge ledwo dodatni — w granicach szumu małej próbki, nie licz na to jak na pewny zysk.",
+                    "neu",
+                )
+            else:
+                _verdict, _etone = "Zarabia mimo <50% trafności — edge dodatni.", "good"
             concl.append({
                 "t": (f"Średnia wygrana +${avg_win:.2f} vs strata −${abs(avg_loss):.2f}"
                       + (f" (wygrana {payoff}× większa)" if payoff else "")
                       + f" → na transakcję {'+' if per_trade >= 0 else '−'}${abs(per_trade):.2f}. "
-                      + ("Zarabia mimo <50% trafności — edge dodatni." if good else "Wygrane za małe wobec strat — to psuje wynik.")),
-                "tone": "good" if good else "bad",
+                      + _verdict),
+                "tone": _etone,
             })
         if hold["avg_win_days"] is not None and hold["avg_loss_days"] is not None:
             if hold["avg_win_days"] > hold["avg_loss_days"] + 0.5:
