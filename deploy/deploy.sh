@@ -97,6 +97,10 @@ apply_knobs() { # apply_knobs FILE
   # Reżim: twarda gotówka w risk-off (adaptive off -> gate on)
   setenv ADAPTIVE_RISK_ENABLED false "$f"
   setenv REGIME_GATE_ENABLED true "$f"
+  # OPUS KONTROLER (P1, 2026-09-10, na odpowiedzialność właściciela): codzienny
+  # strateg Opus z pełną władzą nad knobami. env włącza go raz przy deployu;
+  # potem wygrywa ręczny przełącznik właściciela (kill-switch przeżywa restart).
+  setenv OPUS_CONTROLLER_ENABLED true "$f"
   setenv DEFENSIVE_SYMBOLS GLD,TLT "$f"
   # Rekom. #1: ciasne, GŁĘBOKO PŁYNNE uniwersum STATYCZNE (dynamic OFF). Śmieciowe
   # pojedyncze nazwy z dynamicznego skanu (JAZZ/NDSN/ROST -- przecieki audytu) na

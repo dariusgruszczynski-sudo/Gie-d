@@ -1858,6 +1858,11 @@ def run_cycle(
     the other venue's latest snapshot) from WHICHEVER venue's cycle just ran,
     so a extended-only drawdown trips the same account-wide halt an equities
     drawdown would -- not just whichever venue happens to poll."""
+    # OPUS KONTROLER (P1): nałóż knoby ustawione przez codziennego stratega Opusa
+    # na settings tego cyklu (klamry anty-bug w środku). Gdy brak override — no-op.
+    from app.services import opus_controller
+
+    settings = opus_controller.apply_knob_overrides(db, settings)
     symbols = whitelist if whitelist is not None else settings.whitelist_symbols
     portfolio = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
     account_total = account_total_value(db, portfolio, venue)

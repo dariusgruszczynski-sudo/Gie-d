@@ -615,6 +615,10 @@ class Settings(BaseSettings):
     conviction_sizing_enabled: bool = True
     conviction_size_max_mult: float = 2.0
     conviction_max_risk_per_trade_pct: float = 6.0
+    # OPUS KONTROLER (P1): env-seed dla codziennego stratega Opusa. Gdy true, przy
+    # starcie WŁĄCZA kontroler — ale tylko dopóki właściciel nie przełączy go
+    # ręcznie (wtedy jego wybór, w tym kill-switch, wygrywa nad env na stałe).
+    opus_controller_enabled: bool = False
     # SIZING WAŻONY PRZEKONANIEM — ADAPTACJA DO ŚWIEŻEJ PRZEWAGI (rekomendacja #4,
     # 2026-09-02). Conviction-sizing wzmacnia pozycje; gdy PRZEWAGA (payoff = śr.
     # wygrana / śr. strata z ostatnich zamknięć) SŁABNIE, wzmacnianie amplifikuje

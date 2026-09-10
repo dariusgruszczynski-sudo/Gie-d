@@ -221,6 +221,17 @@ class SystemState(Base):
     # NIE zysk — record_deposit() dolicza ją tu i re-kotwiczy benchmark/peak/okna
     # dnia+tygodnia, żeby wpłata nie udawała ani zysku, ani przewagi nad SPY.
     deposits_usd_lifetime: Mapped[float] = mapped_column(Float, default=0.0)
+    # OPUS KONTROLER (P1/P2): codzienny strateg Opus z pełną władzą nad knobami.
+    # knob_overrides_json = knoby, które Opus ustawił (nakładane na effective
+    # settings w każdym cyklu, z klamrami anty-bug). opus_knowledge_json = trwała
+    # baza wiedzy „co umie" (akumulowana bez rotacji, karmi prompt kontrolera).
+    knob_overrides_json: Mapped[str] = mapped_column(Text, default="{}")
+    opus_controller_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    # True gdy właściciel RĘCZNIE przełączył kontroler — wtedy jego wybór wygrywa
+    # nad env-seedem przy kolejnych deployach (kill-switch przeżywa restart).
+    opus_controller_user_set: Mapped[bool] = mapped_column(Boolean, default=False)
+    opus_controller_last_run: Mapped[str] = mapped_column(String(10), default="")
+    opus_knowledge_json: Mapped[str] = mapped_column(Text, default="[]")
     # Weekly self-review: a rolling JSON list of {date, lesson} entries Claude
     # distilled from its own recent trades. Fed back into every decision's
     # context -- durable memory that outlives the 15-trade recent window.

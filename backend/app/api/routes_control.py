@@ -1,3 +1,4 @@
+import json
 import os
 import time
 from typing import Literal
@@ -76,6 +77,46 @@ def record_deposit(amount: float, db: Session = Depends(get_db), settings: Setti
     audit.record(db, "record-deposit", detail=f"amount={float(amount):.2f}", request=request)
     znak = "wpłatę" if amount > 0 else "wypłatę"
     return {"message": f"Zapisano {znak} ${abs(amount):.2f}.", **res}
+
+
+@router.post("/opus-controller")
+def opus_controller_toggle(enabled: bool, db: Session = Depends(get_db), request: Request = None):
+    """Wyłącznik Opus-kontrolera (P1). enabled=true → Opus codziennie ustawia
+    knoby; false → zamrożone (Twój kill-switch, nie ogranicza jego decyzji, tylko
+    zatrzymuje). Nie rusza już ustawionych override'ów (te zdejmuje osobny reset)."""
+    from app.services import opus_controller  # noqa: F401 (spójność importu)
+
+    state = risk_manager.get_state(db)
+    state.opus_controller_enabled = bool(enabled)
+    state.opus_controller_user_set = True  # ręczny wybór wygrywa nad env-seedem na stałe
+    db.commit()
+    audit.record(db, "opus-controller", detail=f"enabled={bool(enabled)}", request=request)
+    return {"opus_controller_enabled": bool(enabled),
+            "message": "Opus-kontroler WŁĄCZONY." if enabled else "Opus-kontroler wyłączony."}
+
+
+@router.post("/opus-run-now")
+def opus_run_now(db: Session = Depends(get_db), settings: Settings = Depends(get_settings), request: Request = None):
+    """Uruchom Opus-kontrolera OD RAZU (bez czekania na codzienny cron). Zdejmuje
+    dzienny throttle na ten jeden przebieg. Wymaga włączonego kontrolera."""
+    from app.services import opus_controller
+
+    state = risk_manager.get_state(db)
+    state.opus_controller_last_run = ""  # zdejmij throttle na ten przebieg
+    db.commit()
+    res = opus_controller.run_opus_controller(db, settings)
+    audit.record(db, "opus-run-now", detail=json.dumps(res)[:200], request=request)
+    return res
+
+
+@router.post("/opus-clear-overrides")
+def opus_clear_overrides(db: Session = Depends(get_db), request: Request = None):
+    """Skasuj wszystkie knoby ustawione przez Opusa — powrót do bazowych (.env)."""
+    from app.services import opus_controller
+
+    opus_controller.clear_overrides(db)
+    audit.record(db, "opus-clear-overrides", request=request)
+    return {"message": "Override'y Opusa wyczyszczone — knoby wracają do bazowych."}
 
 
 @router.post("/reset-budget-meter")

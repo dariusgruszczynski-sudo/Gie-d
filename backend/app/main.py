@@ -28,6 +28,18 @@ FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "static")
 async def lifespan(app: FastAPI):
     init_db()
     init_session_secret()
+    # OPUS KONTROLER (P1): env-seed włączenia (raz, dopóki właściciel nie przełączy).
+    try:
+        from app.db import SessionLocal
+        from app.services.opus_controller import seed_enabled_from_env
+
+        _seed_db = SessionLocal()
+        try:
+            seed_enabled_from_env(_seed_db, get_settings())
+        finally:
+            _seed_db.close()
+    except Exception:  # pragma: no cover - seed nie może blokować startu
+        pass
     start_scheduler()
     # Priming (snapshot z brokera + odczyt reżimu) robi BLOKUJĄCE wywołania
     # sieciowe i potrafi trwać dziesiątki sekund. NIE wolno nim blokować startu

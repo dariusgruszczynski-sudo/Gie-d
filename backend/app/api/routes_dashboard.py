@@ -150,6 +150,9 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
             "alpaca": _engine_profile_view(settings, "alpaca"),
             "extended": _engine_profile_view(settings, "extended"),
         },
+        # OPUS KONTROLER (P1): stan dla panelu — czy włączony, kiedy ostatnio
+        # ustawiał knoby, jakie knoby nadpisał i ile „umie" (baza wiedzy).
+        "opus_controller": _opus_view(db),
         # Stempel wersji: jaki kod realnie działa (SHA + czas buildu).
         "build_sha": BUILD_SHA,
         "build_time": BUILD_TIME,
@@ -190,6 +193,19 @@ def _engine_profile_view(settings: Settings, venue: str) -> dict:
         "conviction_sizing_enabled": s.conviction_sizing_enabled,
         "conviction_size_max_mult": s.conviction_size_max_mult,
         "conviction_max_risk_per_trade_pct": s.conviction_max_risk_per_trade_pct,
+    }
+
+
+def _opus_view(db: Session) -> dict:
+    """Stan Opus-kontrolera do panelu (przejrzystość pełnej autonomii)."""
+    from app.services import opus_controller
+
+    state = risk_manager.get_state(db)
+    return {
+        "enabled": bool(getattr(state, "opus_controller_enabled", False)),
+        "last_run": getattr(state, "opus_controller_last_run", "") or None,
+        "overrides": opus_controller.get_overrides(db),
+        "knowledge_count": len(opus_controller.get_knowledge(db)),
     }
 
 

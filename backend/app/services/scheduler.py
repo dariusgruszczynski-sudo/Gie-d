@@ -193,6 +193,19 @@ def _self_review_job() -> None:
         db.close()
 
 
+def _opus_controller_job() -> None:
+    from app.services.opus_controller import run_opus_controller
+
+    settings = get_settings()
+    db = SessionLocal()
+    try:
+        run_opus_controller(db, settings)
+    except Exception:
+        logger.exception("Opus controller job failed")
+    finally:
+        db.close()
+
+
 def _parse_feed_pairs(raw: str | None) -> list[tuple[str, str]]:
     """Odczyt trwałej listy [[nazwa, url], ...] z kolumny DB -> lista krotek,
     odporny na śmieci (pomija wpisy o złym kształcie)."""
@@ -375,6 +388,13 @@ def start_scheduler() -> BackgroundScheduler:
         _self_review_job,
         CronTrigger(hour=12, minute=0, timezone=settings.report_timezone),
         id="daily_self_review",
+    )
+    # OPUS KONTROLER (P1): raz dziennie po zamknięciu sesji US (16:15 ET) Opus
+    # przegląda wynik i ustawia knoby strategii. No-op gdy wyłączony (kill-switch).
+    scheduler.add_job(
+        _opus_controller_job,
+        CronTrigger(hour=16, minute=15, timezone="America/New_York"),
+        id="daily_opus_controller",
     )
     # Friday-night whitelist review: 20:15 ET (America/New_York, so DST-correct),
     # i.e. right AFTER the after-market close at 20:00. Re-picks the POZA SESJĄ
