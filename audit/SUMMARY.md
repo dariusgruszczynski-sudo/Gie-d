@@ -1,16 +1,17 @@
-# Audyt GielDarek — 2026-09-10T17:56:45Z
+# Audyt GielDarek — 2026-09-10T19:37:36Z
 
-**Wdrożenie:** kod a9eb9e7 (zbud. 2026-09-08T14:05Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 75effcc (zbud. 2026-09-10T19:37Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 48 zamknięć · trafność 29.2% · zrealizowany $2.24
-**7 dni:** 3 zamknięć · 66.7% · $2.2   |   **30 dni:** 47 · 27.7% · $0.7
+**7 dni:** 3 zamknięć · 66.7% · $2.2   |   **30 dni:** 46 · 28.3% · $1.09
 **Edge:** śr. wygrana +$2.8 vs strata $-1.09 → na transakcję $0.05 (payoff 2.57×)
 **Trzymanie:** zyski ~4.6 dni · straty ~2.5 dni
 
 ## Wnioski
+- (neu) Wynik zamkniętych transakcji od 10.08: 48 zamknięć, trafność 29% — praktycznie na zero (+$2.24) — drepcze w miejscu.
 - (good) Trafność 7 dni 67% vs 30 dni 28% — rośnie.
 - (good) Ostatnie 7 dni: +2.20 $ z 3 zamknięć.
-- (good) Średnia wygrana +$2.80 vs strata −$1.09 (wygrana 2.57× większa) → na transakcję +$0.05. Zarabia mimo <50% trafności — edge dodatni.
+- (neu) Średnia wygrana +$2.80 vs strata −$1.09 (wygrana 2.57× większa) → na transakcję +$0.05. Edge ledwo dodatni — w granicach szumu małej próbki, nie licz na to jak na pewny zysk.
 - (bad) ⚠ Zyski trzymane dłużej (~5 dni) niż straty (~2 dni) — automat zwleka z realizacją zysku.
 - (neu) Największy przeciek: JAZZ (-4.31 $, 1 zamk.) — kandydat do wyrzucenia z listy.
 - (neu) Limit wejść bywa osiągany (5 dni) — podniesienie może dołożyć wejść.
