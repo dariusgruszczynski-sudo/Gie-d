@@ -619,6 +619,10 @@ class Settings(BaseSettings):
     # starcie WŁĄCZA kontroler — ale tylko dopóki właściciel nie przełączy go
     # ręcznie (wtedy jego wybór, w tym kill-switch, wygrywa nad env na stałe).
     opus_controller_enabled: bool = False
+    # P15 — alert bezczynności: powiadom, gdy brak nowych wejść przez tyle dni
+    # albo gdy wolna gotówka przekracza ten % konta (cisza jako sygnał).
+    idle_alert_days: int = 3
+    idle_alert_cash_pct: float = 60.0
     # SIZING WAŻONY PRZEKONANIEM — ADAPTACJA DO ŚWIEŻEJ PRZEWAGI (rekomendacja #4,
     # 2026-09-02). Conviction-sizing wzmacnia pozycje; gdy PRZEWAGA (payoff = śr.
     # wygrana / śr. strata z ostatnich zamknięć) SŁABNIE, wzmacnianie amplifikuje

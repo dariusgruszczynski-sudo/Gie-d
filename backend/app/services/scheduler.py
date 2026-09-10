@@ -163,8 +163,30 @@ def _report_job() -> None:
             logger.info(
                 "Daily summary push not sent (push not configured, or no subscribed device yet)"
             )
+        # P15: alert bezczynności (raz dziennie, przy okazji dziennego podsumowania).
+        try:
+            from app.services.push_notifier import check_idle_alert
+
+            check_idle_alert(db, settings)
+        except Exception:
+            logger.warning("Idle alert failed", exc_info=True)
     except Exception:
         logger.exception("Daily summary push failed")
+    finally:
+        db.close()
+
+
+def _shadow_alert_job() -> None:
+    """P8: okresowe porównanie Claude vs sama mechanika (shadow) + alert, gdy AI
+    przegrywa. Best-effort."""
+    from app.services.push_notifier import check_shadow_underperformance
+
+    settings = get_settings()
+    db = SessionLocal()
+    try:
+        check_shadow_underperformance(db, settings)
+    except Exception:
+        logger.exception("Shadow alert job failed")
     finally:
         db.close()
 
@@ -395,6 +417,12 @@ def start_scheduler() -> BackgroundScheduler:
         _opus_controller_job,
         CronTrigger(hour=16, minute=15, timezone="America/New_York"),
         id="daily_opus_controller",
+    )
+    # P8: cotygodniowy alert, gdy Claude przegrywa z samą mechaniką (shadow).
+    scheduler.add_job(
+        _shadow_alert_job,
+        CronTrigger(day_of_week="mon", hour=13, minute=0, timezone=settings.report_timezone),
+        id="weekly_shadow_alert",
     )
     # Friday-night whitelist review: 20:15 ET (America/New_York, so DST-correct),
     # i.e. right AFTER the after-market close at 20:00. Re-picks the POZA SESJĄ

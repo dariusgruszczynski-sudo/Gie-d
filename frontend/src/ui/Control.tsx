@@ -347,6 +347,48 @@ function OpsLog() {
   );
 }
 
+function OpusController({ status, onChanged }: { status: StatusResponse; onChanged: () => void }) {
+  const a = useAction();
+  const oc = status.opus_controller;
+  const on = !!oc?.enabled;
+  const knobs = oc?.overrides ?? {};
+  const knobKeys = Object.keys(knobs);
+  return (
+    <div className="gd-card">
+      <h4>🤖 Opus-kontroler</h4>
+      <p className="gd-note">Codziennie po sesji Opus sam ustawia knoby strategii (próg, sizing, stopy…) i uczy się. Pełna władza — to jest Twój wyłącznik.</p>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+        <span style={{ fontWeight: 700, color: on ? "var(--iris)" : "var(--dim)", fontVariantNumeric: "tabular-nums" }}>
+          {on ? "● WŁĄCZONY" : "○ wyłączony"}
+        </span>
+        {oc?.last_run && <span className="gd-note" style={{ margin: 0 }}>ostatnio: {oc.last_run}</span>}
+        <span className="gd-note" style={{ margin: 0 }}>baza wiedzy: {oc?.knowledge_count ?? 0}</span>
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {on ? (
+          <button className="gd-btn warn" disabled={a.busy === "oc"}
+            onClick={() => { if (window.confirm("Wyłączyć Opus-kontrolera? Ustawione knoby zostają jak są.")) a.run("oc", () => api.opusController(false).then(onChanged), "Opus-kontroler wyłączony"); }}>
+            ❚❚ Wyłącz (kill-switch)
+          </button>
+        ) : (
+          <button className="gd-btn primary" disabled={a.busy === "oc"}
+            onClick={() => a.run("oc", () => api.opusController(true).then(onChanged), "Opus-kontroler włączony")}>
+            ▶ Włącz
+          </button>
+        )}
+        <button className="gd-btn" disabled={!on || a.busy === "ocr"}
+          onClick={() => a.run("ocr", () => api.opusRunNow().then(onChanged), "Opus przeliczył teraz")}>↻ Uruchom teraz</button>
+        <button className="gd-btn" disabled={knobKeys.length === 0 || a.busy === "occ"}
+          onClick={() => { if (window.confirm("Cofnąć wszystkie knoby ustawione przez Opusa do bazowych?")) a.run("occ", () => api.opusClearOverrides().then(onChanged), "Knoby Opusa wyczyszczone"); }}>↺ Cofnij jego knoby</button>
+      </div>
+      {knobKeys.length > 0 && (
+        <p className="gd-note" style={{ marginTop: 10 }}>Ustawił: {knobKeys.map((k) => `${k}=${knobs[k]}`).join(" · ")}</p>
+      )}
+      {a.msg && <div className={`gd-msg ${a.msg.ok ? "ok" : "err"}`}>{a.msg.t}</div>}
+    </div>
+  );
+}
+
 export function Control({ status, onChanged }: { status: StatusResponse; onChanged: () => void }) {
   return (
     <div className="gd-view">
@@ -356,6 +398,7 @@ export function Control({ status, onChanged }: { status: StatusResponse; onChang
       ) : (
         <>
           <PanicButton onChanged={onChanged} />
+          <OpusController status={status} onChanged={onChanged} />
           <LegControls status={status} onChanged={onChanged} />
           <DryRun />
           <PushMode status={status} onChanged={onChanged} />

@@ -88,6 +88,12 @@ export interface StatusResponse {
   realized_pnl_usd: number;
   net_result_usd: number;
   deposits_usd_lifetime?: number;
+  opus_controller?: {
+    enabled: boolean;
+    last_run: string | null;
+    overrides: Record<string, number>;
+    knowledge_count: number;
+  };
   // Rekomendacja A (skala kapitału): koszt Claude od początku i jaki to % konta —
   // na małym koncie koszt stały jest głównym progiem rentowności.
   claude_cost_lifetime_usd?: number;
@@ -357,6 +363,12 @@ export const api = {
     apiFetch<{ claude_budget: ClaudeBudget }>(`/api/control/set-budget?amount=${amount}`, { method: "POST" }),
   resetBudgetMeter: () =>
     apiFetch<{ claude_budget: ClaudeBudget }>("/api/control/reset-budget-meter", { method: "POST" }),
+  opusController: (enabled: boolean) =>
+    apiFetch<{ opus_controller_enabled: boolean; message: string }>(`/api/control/opus-controller?enabled=${enabled}`, { method: "POST" }),
+  opusRunNow: () =>
+    apiFetch<Record<string, unknown>>("/api/control/opus-run-now", { method: "POST" }, LONG_TIMEOUT_MS),
+  opusClearOverrides: () =>
+    apiFetch<{ message: string }>("/api/control/opus-clear-overrides", { method: "POST" }),
   shareLink: () => apiFetch<{ enabled: boolean; token: string }>("/api/control/share-link"),
   auditLog: () => apiFetch<{ entries: AuditEntry[] }>("/api/control/audit-log"),
   claudeEdge: (venue: string = "alpaca") =>

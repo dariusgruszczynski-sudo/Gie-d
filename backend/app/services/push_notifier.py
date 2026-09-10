@@ -398,3 +398,67 @@ def _weekly_edge_line(settings: Settings, closes: list[dict]) -> str | None:
     if floor > 0 and payoff < floor:
         line = f"{line} ⚠️ przewaga słabnie (< {floor:.1f}×) — rozważ zaostrzenie wejść."
     return line
+
+
+def check_idle_alert(db: Session, settings: Settings) -> bool:
+    """P15: powiadom, gdy bot długo nie wchodzi albo siedzi w gotówce. Cisza ma
+    być SYGNAŁEM (samoblokada progu / reżim), nie niewiadomą. Wołane z dziennego
+    zadania, więc naturalnie throttlowane do raz/dzień. Best-effort."""
+    if not push_configured(settings):
+        return False
+    from datetime import UTC, datetime
+
+    from app.models import Trade
+
+    days_thresh = getattr(settings, "idle_alert_days", 3)
+    cash_thresh = getattr(settings, "idle_alert_cash_pct", 60.0)
+    last_buy = db.execute(
+        select(Trade).where(Trade.side == "BUY").order_by(Trade.timestamp.desc()).limit(1)
+    ).scalar_one_or_none()
+    now = datetime.now(UTC)
+    idle_days = 999
+    if last_buy is not None and last_buy.timestamp is not None:
+        ts = last_buy.timestamp if last_buy.timestamp.tzinfo else last_buy.timestamp.replace(tzinfo=UTC)
+        idle_days = (now - ts).days
+    snap = _latest_snapshot(db, "alpaca")
+    cash_pct = None
+    if snap is not None and (snap.total_value_usdt or 0) > 0:
+        cash_pct = round(snap.usdt_balance / snap.total_value_usdt * 100)
+    if idle_days >= days_thresh or (cash_pct is not None and cash_pct >= cash_thresh):
+        parts = []
+        if idle_days >= days_thresh:
+            parts.append(f"brak nowych wejść od {idle_days} dni")
+        if cash_pct is not None and cash_pct >= cash_thresh:
+            parts.append(f"gotówka {cash_pct}% konta")
+        body = " · ".join(parts) + ". Bot wybrzydza albo trzyma go próg/reżim — sprawdź „czemu nie wchodzi”."
+        send_alarm(db, settings, title="GielDarek: cicho na koncie", body=body, tag="idle")
+        return True
+    return False
+
+
+def check_shadow_underperformance(db: Session, settings: Settings) -> bool:
+    """P8: co jakiś czas porównaj Claude vs sama mechanika (shadow-analiza). Gdy
+    Claude wyraźnie przegrywa na dostatecznej próbce — alarm, bo to sygnał, że
+    warto oprzeć wejścia na mechanice. Best-effort."""
+    if not push_configured(settings):
+        return False
+    from app.services import shadow_analysis
+
+    try:
+        edge = shadow_analysis.compute_claude_edge(db, settings)
+    except Exception:  # pragma: no cover - analiza nie może wywalić alertu
+        return False
+    mech = edge.get("mechanical_only", {}) or {}
+    claude = edge.get("with_claude", {}) or {}
+    if (claude.get("closed_trades", 0) or 0) < 20 or (mech.get("closed_trades", 0) or 0) < 20:
+        return False
+    mw = mech.get("win_rate_pct") or 0
+    cw = claude.get("win_rate_pct") or 0
+    if mw - cw >= 15:
+        body = (
+            f"Sama mechanika trafia {mw:.0f}% vs Claude {cw:.0f}% — AI przegrywa z mechaniką "
+            f"na tej próbce. Rozważ oparcie wejść na sygnale mechanicznym."
+        )
+        send_alarm(db, settings, title="GielDarek: AI vs mechanika", body=body, tag="shadow")
+        return True
+    return False
