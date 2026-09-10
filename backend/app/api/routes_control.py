@@ -64,6 +64,20 @@ def set_budget(amount: float, db: Session = Depends(get_db), settings: Settings 
     return {"claude_budget": budget_tracker.get_budget_status(db, settings)}
 
 
+@router.post("/record-deposit")
+def record_deposit(amount: float, db: Session = Depends(get_db), settings: Settings = Depends(get_settings), request: Request = None):
+    """Zapisz zewnętrzną wpłatę/wypłatę (top-up konta). Wpłata NIE jest zyskiem —
+    re-kotwiczy benchmark SPY, szczyt obsunięcia i okna dnia/tygodnia, żeby nie
+    udawała ani zysku, ani przewagi nad indeksem (to naprawia zawyżoną alfę).
+    Kwota ujemna = wypłata."""
+    if amount == 0:
+        raise HTTPException(status_code=400, detail="Kwota wpłaty nie może być zerem.")
+    res = risk_manager.record_deposit(db, settings, float(amount))
+    audit.record(db, "record-deposit", detail=f"amount={float(amount):.2f}", request=request)
+    znak = "wpłatę" if amount > 0 else "wypłatę"
+    return {"message": f"Zapisano {znak} ${abs(amount):.2f}.", **res}
+
+
 @router.post("/reset-budget-meter")
 def reset_budget_meter(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     """Zeruje licznik wydatku/tokenów tego miesiąca -> 'zostało' wraca do pełnego

@@ -78,6 +78,7 @@ def init_db() -> None:
     _add_column_if_missing("system_state", "benchmark_start_date", "VARCHAR(10)", "''")
     _add_column_if_missing("system_state", "benchmark_start_price", "FLOAT", "0.0")
     _add_column_if_missing("system_state", "benchmark_start_value", "FLOAT", "0.0")
+    _add_column_if_missing("system_state", "deposits_usd_lifetime", "FLOAT", "0.0")
     _add_column_if_missing("system_state", "lessons_json", "TEXT", "'[]'")
     _add_column_if_missing("system_state", "last_self_review_date", "VARCHAR(10)", "''")
     _add_column_if_missing("system_state", "last_analysis_at", "VARCHAR(32)", "''")

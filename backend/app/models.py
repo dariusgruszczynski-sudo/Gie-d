@@ -217,6 +217,10 @@ class SystemState(Base):
     benchmark_start_date: Mapped[str] = mapped_column(String(10), default="")
     benchmark_start_price: Mapped[float] = mapped_column(Float, default=0.0)
     benchmark_start_value: Mapped[float] = mapped_column(Float, default=0.0)
+    # Suma zewnętrznych WPŁAT (i wypłat, ujemnie) w całym życiu konta. Wpłata to
+    # NIE zysk — record_deposit() dolicza ją tu i re-kotwiczy benchmark/peak/okna
+    # dnia+tygodnia, żeby wpłata nie udawała ani zysku, ani przewagi nad SPY.
+    deposits_usd_lifetime: Mapped[float] = mapped_column(Float, default=0.0)
     # Weekly self-review: a rolling JSON list of {date, lesson} entries Claude
     # distilled from its own recent trades. Fed back into every decision's
     # context -- durable memory that outlives the 15-trade recent window.

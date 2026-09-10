@@ -63,6 +63,55 @@ def _log_event(db: Session, event_type: str, details: str) -> None:
     db.commit()
 
 
+def record_deposit(db: Session, settings: Settings, amount_usd: float) -> dict:
+    """Zapisz zewnętrzną WPŁATĘ (top-up) tak, by NIGDY nie czytała się jako zysk
+    handlu ani jako przewaga nad SPY. Wpłata podnosi wartość konta, ale nie jest
+    P&L, więc:
+      * doliczamy ją do sumy wpłat (deposits_usd_lifetime),
+      * przesuwamy okna dnia/tygodnia i szczyt obsunięcia o kwotę wpłaty
+        (żeby „zysk dziś/tydzień" i drawdown jej nie policzyły),
+      * dajemy tę samą gotówkę benchmarkowi SPY (jakby wpłacona w SPY dziś),
+        żeby alfa nie skoczyła sztucznie — porównanie zostaje ciągłe.
+    Kwota ujemna = wypłata (działa symetrycznie). Zwraca sumę wpłat."""
+    import json
+
+    from app.models import PortfolioSnapshot
+
+    if amount_usd == 0:
+        raise ValueError("Kwota wpłaty nie może być zerem.")
+    state = get_state(db)
+    state.deposits_usd_lifetime = (state.deposits_usd_lifetime or 0.0) + amount_usd
+    # Wpłata to nie wynik handlu — przesuń baseline'y dnia/tygodnia i szczyt.
+    if (state.day_start_value or 0) > 0:
+        state.day_start_value += amount_usd
+    if (state.week_start_value or 0) > 0:
+        state.week_start_value += amount_usd
+    if (state.peak_account_value or 0) > 0:
+        state.peak_account_value = max(0.0, state.peak_account_value + amount_usd)
+    # Benchmark SPY dostaje tę samą wpłatę po dzisiejszej cenie -> alfa się nie
+    # zmienia w momencie wpłaty (rośnie dalej tylko z rynku).
+    if (state.benchmark_start_price or 0) > 0 and (state.benchmark_start_value or 0) > 0:
+        snap = (
+            db.query(PortfolioSnapshot)
+            .filter(PortfolioSnapshot.venue == "alpaca")
+            .order_by(PortfolioSnapshot.timestamp.desc())
+            .first()
+        )
+        spy_now = None
+        if snap is not None:
+            try:
+                spy_now = json.loads(snap.prices_json or "{}").get(settings.benchmark_symbol)
+            except (TypeError, ValueError):
+                spy_now = None
+        if spy_now and spy_now > 0:
+            state.benchmark_start_value = max(
+                0.0, state.benchmark_start_value + amount_usd * state.benchmark_start_price / spy_now
+            )
+    _log_event(db, "deposit", f"amount={amount_usd:.2f} lifetime={state.deposits_usd_lifetime:.2f}")
+    db.commit()
+    return {"deposits_usd_lifetime": round(state.deposits_usd_lifetime, 2)}
+
+
 def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: float) -> SystemState:
     """Call this every time we compute a fresh portfolio value. Rolls the
     day/week windows forward and trips the halt if a loss limit is breached."""

@@ -215,6 +215,9 @@ def _net_result_view(db: Session, settings: Settings) -> dict:
         "net_result_usd": round(realized - lifetime_spend, 2),
         "claude_cost_lifetime_usd": round(lifetime_spend, 2),
         "cost_vs_account_pct": cost_vs_account_pct,
+        # Suma wpłat (U7): pozwala UI oddzielić WPŁATY od zysku bota na krzywej
+        # konta — wzrost konta to głównie dopłaty, nie wynik handlu.
+        "deposits_usd_lifetime": round(risk_manager.get_state(db).deposits_usd_lifetime or 0.0, 2),
         **budget,
     }
 
