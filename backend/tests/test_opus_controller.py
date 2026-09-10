@@ -67,3 +67,17 @@ def test_seed_from_env_respects_manual_override(db_session, settings):
     db_session.commit()
     oc.seed_enabled_from_env(db_session, env_on)
     assert risk_manager.get_state(db_session).opus_controller_enabled is False
+
+
+def test_apply_overrides_enforces_cross_knob_coherence(db_session, settings):
+    # Opus ustawia sprzeczną parę: stop_min > stop_max, cap < próg, conv < risk
+    oc.set_overrides(db_session, {
+        "stop_loss_min_pct": 8.0, "stop_loss_max_pct": 3.0,
+        "min_buy_confidence": 0.80, "progressive_confidence_cap": 0.60,
+        "risk_per_trade_pct": 6.0, "conviction_max_risk_per_trade_pct": 1.0,
+    })
+    eff = oc.apply_knob_overrides(db_session, settings)
+    # „górna" wartość podniesiona do „dolnej" — niezmienniki trzymają
+    assert eff.stop_loss_max_pct >= eff.stop_loss_min_pct == 8.0
+    assert eff.progressive_confidence_cap >= eff.min_buy_confidence == 0.80
+    assert eff.conviction_max_risk_per_trade_pct >= eff.risk_per_trade_pct == 6.0

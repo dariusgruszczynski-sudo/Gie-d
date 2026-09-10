@@ -84,8 +84,6 @@ def opus_controller_toggle(enabled: bool, db: Session = Depends(get_db), request
     """Wyłącznik Opus-kontrolera (P1). enabled=true → Opus codziennie ustawia
     knoby; false → zamrożone (Twój kill-switch, nie ogranicza jego decyzji, tylko
     zatrzymuje). Nie rusza już ustawionych override'ów (te zdejmuje osobny reset)."""
-    from app.services import opus_controller  # noqa: F401 (spójność importu)
-
     state = risk_manager.get_state(db)
     state.opus_controller_enabled = bool(enabled)
     state.opus_controller_user_set = True  # ręczny wybór wygrywa nad env-seedem na stałe
@@ -102,8 +100,11 @@ def opus_run_now(db: Session = Depends(get_db), settings: Settings = Depends(get
     from app.services import opus_controller
 
     state = risk_manager.get_state(db)
-    state.opus_controller_last_run = ""  # zdejmij throttle na ten przebieg
-    db.commit()
+    # Zdejmij dzienny throttle TYLKO gdy kontroler jest włączony — inaczej
+    # niepotrzebnie skasowalibyśmy stempel dnia (pozwalając na ponowny przebieg).
+    if state.opus_controller_enabled:
+        state.opus_controller_last_run = ""
+        db.commit()
     res = opus_controller.run_opus_controller(db, settings)
     audit.record(db, "opus-run-now", detail=json.dumps(res)[:200], request=request)
     return res

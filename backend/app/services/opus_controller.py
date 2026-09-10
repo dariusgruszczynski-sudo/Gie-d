@@ -73,10 +73,25 @@ def get_overrides(db: Session) -> dict:
         return {}
 
 
+def _enforce_coherence(s: Settings) -> Settings:
+    """Wymuś spójność MIĘDZY knobami (klamry są per-knob, więc Opus mógłby ustawić
+    sprzeczną parę, np. stop_min > stop_max → silnik przypina stop do stop_min).
+    Podnosimy „górną" wartość do „dolnej", żeby niezmiennik min<=max trzymał."""
+    fix: dict = {}
+    if s.stop_loss_max_pct < s.stop_loss_min_pct:
+        fix["stop_loss_max_pct"] = s.stop_loss_min_pct
+    if s.progressive_confidence_cap < s.min_buy_confidence:
+        fix["progressive_confidence_cap"] = s.min_buy_confidence
+    if s.conviction_max_risk_per_trade_pct < s.risk_per_trade_pct:
+        fix["conviction_max_risk_per_trade_pct"] = s.risk_per_trade_pct
+    return s.model_copy(update=fix) if fix else s
+
+
 def apply_knob_overrides(db: Session, settings: Settings) -> Settings:
     """Nałóż knoby ustawione przez Opusa na effective settings. Wywoływane na
     starcie KAŻDEGO cyklu handlu. Odporne: zły JSON / nieznany knob / zły typ są
-    pomijane, a wartości klamrowane — nigdy nie ustawi absurdu."""
+    pomijane, wartości klamrowane, a para knobów doprowadzona do spójności —
+    nigdy nie ustawi absurdu ani sprzecznej konfiguracji ryzyka."""
     overrides = get_overrides(db)
     if not overrides:
         return settings
@@ -85,7 +100,9 @@ def apply_knob_overrides(db: Session, settings: Settings) -> Settings:
         val = _clamp(name, raw)
         if val is not None and hasattr(settings, name):
             update[name] = val
-    return settings.model_copy(update=update) if update else settings
+    if not update:
+        return settings
+    return _enforce_coherence(settings.model_copy(update=update))
 
 
 def set_overrides(db: Session, changes: dict, source: str = "opus") -> dict:
@@ -153,24 +170,13 @@ def _default_generate(settings: Settings, prompt: str) -> str:
     wstrzykiwalne w testach, więc tu żywy klient."""
     import anthropic
 
-    from app.services import budget_tracker
-
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     resp = client.messages.create(
         model=settings.claude_model,
         max_tokens=1200,
         messages=[{"role": "user", "content": prompt}],
     )
-    text = "".join(getattr(b, "text", "") for b in resp.content)
-    try:
-        in_tok = resp.usage.input_tokens
-        out_tok = resp.usage.output_tokens
-        budget_tracker.record_usage(
-            None, settings, settings.claude_model, in_tok, out_tok
-        ) if hasattr(budget_tracker, "record_usage") else None
-    except Exception:  # pragma: no cover - księgowanie kosztu jest opcjonalne
-        pass
-    return text
+    return "".join(getattr(b, "text", "") for b in resp.content)
 
 
 def _build_prompt(db: Session, settings: Settings) -> str:
