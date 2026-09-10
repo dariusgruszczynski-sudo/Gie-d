@@ -71,6 +71,23 @@ export function Journal({ decisions, status }: { decisions: Decision[]; status: 
     .filter((d) => venue === "all" || (d.venue ?? "alpaca") === venue)
     .slice(0, 80);
 
+  // U5: pokaż WPROST, dlaczego bot (nie) wchodzi dziś — samoblokada progu bywa
+  // niewidoczna. Liczymy dzisiejsze wejścia vs pominięcia + najczęstszy powód.
+  const todayStr = new Date().toDateString();
+  const todays = decisions.filter(
+    (d) => new Date(d.timestamp).toDateString() === todayStr && (venue === "all" || (d.venue ?? "alpaca") === venue),
+  );
+  const enteredToday = todays.filter((d) => d.executed && d.action === "BUY").length;
+  const skippedToday = todays.filter((d) => !!d.rejection_reason).length;
+  const topSkipReason = (() => {
+    const c: Record<string, number> = {};
+    for (const d of todays) if (d.rejection_reason) c[d.rejection_reason] = (c[d.rejection_reason] ?? 0) + 1;
+    const top = Object.entries(c).sort((a, b) => b[1] - a[1])[0];
+    if (!top) return null;
+    const r = top[0];
+    return r.length > 90 ? r.slice(0, 88) + "…" : r;
+  })();
+
   return (
     <div className="gd-view">
       <div className="gd-topline">
@@ -111,6 +128,18 @@ export function Journal({ decisions, status }: { decisions: Decision[]; status: 
           })}
         </div>
       )}
+
+      <div className="gd-why">
+        <span className="gd-why-head">Dziś:&nbsp;
+          <b className={enteredToday > 0 ? "gd-up" : ""}>{enteredToday}</b> wejść ·&nbsp;
+          <b>{skippedToday}</b> pominięć
+        </span>
+        {topSkipReason
+          ? <span className="gd-why-reason">najczęstszy powód: {topSkipReason}</span>
+          : todays.length === 0
+            ? <span className="gd-why-reason">brak decyzji dziś (rynek zamknięty albo przed cyklem)</span>
+            : <span className="gd-why-reason">brak blokad — wejścia przechodzą</span>}
+      </div>
 
       <div className="gd-newsgrp-h">Dziennik decyzji</div>
       {feed.length === 0 ? (

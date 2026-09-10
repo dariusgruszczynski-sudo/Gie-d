@@ -1221,3 +1221,14 @@
   background: color-mix(in srgb, var(--amber, #f59e0b) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--amber, #f59e0b) 40%, transparent); }
 .gd-costwarn b { font-weight: 700; }
+
+/* U5 — „dlaczego (nie) wchodzi dziś": widoczne podsumowanie samoblokady. */
+.gd-why {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px;
+  margin: 2px 0 14px; padding: 10px 14px;
+  border: 1px solid var(--line); border-left: 3px solid var(--iris);
+  border-radius: 12px; background: color-mix(in srgb, var(--iris) 6%, transparent);
+}
+.gd-why-head { font-size: 0.9rem; color: var(--txt); font-weight: 600; }
+.gd-why-head b { font-variant-numeric: tabular-nums; }
+.gd-why-reason { font-size: 0.8rem; color: var(--dim); }
