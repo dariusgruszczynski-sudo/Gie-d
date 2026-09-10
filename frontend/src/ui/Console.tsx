@@ -492,10 +492,12 @@ const FREE_METRICS: Array<{ key: string; label: string; sub: string; get: (s: St
   { key: "unrealized", label: "Na otwartych", sub: "jeszcze trzymane", get: (s) => ({ text: money(s.trading_pnl.unrealized_usd), tone: s.trading_pnl.unrealized_usd >= 0 ? "up" : "down" }) },
   // #7: automat vs zwykłe trzymanie SPY — czy w ogóle warto zamiast DCA w indeks.
   { key: "alpha", label: "vs SPY", sub: "bijemy zwykłe DCA?", get: (s) => ({ text: s.alpha_vs_spy ? `${s.alpha_vs_spy.alpha_usd >= 0 ? "+" : ""}${money(s.alpha_vs_spy.alpha_usd)}` : "—", tone: (s.alpha_vs_spy?.alpha_usd ?? 0) >= 0 ? "up" : "down" }) },
-  { key: "net", label: "Wynik netto", sub: "po koszcie Claude", get: (s) => ({ text: money(s.net_result_usd), tone: s.net_result_usd >= 0 ? "up" : "down" }) },
-  // A: koszt AI jako % konta — na małym koncie to główny próg rentowności.
-  { key: "cost", label: "Koszt AI", sub: "od początku · % konta", get: (s) => ({ text: `${money(s.claude_cost_lifetime_usd ?? 0)}${s.cost_vs_account_pct != null ? ` · ${s.cost_vs_account_pct}%` : ""}`, tone: (s.cost_vs_account_pct ?? 0) >= 5 ? "down" : "neu" }) },
-  { key: "cash", label: "Wolna gotówka", sub: "czeka na wejścia", get: (s) => ({ text: money0(s.account?.cash ?? 0), tone: "neu" }) },
+  // Wynik SAMEGO bota (zrealizowany + otwarte), odporny na wpłaty. NIE odejmujemy
+  // kosztu tokenów AI — to budżet dzielony na wiele zastosowań, nie wydatek handlu.
+  { key: "net", label: "Wynik bota", sub: "zrealizowany + otwarte", get: (s) => ({ text: money(s.trading_pnl.total_usd), tone: s.trading_pnl.total_usd >= 0 ? "up" : "down" }) },
+  // U7: WPŁATY osobno od zysku — wzrost konta to głównie dopłaty, nie wynik bota.
+  { key: "deposits", label: "Wpłacone", sub: "łącznie Twoje dopłaty", get: (s) => ({ text: money0(s.deposits_usd_lifetime ?? 0), tone: "neu" }) },
+  { key: "cash", label: "Wolna gotówka", sub: "czeka na wejścia", get: (s) => ({ text: `${money0(s.account?.cash ?? 0)}${s.account && s.account.total_value > 0 ? ` · ${Math.round((s.account.cash / s.account.total_value) * 100)}%` : ""}`, tone: "neu" }) },
 ];
 
 interface PulpitLayout {
@@ -647,14 +649,6 @@ export function Console({ status, alpaca, extended, simple = false, onGoPosition
                 <span>Dziś: <b className={(status.day_pnl_pct ?? 0) >= 0 ? "gd-up" : "gd-down"}>{status.day_pnl_pct == null ? "—" : pct(status.day_pnl_pct)}</b> wycena (papierowa)</span>
                 <span>·</span>
                 <span>wzięte dziś <b className={(status.day_realized_usd ?? 0) >= 0 ? "gd-up" : "gd-down"}>{`${(status.day_realized_usd ?? 0) >= 0 ? "+" : ""}${money(status.day_realized_usd ?? 0)}`}</b> (zaksięgowane)</span>
-              </div>
-            )}
-            {/* A: koszt AI vs konto — na małym koncie to główny próg rentowności.
-                Ostrzeżenie, gdy koszt zjada >=5% konta: „laboratorium vs zarabianie". */}
-            {!simple && status.cost_vs_account_pct != null && status.cost_vs_account_pct >= 5 && (
-              <div className="gd-costwarn">
-                ⚠️ Koszt AI ({money(status.claude_cost_lifetime_usd ?? 0)}) to już <b>{status.cost_vs_account_pct}% konta</b>.
-                Na tak małym kapitale koszt stały jest głównym progiem zysku — dołóż kapitału albo traktuj to jako laboratorium.
               </div>
             )}
           </div>
