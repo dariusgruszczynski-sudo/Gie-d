@@ -6,26 +6,27 @@
    ============================================================================= */
 
 .gd {
-  /* v8 "Iris Terminal" — deeper indigo ink, an electric mint for gains, a violet
-     IRIS accent that carries the new progressive-strategy widgets, and a gold
-     that flags positions ripe for profit-taking. Rose for losses. */
-  --mint: #24e6a6;
-  --mint-soft: #6ff2c9;
-  --amber: #ffb84d;
-  --gold: #ffd36b;
-  --iris: #8a7dff;
-  --iris-soft: #b3aaff;
-  --rose: #ff5c7a;
-  --rose-soft: #ff90a6;
-  --ink: #05070f;
-  --ink-2: #0a0e1c;
-  --panel: rgba(255, 255, 255, 0.028);
-  --panel-2: rgba(255, 255, 255, 0.05);
-  --line: rgba(255, 255, 255, 0.08);
-  --line-strong: rgba(255, 255, 255, 0.16);
-  --txt: #eef3fa;
-  --dim: #8593ab;
-  --dim-2: #55627a;
+  /* v9 "Kuta miedź" — warm near-black ink, polished COPPER as the accent that
+     carries the progressive-strategy widgets, verdigris (patyna) for gains,
+     antique brass for the POZA SESJĄ leg / ripe-to-take flags, silver text,
+     warm rose for losses. Metal on black. */
+  --mint: #4fb79a;          /* gains — verdigris */
+  --mint-soft: #7fd0ba;
+  --amber: #c9a24a;         /* brass */
+  --gold: #e2bf6a;          /* bright brass — ripe-to-take */
+  --iris: #cf8a4d;          /* copper accent (progressive widgets) */
+  --iris-soft: #e6a970;
+  --rose: #e35d6b;          /* losses */
+  --rose-soft: #ef8b95;
+  --ink: #0a0806;
+  --ink-2: #0f0c09;
+  --panel: rgba(233, 224, 214, 0.03);
+  --panel-2: rgba(233, 224, 214, 0.055);
+  --line: rgba(199, 204, 210, 0.10);
+  --line-strong: rgba(199, 204, 210, 0.18);
+  --txt: #e9e6e1;           /* silver */
+  --dim: #a39a8d;           /* warm silver-grey */
+  --dim-2: #6b6459;
   --rail-w: 240px;
   --rail-w-sm: 68px;
   color: var(--txt);
@@ -39,7 +40,7 @@
   inset: 0;
   z-index: -1;
   overflow: hidden;
-  background: radial-gradient(120% 90% at 80% -10%, #0b1120 0%, var(--ink) 55%);
+  background: radial-gradient(120% 90% at 80% -10%, #1a130c 0%, var(--ink) 55%);
 }
 .gd-bg span {
   position: absolute;
@@ -49,8 +50,8 @@
   mix-blend-mode: screen;
   will-change: transform;
 }
-.gd-bg span:nth-child(1) { width: 44vmax; height: 44vmax; left: -10vmax; top: -12vmax; background: radial-gradient(circle, rgba(25, 227, 154, 0.55), transparent 60%); animation: gd-fl1 28s ease-in-out infinite; }
-.gd-bg span:nth-child(2) { width: 38vmax; height: 38vmax; right: -8vmax; bottom: -12vmax; background: radial-gradient(circle, rgba(255, 174, 52, 0.4), transparent 62%); animation: gd-fl2 34s ease-in-out infinite; }
+.gd-bg span:nth-child(1) { width: 44vmax; height: 44vmax; left: -10vmax; top: -12vmax; background: radial-gradient(circle, rgba(207, 138, 77, 0.55), transparent 60%); animation: gd-fl1 28s ease-in-out infinite; }
+.gd-bg span:nth-child(2) { width: 38vmax; height: 38vmax; right: -8vmax; bottom: -12vmax; background: radial-gradient(circle, rgba(201, 162, 74, 0.4), transparent 62%); animation: gd-fl2 34s ease-in-out infinite; }
 .gd-bg span:nth-child(3) { width: 34vmax; height: 34vmax; right: 20%; top: 30%; background: radial-gradient(circle, rgba(60, 120, 255, 0.3), transparent 64%); animation: gd-fl3 40s ease-in-out infinite; }
 @keyframes gd-fl1 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(20vw,16vh) scale(1.15)} }
 @keyframes gd-fl2 { 0%,100%{transform:translate(0,0) scale(1.05)} 50%{transform:translate(-18vw,-12vh) scale(0.9)} }
@@ -1039,7 +1040,7 @@
 .gd-info-q { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--line-strong); background: rgba(255,255,255,0.06); color: var(--dim); font-size: 0.66rem; font-weight: 800; line-height: 1; cursor: pointer; padding: 0; }
 .gd-info-q:hover { color: var(--brand); border-color: var(--brand); }
 .gd-info-pop { position: absolute; z-index: 60; top: 22px; left: 50%; transform: translateX(-50%); width: min(78vw, 280px);
-  background: #0d1424; border: 1px solid var(--line-strong); border-radius: 12px; padding: 11px 13px; box-shadow: 0 12px 34px rgba(0,0,0,0.55);
+  background: #17120d; border: 1px solid var(--line-strong); border-radius: 12px; padding: 11px 13px; box-shadow: 0 12px 34px rgba(0,0,0,0.55);
   display: flex; flex-direction: column; gap: 6px; text-transform: none; letter-spacing: normal; }
 .gd-info-pop b { color: var(--brand-soft); font-size: 0.82rem; }
 .gd-info-pop span { color: var(--txt); font-size: 0.78rem; line-height: 1.45; font-weight: 400; }
@@ -1047,7 +1048,7 @@
 
 /* Modal Pomoc */
 .gd-modal-bg { position: fixed; inset: 0; z-index: 200; background: rgba(3,6,14,0.72); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 18px; }
-.gd-modal { width: min(560px, 96vw); max-height: 84vh; display: flex; flex-direction: column; background: #0b1220; border: 1px solid var(--line-strong); border-radius: 18px; overflow: hidden; }
+.gd-modal { width: min(560px, 96vw); max-height: 84vh; display: flex; flex-direction: column; background: #14100b; border: 1px solid var(--line-strong); border-radius: 18px; overflow: hidden; }
 .gd-modal-top { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); }
 .gd-modal-top b { font-family: var(--font-display); font-size: 1.05rem; }
 .gd-modal-x { border: none; background: none; color: var(--dim); font-size: 1.1rem; cursor: pointer; }
@@ -1062,7 +1063,7 @@
 .gd-legend-sym { min-width: 34px; text-align: center; font-weight: 800; font-size: 0.95rem; }
 
 /* Onboarding */
-.gd-onboard { width: min(420px, 94vw); background: #0b1220; border: 1px solid var(--line-strong); border-radius: 20px; padding: 26px 22px 20px; text-align: center;
+.gd-onboard { width: min(420px, 94vw); background: #14100b; border: 1px solid var(--line-strong); border-radius: 20px; padding: 26px 22px 20px; text-align: center;
   animation: gd-in 0.4s cubic-bezier(0.22,1,0.36,1) both; }
 .gd-onboard-emoji { font-size: 2.6rem; }
 .gd-onboard-title { display: block; font-family: var(--font-display); font-size: 1.3rem; margin: 12px 0 8px; }

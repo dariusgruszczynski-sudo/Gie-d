@@ -1,28 +1,30 @@
 :root {
   color-scheme: dark;
-  /* v7 — "Terminal Aurora": a from-scratch identity. Deep midnight ink, a live
-     mint-emerald brand that also marks the SESJA leg, amber for the POZA SESJĄ
-     leg, and rose for losses. Money that feels alive on black. */
-  --bg: #05080f;
-  --bg-2: #090e18;
-  --panel: #0d1421;
-  --panel-2: #121c2c;
-  --border: #1e2a3c;
-  --text: #e9eff7;
-  --muted: #8593ab;
-  --accent: #19e39a;        /* mint-emerald — brand + SESJA leg */
-  --accent-2: #5ff0c0;
-  --accent-dark: #10b57c;
-  /* Second-leg / warning family (POZA SESJĄ). */
-  --gold: #ffae34;
-  --gold-bright: #ffc65c;
-  --amber: #ffae34;
-  --green: #19e39a;         /* gains (== brand mint) */
-  --red: #ff5470;           /* losses (rose) */
-  --ink: #05080f;
+  /* v8 — "Kuta miedź": copper + black + silver. Warm near-black ink, polished
+     copper as the brand/accent, silver text, brass for the POZA SESJĄ leg,
+     verdigris (copper patina) for gains and a warm rose for losses. Metal on
+     black — semantyka (zysk/strata) oddzielona od akcentu (miedź). */
+  --bg: #0a0806;            /* warm near-black */
+  --bg-2: #0f0c09;
+  --panel: #17120d;         /* warm charcoal, faint copper tint */
+  --panel-2: #1f1810;
+  --border: #33271b;        /* copper-brown hairline */
+  --text: #e9e6e1;          /* silver */
+  --muted: #a39a8d;         /* warm silver-grey */
+  --accent: #cf8a4d;        /* polished copper — brand + SESJA leg */
+  --accent-2: #e6a970;      /* bright/rose-gold copper */
+  --accent-dark: #9c5a28;   /* deep copper */
+  --silver: #c7ccd2;        /* metallic silver for chrome/labels */
+  /* Second-leg / warning family (POZA SESJĄ) — antique brass, distinct from copper. */
+  --gold: #c9a24a;
+  --gold-bright: #e2bf6a;
+  --amber: #c9a24a;
+  --green: #4fb79a;         /* gains — verdigris (patyna miedzi) */
+  --red: #e35d6b;           /* losses — warm rose */
+  --ink: #0a0806;           /* dark text on copper/brass fills */
   /* Semantic venue colors (the two lanes). */
-  --venue-us: #19e39a;
-  --venue-extended: #ffae34;
+  --venue-us: #cf8a4d;      /* SESJA — copper */
+  --venue-extended: #c9a24a;/* POZA SESJĄ — brass */
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
@@ -39,7 +41,7 @@ body {
   min-height: 100vh;
   /* Solid dark base only -- the living AuroraBackground (fixed, behind .app)
      provides the actual motion backdrop, and glass panels sit over it. */
-  background: #08070f;
+  background: #0a0806;
   overflow-x: hidden;
 }
 
@@ -109,7 +111,7 @@ body {
   gap: 16px;
   padding: 9px 20px;
   flex-shrink: 0;
-  background: rgba(25, 227, 154, 0.06);
+  background: rgba(207, 138, 77, 0.06);
   border-right: 1px solid var(--border);
 }
 
@@ -163,7 +165,7 @@ body {
   padding: 9px 26px;
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
-  border-right: 1px solid rgba(25, 227, 154, 0.15);
+  border-right: 1px solid rgba(207, 138, 77, 0.15);
   white-space: nowrap;
 }
 
@@ -251,7 +253,7 @@ body {
 
 .logo-mark {
   flex-shrink: 0;
-  filter: drop-shadow(0 8px 20px rgba(25, 227, 154, 0.45));
+  filter: drop-shadow(0 8px 20px rgba(207, 138, 77, 0.45));
 }
 
 h1 {
@@ -293,7 +295,7 @@ h1 {
 
 .banner.paused {
   border-color: var(--amber);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(25, 227, 154, 0.15);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(207, 138, 77, 0.15);
 }
 
 .stat-tiles {
@@ -309,8 +311,8 @@ h1 {
   min-width: 120px;
   padding: 10px 16px;
   border-radius: 10px;
-  background: rgba(25, 227, 154, 0.04);
-  border: 1px solid rgba(25, 227, 154, 0.08);
+  background: rgba(207, 138, 77, 0.04);
+  border: 1px solid rgba(207, 138, 77, 0.08);
 }
 
 .stat-tile-budget {
@@ -414,7 +416,7 @@ h1 {
 }
 
 .banner-callout.amber {
-  background: rgba(25, 227, 154, 0.1);
+  background: rgba(207, 138, 77, 0.1);
   color: var(--amber);
 }
 
@@ -499,8 +501,8 @@ h1 {
 }
 
 .panel:hover {
-  border-color: rgba(25, 227, 154, 0.4);
-  box-shadow: 0 26px 56px -26px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(25, 227, 154, 0.18);
+  border-color: rgba(207, 138, 77, 0.4);
+  box-shadow: 0 26px 56px -26px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(207, 138, 77, 0.18);
 }
 
 .panel h2 {
@@ -834,7 +836,7 @@ tbody tr {
 }
 
 tbody tr:hover {
-  background: rgba(25, 227, 154, 0.05);
+  background: rgba(207, 138, 77, 0.05);
 }
 
 .table-wrap {
@@ -1006,7 +1008,7 @@ button {
 .btn-primary {
   background: linear-gradient(135deg, var(--accent-2), var(--accent) 55%, var(--accent-dark));
   color: #ffffff;
-  box-shadow: 0 8px 22px -8px rgba(25, 227, 154, 0.7);
+  box-shadow: 0 8px 22px -8px rgba(207, 138, 77, 0.7);
 }
 
 .btn-primary:hover:not(:disabled),
@@ -1035,8 +1037,8 @@ button {
 
 .btn-secondary:hover:not(:disabled) {
   color: var(--text);
-  border-color: rgba(25, 227, 154, 0.5);
-  background: rgba(25, 227, 154, 0.1);
+  border-color: rgba(207, 138, 77, 0.5);
+  background: rgba(207, 138, 77, 0.1);
 }
 
 .btn-secondary:disabled {
@@ -1166,7 +1168,7 @@ button {
 }
 
 .splash-hold::before {
-  background: radial-gradient(ellipse at center, rgba(25, 227, 154, 0.26), rgba(4, 4, 4, 0.95) 70%);
+  background: radial-gradient(ellipse at center, rgba(207, 138, 77, 0.26), rgba(4, 4, 4, 0.95) 70%);
 }
 
 .decision-splash-inner {
@@ -1195,7 +1197,7 @@ button {
 
 .splash-hold h2 {
   color: var(--gold-bright);
-  text-shadow: 0 0 32px rgba(25, 227, 154, 0.55);
+  text-shadow: 0 0 32px rgba(207, 138, 77, 0.55);
 }
 
 .decision-splash-symbol {
@@ -1258,8 +1260,8 @@ button {
   align-items: center;
   justify-content: center;
   background:
-    radial-gradient(ellipse 1100px 550px at 12% -8%, rgba(25, 227, 154, 0.1), transparent 60%),
-    radial-gradient(ellipse 900px 500px at 105% 0%, rgba(25, 227, 154, 0.07), transparent 55%),
+    radial-gradient(ellipse 1100px 550px at 12% -8%, rgba(207, 138, 77, 0.1), transparent 60%),
+    radial-gradient(ellipse 900px 500px at 105% 0%, rgba(207, 138, 77, 0.07), transparent 55%),
     var(--bg);
 }
 
@@ -1271,7 +1273,7 @@ button {
   border-radius: 16px;
   background: linear-gradient(165deg, rgba(22, 20, 16, 0.95), rgba(10, 9, 6, 0.98));
   border: 1px solid var(--border);
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(25, 227, 154, 0.08);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(207, 138, 77, 0.08);
   max-width: 340px;
   width: calc(100% - 32px);
 }
@@ -1281,7 +1283,7 @@ button {
   font-size: 1.35rem;
   letter-spacing: 0.06em;
   margin: 12px 0 2px;
-  background: linear-gradient(90deg, #0ea5e9, var(--gold-bright), #0ea5e9);
+  background: linear-gradient(90deg, var(--accent), var(--gold-bright), var(--accent));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -1324,7 +1326,7 @@ button {
   position: fixed;
   inset: 0;
   z-index: 300;
-  background: radial-gradient(ellipse 700px 520px at 50% 42%, rgba(25, 227, 154, 0.14), transparent 65%),
+  background: radial-gradient(ellipse 700px 520px at 50% 42%, rgba(207, 138, 77, 0.14), transparent 65%),
     linear-gradient(180deg, #0b0e18, #070910 70%);
   display: flex;
   flex-direction: column;
@@ -1344,7 +1346,7 @@ button {
   width: 300px;
   height: 300px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(25, 227, 154, 0.28), transparent 62%);
+  background: radial-gradient(circle, rgba(207, 138, 77, 0.28), transparent 62%);
   filter: blur(14px);
   animation: bl-glow 2.2s ease-in-out infinite;
 }
@@ -1355,7 +1357,7 @@ button {
 }
 
 .brand-loader-mark .logo-mark {
-  filter: drop-shadow(0 10px 34px rgba(25, 227, 154, 0.55));
+  filter: drop-shadow(0 10px 34px rgba(207, 138, 77, 0.55));
 }
 
 .brand-loader-word {
@@ -1546,7 +1548,7 @@ button {
   gap: 16px;
   flex-wrap: wrap;
   padding: 8px 16px;
-  background: linear-gradient(180deg, #081019 0%, #0a1220 100%);
+  background: linear-gradient(180deg, #100c08 0%, #0a0806 100%);
   border-bottom: 1px solid var(--border);
 }
 .account-bar-pending {
@@ -1691,8 +1693,8 @@ button {
   box-shadow: 0 0 16px var(--venue-extended);
 }
 .pos-card-extended { box-shadow: inset 22px 0 40px -34px var(--venue-extended); }
-.pos-pnl-pct.up { text-shadow: 0 0 18px rgba(25, 227, 154, 0.5); }
-.pos-pnl-pct.down { text-shadow: 0 0 18px rgba(255, 84, 112, 0.45); }
+.pos-pnl-pct.up { text-shadow: 0 0 18px rgba(207, 138, 77, 0.5); }
+.pos-pnl-pct.down { text-shadow: 0 0 18px rgba(227, 93, 107, 0.45); }
 .pos-card-head {
   display: flex;
   align-items: center;
@@ -2582,7 +2584,7 @@ button {
   display: inline-block;
 }
 .hc-light-green { background: var(--green); box-shadow: 0 0 8px rgba(46, 189, 133, 0.7); }
-.hc-light-amber { background: var(--amber); box-shadow: 0 0 8px rgba(255, 174, 52, 0.7); }
+.hc-light-amber { background: var(--amber); box-shadow: 0 0 8px rgba(201, 162, 74, 0.7); }
 .hc-light-red { background: var(--red); box-shadow: 0 0 9px rgba(240, 97, 109, 0.8); animation: hc-pulse 1.3s ease-in-out infinite; }
 .hc-light-grey { background: var(--muted); opacity: 0.55; }
 
@@ -2640,7 +2642,7 @@ button {
   right: -20%;
   width: 60%;
   height: 220%;
-  background: radial-gradient(closest-side, rgba(25, 227, 154, 0.20), transparent 70%);
+  background: radial-gradient(closest-side, rgba(207, 138, 77, 0.20), transparent 70%);
   filter: blur(8px);
   pointer-events: none;
   animation: hero-glow-drift 9s ease-in-out infinite alternate;
@@ -2684,8 +2686,8 @@ button {
   font-weight: 700;
   font-size: 0.95rem;
 }
-.hero-pnl.up { color: var(--green); background: rgba(25, 227, 154, 0.13); }
-.hero-pnl.down { color: var(--red); background: rgba(255, 84, 112, 0.13); }
+.hero-pnl.up { color: var(--green); background: rgba(207, 138, 77, 0.13); }
+.hero-pnl.down { color: var(--red); background: rgba(227, 93, 107, 0.13); }
 .hero-pnl-arrow { font-size: 0.7rem; }
 .hero-pnl-label { font-size: 0.66rem; color: var(--muted); font-weight: 600; margin-left: 3px; text-transform: uppercase; letter-spacing: 0.04em; }
 .hero-net { font-size: 0.82rem; color: var(--muted); font-weight: 600; }
@@ -2717,11 +2719,11 @@ button {
 }
 .hero-engine-name { font-weight: 700; letter-spacing: 0.03em; }
 .hero-engine-status { color: var(--muted); }
-.hero-engine-live { border-color: rgba(25, 227, 154, 0.4); }
+.hero-engine-live { border-color: rgba(207, 138, 77, 0.4); }
 .hero-engine-live .hero-engine-status { color: var(--green); }
-.hero-engine-paused { border-color: rgba(255, 174, 52, 0.4); }
+.hero-engine-paused { border-color: rgba(201, 162, 74, 0.4); }
 .hero-engine-paused .hero-engine-status { color: var(--amber); }
-.hero-engine-halt { border-color: rgba(255, 84, 112, 0.5); }
+.hero-engine-halt { border-color: rgba(227, 93, 107, 0.5); }
 .hero-engine-halt .hero-engine-status { color: var(--red); font-weight: 700; }
 .hero-engine-off { opacity: 0.6; }
 .hero-halt-reason { font-size: 0.74rem; color: var(--red); }
@@ -2737,10 +2739,10 @@ button {
   padding: 22px 22px 20px;
   margin-bottom: 14px;
   background:
-    radial-gradient(120% 140% at 12% 0%, rgba(25, 227, 154, 0.24), transparent 55%),
+    radial-gradient(120% 140% at 12% 0%, rgba(207, 138, 77, 0.24), transparent 55%),
     linear-gradient(155deg, var(--panel-2), var(--panel) 70%);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 24px 60px -30px rgba(25, 227, 154, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: 0 24px 60px -30px rgba(207, 138, 77, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   animation: nb-rise 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .nb-hero-glow {
@@ -2749,7 +2751,7 @@ button {
   right: -25%;
   width: 70%;
   height: 200%;
-  background: radial-gradient(closest-side, rgba(255, 174, 52, 0.16), transparent);
+  background: radial-gradient(closest-side, rgba(201, 162, 74, 0.16), transparent);
   filter: blur(6px);
   animation: nb-float 9s ease-in-out infinite;
   pointer-events: none;
@@ -2801,8 +2803,8 @@ button {
   font-size: 0.86rem;
   font-variant-numeric: tabular-nums;
 }
-.nb-pill.up { color: var(--green); background: rgba(25, 227, 154, 0.15); }
-.nb-pill.down { color: var(--red); background: rgba(255, 84, 112, 0.15); }
+.nb-pill.up { color: var(--green); background: rgba(207, 138, 77, 0.15); }
+.nb-pill.down { color: var(--red); background: rgba(227, 93, 107, 0.15); }
 .nb-pill-arrow { font-size: 0.62rem; }
 .nb-pill-label { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; margin-left: 2px; }
 .nb-hero-net { margin-top: 10px; font-size: 0.8rem; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -2813,8 +2815,8 @@ button {
   margin-top: 14px;
   padding: 9px 13px;
   border-radius: 14px;
-  background: rgba(255, 84, 112, 0.14);
-  border: 1px solid rgba(255, 84, 112, 0.4);
+  background: rgba(227, 93, 107, 0.14);
+  border: 1px solid rgba(227, 93, 107, 0.4);
   color: var(--red);
   font-weight: 600;
   font-size: 0.82rem;
@@ -2834,11 +2836,11 @@ button {
 }
 .nb-engine:active { transform: scale(0.985); }
 .nb-engine-glow { position: absolute; top: -50%; right: -30%; width: 80%; height: 180%; filter: blur(2px); pointer-events: none; opacity: 0.5; }
-.nb-engine-sesja { box-shadow: 0 18px 40px -26px rgba(25, 227, 154, 0.7); }
-.nb-engine-sesja .nb-engine-glow { background: radial-gradient(closest-side, rgba(25, 227, 154, 0.35), transparent); }
+.nb-engine-sesja { box-shadow: 0 18px 40px -26px rgba(207, 138, 77, 0.7); }
+.nb-engine-sesja .nb-engine-glow { background: radial-gradient(closest-side, rgba(207, 138, 77, 0.35), transparent); }
 .nb-engine-sesja .nb-engine-value { color: var(--accent-2); }
-.nb-engine-poza { box-shadow: 0 18px 40px -26px rgba(255, 174, 52, 0.55); }
-.nb-engine-poza .nb-engine-glow { background: radial-gradient(closest-side, rgba(255, 174, 52, 0.3), transparent); }
+.nb-engine-poza { box-shadow: 0 18px 40px -26px rgba(201, 162, 74, 0.55); }
+.nb-engine-poza .nb-engine-glow { background: radial-gradient(closest-side, rgba(201, 162, 74, 0.3), transparent); }
 .nb-engine-poza .nb-engine-value { color: var(--amber); }
 .nb-engine.is-off { opacity: 0.62; }
 .nb-engine.is-off .nb-engine-glow { opacity: 0.15; }
@@ -2847,18 +2849,18 @@ button {
 .nb-engine-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .nb-engine-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
 .nb-engine-badge.live { color: var(--green); }
-.nb-engine-badge.live .nb-engine-dot { background: var(--green); box-shadow: 0 0 0 0 rgba(25, 227, 154, 0.6); animation: nb-pulse 2s infinite; }
+.nb-engine-badge.live .nb-engine-dot { background: var(--green); box-shadow: 0 0 0 0 rgba(207, 138, 77, 0.6); animation: nb-pulse 2s infinite; }
 @keyframes nb-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(25, 227, 154, 0.5); }
-  70% { box-shadow: 0 0 0 6px rgba(25, 227, 154, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(25, 227, 154, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(207, 138, 77, 0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(207, 138, 77, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(207, 138, 77, 0); }
 }
 .nb-engine-value { position: relative; font-family: var(--font-display); font-weight: 700; font-size: 1.7rem; margin: 10px 0 8px; letter-spacing: -0.01em; }
 .nb-engine-foot { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .nb-engine-sub { font-size: 0.66rem; color: var(--muted); }
 .nb-engine-regime { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 999px; }
-.nb-engine-regime.tone-on { color: var(--green); background: rgba(25, 227, 154, 0.14); }
-.nb-engine-regime.tone-off { color: var(--red); background: rgba(255, 84, 112, 0.14); }
+.nb-engine-regime.tone-on { color: var(--green); background: rgba(207, 138, 77, 0.14); }
+.nb-engine-regime.tone-off { color: var(--red); background: rgba(227, 93, 107, 0.14); }
 .nb-engine-regime.tone-neutral { color: var(--muted); background: rgba(150, 152, 180, 0.14); }
 
 /* --- stat tiles row --- */
@@ -2894,7 +2896,7 @@ button {
   inset: 0;
   z-index: -2;
   overflow: hidden;
-  background: radial-gradient(140% 120% at 50% -10%, #12111d 0%, #0a0a12 46%, #070610 100%);
+  background: radial-gradient(140% 120% at 50% -10%, #1a130c 0%, #0e0a07 46%, #0a0806 100%);
   pointer-events: none;
 }
 .aurora-blob {
@@ -2907,25 +2909,25 @@ button {
 }
 .aurora-1 {
   width: 46vmax; height: 46vmax;
-  background: radial-gradient(circle at 30% 30%, rgba(25, 227, 154, 0.9), transparent 62%);
+  background: radial-gradient(circle at 30% 30%, rgba(207, 138, 77, 0.55), transparent 62%);
   top: -12vmax; left: -8vmax;
   animation: aurora-drift-1 26s ease-in-out infinite;
 }
 .aurora-2 {
   width: 40vmax; height: 40vmax;
-  background: radial-gradient(circle at 50% 50%, rgba(255, 174, 52, 0.6), transparent 62%);
+  background: radial-gradient(circle at 50% 50%, rgba(201, 162, 74, 0.45), transparent 62%);
   bottom: -14vmax; right: -6vmax;
   animation: aurora-drift-2 32s ease-in-out infinite;
 }
 .aurora-3 {
   width: 38vmax; height: 38vmax;
-  background: radial-gradient(circle at 50% 50%, rgba(25, 227, 154, 0.42), transparent 64%);
+  background: radial-gradient(circle at 50% 50%, rgba(156, 90, 40, 0.42), transparent 64%);
   top: 34%; right: -12vmax;
   animation: aurora-drift-3 38s ease-in-out infinite;
 }
 .aurora-4 {
   width: 34vmax; height: 34vmax;
-  background: radial-gradient(circle at 50% 50%, rgba(95, 240, 192, 0.5), transparent 66%);
+  background: radial-gradient(circle at 50% 50%, rgba(79, 183, 154, 0.32), transparent 66%);
   bottom: 6%; left: -10vmax;
   animation: aurora-drift-4 30s ease-in-out infinite;
 }
@@ -2996,7 +2998,7 @@ button {
 }
 .puls-tile-top { display: flex; align-items: center; justify-content: space-between; }
 .puls-clock { font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
-.puls-market.is-open { box-shadow: inset 0 0 0 1px rgba(25, 227, 154, 0.25), 0 14px 34px -24px rgba(25, 227, 154, 0.7); }
+.puls-market.is-open { box-shadow: inset 0 0 0 1px rgba(207, 138, 77, 0.25), 0 14px 34px -24px rgba(207, 138, 77, 0.7); }
 .puls-market-state {
   display: flex;
   align-items: center;
@@ -3008,7 +3010,7 @@ button {
   color: var(--text);
 }
 .puls-live-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
-.puls-live-dot.on { background: var(--green); box-shadow: 0 0 0 0 rgba(25, 227, 154, 0.6); animation: nb-pulse 1.8s infinite; }
+.puls-live-dot.on { background: var(--green); box-shadow: 0 0 0 0 rgba(207, 138, 77, 0.6); animation: nb-pulse 1.8s infinite; }
 .puls-countdown { font-size: 0.82rem; color: var(--muted); }
 .puls-countdown b { color: var(--text); font-variant-numeric: tabular-nums; }
 .puls-muted { color: var(--faint, var(--muted)); }
@@ -3022,14 +3024,14 @@ button {
 .puls-regime-label.tone-neutral { color: var(--muted); }
 .puls-meter { height: 7px; border-radius: 99px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
 .puls-meter-fill { display: block; height: 100%; border-radius: 99px; transition: width 0.8s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.puls-meter-fill.tone-on { background: linear-gradient(90deg, var(--green), #6ff0c4); }
+.puls-meter-fill.tone-on { background: linear-gradient(90deg, var(--green), #7fd0ba); }
 .puls-meter-fill.tone-off { background: linear-gradient(90deg, var(--red), #ff9db0); }
 .puls-meter-fill.tone-neutral { background: linear-gradient(90deg, #7a7c98, #9698b4); }
 
 .puls-engines { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 8px; }
 .puls-engine { display: flex; align-items: center; gap: 8px; }
 .puls-engine-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-.puls-engine-dot.live { background: var(--green); box-shadow: 0 0 8px rgba(25, 227, 154, 0.6); }
+.puls-engine-dot.live { background: var(--green); box-shadow: 0 0 8px rgba(207, 138, 77, 0.6); }
 .puls-engine-dot.off { background: rgba(150, 152, 180, 0.5); }
 .puls-engine-name { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; color: var(--text); min-width: 46px; }
 .puls-engine-state { font-size: 0.72rem; color: var(--muted); }
