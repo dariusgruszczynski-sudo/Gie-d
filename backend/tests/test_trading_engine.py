@@ -1872,3 +1872,17 @@ def test_p4_off_still_rejects_low_conf_buy(db_session, settings, monkeypatch):
     decision = trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor)
     assert decision.executed is False
     assert "Zbyt niska pewność" in (decision.rejection_reason or "")
+
+
+def test_manual_trade_refreshes_snapshot(db_session, settings):
+    """Po ręcznej transakcji snapshot portfela jest odświeżany OD RAZU (pulpit
+    nie czeka na cykl) — sprawdzamy, że powstaje nowy PortfolioSnapshot."""
+    from app.models import PortfolioSnapshot
+
+    before = db_session.query(PortfolioSnapshot).count()
+    broker = FakeAlpaca()
+    trading_engine.execute_manual_trade(
+        db_session, settings, broker, symbol="SPY", side="BUY", usdt_amount=100.0, venue="alpaca"
+    )
+    after = db_session.query(PortfolioSnapshot).count()
+    assert after > before

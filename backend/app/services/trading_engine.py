@@ -2354,4 +2354,11 @@ def execute_manual_trade(
     db.refresh(trade)
     email_reporter.send_trade_alert(settings, trade, reason=decision.reasoning)
     push_notifier.send_trade_push(db, settings, trade)
+    # Odśwież snapshot portfela z brokera OD RAZU po ręcznej transakcji, żeby
+    # pulpit natychmiast pokazał prawdę (sprzedana pozycja znika, gotówka rośnie)
+    # zamiast czekać na najbliższy cykl (~30 min). Best-effort — nie wywala handlu.
+    try:
+        compute_portfolio(db, settings, broker, venue=venue, whitelist=whitelist)
+    except Exception:
+        logger.warning("Odświeżenie snapshotu po ręcznej transakcji nie powiodło się", exc_info=True)
     return trade
