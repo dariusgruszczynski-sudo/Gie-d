@@ -154,18 +154,23 @@ def add_knowledge(db: Session, lessons: list[str]) -> None:
 
 
 def seed_enabled_from_env(db: Session, settings: Settings) -> None:
-    """Przy starcie: env OPUS_CONTROLLER_ENABLED=true WŁĄCZA kontroler — ale tylko
-    dopóki właściciel nie przełączył go ręcznie (user_set). Dzięki temu deploy
-    włącza go raz, a późniejszy kill-switch właściciela przeżywa restarty."""
+    """Przy starcie env OPUS_CONTROLLER_ENABLED steruje włącznikiem — SYMETRYCZNIE
+    (true włącza, false pauzuje) — DOPÓKI właściciel nie przełączy go ręcznie
+    (user_set wygrywa i przeżywa restarty). Dzięki temu „pauza na kilka tygodni"
+    to zmiana env w deployu, w pełni odwracalna (flip env → redeploy).
+
+    Dodatkowo: gdy kontroler wychodzi jako WYŁĄCZONY, czyścimy zostawione
+    nadpisania knobów. Zapauzowany Opus nie może trzymać konta zaciśniętego
+    swoją wczorajszą (defensywną) taktyką — po pauzie rządzi baza z env."""
     state = risk_manager.get_state(db)
-    if (
-        getattr(settings, "opus_controller_enabled", False)
-        and not state.opus_controller_user_set
-        and not state.opus_controller_enabled
-    ):
-        state.opus_controller_enabled = True
+    env_on = bool(getattr(settings, "opus_controller_enabled", False))
+    if not state.opus_controller_user_set and state.opus_controller_enabled != env_on:
+        state.opus_controller_enabled = env_on
         db.commit()
-        logger.info("Opus controller ENABLED from env seed (no manual override set).")
+        logger.info("Opus controller %s from env seed.", "ENABLED" if env_on else "PAUSED")
+    if not risk_manager.get_state(db).opus_controller_enabled and get_overrides(db):
+        clear_overrides(db)
+        logger.info("Opus paused → cleared stale knob overrides (base env rules).")
 
 
 def _default_generate(settings: Settings, prompt: str) -> str:

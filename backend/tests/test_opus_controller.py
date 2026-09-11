@@ -69,6 +69,31 @@ def test_seed_from_env_respects_manual_override(db_session, settings):
     assert risk_manager.get_state(db_session).opus_controller_enabled is False
 
 
+def test_seed_env_false_pauses_and_clears_overrides(db_session, settings):
+    # Opus był włączony i zostawił nadpisania (defensywna taktyka)
+    st = risk_manager.get_state(db_session)
+    st.opus_controller_enabled = True
+    db_session.commit()
+    oc.set_overrides(db_session, {"min_buy_confidence": 0.72, "entry_min_score": 3})
+    assert oc.get_overrides(db_session)  # są nadpisania
+    # env=false → symetryczna pauza + wyczyszczenie zostawionych knobów
+    env_off = settings.model_copy(update={"opus_controller_enabled": False})
+    oc.seed_enabled_from_env(db_session, env_off)
+    assert risk_manager.get_state(db_session).opus_controller_enabled is False
+    assert oc.get_overrides(db_session) == {}  # baza z env rządzi
+
+
+def test_seed_env_false_respects_manual_on(db_session, settings):
+    # właściciel ręcznie WŁĄCZYŁ (user_set) — env=false NIE może go zapauzować
+    st = risk_manager.get_state(db_session)
+    st.opus_controller_enabled = True
+    st.opus_controller_user_set = True
+    db_session.commit()
+    env_off = settings.model_copy(update={"opus_controller_enabled": False})
+    oc.seed_enabled_from_env(db_session, env_off)
+    assert risk_manager.get_state(db_session).opus_controller_enabled is True
+
+
 def test_apply_overrides_enforces_cross_knob_coherence(db_session, settings):
     # Opus ustawia sprzeczną parę: stop_min > stop_max, cap < próg, conv < risk
     oc.set_overrides(db_session, {

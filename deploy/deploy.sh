@@ -57,7 +57,9 @@ apply_knobs() { # apply_knobs FILE
   setenv POLL_INTERVAL_MINUTES 30 "$f"           # co 30 min: mechaniczne wyjścia
   setenv EXTENDED_POLL_INTERVAL_MINUTES 30 "$f"
   setenv FULL_ANALYSIS_EVERY_MINUTES 0 "$f"      # bez zegarowego heartbeatu
-  setenv PRICE_MOVE_TRIGGER_PCT 3.0 "$f"         # anty-churn: budzenie na >=3% (mniej reaktywnej sprzedaży)
+  # PROFIL AGRESYWNY (2026-09-11, decyzja właściciela: Opus-konduktor wstrzymany
+  # na kilka tyg., baza nastawiona na WIĘCEJ, wrażliwszych wejść na leżącą gotówkę).
+  setenv PRICE_MOVE_TRIGGER_PCT 2.0 "$f"         # agresywnie: budzenie już na >=2% (więcej okazji, było 3%)
   setenv EXTENDED_PRICE_MOVE_TRIGGER_PCT 3.0 "$f"
   setenv EXTENDED_FULL_ANALYSIS_EVERY_MINUTES 0 "$f"
   setenv CLAUDE_MIN_REANALYSIS_MINUTES 20 "$f"   # rekom. #3: nie pytaj Claude częściej niż co 20 min (oscylacje +/-3%)
@@ -65,15 +67,19 @@ apply_knobs() { # apply_knobs FILE
   # prowadzi jeden zdyscyplinowany silnik pozycyjny (sesja regularna).
   setenv EXTENDED_ENABLED false "$f"
   # Trzymanie pozycyjne, ale BEZ trzymania zysków za długo (2026-08-05)
-  setenv MIN_HOLD_MINUTES 2880 "$f"             # min. 2 dni na pozycje ~zero/minus (anty-churn)
+  setenv MIN_HOLD_MINUTES 240 "$f"              # agresywnie: min. 4h (szybsza rotacja, było 2 dni). Zysk >=% bierzemy i tak od razu.
   setenv MIN_HOLD_PROFIT_BYPASS_PCT 3.0 "$f"    # realny zysk (>=3%) bierzemy OD RAZU (było 4% — audyt: zyski wisiały ~2 dni)
   setenv HARD_TAKE_PROFIT_PCT 6.0 "$f"           # mocny ruch (+6%) kasujemy, nie oddajemy (było 8% — bierzemy zysk szybciej)
   setenv STOP_LOSS_MIN_PCT 3.0 "$f"
   setenv TRAILING_STOP_FRAC 0.6 "$f"
   # Progresywne wejścia: więcej pozycji, ale każda kolejna wymaga mocniejszego sygnału
-  setenv MIN_BUY_CONFIDENCE 0.60 "$f"           # rekom. #2 (anty-churn): 0.55 -> 0.60, mniej ale mocniejszych wejść
-  setenv PROGRESSIVE_CONFIDENCE_STEP 0.03 "$f"  # +0.03 pewności za każdą trzymaną pozycję
+  setenv MIN_BUY_CONFIDENCE 0.52 "$f"           # AGRESYWNIE: niższy próg (0.60 -> 0.52) — działaj na słabszym przekonaniu
+  setenv PROGRESSIVE_CONFIDENCE_STEP 0.02 "$f"  # AGRESYWNIE: mniejszy krok (0.03 -> 0.02) — próg nie dusi się tak szybko przy kolejnych pozycjach
   setenv PROGRESSIVE_CONFIDENCE_CAP 0.9 "$f"
+  # AGRESYWNIE: mechaniczny próg wejścia na NAJLUŹNIEJSZYM (1) — P4 realnie wpuszcza
+  # wejścia na potwierdzonych technicznie setupach; ryzyko/trade na pełnej bazie 3%.
+  setenv ENTRY_MIN_SCORE 1 "$f"
+  setenv RISK_PER_TRADE_PCT 3.0 "$f"
   # Scenariusz A (2026-08-18, na odpowiedzialność właściciela): sizing ważony
   # przekonaniem — mocny sygnał do WIĘKSZEJ pozycji, TWARDY sufit 6% ryzyka/trade.
   # Audyt 2026-09-02 (12 transakcji od wdrożenia 2×): payoff 4.89×→3.1×,
@@ -89,18 +95,19 @@ apply_knobs() { # apply_knobs FILE
   setenv CONVICTION_EDGE_ADAPTIVE_ENABLED true "$f"
   setenv CONVICTION_EDGE_MIN_PAYOFF 2.0 "$f"
   setenv CONVICTION_EDGE_FULL_PAYOFF 4.0 "$f"
-  setenv MAX_CONCURRENT_POSITIONS 12 "$f"
-  setenv MAX_NEW_POSITIONS_PER_DAY 8 "$f"
+  setenv MAX_CONCURRENT_POSITIONS 16 "$f"        # AGRESYWNIE: pełniejsze rozłożenie leżącej gotówki (było 12)
+  setenv MAX_NEW_POSITIONS_PER_DAY 12 "$f"       # AGRESYWNIE: więcej wejść dziennie (było 8)
   setenv MAX_POSITION_PCT 90 "$f"
   setenv ENTRY_FILTER_ENABLED true "$f"
   setenv AUTO_DEMOTE_ENABLED false "$f"
   # Reżim: twarda gotówka w risk-off (adaptive off -> gate on)
   setenv ADAPTIVE_RISK_ENABLED false "$f"
   setenv REGIME_GATE_ENABLED true "$f"
-  # OPUS KONTROLER (P1, 2026-09-10, na odpowiedzialność właściciela): codzienny
-  # strateg Opus z pełną władzą nad knobami. env włącza go raz przy deployu;
-  # potem wygrywa ręczny przełącznik właściciela (kill-switch przeżywa restart).
-  setenv OPUS_CONTROLLER_ENABLED true "$f"
+  # OPUS KONTROLER — WSTRZYMANY (2026-09-11, decyzja właściciela: na kilka tygodni
+  # Opus NIE steruje knobami; jest dostępny wyłącznie do pytań/eskalacji). Seed jest
+  # SYMETRYCZNY: false → pauza + wyczyszczenie starych nadpisań przy starcie, żeby
+  # rządziła baza z env powyżej. Wznowienie = flip na true + redeploy.
+  setenv OPUS_CONTROLLER_ENABLED false "$f"
   # P4 (2026-09-11): wejścia napędza mechanika (konfluencja), Claude = weto.
   # Odblokowuje leżącą gotówkę na potwierdzonych technicznie setupach.
   setenv MECHANICAL_ENTRIES_ENABLED true "$f"
