@@ -60,6 +60,10 @@ jobs:
             jq -r '.per_symbol[] | "- \(.symbol): $\(.pnl_usd) (\(.closed) zamk., \(.win_rate // "—")%)"' audit-latest.json
             echo; echo "## Wejścia vs limit"
             jq -r '"- cap \(.entries.cap)/dzień · max w dniu \(.entries.max_in_day) · dni z limitem \(.entries.days_at_limit) · hamuje: \(.entries.binds)"' audit-latest.json
+            echo; echo "## Opus-kontroler (co REALNIE zmienił)"
+            jq -r '"- włączony: \(.opus_controller.enabled) · ostatni przebieg: \(.opus_controller.last_run // "—") · baza wiedzy: \(.opus_controller.knowledge_count) wpisów"' status.json 2>/dev/null || echo "- (brak /api/status)"
+            jq -r '.opus_controller.overrides as $o | if ($o | length) == 0 then "- nadpisania knobów: BRAK (Opus nic nie zmienił od domyślnych)" else "- nadpisania knobów Opusa: " + ([$o | to_entries[] | "\(.key)=\(.value)"] | join(", ")) end' status.json 2>/dev/null || true
+            jq -r '"- próg pewności — baza (env): \(.profiles.alpaca.min_buy_confidence) · progresja +\(.profiles.alpaca.progressive_confidence_step)/pozycję do sufitu \(.profiles.alpaca.progressive_confidence_cap)"' status.json 2>/dev/null || true
           } > SUMMARY.md
           echo "Podsumowanie gotowe."
 
