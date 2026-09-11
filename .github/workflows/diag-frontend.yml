@@ -1,0 +1,28 @@
+name: Diag frontend
+on: { workflow_dispatch: {} }
+permissions: { contents: read }
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    env:
+      BASE: https://46.225.229.113.sslip.io
+      SHARE: gd-ro-8f3ktq29xr7v
+    steps:
+      - name: Stan Opusa + konto + wejścia
+        run: |
+          set +e
+          echo "===== /api/status: opus + konto + stan ====="
+          curl -sS -m 40 "$BASE/api/status?share=$SHARE" | jq '{
+            opus: .opus_controller,
+            is_halted, is_paused,
+            account_total: .account.total_value, cash: .account.cash,
+            cash_pct: (if .account.total_value>0 then (.account.cash/.account.total_value*100|round) else null end),
+            trading_pnl: .trading_pnl, build_sha
+          }' 2>/dev/null
+          echo "===== /api/audit: wejścia/dzień + powody odrzuceń ====="
+          curl -sS -m 40 "$BASE/api/audit?share=$SHARE" | jq '{
+            entries_per_day: (.entries.per_day[-8:]),
+            binds: .entries.binds,
+            top_rejections: (.decisions.reasons[:4]),
+            by_action: .decisions.by_action
+          }' 2>/dev/null
