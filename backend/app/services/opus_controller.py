@@ -46,6 +46,9 @@ ALLOWED_KNOBS: dict[str, tuple[float, float, bool]] = {
     "conviction_max_risk_per_trade_pct": (1.0, 8.0, False),
     "price_move_trigger_pct": (1.0, 10.0, False),
     "reward_risk_ratio": (1.0, 6.0, False),
+    # P4: próg mechanicznej konfluencji — teraz GŁÓWNY sterownik wejść. Opus stroi
+    # go pod jakość wejść (wyżej = mniej, ale mocniejszych sygnałów).
+    "entry_min_score": (1, 3, True),
 }
 MAX_KNOWLEDGE = 200  # baza wiedzy akumuluje się długo; górny limit tylko p-ko rozpełzaniu
 
@@ -187,7 +190,13 @@ def _build_prompt(db: Session, settings: Settings) -> str:
     return (
         "Jesteś strategiem-kontrolerem bota giełdowego GielDarek (dzienny swing, "
         "akcje US, Alpaca). Masz PEŁNĄ władzę ustawić poniższe knoby dla "
-        "maksymalizacji zysku skorygowanego o ryzyko. Zwróć WYŁĄCZNIE JSON:\n"
+        "maksymalizacji zysku skorygowanego o ryzyko.\n"
+        "WAŻNE: wejścia napędza teraz SYGNAŁ MECHANICZNY (konfluencja techniczna, "
+        "próg entry_min_score), a Claude jest tylko wetem/kontekstem. Głównymi "
+        "dźwigniami wyniku są więc: entry_min_score (jakość/liczba wejść), stopy i "
+        "TP (realizacja), sizing/ryzyko. Celuj w wyższą trafność i payoff, nie w "
+        "samą liczbę transakcji.\n"
+        "Zwróć WYŁĄCZNIE JSON:\n"
         '{"knobs": {<nazwa>: <wartość>, ...}, "lessons": ["krótki wniosek", ...]}\n'
         "Zmieniaj tylko to, co chcesz zmienić. Wnioski (lessons) to trwała baza "
         "wiedzy — dopisz, czego się nauczyłeś o tym, co działa.\n\n"
