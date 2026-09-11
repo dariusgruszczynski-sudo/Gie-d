@@ -1,0 +1,19 @@
+name: Diag frontend
+on: { workflow_dispatch: {} }
+permissions: { contents: read }
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    env:
+      BASE: https://46.225.229.113.sslip.io
+      SHARE: gd-ro-8f3ktq29xr7v
+    steps:
+      - name: Stan pozycji vs broker
+        run: |
+          set +e
+          echo "===== /api/status: konto ====="
+          curl -sS -m 40 "$BASE/api/status?share=$SHARE" | jq '{account_total:.account.total_value, cash:.account.cash, invested:(.account.equity_positions_value)}' 2>/dev/null
+          echo "===== /api/portfolio: snapshot (kiedy) + trzymane ====="
+          curl -sS -m 40 "$BASE/api/portfolio?share=$SHARE" | jq '{ts:.current.timestamp, cash:.current.usdt_balance, total:.current.total_value_usdt, balances:(.current.balances_json|fromjson? // .current.balances)}' 2>/dev/null
+          echo "===== /api/trades: ostatnie 8 (czy jest świeża sprzedaż) ====="
+          curl -sS -m 40 "$BASE/api/trades?limit=8&share=$SHARE" | jq '[.[] | {t:.timestamp, sym:.symbol, side:.side, qty:.quantity, px:.price}]' 2>/dev/null
