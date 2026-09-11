@@ -1837,3 +1837,38 @@ def test_no_override_leaves_exits_unchanged(db_session, settings):
     broker.prices["SPY"] = 104.0
     pf = trading_engine.compute_portfolio(db_session, s, broker)
     assert trading_engine.check_take_profit_stop_loss(db_session, s, broker, pf) == []
+
+
+def test_p4_mechanical_bypass_lets_low_conf_buy_in(db_session, settings, monkeypatch):
+    """P4: gdy mechanika (entry_confluence) potwierdza, niska pewność Claude'a
+    NIE blokuje wejścia — mechanika napędza, Claude to weto (dał BUY)."""
+    from types import SimpleNamespace
+
+    from app.services import signals
+    monkeypatch.setattr(signals, "entry_confluence", lambda s, t: SimpleNamespace(ok=True, score=99, reasons=[]))
+    s = settings.model_copy(update={
+        "min_buy_confidence": 0.70, "progressive_confidence_step": 0.0,
+        "entry_filter_enabled": True, "mechanical_entries_enabled": True,
+    })
+    broker = FakeAlpaca()
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.50, "Niska pewność, ale mechanika potwierdza."))
+    decision = trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor)
+    assert decision.executed is True
+    assert len(broker.orders) == 1
+
+
+def test_p4_off_still_rejects_low_conf_buy(db_session, settings, monkeypatch):
+    """Z flagą OFF ta sama niska pewność jest odrzucana jak dotąd."""
+    from types import SimpleNamespace
+
+    from app.services import signals
+    monkeypatch.setattr(signals, "entry_confluence", lambda s, t: SimpleNamespace(ok=True, score=99, reasons=[]))
+    s = settings.model_copy(update={
+        "min_buy_confidence": 0.70, "progressive_confidence_step": 0.0,
+        "entry_filter_enabled": True, "mechanical_entries_enabled": False,
+    })
+    broker = FakeAlpaca()
+    advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.50, "Niska pewność, flaga off."))
+    decision = trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor)
+    assert decision.executed is False
+    assert "Zbyt niska pewność" in (decision.rejection_reason or "")

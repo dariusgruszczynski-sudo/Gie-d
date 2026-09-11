@@ -101,6 +101,9 @@ apply_knobs() { # apply_knobs FILE
   # strateg Opus z pełną władzą nad knobami. env włącza go raz przy deployu;
   # potem wygrywa ręczny przełącznik właściciela (kill-switch przeżywa restart).
   setenv OPUS_CONTROLLER_ENABLED true "$f"
+  # P4 (2026-09-11): wejścia napędza mechanika (konfluencja), Claude = weto.
+  # Odblokowuje leżącą gotówkę na potwierdzonych technicznie setupach.
+  setenv MECHANICAL_ENTRIES_ENABLED true "$f"
   setenv DEFENSIVE_SYMBOLS GLD,TLT "$f"
   # Rekom. #1: ciasne, GŁĘBOKO PŁYNNE uniwersum STATYCZNE (dynamic OFF). Śmieciowe
   # pojedyncze nazwy z dynamicznego skanu (JAZZ/NDSN/ROST -- przecieki audytu) na

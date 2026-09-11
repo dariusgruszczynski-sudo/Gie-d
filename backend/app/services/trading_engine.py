@@ -1662,15 +1662,26 @@ def _process_decision(
                 settings.min_buy_confidence + settings.progressive_confidence_step * held_now,
             )
         if effective_conf > 0 and decision_data.confidence < effective_conf:
-            decision.rejection_reason = (
-                f"Zbyt niska pewność: {decision_data.confidence:.2f} < próg {effective_conf:.2f} "
-                f"(baza {settings.min_buy_confidence:.2f} + {held_now} pozycji × {settings.progressive_confidence_step:.2f}) "
-                "— wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału"
-            )
-            db.add(decision)
-            db.commit()
-            db.refresh(decision)
-            return decision
+            # P4 — WEJŚCIA NA MECHANICE: shadow-analiza pokazała, że sam sygnał
+            # mechaniczny (konfluencja techniczna) trafia znacznie lepiej niż
+            # selekcja Claude'a. Gdy mechanika POTWIERDZA wejście, nie blokujemy go
+            # samą (skromną) pewnością Claude'a — Claude dał już BUY, czyli zgadza
+            # się kierunkowo (weto/kontekst), a wejście napędza mechanika. Bramka
+            # pewności działa dalej tam, gdzie mechanika NIE potwierdza.
+            mech_ok = False
+            if settings.mechanical_entries_enabled:
+                _tech = (market_data.get(decision_data.symbol) or {}).get("technical", {})
+                mech_ok = bool(_tech) and signals.entry_confluence(settings, _tech).ok
+            if not mech_ok:
+                decision.rejection_reason = (
+                    f"Zbyt niska pewność: {decision_data.confidence:.2f} < próg {effective_conf:.2f} "
+                    f"(baza {settings.min_buy_confidence:.2f} + {held_now} pozycji × {settings.progressive_confidence_step:.2f}) "
+                    "— wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału"
+                )
+                db.add(decision)
+                db.commit()
+                db.refresh(decision)
+                return decision
 
         # Regime gate: while this venue's regime is risk-off, only its defensive
         # set may be OPENED (equity havens/inverses for stocks; safe-haven FX for

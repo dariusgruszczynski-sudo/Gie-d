@@ -225,6 +225,12 @@ class Settings(BaseSettings):
     # ~30% trafności, edge słabnący 4.89x->3.31x) pokazał ZA DUŻO słabych wejść;
     # podniesiony bazowy próg = mniej, ale mocniejszych wejść. Twardy stop i tak chroni.
     min_buy_confidence: float = 0.60
+    # P4 — WEJŚCIA NA MECHANICE (2026-09-11, decyzja właściciela): gdy sygnał
+    # mechaniczny (entry_confluence) POTWIERDZA wejście, próg pewności Claude'a
+    # ustępuje — mechanika napędza wejścia (67% trafności w shadow-analizie vs
+    # 26% selekcji Claude'a), Claude zostaje wetem/kontekstem. Bramka pewności
+    # działa dalej tam, gdzie mechanika NIE potwierdza. false = jak dotąd.
+    mechanical_entries_enabled: bool = False
     # Progresywny próg wejścia: efektywny próg pewności = min_buy_confidence +
     # progressive_confidence_step * (liczba już trzymanych pozycji), przycięty do
     # progressive_confidence_cap. Dzięki temu bot może otworzyć WIĘCEJ pozycji,
