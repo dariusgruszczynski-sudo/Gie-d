@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-09-14T15:03:56Z
+# Audyt GielDarek — 2026-09-14T15:36:30Z
 
 **Wdrożenie:** kod 0a38cad (zbud. 2026-09-14T15:02Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
@@ -38,19 +38,21 @@
 - próg pewności — baza (env): 0.52 · progresja +0.02/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
-- ostatnie 120 decyzji · wykonanych: 17 · odrzuconych: 103
+- ostatnie 120 decyzji · wykonanych: 19 · odrzuconych: 101
 
 **Najczęstsze powody odrzucenia (top):**
 - 40× — brak powodu
 - 23× — Zbyt niska pewność: 0.62 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 11× — Zbyt niska pewność: 0.65 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
-- 7× — Zbyt niska pewność: 0.68 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
+- 6× — Zbyt niska pewność: 0.68 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 4× — Zbyt niska pewność: 0.60 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 4× — Zbyt niska pewność: 0.62 < próg 0.72 (baza 0.60 + 4 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 3× — Zbyt niska pewność: 0.63 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 3× — Zbyt niska pewność: 0.65 < próg 0.72 (baza 0.60 + 4 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 
 **Ostatnie 20 decyzji:**
+- 2026-09-14T15:33:19.339377 NFLX BUY conf=0.53 trig=scheduled_daily ✅WYKONANE
+- 2026-09-14T15:33:13.795114 GOOGL BUY conf=0.58 trig=scheduled_daily ✅WYKONANE
 - 2026-09-14T14:26:53.738287 — HOLD conf=0.0 trig=news_event ⛔ ?
 - 2026-09-14T13:57:20.643706 META SELL conf=0.55 trig=price_move ✅WYKONANE
 - 2026-09-14T13:57:14.800011 AVGO SELL conf=0.6 trig=price_move ✅WYKONANE
@@ -69,5 +71,3 @@
 - 2026-09-11T14:57:51.281901 META BUY conf=0.62 trig=manual ✅WYKONANE
 - 2026-09-11T14:39:00.288785 — HOLD conf=0.6 trig=manual ⛔ ?
 - 2026-09-11T14:26:33.026601 META SELL conf=1.0 trig=manual ✅WYKONANE
-- 2026-09-11T14:26:30.372530 NVDA SELL conf=1.0 trig=manual ✅WYKONANE
-- 2026-09-11T14:26:15.529718 MSFT SELL conf=1.0 trig=manual ✅WYKONANE
