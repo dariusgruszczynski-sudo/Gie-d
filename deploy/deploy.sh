@@ -56,7 +56,7 @@ apply_knobs() { # apply_knobs FILE
   setenv SIGNAL_TIMEFRAME 1d "$f"                 # świece dzienne (jak backtest)
   setenv POLL_INTERVAL_MINUTES 30 "$f"           # co 30 min: mechaniczne wyjścia
   setenv EXTENDED_POLL_INTERVAL_MINUTES 30 "$f"
-  setenv FULL_ANALYSIS_EVERY_MINUTES 0 "$f"      # bez zegarowego heartbeatu
+  setenv FULL_ANALYSIS_EVERY_MINUTES 60 "$f"     # AGRESYWNIE (2026-09-14): PROAKTYWNY skan co 60 min — bot sam szuka wejść, nie czeka biernie na ruch >=2%. To był GŁÓWNY powód bezczynności (0 = tylko reakcja na skok/news).
   # PROFIL AGRESYWNY (2026-09-11, decyzja właściciela: Opus-konduktor wstrzymany
   # na kilka tyg., baza nastawiona na WIĘCEJ, wrażliwszych wejść na leżącą gotówkę).
   setenv PRICE_MOVE_TRIGGER_PCT 2.0 "$f"         # agresywnie: budzenie już na >=2% (więcej okazji, było 3%)

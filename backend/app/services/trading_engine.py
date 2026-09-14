@@ -2126,7 +2126,10 @@ def run_cycle(
             "market_regime.regime to reżim rynku (risk_on / neutral / risk_off) — dla akcji z trendu "
             "SPY/VIX/sesji, dla krypto z trendu BTC i szerokości rynku krypto. W risk_off bądź "
             f"defensywny: silnik pozwoli KUPIĆ tylko {', '.join(defensive_list) or '— nic (tylko gotówka)'}, "
-            "resztę wymusi na HOLD. Wchodź tylko w realnie mocne setupy — nie handluj dla samego handlu."
+            "resztę wymusi na HOLD. W risk_on/neutral NIE zostawiaj gotówki bezczynnie: to jest tryb "
+            "AKTYWNY — otwieraj potwierdzone technicznie setupy (mechanika napędza wejście, Ty potwierdzasz "
+            "kierunek). Bądź wybiórczy co do JAKOŚCI setupu, nie co do samego faktu wejścia; siedzenie w "
+            "gotówce przy zdrowym trendzie to też decyzja — i zwykle gorsza niż wejście w solidny setup."
         ),
         "min_buy_confidence": settings.min_buy_confidence,
         "conviction_note": (
