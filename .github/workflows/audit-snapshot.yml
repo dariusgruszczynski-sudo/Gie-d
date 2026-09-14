@@ -6,8 +6,9 @@ name: Audit snapshot
 
 on:
   schedule:
-    - cron: "0 6 * * *"        # codziennie 06:00 UTC (~08:00 PL)
-  workflow_dispatch: {}         # + na żądanie (przycisk / API)
+    - cron: "0 6 * * *"          # codziennie 06:00 UTC (~08:00 PL)
+    - cron: "5 13-20 * * 1-5"    # co godzinę w sesji US (13-20 UTC, pon-pt) — świeże dane na gałęzi bez ręcznego dispatchu
+  workflow_dispatch: {}          # + na żądanie (przycisk / API)
 
 concurrency:
   group: audit-snapshot
