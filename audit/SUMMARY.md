@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-09-14T15:36:30Z
+# Audyt GielDarek — 2026-09-14T17:55:05Z
 
-**Wdrożenie:** kod 0a38cad (zbud. 2026-09-14T15:02Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 1a4f280 (zbud. 2026-09-14T16:56Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 53 zamknięć · trafność 28.3% · zrealizowany $-6.11
 **7 dni:** 8 zamknięć · 37.5% · $-6.15   |   **30 dni:** 40 · 30.0% · $-8.72
@@ -41,16 +41,19 @@
 - ostatnie 120 decyzji · wykonanych: 19 · odrzuconych: 101
 
 **Najczęstsze powody odrzucenia (top):**
-- 40× — brak powodu
-- 23× — Zbyt niska pewność: 0.62 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
-- 11× — Zbyt niska pewność: 0.65 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
-- 6× — Zbyt niska pewność: 0.68 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
+- 43× — brak powodu
+- 22× — Zbyt niska pewność: 0.62 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
+- 10× — Zbyt niska pewność: 0.65 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
+- 5× — Zbyt niska pewność: 0.68 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 4× — Zbyt niska pewność: 0.60 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 4× — Zbyt niska pewność: 0.62 < próg 0.72 (baza 0.60 + 4 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 3× — Zbyt niska pewność: 0.63 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 3× — Zbyt niska pewność: 0.65 < próg 0.72 (baza 0.60 + 4 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 
 **Ostatnie 20 decyzji:**
+- 2026-09-14T17:27:11.913239 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-09-14T16:32:55.508398 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-09-14T16:02:57.474750 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-09-14T15:33:19.339377 NFLX BUY conf=0.53 trig=scheduled_daily ✅WYKONANE
 - 2026-09-14T15:33:13.795114 GOOGL BUY conf=0.58 trig=scheduled_daily ✅WYKONANE
 - 2026-09-14T14:26:53.738287 — HOLD conf=0.0 trig=news_event ⛔ ?
@@ -68,6 +71,3 @@
 - 2026-09-11T15:26:54.651810 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-09-11T15:09:14.917667 — HOLD conf=0.55 trig=manual ⛔ ?
 - 2026-09-11T14:57:57.350107 AVGO BUY conf=0.55 trig=manual ✅WYKONANE
-- 2026-09-11T14:57:51.281901 META BUY conf=0.62 trig=manual ✅WYKONANE
-- 2026-09-11T14:39:00.288785 — HOLD conf=0.6 trig=manual ⛔ ?
-- 2026-09-11T14:26:33.026601 META SELL conf=1.0 trig=manual ✅WYKONANE
