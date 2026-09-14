@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-09-14T18:54:41Z
+# Audyt GielDarek — 2026-09-14T19:54:51Z
 
 **Wdrożenie:** kod 1a4f280 (zbud. 2026-09-14T16:56Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
@@ -41,16 +41,18 @@
 - ostatnie 120 decyzji · wykonanych: 19 · odrzuconych: 101
 
 **Najczęstsze powody odrzucenia (top):**
-- 45× — brak powodu
-- 21× — Zbyt niska pewność: 0.62 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
+- 47× — brak powodu
+- 20× — Zbyt niska pewność: 0.62 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 9× — Zbyt niska pewność: 0.65 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 5× — Zbyt niska pewność: 0.68 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
-- 4× — Zbyt niska pewność: 0.60 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 4× — Zbyt niska pewność: 0.62 < próg 0.72 (baza 0.60 + 4 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
+- 3× — Zbyt niska pewność: 0.60 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 3× — Zbyt niska pewność: 0.63 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 3× — Zbyt niska pewność: 0.65 < próg 0.72 (baza 0.60 + 4 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 
 **Ostatnie 20 decyzji:**
+- 2026-09-14T19:26:51.401153 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-09-14T18:56:53.957271 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-09-14T18:26:56.496724 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-09-14T17:56:55.248048 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-09-14T17:27:11.913239 — HOLD conf=0.6 trig=news_event ⛔ ?
@@ -69,5 +71,3 @@
 - 2026-09-11T17:26:45.535036 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-09-11T16:57:38.362840 — HOLD conf=0.0 trig=news_event ⛔ ?
 - 2026-09-11T16:27:38.226396 — HOLD conf=0.0 trig=news_event ⛔ ?
-- 2026-09-11T15:56:56.844598 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-09-11T15:26:54.651810 — HOLD conf=0.6 trig=news_event ⛔ ?
