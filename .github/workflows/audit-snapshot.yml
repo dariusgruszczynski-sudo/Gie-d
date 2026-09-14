@@ -41,6 +41,9 @@ jobs:
           # Stan wdrożenia: jaki kod realnie działa (build SHA) + czy „duże zakłady" ON.
           curl -sS --max-time 30 -o status.json \
             "${BASE_URL%/}/api/status?share=${SHARE_TOKEN}" || echo '{}' > status.json
+          # Dziennik decyzji (dlaczego handluje / dlaczego NIE) — surowe wiersze.
+          curl -sS --max-time 30 -o decisions.json \
+            "${BASE_URL%/}/api/decisions?share=${SHARE_TOKEN}&limit=120" || echo '[]' > decisions.json
 
       - name: Zbuduj czytelne podsumowanie (Markdown)
         run: |
@@ -64,6 +67,17 @@ jobs:
             jq -r '"- włączony: \(.opus_controller.enabled) · ostatni przebieg: \(.opus_controller.last_run // "—") · baza wiedzy: \(.opus_controller.knowledge_count) wpisów"' status.json 2>/dev/null || echo "- (brak /api/status)"
             jq -r '.opus_controller.overrides as $o | if ($o | length) == 0 then "- nadpisania knobów: BRAK (Opus nic nie zmienił od domyślnych)" else "- nadpisania knobów Opusa: " + ([$o | to_entries[] | "\(.key)=\(.value)"] | join(", ")) end' status.json 2>/dev/null || true
             jq -r '"- próg pewności — baza (env): \(.profiles.alpaca.min_buy_confidence) · progresja +\(.profiles.alpaca.progressive_confidence_step)/pozycję do sufitu \(.profiles.alpaca.progressive_confidence_cap)"' status.json 2>/dev/null || true
+            echo; echo "## Dziennik decyzji — dlaczego (NIE) handluje"
+            jq -r 'if type=="array" then . else [] end
+                   | "- ostatnie \(length) decyzji · wykonanych: \([.[]|select(.executed==true)]|length) · odrzuconych: \([.[]|select(.executed!=true)]|length)"' decisions.json 2>/dev/null || echo "- (brak /api/decisions)"
+            echo; echo "**Najczęstsze powody odrzucenia (top):**"
+            jq -r 'if type=="array" then . else [] end
+                   | [.[]|select(.executed!=true)| (.rejection_reason // "brak powodu")]
+                   | group_by(.) | map({r:.[0], n:length}) | sort_by(-.n) | .[:8][]
+                   | "- \(.n)× — \(.r)"' decisions.json 2>/dev/null || true
+            echo; echo "**Ostatnie 20 decyzji:**"
+            jq -r 'if type=="array" then . else [] end | .[:20][]
+                   | "- \(.timestamp) \(.symbol // "—") \(.action) conf=\(.confidence) trig=\(.triggered_by) " + (if .executed==true then "✅WYKONANE" else "⛔ " + (.rejection_reason // "?") end)' decisions.json 2>/dev/null || true
           } > SUMMARY.md
           echo "Podsumowanie gotowe."
 
@@ -85,6 +99,8 @@ jobs:
           mkdir -p "${TMP}/audit/history"
           cp audit-latest.json "${TMP}/audit/latest.json"
           cp SUMMARY.md        "${TMP}/audit/SUMMARY.md"
+          cp decisions.json    "${TMP}/audit/decisions.json" 2>/dev/null || true
+          cp status.json       "${TMP}/audit/status.json" 2>/dev/null || true
           cp audit-latest.json "${TMP}/audit/history/${STAMP}.json"
           cd "${TMP}"
           git config user.name  "gieldarek-audit-bot"
