@@ -1883,14 +1883,26 @@ def auto_deploy_wants_action(db: Session, settings: Settings, portfolio: dict, s
     rozmieścił gotówkę. Rotacja przy pełnym portfelu jedzie na innych triggerach."""
     if not settings.auto_deploy_enabled:
         return False
-    if venue_allocation_room(db, settings, portfolio, venue) < settings.auto_deploy_min_cash_usd:
-        return False
-    if (
-        settings.max_concurrent_positions > 0
-        and count_open_positions(portfolio, settings, symbols) >= settings.max_concurrent_positions
-    ):
-        return False
-    return True
+    has_cash = venue_allocation_room(db, settings, portfolio, venue) >= settings.auto_deploy_min_cash_usd
+    has_slot = (
+        settings.max_concurrent_positions <= 0
+        or count_open_positions(portfolio, settings, symbols) < settings.max_concurrent_positions
+    )
+    if has_cash and has_slot:
+        return True  # jest gotówka i slot -> rozmieść ją
+    # Pełny portfel / brak gotówki: i tak wymuś okresowy cykl, żeby ROTACJA była
+    # sprawdzana na czas (co full_analysis_every_minutes), niezależnie od tego,
+    # czy akurat trafił się news albo skok ceny.
+    if settings.full_analysis_every_minutes > 0:
+        _, last_at_iso = _get_analysis_marks(risk_manager.get_state(db), venue)
+        if not last_at_iso:
+            return False
+        try:
+            last_at = datetime.fromisoformat(last_at_iso)
+        except ValueError:
+            return False
+        return datetime.now(UTC) - last_at >= timedelta(minutes=settings.full_analysis_every_minutes)
+    return False
 
 
 def _run_auto_deploy(
@@ -1946,12 +1958,27 @@ def _run_auto_deploy(
         s, m, _ = _candidate_score(settings, market_data.get(sym))
         return (s, m)
 
+    def _buy_size_pct() -> float:
+        # ANTY-KONCENTRACJA: celuj w auto_deploy_max_position_pct% KONTA na jedną
+        # nazwę (przeliczone na % wolnej gotówki), żeby cash rozłożył się na kilka
+        # najlepszych setupów, a nie wpadł ~max_position_pct w jeden. Twardy sufit
+        # to max_position_pct; pewność na progu wejścia (conviction mult = 1,0);
+        # risk-cap w effective_buy_size_pct i tak dodatkowo przycina.
+        free = pf.get("usdt_balance", 0.0)
+        cap = settings.max_position_pct
+        target = getattr(settings, "auto_deploy_max_position_pct", cap) or cap
+        if free <= 0:
+            return cap
+        account_total = account_total_value(db, pf, venue)
+        target_usd = account_total * target / 100.0
+        return round(min(cap, 100.0, target_usd / free * 100.0), 4)
+
     def run_one(action: str, sym: str, reason: str) -> Decision | None:
-        # BUY: proś o max_position_pct (twardy limit walidatora), z pewnością na
-        # progu wejścia — dzięki temu conviction-sizing nie napompuje rozmiaru
-        # ponad limit, a risk-cap i tak przycina; P4 (mechanika) przepuszcza gate
-        # pewności na potwierdzonym setupie. SELL: pełne wyjście (100%).
-        size_pct = settings.max_position_pct if action == "BUY" else 100.0
+        # BUY: rozmiar celuje w udział KONTA (anty-koncentracja), z pewnością na
+        # progu wejścia — conviction-sizing nie napompuje ponad limit, risk-cap i
+        # tak przycina; P4 (mechanika) przepuszcza gate pewności na potwierdzonym
+        # setupie. SELL: pełne wyjście (100%).
+        size_pct = _buy_size_pct() if action == "BUY" else 100.0
         dd = _AutoDecision(
             action=action,
             symbol=sym,

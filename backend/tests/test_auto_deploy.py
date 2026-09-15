@@ -70,11 +70,34 @@ def test_wants_action_only_with_cash_and_slot(db_session, settings):
     assert trading_engine.auto_deploy_wants_action(db_session, off, pf, ["SPY", "QQQ"], "alpaca") is False
 
 
+def test_wants_action_periodic_rotation_check_when_full(db_session, settings):
+    """Pełny portfel bez gotówki: i tak wymuś cykl, gdy ostatnia analiza starsza
+    niż heartbeat — żeby ROTACJA była sprawdzana na czas (niezależnie od newsów)."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.services import risk_manager
+
+    s = _auto(settings, max_concurrent_positions=1, full_analysis_every_minutes=60)
+    pf = {
+        "usdt_balance": 1.0, "total_value_usdt": 800.0,
+        "balances": {"USD": 1.0, "SPY": 2.0}, "prices": {"SPY": 400.0},
+    }
+    st = risk_manager.get_state(db_session)
+    st.last_analysis_at = (datetime.now(UTC) - timedelta(minutes=90)).isoformat()
+    db_session.commit()
+    assert trading_engine.auto_deploy_wants_action(db_session, s, pf, ["SPY"], "alpaca") is True
+    # świeża analiza -> nie wymuszaj (unikamy zbędnych cykli)
+    st.last_analysis_at = datetime.now(UTC).isoformat()
+    db_session.commit()
+    assert trading_engine.auto_deploy_wants_action(db_session, s, pf, ["SPY"], "alpaca") is False
+
+
 def test_auto_deploy_buys_when_claude_holds(db_session, settings, monkeypatch):
     """Sedno prośby: gotówka NIE leży — bot sam kupuje confluentny setup, mimo że
     Claude powiedział HOLD."""
     monkeypatch.setattr(trading_engine, "compute_technical_indicators", lambda closes: dict(BULL))
-    s = _auto(settings, max_concurrent_positions=4, max_position_pct=25.0, risk_per_trade_pct=0.0)
+    s = _auto(settings, max_concurrent_positions=4, max_position_pct=90.0, risk_per_trade_pct=0.0,
+              auto_deploy_max_position_pct=100.0)
     broker = FakeAlpaca(prices={"SPY": 500.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
     advisor = FakeAdvisor(TradingDecision("HOLD", None, 0, 0.8, "czekam"))
 
@@ -83,6 +106,33 @@ def test_auto_deploy_buys_when_claude_holds(db_session, settings, monkeypatch):
     buys = [o for o in broker.orders if o.side == "BUY"]
     assert buys, "auto-deploy powinien kupić mimo HOLD od Claude"
     assert broker.balances["USD"] < 1000.0
+
+
+def test_auto_deploy_spreads_across_names(db_session, settings, monkeypatch):
+    """Anty-koncentracja: przy auto_deploy_max_position_pct=25 gotówka rozkłada się
+    na kilka nazw, nie wpada w jedną. Z 4 confluentnymi nazwami -> ~4 wejścia."""
+    monkeypatch.setattr(trading_engine, "compute_technical_indicators", lambda closes: dict(BULL))
+    s = _auto(
+        settings,
+        trading_whitelist="SPY,QQQ,AAPL,NVDA",
+        max_concurrent_positions=8,
+        max_position_pct=90.0,
+        risk_per_trade_pct=0.0,
+        auto_deploy_max_position_pct=25.0,
+    )
+    broker = FakeAlpaca(
+        prices={"SPY": 500.0, "QQQ": 400.0, "AAPL": 200.0, "NVDA": 100.0},
+        balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0, "AAPL": 0.0, "NVDA": 0.0},
+    )
+    advisor = FakeAdvisor(TradingDecision("HOLD", None, 0, 0.8, "czekam"))
+
+    trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor, FakeMarketContext())
+
+    buys = [o for o in broker.orders if o.side == "BUY"]
+    # Rozłożone na wiele nazw (nie jedna skoncentrowana pozycja); żadne wejście
+    # nie przekracza ~25% konta (+ mały bufor na kolejność/round).
+    assert len({o.symbol for o in buys}) >= 3
+    assert all(o.usdt_value <= 260.0 for o in buys)
 
 
 def test_auto_deploy_respects_claude_sell_veto(db_session, settings, monkeypatch):

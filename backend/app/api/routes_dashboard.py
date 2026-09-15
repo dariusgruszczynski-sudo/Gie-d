@@ -197,6 +197,7 @@ def _engine_profile_view(settings: Settings, venue: str) -> dict:
         "auto_deploy_enabled": s.auto_deploy_enabled,
         "auto_deploy_rotation_margin": s.auto_deploy_rotation_margin,
         "auto_deploy_max_rotations_per_cycle": s.auto_deploy_max_rotations_per_cycle,
+        "auto_deploy_max_position_pct": s.auto_deploy_max_position_pct,
     }
 
 

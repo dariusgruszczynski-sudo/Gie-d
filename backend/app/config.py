@@ -664,6 +664,13 @@ class Settings(BaseSettings):
     auto_deploy_max_rotations_per_cycle: int = 2
     # Nie zawracaj sobie głowy resztką gotówki poniżej tego progu (USD).
     auto_deploy_min_cash_usd: float = 25.0
+    # ANTY-KONCENTRACJA: pojedyncze auto-wejście celuje w ten % KONTA (a nie w
+    # cały wolny cash), więc gotówka rozkłada się na kilka najlepszych nazw
+    # (~100/ten% pozycji), zamiast wpakować ~max_position_pct w jedną. Risk-cap i
+    # tak przycina; twardym sufitem pojedynczej pozycji zostaje max_position_pct.
+    # Gdy kwalifikujących się setupów jest mniej, część gotówki może zostać —
+    # świadomie NIE dopychamy kapitału w słabe nazwy. 100 => brak rozkładu.
+    auto_deploy_max_position_pct: float = 25.0
 
     database_url: str = "sqlite:///./data/trading.db"
 
