@@ -57,9 +57,11 @@ apply_knobs() { # apply_knobs FILE
   setenv POLL_INTERVAL_MINUTES 30 "$f"           # co 30 min: mechaniczne wyjścia
   setenv EXTENDED_POLL_INTERVAL_MINUTES 30 "$f"
   setenv FULL_ANALYSIS_EVERY_MINUTES 60 "$f"     # AGRESYWNIE (2026-09-14): PROAKTYWNY skan co 60 min — bot sam szuka wejść, nie czeka biernie na ruch >=2%. To był GŁÓWNY powód bezczynności (0 = tylko reakcja na skok/news).
-  # PROFIL AGRESYWNY (2026-09-11, decyzja właściciela: Opus-konduktor wstrzymany
-  # na kilka tyg., baza nastawiona na WIĘCEJ, wrażliwszych wejść na leżącą gotówkę).
-  setenv PRICE_MOVE_TRIGGER_PCT 2.0 "$f"         # agresywnie: budzenie już na >=2% (więcej okazji, było 3%)
+  # PROFIL JAKOŚCI (2026-09-15, rekomendacja po symulacji Monte Carlo): agresja
+  # (auto-deploy, luźne progi) na UJEMNYM edge pogłębiała stratę — cofnięta. Teraz
+  # MNIEJ, MOCNIEJSZYCH wejść i mniejsze ryzyko, póki trafność nie przebije progu
+  # opłacalności 31,2%. Cała gra toczy się o JAKOŚĆ wejść, nie o obrót.
+  setenv PRICE_MOVE_TRIGGER_PCT 3.0 "$f"         # mniej reaktywnego churnu/whipsawu (było 2.0)
   setenv EXTENDED_PRICE_MOVE_TRIGGER_PCT 3.0 "$f"
   setenv EXTENDED_FULL_ANALYSIS_EVERY_MINUTES 0 "$f"
   setenv CLAUDE_MIN_REANALYSIS_MINUTES 20 "$f"   # rekom. #3: nie pytaj Claude częściej niż co 20 min (oscylacje +/-3%)
@@ -67,19 +69,19 @@ apply_knobs() { # apply_knobs FILE
   # prowadzi jeden zdyscyplinowany silnik pozycyjny (sesja regularna).
   setenv EXTENDED_ENABLED false "$f"
   # Trzymanie pozycyjne, ale BEZ trzymania zysków za długo (2026-08-05)
-  setenv MIN_HOLD_MINUTES 240 "$f"              # agresywnie: min. 4h (szybsza rotacja, było 2 dni). Zysk >=% bierzemy i tak od razu.
+  setenv MIN_HOLD_MINUTES 1440 "$f"             # min. 1 dzień (swing dzienny) — mniej whipsawu; stop i furtka zysku i tak działają
   setenv MIN_HOLD_PROFIT_BYPASS_PCT 3.0 "$f"    # realny zysk (>=3%) bierzemy OD RAZU (było 4% — audyt: zyski wisiały ~2 dni)
   setenv HARD_TAKE_PROFIT_PCT 6.0 "$f"           # mocny ruch (+6%) kasujemy, nie oddajemy (było 8% — bierzemy zysk szybciej)
   setenv STOP_LOSS_MIN_PCT 3.0 "$f"
   setenv TRAILING_STOP_FRAC 0.6 "$f"
   # Progresywne wejścia: więcej pozycji, ale każda kolejna wymaga mocniejszego sygnału
-  setenv MIN_BUY_CONFIDENCE 0.52 "$f"           # AGRESYWNIE: niższy próg (0.60 -> 0.52) — działaj na słabszym przekonaniu
-  setenv PROGRESSIVE_CONFIDENCE_STEP 0.02 "$f"  # AGRESYWNIE: mniejszy krok (0.03 -> 0.02) — próg nie dusi się tak szybko przy kolejnych pozycjach
+  setenv MIN_BUY_CONFIDENCE 0.60 "$f"           # JAKOŚĆ: wyższy próg (0.52 -> 0.60) — tylko mocniejsze przekonanie
+  setenv PROGRESSIVE_CONFIDENCE_STEP 0.03 "$f"  # kolejne wejścia wymagają coraz mocniejszego sygnału
   setenv PROGRESSIVE_CONFIDENCE_CAP 0.9 "$f"
-  # AGRESYWNIE: mechaniczny próg wejścia na NAJLUŹNIEJSZYM (1) — P4 realnie wpuszcza
-  # wejścia na potwierdzonych technicznie setupach; ryzyko/trade na pełnej bazie 3%.
-  setenv ENTRY_MIN_SCORE 1 "$f"
-  setenv RISK_PER_TRADE_PCT 3.0 "$f"
+  # JAKOŚĆ: mechaniczny próg konfluencji podniesiony 1 -> 2 (min. 2 z 3: trend +
+  # MACD + RSI). To GŁÓWNA dźwignia trafności — mniej, ale mocniejszych setupów.
+  setenv ENTRY_MIN_SCORE 2 "$f"
+  setenv RISK_PER_TRADE_PCT 2.0 "$f"             # mniejsze ryzyko/trade (3 -> 2), póki edge nieudowodniony (mniejsze obsunięcia)
   # Scenariusz A (2026-08-18, na odpowiedzialność właściciela): sizing ważony
   # przekonaniem — mocny sygnał do WIĘKSZEJ pozycji, TWARDY sufit 6% ryzyka/trade.
   # Audyt 2026-09-02 (12 transakcji od wdrożenia 2×): payoff 4.89×→3.1×,
@@ -95,11 +97,11 @@ apply_knobs() { # apply_knobs FILE
   setenv CONVICTION_EDGE_ADAPTIVE_ENABLED true "$f"
   setenv CONVICTION_EDGE_MIN_PAYOFF 2.0 "$f"
   setenv CONVICTION_EDGE_FULL_PAYOFF 4.0 "$f"
-  setenv MAX_CONCURRENT_POSITIONS 16 "$f"        # AGRESYWNIE: pełniejsze rozłożenie leżącej gotówki (było 12)
-  setenv MAX_NEW_POSITIONS_PER_DAY 12 "$f"       # AGRESYWNIE: więcej wejść dziennie (było 8)
+  setenv MAX_CONCURRENT_POSITIONS 10 "$f"        # JAKOŚĆ: mniej równoczesnych, bardziej wybiórczo (było 16)
+  setenv MAX_NEW_POSITIONS_PER_DAY 6 "$f"        # JAKOŚĆ: mniej wejść dziennie (było 12)
   setenv MAX_POSITION_PCT 90 "$f"
   setenv ENTRY_FILTER_ENABLED true "$f"
-  setenv AUTO_DEMOTE_ENABLED false "$f"
+  setenv AUTO_DEMOTE_ENABLED true "$f"           # JAKOŚĆ: kwarantanna nazw z chronicznie ujemną historią (>=5 zamknięć, <40% traf.)
   # Reżim: twarda gotówka w risk-off (adaptive off -> gate on)
   setenv ADAPTIVE_RISK_ENABLED false "$f"
   setenv REGIME_GATE_ENABLED true "$f"
@@ -111,11 +113,11 @@ apply_knobs() { # apply_knobs FILE
   # P4 (2026-09-11): wejścia napędza mechanika (konfluencja), Claude = weto.
   # Odblokowuje leżącą gotówkę na potwierdzonych technicznie setupach.
   setenv MECHANICAL_ENTRIES_ENABLED true "$f"
-  # PEŁNE ZAINWESTOWANIE + ROTACJA (2026-09-15, wyraźna prośba właściciela):
-  # mechaniczny deploy leżącej gotówki w najlepsze setupy + wymiana najsłabszej
-  # pozycji na wyraźnie lepszą (profil umiarkowany). Claude = weto (nie kupuje
-  # nazwy oznaczonej SELL). Kill-switch = AUTO_DEPLOY_ENABLED false.
-  setenv AUTO_DEPLOY_ENABLED true "$f"
+  # PEŁNE ZAINWESTOWANIE + ROTACJA — WYŁĄCZONE (2026-09-15, po symulacji Monte Carlo):
+  # na ujemnym edge koncentracja/obrót pogłębiały stratę (mediana −27%/rok vs −7%).
+  # Kod zostaje (kill-switch), włączenie = flip na true. Wracamy do niego dopiero,
+  # gdy trafność przebije próg opłacalności (~31%).
+  setenv AUTO_DEPLOY_ENABLED false "$f"
   setenv AUTO_DEPLOY_ROTATION_MARGIN 1 "$f"
   setenv AUTO_DEPLOY_ROTATION_MAX_PNL_PCT 1.0 "$f"
   setenv AUTO_DEPLOY_MAX_ROTATIONS_PER_CYCLE 2 "$f"
