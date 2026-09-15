@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-09-15T15:01:07Z
+# Audyt GielDarek — 2026-09-15T15:56:55Z
 
-**Wdrożenie:** kod f7833cd (zbud. 2026-09-15T15:00Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod b8200bd (zbud. 2026-09-15T15:35Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 54 zamknięć · trafność 27.8% · zrealizowany $-7.21
 **7 dni:** 8 zamknięć · 37.5% · $-6.02   |   **30 dni:** 41 · 29.3% · $-9.82
@@ -38,19 +38,30 @@
 - próg pewności — baza (env): 0.52 · progresja +0.02/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
-- ostatnie 120 decyzji · wykonanych: 21 · odrzuconych: 99
+- ostatnie 120 decyzji · wykonanych: 28 · odrzuconych: 92
 
 **Najczęstsze powody odrzucenia (top):**
-- 49× — brak powodu
-- 18× — Zbyt niska pewność: 0.62 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
-- 9× — Zbyt niska pewność: 0.65 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
-- 5× — Zbyt niska pewność: 0.68 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
-- 4× — Zbyt niska pewność: 0.62 < próg 0.72 (baza 0.60 + 4 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
-- 3× — Zbyt niska pewność: 0.60 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
+- 51× — brak powodu
+- 16× — Zbyt niska pewność: 0.62 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
+- 8× — Zbyt niska pewność: 0.65 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
+- 4× — Zbyt niska pewność: 0.68 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
+- 3× — Zbyt niska pewność: 0.62 < próg 0.72 (baza 0.60 + 4 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 3× — Zbyt niska pewność: 0.63 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
+- 2× — Zbyt niska pewność: 0.60 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 2× — Zbyt niska pewność: 0.62 < próg 0.66 (baza 0.60 + 2 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 
 **Ostatnie 20 decyzji:**
+- 2026-09-15T15:32:31.750185 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-09-15T15:27:28.730245 SPY BUY conf=0.52 trig=manual ✅WYKONANE
+- 2026-09-15T15:27:23.221357 TLT BUY conf=0.52 trig=manual ✅WYKONANE
+- 2026-09-15T15:27:18.442088 V BUY conf=0.52 trig=manual ✅WYKONANE
+- 2026-09-15T15:27:13.609825 SMH BUY conf=0.52 trig=manual ✅WYKONANE
+- 2026-09-15T15:27:08.855574 NVDA BUY conf=0.52 trig=manual ✅WYKONANE
+- 2026-09-15T15:27:04.207537 QQQ BUY conf=0.52 trig=manual ✅WYKONANE
+- 2026-09-15T15:26:59.142316 MSFT BUY conf=0.52 trig=manual ✅WYKONANE
+- 2026-09-15T15:26:54.297650 META BUY conf=0.52 trig=manual ✅WYKONANE
+- 2026-09-15T15:26:48.850888 AAPL BUY conf=0.52 trig=manual ✅WYKONANE
+- 2026-09-15T15:26:48.821029 — HOLD conf=0.0 trig=manual ⛔ ?
 - 2026-09-15T14:27:13.447097 GLD BUY conf=0.5 trig=news_event ✅WYKONANE
 - 2026-09-15T14:27:07.371968 LLY BUY conf=0.55 trig=news_event ✅WYKONANE
 - 2026-09-15T14:27:00.532388 NFLX SELL conf=0.55 trig=news_event ✅WYKONANE
@@ -60,14 +71,3 @@
 - 2026-09-14T18:56:53.957271 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-09-14T18:26:56.496724 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-09-14T17:56:55.248048 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-09-14T17:27:11.913239 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-09-14T16:32:55.508398 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-09-14T16:02:57.474750 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-09-14T15:33:19.339377 NFLX BUY conf=0.53 trig=scheduled_daily ✅WYKONANE
-- 2026-09-14T15:33:13.795114 GOOGL BUY conf=0.58 trig=scheduled_daily ✅WYKONANE
-- 2026-09-14T14:26:53.738287 — HOLD conf=0.0 trig=news_event ⛔ ?
-- 2026-09-14T13:57:20.643706 META SELL conf=0.55 trig=price_move ✅WYKONANE
-- 2026-09-14T13:57:14.800011 AVGO SELL conf=0.6 trig=price_move ✅WYKONANE
-- 2026-09-11T19:56:56.028861 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-09-11T19:26:54.829560 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-09-11T18:56:47.718464 — HOLD conf=0.6 trig=news_event ⛔ ?
