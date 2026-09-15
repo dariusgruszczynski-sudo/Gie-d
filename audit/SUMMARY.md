@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-09-15T16:46:56Z
+# Audyt GielDarek — 2026-09-15T16:47:38Z
 
-**Wdrożenie:** kod 44cb486 (zbud. 2026-09-15T15:59Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 0a154f4 (zbud. 2026-09-15T16:47Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 55 zamknięć · trafność 27.3% · zrealizowany $-7.39
 **7 dni:** 9 zamknięć · 33.3% · $-6.19   |   **30 dni:** 42 · 28.6% · $-9.99
@@ -14,7 +14,7 @@
 - (bad) Średnia wygrana +$2.74 vs strata −$1.21 (wygrana 2.26× większa) → na transakcję −$0.13. Wygrane za małe wobec strat — to psuje wynik.
 - (bad) ⚠ Zyski trzymane dłużej (~4 dni) niż straty (~3 dni) — automat zwleka z realizacją zysku.
 - (neu) Największy przeciek: MSFT (-5.33 $, 3 zamk.) — kandydat do wyrzucenia z listy.
-- (neu) Limit wejść bywa osiągany (5 dni) — podniesienie może dołożyć wejść.
+- (neu) Limit wejść bywa osiągany (6 dni) — podniesienie może dołożyć wejść.
 - (neu) Najczęstszy powód pominięcia wejścia: „Zbyt niska pewność: 0.62 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału” (24× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
@@ -30,12 +30,12 @@
 - V: $-1.54 (1 zamk., 0%)
 
 ## Wejścia vs limit
-- cap 12/dzień · max w dniu 57 · dni z limitem 5 · hamuje: true
+- cap 6/dzień · max w dniu 57 · dni z limitem 6 · hamuje: true
 
 ## Opus-kontroler (co REALNIE zmienił)
 - włączony: false · ostatni przebieg: 2026-09-11 · baza wiedzy: 29 wpisów
 - nadpisania knobów: BRAK (Opus nic nie zmienił od domyślnych)
-- próg pewności — baza (env): 0.52 · progresja +0.02/pozycję do sufitu 0.9
+- próg pewności — baza (env): 0.6 · progresja +0.03/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
 - ostatnie 120 decyzji · wykonanych: 29 · odrzuconych: 91
