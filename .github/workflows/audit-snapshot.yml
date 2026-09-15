@@ -45,6 +45,9 @@ jobs:
           # Dziennik decyzji (dlaczego handluje / dlaczego NIE) — surowe wiersze.
           curl -sS --max-time 30 -o decisions.json \
             "${BASE_URL%/}/api/decisions?share=${SHARE_TOKEN}&limit=120" || echo '[]' > decisions.json
+          # Transakcje z realnym P&L per sprzedaż — do krzywej kapitału w czasie.
+          curl -sS --max-time 30 -o trades.json \
+            "${BASE_URL%/}/api/trades?share=${SHARE_TOKEN}&limit=1000" || echo '[]' > trades.json
 
       - name: Zbuduj czytelne podsumowanie (Markdown)
         run: |
@@ -101,6 +104,7 @@ jobs:
           cp audit-latest.json "${TMP}/audit/latest.json"
           cp SUMMARY.md        "${TMP}/audit/SUMMARY.md"
           cp decisions.json    "${TMP}/audit/decisions.json" 2>/dev/null || true
+          cp trades.json       "${TMP}/audit/trades.json" 2>/dev/null || true
           cp status.json       "${TMP}/audit/status.json" 2>/dev/null || true
           cp audit-latest.json "${TMP}/audit/history/${STAMP}.json"
           cd "${TMP}"
