@@ -1839,6 +1839,197 @@ def _process_decision(
     return decision
 
 
+class _AutoDecision:
+    """Lekka „decyzja" dla warstwy auto-deploy — ma dokładnie te pola, których
+    używa tor egzekucji (_process_decision / effective_buy_size_pct), więc
+    mechaniczne wejścia przechodzą przez TE SAME bramki co decyzje Claude'a."""
+
+    __slots__ = ("action", "symbol", "size_pct", "confidence", "reasoning")
+
+    def __init__(self, action: str, symbol: str, size_pct: float, confidence: float, reasoning: str):
+        self.action = action
+        self.symbol = symbol
+        self.size_pct = size_pct
+        self.confidence = confidence
+        self.reasoning = reasoning
+
+
+def _candidate_score(settings: Settings, md: dict | None) -> tuple[int, float, bool]:
+    """(score konfluencji 0-3, momentum do tiebreaku, czy ≥ entry_min_score)."""
+    md = md or {}
+    tech = md.get("technical", {}) or {}
+    sig = signals.entry_confluence(settings, tech)
+    mom = md.get("change_period_pct")
+    if mom is None:
+        rsi = tech.get("rsi_14")
+        mom = (float(rsi) - 50.0) if rsi is not None else 0.0
+    return sig.score, float(mom), sig.ok
+
+
+def _held_symbols(portfolio: dict, settings: Settings, symbols: list[str]) -> list[str]:
+    out = []
+    for sym in symbols:
+        base = _base_asset(sym, settings.quote_currency)
+        qty = portfolio["balances"].get(base, 0.0)
+        price = portfolio["prices"].get(sym)
+        if qty > 0 and price and qty * price >= MIN_SELL_NOTIONAL_USD:
+            out.append(sym)
+    return out
+
+
+def auto_deploy_wants_action(db: Session, settings: Settings, portfolio: dict, symbols: list[str], venue: str) -> bool:
+    """Tanie (bez Claude) sprawdzenie: czy jest leżąca gotówka I wolny slot —
+    wtedy warto wymusić cykl (Claude jako weto + świeże dane), żeby auto-deploy
+    rozmieścił gotówkę. Rotacja przy pełnym portfelu jedzie na innych triggerach."""
+    if not settings.auto_deploy_enabled:
+        return False
+    if venue_allocation_room(db, settings, portfolio, venue) < settings.auto_deploy_min_cash_usd:
+        return False
+    if (
+        settings.max_concurrent_positions > 0
+        and count_open_positions(portfolio, settings, symbols) >= settings.max_concurrent_positions
+    ):
+        return False
+    return True
+
+
+def _run_auto_deploy(
+    db: Session,
+    settings: Settings,
+    broker,
+    *,
+    market_data: dict,
+    portfolio: dict,
+    veto_sell: set[str],
+    regime: dict,
+    regime_gate_on: bool,
+    defensive_list: list[str],
+    earnings_days: dict,
+    performance_context: dict,
+    trade_check,
+    tradable: bool,
+    session_info: SessionInfo | None,
+    trigger_reason,
+    venue: str,
+    symbols: list[str],
+    edge_payoff: float | None,
+) -> tuple[list[Decision], dict]:
+    """PEŁNE ZAINWESTOWANIE + ROTACJA. Uruchamiane PO decyzjach Claude'a (które
+    dostają pierwszeństwo i dostarczają weta: nazwy oznaczone SELL są pomijane).
+    (1) DEPLOY: dopóki jest wolna gotówka i wolny slot, kupuje najlepsze
+        confluentne setupy (ranking = score, potem momentum). (2) ROTACJA: gdy
+        brak gotówki, a najlepszy nowy kandydat bije najsłabszą trzymaną o
+        margines score i najsłabsza jest ~zero/na minusie — sprzedaje najsłabszą
+        i wchodzi w nową. Wszystko przez _process_decision, więc te same bramki
+        (halt, limity, reżim, cooldown, earnings, blacklist, sizing) obowiązują.
+    Zwraca (wykonane decyzje, odświeżony portfel). Best-effort — wołający łapie."""
+    executed: list[Decision] = []
+    if not settings.auto_deploy_enabled or not tradable or not trade_check.approved:
+        return executed, portfolio
+
+    pf = portfolio
+
+    def eligible_new(sym: str) -> bool:
+        if sym in veto_sell or sym not in market_data:
+            return False
+        score, _mom, ok = _candidate_score(settings, market_data.get(sym))
+        if not ok:
+            return False
+        base = _base_asset(sym, settings.quote_currency)
+        if pf["balances"].get(base, 0.0) * (pf["prices"].get(sym) or 0.0) >= MIN_SELL_NOTIONAL_USD:
+            return False  # już trzymana
+        if regime_gate_on and regime.get("regime") == "risk_off" and sym not in defensive_list:
+            return False
+        return True
+
+    def rank_key(sym: str):
+        s, m, _ = _candidate_score(settings, market_data.get(sym))
+        return (s, m)
+
+    def run_one(action: str, sym: str, reason: str) -> Decision | None:
+        # BUY: proś o max_position_pct (twardy limit walidatora), z pewnością na
+        # progu wejścia — dzięki temu conviction-sizing nie napompuje rozmiaru
+        # ponad limit, a risk-cap i tak przycina; P4 (mechanika) przepuszcza gate
+        # pewności na potwierdzonym setupie. SELL: pełne wyjście (100%).
+        size_pct = settings.max_position_pct if action == "BUY" else 100.0
+        dd = _AutoDecision(
+            action=action,
+            symbol=sym,
+            size_pct=size_pct,
+            confidence=settings.min_buy_confidence,
+            reasoning=reason,
+        )
+        return _process_decision(
+            db, settings, broker,
+            decision_data=dd, portfolio=pf, market_data=market_data, headlines=[],
+            global_context={}, trigger_reason=trigger_reason, regime=regime,
+            regime_gate_on=regime_gate_on, defensive_list=defensive_list,
+            earnings_days=earnings_days, performance_context=performance_context,
+            trade_check=trade_check, tradable=tradable, session_info=session_info,
+            venue=venue, symbols=symbols, edge_payoff=edge_payoff,
+        )
+
+    # (1) DEPLOY leżącej gotówki w najlepsze setupy.
+    tried: set[str] = set()
+    while venue_allocation_room(db, settings, pf, venue) >= settings.auto_deploy_min_cash_usd and (
+        settings.max_concurrent_positions <= 0
+        or count_open_positions(pf, settings, symbols) < settings.max_concurrent_positions
+    ):
+        cands = [s for s in market_data if s not in tried and eligible_new(s)]
+        if not cands:
+            break
+        best = max(cands, key=rank_key)
+        tried.add(best)
+        score = _candidate_score(settings, market_data.get(best))[0]
+        dec = run_one("BUY", best, f"Auto-deploy: rozmieszczam gotówkę w najlepszy setup {best} (konfluencja {score}/3)")
+        if dec is not None and dec.executed:
+            executed.append(dec)
+            pf = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
+
+    # (2) ROTACJA: przy braku gotówki wymień najsłabszą trzymaną na wyraźnie lepszą.
+    rotations = 0
+    while rotations < settings.auto_deploy_max_rotations_per_cycle:
+        if venue_allocation_room(db, settings, pf, venue) >= settings.auto_deploy_min_cash_usd:
+            break  # jest gotówka — to nie sytuacja na rotację, dokłada ją krok (1)
+        held = _held_symbols(pf, settings, symbols)
+        cands = [s for s in market_data if eligible_new(s)]
+        if not held or not cands:
+            break
+        best_new = max(cands, key=rank_key)
+        new_score = _candidate_score(settings, market_data.get(best_new))[0]
+
+        def _held_metrics(sym: str, _pf=pf) -> tuple[int, float]:
+            score = _candidate_score(settings, market_data.get(sym))[0] if sym in market_data else 0
+            basis = average_cost_basis(db, sym, venue=venue) or 0.0
+            price = _pf["prices"].get(sym) or 0.0
+            pnl = ((price - basis) / basis * 100) if basis > 0 else 0.0
+            return score, pnl
+
+        weakest = min(held, key=_held_metrics)
+        w_score, w_pnl = _held_metrics(weakest)
+        if new_score < w_score + settings.auto_deploy_rotation_margin:
+            break  # nowy nie jest wyraźnie lepszy
+        if w_pnl > settings.auto_deploy_rotation_max_pnl_pct:
+            break  # najsłabsza jest na plusie — niech biegnie z trailingiem
+        if _within_min_hold(db, weakest, settings, venue=venue):
+            break  # świeża pozycja — anty-churn
+        sdec = run_one(
+            "SELL", weakest,
+            f"Auto-rotacja: sprzedaję najsłabszą {weakest} (konfluencja {w_score}/3, {w_pnl:.1f}%) pod lepszy setup {best_new} ({new_score}/3)",
+        )
+        if sdec is None or not sdec.executed:
+            break
+        executed.append(sdec)
+        pf = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
+        bdec = run_one("BUY", best_new, f"Auto-rotacja: wchodzę w {best_new} (konfluencja {new_score}/3) po sprzedaży {weakest}")
+        if bdec is not None and bdec.executed:
+            executed.append(bdec)
+            pf = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
+        rotations += 1
+
+    return executed, pf
+
+
 def run_cycle(
     db: Session,
     settings: Settings,
@@ -1920,6 +2111,14 @@ def run_cycle(
     if news_triggered and not triggered:
         triggered = True
         trigger_reason = TriggerType.NEWS_EVENT
+
+    # PEŁNE ZAINWESTOWANIE: gdy nic nie wyzwoliło cyklu, a jest leżąca gotówka i
+    # wolny slot, WYMUŚ cykl — Claude dostanie głos (jako weto), a warstwa
+    # auto-deploy niżej rozmieści gotówkę. Bez tego bot czekałby biernie na skok
+    # ceny/news i gotówka mogłaby leżeć całą spokojną sesję.
+    if not force and not triggered and auto_deploy_wants_action(db, settings, portfolio, symbols, venue):
+        triggered = True
+        trigger_reason = TriggerType.SCHEDULED_DAILY
 
     if force:
         trigger_reason = TriggerType.MANUAL
@@ -2225,6 +2424,25 @@ def run_cycle(
         # action in the set (and its gates) sees the post-trade portfolio.
         if dec is not None and dec.executed:
             portfolio = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
+
+    # PEŁNE ZAINWESTOWANIE + ROTACJA: po decyzjach Claude'a (weto = nazwy, które
+    # oznaczył SELL) mechanicznie rozmieść leżącą gotówkę i wymień najsłabszą
+    # pozycję na wyraźnie lepszą. Best-effort — nigdy nie wywraca cyklu.
+    if settings.auto_deploy_enabled:
+        veto_sell = {dd.symbol for dd in decisions_data if getattr(dd, "action", None) == "SELL" and dd.symbol}
+        try:
+            auto_execs, portfolio = _run_auto_deploy(
+                db, settings, broker,
+                market_data=market_data, portfolio=portfolio, veto_sell=veto_sell,
+                regime=regime, regime_gate_on=regime_gate_on, defensive_list=defensive_list,
+                earnings_days=earnings_days, performance_context=performance_context,
+                trade_check=trade_check, tradable=tradable, session_info=session_info,
+                trigger_reason=trigger_reason, venue=venue, symbols=symbols, edge_payoff=edge_payoff,
+            )
+            if primary is None and auto_execs:
+                primary = auto_execs[0]
+        except Exception:
+            logger.warning("Warstwa auto-deploy padła (nie wywraca cyklu)", exc_info=True)
     return primary
 
 

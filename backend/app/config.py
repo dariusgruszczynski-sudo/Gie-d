@@ -643,6 +643,28 @@ class Settings(BaseSettings):
     # Ile ostatnich ZAMKNIĘĆ (od epoki statystyk) liczy „świeżą" przewagę do #4.
     conviction_edge_lookback_trades: int = 20
 
+    # PEŁNE ZAINWESTOWANIE + ROTACJA (2026-09-15, na wyraźną prośbę właściciela).
+    # Mechaniczna warstwa po wyjściach mechanicznych i po decyzjach Claude'a:
+    # (1) DEPLOY — dopóki jest wolna gotówka i wolne sloty, kupuje najlepsze
+    #     confluentne setupy (ranking = entry_confluence.score + momentum), żeby
+    #     gotówka nie leżała; (2) ROTACJA — przy pełnym portfelu, gdy nowy kandydat
+    #     jest WYRAŹNIE lepszy od najsłabszej trzymanej pozycji, sprzedaje najsłabszą
+    #     i wchodzi w nową. Wszystko przez ten SAM tor gate'ów/sizingu/egzekucji co
+    #     Claude, więc halty/limity/cooldown/earnings/blacklist obowiązują.
+    # Claude jako WETO: nie kupuje nazwy, którą Claude w tym cyklu oznaczył SELL.
+    # OSTRZEŻENIE: to maksymalizuje obrót — przy ujemnym edge zwielokrotnia koszty
+    # i straty. Kill-switch = auto_deploy_enabled=false. OFF => zachowanie jak dotąd.
+    auto_deploy_enabled: bool = False
+    # ROTACJA (profil „umiarkowany"): nowy setup musi mieć score o tyle wyższy niż
+    # najsłabsza trzymana, a najsłabsza musi być ~zero/na minusie (pnl <= max_pnl),
+    # żeby nie wyrzucać wygranych i nie handlować w kółko (anty-ping-pong).
+    auto_deploy_rotation_margin: int = 1
+    auto_deploy_rotation_max_pnl_pct: float = 1.0
+    # Bezpiecznik anty-churn: maks. wymian na cykl.
+    auto_deploy_max_rotations_per_cycle: int = 2
+    # Nie zawracaj sobie głowy resztką gotówki poniżej tego progu (USD).
+    auto_deploy_min_cash_usd: float = 25.0
+
     database_url: str = "sqlite:///./data/trading.db"
 
     # --- Powiadomienia PUSH (telefon / Apple Watch przez PWA) ----------------

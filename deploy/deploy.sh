@@ -111,6 +111,14 @@ apply_knobs() { # apply_knobs FILE
   # P4 (2026-09-11): wejścia napędza mechanika (konfluencja), Claude = weto.
   # Odblokowuje leżącą gotówkę na potwierdzonych technicznie setupach.
   setenv MECHANICAL_ENTRIES_ENABLED true "$f"
+  # PEŁNE ZAINWESTOWANIE + ROTACJA (2026-09-15, wyraźna prośba właściciela):
+  # mechaniczny deploy leżącej gotówki w najlepsze setupy + wymiana najsłabszej
+  # pozycji na wyraźnie lepszą (profil umiarkowany). Claude = weto (nie kupuje
+  # nazwy oznaczonej SELL). Kill-switch = AUTO_DEPLOY_ENABLED false.
+  setenv AUTO_DEPLOY_ENABLED true "$f"
+  setenv AUTO_DEPLOY_ROTATION_MARGIN 1 "$f"
+  setenv AUTO_DEPLOY_ROTATION_MAX_PNL_PCT 1.0 "$f"
+  setenv AUTO_DEPLOY_MAX_ROTATIONS_PER_CYCLE 2 "$f"
   setenv DEFENSIVE_SYMBOLS GLD,TLT "$f"
   # Rekom. #1: ciasne, GŁĘBOKO PŁYNNE uniwersum STATYCZNE (dynamic OFF). Śmieciowe
   # pojedyncze nazwy z dynamicznego skanu (JAZZ/NDSN/ROST -- przecieki audytu) na
