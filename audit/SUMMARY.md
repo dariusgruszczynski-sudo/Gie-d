@@ -1,16 +1,16 @@
-# Audyt GielDarek — 2026-09-15T16:47:38Z
+# Audyt GielDarek — 2026-09-15T17:38:36Z
 
 **Wdrożenie:** kod 0a154f4 (zbud. 2026-09-15T16:47Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 55 zamknięć · trafność 27.3% · zrealizowany $-7.39
-**7 dni:** 9 zamknięć · 33.3% · $-6.19   |   **30 dni:** 42 · 28.6% · $-9.99
+**7 dni:** 8 zamknięć · 25.0% · $-7.32   |   **30 dni:** 42 · 28.6% · $-9.99
 **Edge:** śr. wygrana +$2.74 vs strata $-1.21 → na transakcję $-0.13 (payoff 2.26×)
 **Trzymanie:** zyski ~4.5 dni · straty ~2.6 dni
 
 ## Wnioski
 - (bad) Wynik zamkniętych transakcji od 10.08: 55 zamknięć, trafność 27% — pod kreską (−$7.39).
-- (neu) Trafność 7 dni 33% vs 30 dni 29% — stabilna.
-- (bad) Ostatnie 7 dni: -6.19 $ z 9 zamknięć.
+- (neu) Trafność 7 dni 25% vs 30 dni 29% — stabilna.
+- (bad) Ostatnie 7 dni: -7.32 $ z 8 zamknięć.
 - (bad) Średnia wygrana +$2.74 vs strata −$1.21 (wygrana 2.26× większa) → na transakcję −$0.13. Wygrane za małe wobec strat — to psuje wynik.
 - (bad) ⚠ Zyski trzymane dłużej (~4 dni) niż straty (~3 dni) — automat zwleka z realizacją zysku.
 - (neu) Największy przeciek: MSFT (-5.33 $, 3 zamk.) — kandydat do wyrzucenia z listy.
@@ -51,6 +51,7 @@
 - 2× — Zbyt niska pewność: 0.62 < próg 0.66 (baza 0.60 + 2 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 
 **Ostatnie 20 decyzji:**
+- 2026-09-15T17:18:09.695750 AVGO SELL conf=0.5 trig=news_event ⛔ size_pct <= 0, nic do zrobienia
 - 2026-09-15T16:30:22.268142 AVGO BUY conf=0.52 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (12) — nowe BUY wstrzymane do jutra (anty-churn)
 - 2026-09-15T16:30:22.251001 AMZN BUY conf=0.52 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (12) — nowe BUY wstrzymane do jutra (anty-churn)
 - 2026-09-15T16:30:22.229845 JPM BUY conf=0.52 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (12) — nowe BUY wstrzymane do jutra (anty-churn)
@@ -70,4 +71,3 @@
 - 2026-09-15T15:26:48.821029 — HOLD conf=0.0 trig=manual ⛔ ?
 - 2026-09-15T14:27:13.447097 GLD BUY conf=0.5 trig=news_event ✅WYKONANE
 - 2026-09-15T14:27:07.371968 LLY BUY conf=0.55 trig=news_event ✅WYKONANE
-- 2026-09-15T14:27:00.532388 NFLX SELL conf=0.55 trig=news_event ✅WYKONANE
