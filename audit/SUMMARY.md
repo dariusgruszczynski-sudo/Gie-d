@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-09-18T19:33:25Z
+# Audyt GielDarek — 2026-09-18T22:30:40Z
 
 **Wdrożenie:** kod 77e005f (zbud. 2026-09-18T18:42Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
@@ -49,6 +49,9 @@
 - 1× — Zbyt niska pewność: 0.65 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 
 **Ostatnie 20 decyzji:**
+- 2026-09-18T19:42:52.715428 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-09-18T19:36:58.026923 — HOLD conf=0.6 trig=manual ⛔ ?
+- 2026-09-18T19:36:50.586852 — HOLD conf=0.6 trig=manual ⛔ ?
 - 2026-09-18T19:13:16.300004 SMH BUY conf=0.6 trig=news_event ✅WYKONANE
 - 2026-09-18T19:13:11.380683 AAPL BUY conf=0.62 trig=news_event ✅WYKONANE
 - 2026-09-18T19:13:11.363620 META SELL conf=0.5 trig=news_event ⛔ size_pct <= 0, nic do zrobienia
@@ -66,6 +69,3 @@
 - 2026-09-18T14:26:00.145059 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-09-18T13:56:20.939692 AAPL BUY conf=0.65 trig=price_move ✅WYKONANE
 - 2026-09-18T13:56:15.783555 GOOGL BUY conf=0.62 trig=price_move ✅WYKONANE
-- 2026-09-17T19:56:05.346726 GOOGL BUY conf=0.6 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (6) — nowe BUY wstrzymane do jutra (anty-churn)
-- 2026-09-17T19:56:05.320721 META BUY conf=0.65 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (6) — nowe BUY wstrzymane do jutra (anty-churn)
-- 2026-09-17T19:56:00.240481 MSFT SELL conf=0.55 trig=news_event ✅WYKONANE
