@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-09-18T16:08:23Z
+# Audyt GielDarek — 2026-09-18T17:02:41Z
 
 **Wdrożenie:** kod 889cebd (zbud. 2026-09-15T18:25Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
@@ -41,16 +41,18 @@
 - ostatnie 120 decyzji · wykonanych: 43 · odrzuconych: 77
 
 **Najczęstsze powody odrzucenia (top):**
-- 59× — brak powodu
+- 60× — brak powodu
 - 5× — Limit nowych wejść na dziś osiągnięty (6) — nowe BUY wstrzymane do jutra (anty-churn)
 - 4× — Limit nowych wejść na dziś osiągnięty (12) — nowe BUY wstrzymane do jutra (anty-churn)
 - 3× — Zbyt niska pewność: 0.62 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
-- 2× — Zbyt niska pewność: 0.65 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 2× — size_pct <= 0, nic do zrobienia
 - 1× — Zbyt niska pewność: 0.60 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 1× — Zbyt niska pewność: 0.60 < próg 0.81 (baza 0.60 + 7 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
+- 1× — Zbyt niska pewność: 0.65 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 
 **Ostatnie 20 decyzji:**
+- 2026-09-18T16:55:54.177102 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-09-18T16:26:01.044878 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-09-18T15:55:51.268642 — HOLD conf=0.0 trig=news_event ⛔ ?
 - 2026-09-18T15:25:56.727801 LLY BUY conf=0.6 trig=news_event ⛔ Zbyt niska pewność: 0.60 < próg 0.81 (baza 0.60 + 7 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 2026-09-18T14:55:57.815101 GOOGL SELL conf=0.55 trig=news_event ✅WYKONANE
@@ -69,5 +71,3 @@
 - 2026-09-17T17:26:00.855130 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-09-17T16:56:04.146219 AAPL BUY conf=0.63 trig=news_event ✅WYKONANE
 - 2026-09-17T16:55:59.043178 GOOGL BUY conf=0.62 trig=news_event ✅WYKONANE
-- 2026-09-17T16:26:01.418620 META SELL conf=0.75 trig=news_event ✅WYKONANE
-- 2026-09-17T15:56:03.438301 GOOGL BUY conf=0.62 trig=news_event ✅WYKONANE
