@@ -27,6 +27,14 @@
   --txt: #e9e6e1;           /* silver */
   --dim: #a39a8d;           /* warm silver-grey */
   --dim-2: #6b6459;
+  /* Liquid Glass — wspólny język szkła (mrożone powierzchnie nad żywym tłem). */
+  --glass: rgba(22, 17, 11, 0.44);
+  --glass-strong: rgba(18, 14, 9, 0.58);
+  --glass-sheen: linear-gradient(150deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.015) 46%, rgba(0, 0, 0, 0.06));
+  --glass-edge: rgba(255, 255, 255, 0.14);
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --glass-shadow: 0 10px 34px rgba(0, 0, 0, 0.34);
+  --glass-blur: blur(20px) saturate(160%);
   --rail-w: 240px;
   --rail-w-sm: 68px;
   color: var(--txt);
@@ -52,7 +60,7 @@
 }
 .gd-bg span:nth-child(1) { width: 44vmax; height: 44vmax; left: -10vmax; top: -12vmax; background: radial-gradient(circle, rgba(207, 138, 77, 0.55), transparent 60%); animation: gd-fl1 28s ease-in-out infinite; }
 .gd-bg span:nth-child(2) { width: 38vmax; height: 38vmax; right: -8vmax; bottom: -12vmax; background: radial-gradient(circle, rgba(201, 162, 74, 0.4), transparent 62%); animation: gd-fl2 34s ease-in-out infinite; }
-.gd-bg span:nth-child(3) { width: 34vmax; height: 34vmax; right: 20%; top: 30%; background: radial-gradient(circle, rgba(60, 120, 255, 0.3), transparent 64%); animation: gd-fl3 40s ease-in-out infinite; }
+.gd-bg span:nth-child(3) { width: 34vmax; height: 34vmax; right: 20%; top: 30%; background: radial-gradient(circle, rgba(79, 183, 154, 0.22), transparent 64%); animation: gd-fl3 40s ease-in-out infinite; }
 @keyframes gd-fl1 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(20vw,16vh) scale(1.15)} }
 @keyframes gd-fl2 { 0%,100%{transform:translate(0,0) scale(1.05)} 50%{transform:translate(-18vw,-12vh) scale(0.9)} }
 @keyframes gd-fl3 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-22vw,10vh) scale(1.2)} }
@@ -1232,3 +1240,73 @@
 .gd-why-head { font-size: 0.9rem; color: var(--txt); font-weight: 600; }
 .gd-why-head b { font-variant-numeric: tabular-nums; }
 .gd-why-reason { font-size: 0.8rem; color: var(--dim); }
+
+/* ============================================================================
+   LIQUID GLASS — spójny język całego portalu (2026-09-18). Mrożone,
+   półprzezroczyste powierzchnie nad żywym tłem (.gd-bg): sheen + jasna krawędź +
+   inset-highlight + miękki cień. Realny backdrop-blur na DUŻYCH powierzchniach
+   (rail, pasy, now, karty, modal, przyciski); małe/powtarzalne kafle dostają
+   „faux-glass" (bez blur) dla płynności na telefonie. Blok na końcu — nadpisuje
+   wcześniejsze, płaskie tła.
+   ============================================================================ */
+
+/* Rail — miedziano-czarne szkło (koniec starego niebieskiego gradientu). */
+.gd-rail {
+  background: linear-gradient(180deg, rgba(20, 15, 10, 0.58), rgba(10, 8, 6, 0.66));
+  -webkit-backdrop-filter: blur(30px) saturate(165%);
+  backdrop-filter: blur(30px) saturate(165%);
+  border-right: 1px solid var(--glass-edge);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Duże powierzchnie — realne mrożenie. */
+.gd-lane, .gd-now, .gd-card {
+  background-color: var(--glass);
+  background-image: var(--glass-sheen);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-color: var(--glass-edge);
+  box-shadow: var(--glass-shadow), var(--glass-hi);
+}
+.gd-lane { background-color: var(--glass-strong); }
+
+/* Specularny połysk (miękki błysk z lewego-górnego rogu) na kartach i pasku. */
+.gd-card, .gd-now { position: relative; isolation: isolate; }
+.gd-card::after, .gd-now::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
+  background: radial-gradient(120% 80% at 10% -20%, rgba(255, 255, 255, 0.10), transparent 55%);
+}
+
+/* Modal — pływające szkło zamiast płaskiej płyty; mocniej rozmyte tło pod nim. */
+.gd-modal {
+  background-color: var(--glass-strong);
+  background-image: var(--glass-sheen);
+  -webkit-backdrop-filter: blur(30px) saturate(165%);
+  backdrop-filter: blur(30px) saturate(165%);
+  border: 1px solid var(--glass-edge);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), var(--glass-hi);
+}
+.gd-modal-bg { background: rgba(6, 4, 2, 0.55); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+
+/* Przyciski — szklane pigułki (lekki blur; jest ich niewiele). */
+.gd-btn {
+  background-color: rgba(255, 255, 255, 0.05);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02));
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  backdrop-filter: blur(12px) saturate(150%);
+  border-color: var(--glass-edge);
+  box-shadow: var(--glass-hi), 0 4px 14px rgba(0, 0, 0, 0.22);
+}
+.gd-btn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--iris) 55%, transparent); background-color: color-mix(in srgb, var(--iris) 16%, transparent); }
+.gd-btn.primary {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0));
+  box-shadow: var(--glass-hi), 0 10px 26px -10px var(--mint);
+}
+
+/* Faux-glass (bez blur — wydajność na telefonie): kafle KPI i listy. */
+.gd-stat, .gd-hl-item, .gd-pos-card {
+  background-color: var(--glass);
+  background-image: var(--glass-sheen);
+  border-color: var(--glass-edge);
+  box-shadow: var(--glass-hi);
+}
