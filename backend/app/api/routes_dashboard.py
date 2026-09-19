@@ -338,31 +338,15 @@ def _day_realized_usd(db: Session) -> float:
 
 
 def _alpha_view(db: Session, settings: Settings, account: dict | None) -> dict | None:
-    """Alfa vs zwykłe trzymanie benchmarku (SPY): czy bot bije DCA w indeks.
-    benchmark_value = ile byłbyś wart, gdybyś tę samą bazę trzymał w SPY od
-    baseline'u; alpha = konto − to. None dopóki nie ma baseline'u/ceny SPY."""
-    if account is None:
-        return None
-    state = risk_manager.get_state(db)
-    if getattr(state, "benchmark_start_price", 0) <= 0 or getattr(state, "benchmark_start_value", 0) <= 0:
-        return None
-    snap = _latest_snapshot(db, "alpaca")
-    spy_now = None
-    if snap:
-        try:
-            spy_now = json.loads(snap.prices_json or "{}").get(settings.benchmark_symbol)
-        except (TypeError, ValueError):
-            spy_now = None
-    if not spy_now:
-        return None
-    bench_value = state.benchmark_start_value * (spy_now / state.benchmark_start_price)
-    alpha_usd = account["total_value"] - bench_value
-    return {
-        "benchmark": settings.benchmark_symbol,
-        "benchmark_value": round(bench_value, 2),
-        "alpha_usd": round(alpha_usd, 2),
-        "alpha_pct": round(alpha_usd / bench_value * 100, 2) if bench_value > 0 else None,
-    }
+    """WYŁĄCZONE (2026-09-19). Ta „alfa vs SPY" w DOLARACH była FAŁSZYWA na koncie
+    dokapitalizowywanym: liczyła alpha = wartość_konta − (baseline × zmiana_SPY),
+    a baseline był zakotwiczony, gdy konto było małe (~$241). Wpłaty (których bot
+    nie rejestruje — deposits_lifetime=0) rosły konto do ~$1000 i CAŁA ta gotówka
+    była zaliczana jako „pobicie indeksu" (stąd absurd +$767 / +318%).
+    Uczciwe, odporne-na-wpłaty porównanie % (obie linie od 0) jest w zakładce
+    Analiza (pnl_history vs SPY). Ten dolarowy kafel zdejmujemy do czasu, aż
+    wpłaty będą śledzone i baseline dawał się rzetelnie korygować."""
+    return None
 
 
 def _trading_pnl_series(db: Session, venue: str, rows_asc: list) -> list[float]:

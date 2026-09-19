@@ -505,8 +505,8 @@ const FREE_METRICS: Array<{ key: string; label: string; sub: string; get: (s: St
   { key: "day_realized", label: "Wzięte dziś", sub: "zaksięgowane (bez wpłat)", get: (s) => ({ text: money(s.day_realized_usd ?? 0), tone: (s.day_realized_usd ?? 0) >= 0 ? "up" : "down" }) },
   { key: "realized", label: "Już wzięty", sub: "ze sprzedanych", get: (s) => ({ text: money(s.trading_pnl.realized_usd), tone: s.trading_pnl.realized_usd >= 0 ? "up" : "down" }) },
   { key: "unrealized", label: "Na otwartych", sub: "jeszcze trzymane", get: (s) => ({ text: money(s.trading_pnl.unrealized_usd), tone: s.trading_pnl.unrealized_usd >= 0 ? "up" : "down" }) },
-  // #7: automat vs zwykłe trzymanie SPY — czy w ogóle warto zamiast DCA w indeks.
-  { key: "alpha", label: "vs SPY", sub: "bijemy zwykłe DCA?", get: (s) => ({ text: s.alpha_vs_spy ? `${s.alpha_vs_spy.alpha_usd >= 0 ? "+" : ""}${money(s.alpha_vs_spy.alpha_usd)}` : "—", tone: (s.alpha_vs_spy?.alpha_usd ?? 0) >= 0 ? "up" : "down" }) },
+  // (usunięto kafel „vs SPY" w $ — był fałszywy na koncie z wpłatami; uczciwe
+  //  porównanie % jest w zakładce Analiza.)
   // Wynik SAMEGO bota (zrealizowany + otwarte), odporny na wpłaty. NIE odejmujemy
   // kosztu tokenów AI — to budżet dzielony na wiele zastosowań, nie wydatek handlu.
   { key: "net", label: "Wynik bota", sub: "zrealizowany + otwarte", get: (s) => ({ text: money(s.trading_pnl.total_usd), tone: s.trading_pnl.total_usd >= 0 ? "up" : "down" }) },
@@ -649,12 +649,8 @@ export function Console({ status, alpaca, extended, simple = false, onGoPosition
                   tone={status.trading_pnl.realized_usd >= 0 ? "up" : "down"} sub="ze sprzedanych — masz na koncie" />
                 <StatCard label="Na otwartych" value={`${status.trading_pnl.unrealized_usd >= 0 ? "+" : ""}${money(status.trading_pnl.unrealized_usd)}`}
                   tone={status.trading_pnl.unrealized_usd >= 0 ? "up" : "down"} sub="jeszcze trzymane" />
-                {/* #7: automat vs zwykłe trzymanie SPY — czy warto zamiast DCA w indeks. */}
-                {status.alpha_vs_spy && (
-                  <StatCard label="vs SPY" value={`${status.alpha_vs_spy.alpha_usd >= 0 ? "+" : ""}${money(status.alpha_vs_spy.alpha_usd)}`}
-                    tone={status.alpha_vs_spy.alpha_usd >= 0 ? "up" : "down"}
-                    sub={status.alpha_vs_spy.alpha_pct != null ? `${status.alpha_vs_spy.alpha_pct >= 0 ? "bijemy indeks o " : "za indeksem o "}${Math.abs(status.alpha_vs_spy.alpha_pct).toFixed(1)}%` : "bijemy zwykłe DCA?"} />
-                )}
+                {/* Kafel „vs SPY" w $ usunięty — na koncie z wpłatami był fałszywy
+                    (zaliczał wpłaty jako pobicie indeksu). Uczciwe porównanie % w Analizie. */}
               </div>
             )}
             {/* #5: dzień = WYCENA (papierowa) obok ZAKSIĘGOWANEGO dziś — żeby „-7%"
