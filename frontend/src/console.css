@@ -215,6 +215,7 @@
 .gd-pos-fig { text-align: right; }
 .gd-pos-fig .val { font-weight: 700; font-variant-numeric: tabular-nums; }
 .gd-pos-fig .pct { font-size: 0.8rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.gd-pos-fig .gd-pos-pnl { font-size: 0.72rem; font-weight: 700; font-variant-numeric: tabular-nums; opacity: 0.92; }
 .gd-pos-bar { grid-column: 1 / -1; height: 3px; border-radius: 3px; background: rgba(255,255,255,0.06); overflow: hidden; }
 .gd-pos-bar span { display: block; height: 100%; border-radius: 3px; }
 .gd-pos-days { font-size: 0.68rem; color: var(--muted); font-weight: 600; margin-left: 6px; }
@@ -666,6 +667,8 @@
 .gd-pcard-fig { text-align: right; display: flex; flex-direction: column; gap: 1px; }
 .gd-pcard-val { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; font-size: 1.05rem; }
 .gd-pcard-pct { font-size: 0.82rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Kwota zysku/straty „gdyby zamknąć teraz" — obok procentu. */
+.gd-pcard-pnl { font-size: 0.72rem; font-weight: 700; font-variant-numeric: tabular-nums; opacity: 0.92; }
 
 /* the track: stop --- entry --- [current] --- target */
 .gd-track { position: relative; height: 44px; margin: 6px 2px 2px; }

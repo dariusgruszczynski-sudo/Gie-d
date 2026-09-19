@@ -130,6 +130,9 @@ export function PosRow({ p, plan, note, onChanged }: { p: Pos; plan?: PositionPl
       <div className="gd-pos-fig">
         <div className="val">{money(p.value)}</div>
         <div className={`pct ${up ? "gd-up" : "gd-down"}`}>{p.pnlPct !== null ? pct(p.pnlPct) : "—"}</div>
+        {p.pnlUsd !== null && p.pnlUsd !== undefined && (
+          <div className={`gd-pos-pnl ${up ? "gd-up" : "gd-down"}`} title="Zysk / strata przy zamknięciu teraz">{p.pnlUsd >= 0 ? "+" : ""}{money(p.pnlUsd)}</div>
+        )}
       </div>
       {!isReadOnly && onChanged ? (
         <button className="gd-sell" disabled={busy} onClick={sell}>{busy ? "…" : "Sprzedaj"}</button>
@@ -314,6 +317,11 @@ export function PositionCard({ p, plan, bypassPct, marketOpen = true, onChanged,
         <div className="gd-pcard-fig">
           <span className="gd-pcard-val">{money(p.value)}</span>
           <span className={`gd-pcard-pct ${up ? "gd-up" : "gd-down"}`}>{p.pnlPct !== null ? pct(p.pnlPct) : "—"}</span>
+          {p.pnlUsd !== null && p.pnlUsd !== undefined && (
+            <span className={`gd-pcard-pnl ${up ? "gd-up" : "gd-down"}`} title="Zysk / strata przy zamknięciu teraz">
+              {p.pnlUsd >= 0 ? "+" : ""}{money(p.pnlUsd)} teraz
+            </span>
+          )}
         </div>
       </div>
 
