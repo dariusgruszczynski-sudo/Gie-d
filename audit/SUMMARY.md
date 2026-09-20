@@ -1,9 +1,9 @@
-# Audyt GielDarek — 2026-09-19T12:02:19Z
+# Audyt GielDarek — 2026-09-20T10:21:01Z
 
 **Wdrożenie:** kod 3a0b17f (zbud. 2026-09-19T11:44Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 67 zamknięć · trafność 32.8% · zrealizowany $-6.72
-**7 dni:** 16 zamknięć · 50.0% · $-1.42   |   **30 dni:** 47 · 36.2% · $-13.56
+**7 dni:** 16 zamknięć · 50.0% · $-1.42   |   **30 dni:** 39 · 35.9% · $-16.81
 **Edge:** śr. wygrana +$1.98 vs strata $-1.12 → na transakcję $-0.1 (payoff 1.77×)
 **Trzymanie:** zyski ~3.6 dni · straty ~2.5 dni
 
