@@ -1,17 +1,17 @@
-# Audyt GielDarek — 2026-09-21T11:33:39Z
+# Audyt GielDarek — 2026-09-21T15:42:55Z
 
 **Wdrożenie:** kod 3a0b17f (zbud. 2026-09-19T11:44Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
-**Od zmiany strategii (tylko akcje):** 67 zamknięć · trafność 32.8% · zrealizowany $-6.72
-**7 dni:** 16 zamknięć · 50.0% · $-1.42   |   **30 dni:** 37 · 35.1% · $-20.68
-**Edge:** śr. wygrana +$1.98 vs strata $-1.12 → na transakcję $-0.1 (payoff 1.77×)
-**Trzymanie:** zyski ~3.6 dni · straty ~2.5 dni
+**Od zmiany strategii (tylko akcje):** 69 zamknięć · trafność 34.8% · zrealizowany $5.16
+**7 dni:** 16 zamknięć · 56.2% · $11.27   |   **30 dni:** 39 · 38.5% · $-8.8
+**Edge:** śr. wygrana +$2.31 vs strata $-1.12 → na transakcję $0.07 (payoff 2.06×)
+**Trzymanie:** zyski ~3.7 dni · straty ~2.5 dni
 
 ## Wnioski
-- (bad) Wynik zamkniętych transakcji od 10.08: 67 zamknięć, trafność 33% — pod kreską (−$6.72).
-- (good) Trafność 7 dni 50% vs 30 dni 35% — rośnie.
-- (bad) Ostatnie 7 dni: -1.42 $ z 16 zamknięć.
-- (bad) Średnia wygrana +$1.98 vs strata −$1.12 (wygrana 1.77× większa) → na transakcję −$0.10. Wygrane za małe wobec strat — to psuje wynik.
+- (good) Wynik zamkniętych transakcji od 10.08: 69 zamknięć, trafność 35% — realnie zarabia (+$5.16).
+- (good) Trafność 7 dni 56% vs 30 dni 38% — rośnie.
+- (good) Ostatnie 7 dni: +11.27 $ z 16 zamknięć.
+- (neu) Średnia wygrana +$2.31 vs strata −$1.12 (wygrana 2.06× większa) → na transakcję +$0.07. Edge ledwo dodatni — w granicach szumu małej próbki, nie licz na to jak na pewny zysk.
 - (bad) ⚠ Zyski trzymane dłużej (~4 dni) niż straty (~2 dni) — automat zwleka z realizacją zysku.
 - (neu) Największy przeciek: MSFT (-5.86 $, 4 zamk.) — kandydat do wyrzucenia z listy.
 - (neu) Limit wejść bywa osiągany (8 dni) — podniesienie może dołożyć wejść.
@@ -27,7 +27,7 @@
 - V: $-2.29 (2 zamk., 0%)
 - AMZN: $-2.22 (1 zamk., 0%)
 - OKTA: $-1.65 (1 zamk., 0%)
-- NVDA: $-1.56 (6 zamk., 33%)
+- AAPL: $-1.24 (1 zamk., 0%)
 
 ## Wejścia vs limit
 - cap 6/dzień · max w dniu 57 · dni z limitem 8 · hamuje: true
@@ -38,17 +38,27 @@
 - próg pewności — baza (env): 0.6 · progresja +0.03/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
-- ostatnie 120 decyzji · wykonanych: 48 · odrzuconych: 72
+- ostatnie 120 decyzji · wykonanych: 50 · odrzuconych: 70
 
 **Najczęstsze powody odrzucenia (top):**
-- 58× — brak powodu
+- 53× — brak powodu
 - 5× — Limit nowych wejść na dziś osiągnięty (6) — nowe BUY wstrzymane do jutra (anty-churn)
+- 5× — size_pct <= 0, nic do zrobienia
 - 4× — Limit nowych wejść na dziś osiągnięty (12) — nowe BUY wstrzymane do jutra (anty-churn)
-- 3× — size_pct <= 0, nic do zrobienia
-- 1× — Zbyt niska pewność: 0.60 < próg 0.81 (baza 0.60 + 7 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
-- 1× — Zbyt niska pewność: 0.65 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
+- 3× — Zbyt niska pewność: 0.60 < próg 0.81 (baza 0.60 + 7 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 
 **Ostatnie 20 decyzji:**
+- 2026-09-21T15:16:33.222382 LLY BUY conf=0.62 trig=news_event ✅WYKONANE
+- 2026-09-21T15:16:28.847961 SMH BUY conf=0.7 trig=news_event ✅WYKONANE
+- 2026-09-21T15:16:22.956635 META BUY conf=0.68 trig=news_event ✅WYKONANE
+- 2026-09-21T15:15:48.777743 SMH SELL conf=1.0 trig=price_move ✅WYKONANE
+- 2026-09-21T15:15:45.257070 NVDA SELL conf=1.0 trig=price_move ✅WYKONANE
+- 2026-09-21T14:46:14.681947 MSFT BUY conf=0.6 trig=news_event ⛔ Zbyt niska pewność: 0.60 < próg 0.81 (baza 0.60 + 7 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
+- 2026-09-21T14:16:17.449914 GOOGL BUY conf=0.62 trig=news_event ✅WYKONANE
+- 2026-09-21T13:46:44.832175 V BUY conf=0.3 trig=price_move ⛔ size_pct <= 0, nic do zrobienia
+- 2026-09-21T13:46:44.818101 MSFT BUY conf=0.6 trig=price_move ⛔ Zbyt niska pewność: 0.60 < próg 0.81 (baza 0.60 + 7 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
+- 2026-09-21T13:46:40.022976 SMH BUY conf=0.62 trig=price_move ✅WYKONANE
+- 2026-09-21T13:46:39.998296 GOOGL BUY conf=0.5 trig=price_move ⛔ size_pct <= 0, nic do zrobienia
 - 2026-09-18T19:42:52.715428 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-09-18T19:36:58.026923 — HOLD conf=0.6 trig=manual ⛔ ?
 - 2026-09-18T19:36:50.586852 — HOLD conf=0.6 trig=manual ⛔ ?
@@ -58,14 +68,3 @@
 - 2026-09-18T18:25:57.664422 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-09-18T17:55:52.983972 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-09-18T17:27:14.117915 SMH BUY conf=0.6 trig=manual ✅WYKONANE
-- 2026-09-18T17:27:09.656060 GOOGL BUY conf=0.62 trig=manual ✅WYKONANE
-- 2026-09-18T17:27:03.821533 LLY SELL conf=0.55 trig=manual ✅WYKONANE
-- 2026-09-18T17:25:53.142856 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-09-18T16:55:54.177102 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-09-18T16:26:01.044878 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-09-18T15:55:51.268642 — HOLD conf=0.0 trig=news_event ⛔ ?
-- 2026-09-18T15:25:56.727801 LLY BUY conf=0.6 trig=news_event ⛔ Zbyt niska pewność: 0.60 < próg 0.81 (baza 0.60 + 7 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
-- 2026-09-18T14:55:57.815101 GOOGL SELL conf=0.55 trig=news_event ✅WYKONANE
-- 2026-09-18T14:26:00.145059 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-09-18T13:56:20.939692 AAPL BUY conf=0.65 trig=price_move ✅WYKONANE
-- 2026-09-18T13:56:15.783555 GOOGL BUY conf=0.62 trig=price_move ✅WYKONANE
