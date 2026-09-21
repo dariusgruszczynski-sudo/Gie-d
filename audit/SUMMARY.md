@@ -1,20 +1,20 @@
-# Audyt GielDarek — 2026-09-21T18:37:10Z
+# Audyt GielDarek — 2026-09-21T20:25:45Z
 
-**Wdrożenie:** kod 3a0b17f (zbud. 2026-09-19T11:44Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 3b3f16e (zbud. 2026-09-21T20:07Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
-**Od zmiany strategii (tylko akcje):** 73 zamknięć · trafność 37.0% · zrealizowany $14.03
-**7 dni:** 20 zamknięć · 60.0% · $20.14   |   **30 dni:** 43 · 41.9% · $0.07
-**Edge:** śr. wygrana +$2.38 vs strata $-1.1 → na transakcję $0.19 (payoff 2.16×)
-**Trzymanie:** zyski ~3.5 dni · straty ~2.5 dni
+**Od zmiany strategii (tylko akcje):** 75 zamknięć · trafność 38.7% · zrealizowany $15.35
+**7 dni:** 22 zamknięć · 63.6% · $21.46   |   **30 dni:** 45 · 44.4% · $1.39
+**Edge:** śr. wygrana +$2.26 vs strata $-1.1 → na transakcję $0.2 (payoff 2.05×)
+**Trzymanie:** zyski ~3.3 dni · straty ~2.5 dni
 
 ## Wnioski
-- (good) Wynik zamkniętych transakcji od 10.08: 73 zamknięć, trafność 37% — realnie zarabia (+$14.03).
-- (good) Trafność 7 dni 60% vs 30 dni 42% — rośnie.
-- (good) Ostatnie 7 dni: +20.14 $ z 20 zamknięć.
-- (neu) Średnia wygrana +$2.38 vs strata −$1.10 (wygrana 2.16× większa) → na transakcję +$0.19. Edge ledwo dodatni — w granicach szumu małej próbki, nie licz na to jak na pewny zysk.
-- (bad) ⚠ Zyski trzymane dłużej (~4 dni) niż straty (~2 dni) — automat zwleka z realizacją zysku.
+- (good) Wynik zamkniętych transakcji od 10.08: 75 zamknięć, trafność 39% — realnie zarabia (+$15.35).
+- (good) Trafność 7 dni 64% vs 30 dni 44% — rośnie.
+- (good) Ostatnie 7 dni: +21.46 $ z 22 zamknięć.
+- (good) Średnia wygrana +$2.26 vs strata −$1.10 (wygrana 2.05× większa) → na transakcję +$0.20. Zarabia mimo <50% trafności — edge dodatni.
+- (bad) ⚠ Zyski trzymane dłużej (~3 dni) niż straty (~2 dni) — automat zwleka z realizacją zysku.
 - (neu) Największy przeciek: MSFT (-5.86 $, 4 zamk.) — kandydat do wyrzucenia z listy.
-- (neu) Limit wejść bywa osiągany (9 dni) — podniesienie może dołożyć wejść.
+- (neu) Limit wejść bywa osiągany (44 dni) — podniesienie może dołożyć wejść.
 - (neu) Najczęstszy powód pominięcia wejścia: „Zbyt niska pewność: 0.62 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału” (24× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
@@ -30,7 +30,7 @@
 - AAPL: $-1.24 (1 zamk., 0%)
 
 ## Wejścia vs limit
-- cap 6/dzień · max w dniu 57 · dni z limitem 9 · hamuje: true
+- cap 0/dzień · max w dniu 57 · dni z limitem 44 · hamuje: true
 
 ## Opus-kontroler (co REALNIE zmienił)
 - włączony: false · ostatni przebieg: 2026-09-11 · baza wiedzy: 29 wpisów
@@ -41,8 +41,8 @@
 - ostatnie 120 decyzji · wykonanych: 53 · odrzuconych: 67
 
 **Najczęstsze powody odrzucenia (top):**
-- 44× — brak powodu
-- 9× — Limit nowych wejść na dziś osiągnięty (6) — nowe BUY wstrzymane do jutra (anty-churn)
+- 38× — brak powodu
+- 15× — Limit nowych wejść na dziś osiągnięty (6) — nowe BUY wstrzymane do jutra (anty-churn)
 - 5× — size_pct <= 0, nic do zrobienia
 - 4× — Limit nowych wejść na dziś osiągnięty (12) — nowe BUY wstrzymane do jutra (anty-churn)
 - 3× — Zbyt niska pewność: 0.60 < próg 0.81 (baza 0.60 + 7 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
@@ -50,6 +50,14 @@
 - 1× — Zbyt niska pewność: 0.62 < próg 0.78 (baza 0.60 + 6 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 
 **Ostatnie 20 decyzji:**
+- 2026-09-21T19:46:18.935552 META BUY conf=0.62 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (6) — nowe BUY wstrzymane do jutra (anty-churn)
+- 2026-09-21T19:46:18.918317 QQQ BUY conf=0.65 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (6) — nowe BUY wstrzymane do jutra (anty-churn)
+- 2026-09-21T19:46:18.881037 SMH BUY conf=0.68 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (6) — nowe BUY wstrzymane do jutra (anty-churn)
+- 2026-09-21T19:17:45.411290 SMH BUY conf=0.62 trig=manual ⛔ Limit nowych wejść na dziś osiągnięty (6) — nowe BUY wstrzymane do jutra (anty-churn)
+- 2026-09-21T19:17:05.655566 META SELL conf=1.0 trig=manual ✅WYKONANE
+- 2026-09-21T19:16:12.612986 META SELL conf=0.72 trig=news_event ✅WYKONANE
+- 2026-09-21T18:46:12.668243 QQQ BUY conf=0.68 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (6) — nowe BUY wstrzymane do jutra (anty-churn)
+- 2026-09-21T18:46:12.649166 SMH BUY conf=0.65 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (6) — nowe BUY wstrzymane do jutra (anty-churn)
 - 2026-09-21T18:16:12.333059 GLD BUY conf=0.55 trig=news_event ⛔ Zbyt niska pewność: 0.55 < próg 0.78 (baza 0.60 + 6 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 2026-09-21T18:16:12.319196 SMH BUY conf=0.62 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (6) — nowe BUY wstrzymane do jutra (anty-churn)
 - 2026-09-21T17:46:13.716357 SMH BUY conf=0.65 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (6) — nowe BUY wstrzymane do jutra (anty-churn)
@@ -62,11 +70,3 @@
 - 2026-09-21T16:02:25.315003 LLY SELL conf=0.55 trig=manual ✅WYKONANE
 - 2026-09-21T16:02:19.977105 META SELL conf=0.65 trig=manual ✅WYKONANE
 - 2026-09-21T16:01:37.091876 QQQ SELL conf=1.0 trig=manual ✅WYKONANE
-- 2026-09-21T15:55:10.917493 — HOLD conf=0.0 trig=manual ⛔ ?
-- 2026-09-21T15:46:13.092181 AVGO BUY conf=0.62 trig=news_event ✅WYKONANE
-- 2026-09-21T15:16:33.222382 LLY BUY conf=0.62 trig=news_event ✅WYKONANE
-- 2026-09-21T15:16:28.847961 SMH BUY conf=0.7 trig=news_event ✅WYKONANE
-- 2026-09-21T15:16:22.956635 META BUY conf=0.68 trig=news_event ✅WYKONANE
-- 2026-09-21T15:15:48.777743 SMH SELL conf=1.0 trig=price_move ✅WYKONANE
-- 2026-09-21T15:15:45.257070 NVDA SELL conf=1.0 trig=price_move ✅WYKONANE
-- 2026-09-21T14:46:14.681947 MSFT BUY conf=0.6 trig=news_event ⛔ Zbyt niska pewność: 0.60 < próg 0.81 (baza 0.60 + 7 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
