@@ -98,7 +98,7 @@ apply_knobs() { # apply_knobs FILE
   setenv CONVICTION_EDGE_MIN_PAYOFF 2.0 "$f"
   setenv CONVICTION_EDGE_FULL_PAYOFF 4.0 "$f"
   setenv MAX_CONCURRENT_POSITIONS 10 "$f"        # JAKOŚĆ: mniej równoczesnych, bardziej wybiórczo (było 16)
-  setenv MAX_NEW_POSITIONS_PER_DAY 6 "$f"        # JAKOŚĆ: mniej wejść dziennie (było 12)
+  setenv MAX_NEW_POSITIONS_PER_DAY 0 "$f"        # 0 = BEZ dziennego limitu wejść (decyzja właściciela 2026-09-21: jest sygnał -> wchodzimy; hamują tylko gotówka, ryzyko/transakcję, sufit równoczesnych i próg pewności)
   setenv MAX_POSITION_PCT 90 "$f"
   setenv ENTRY_FILTER_ENABLED true "$f"
   setenv AUTO_DEMOTE_ENABLED true "$f"           # JAKOŚĆ: kwarantanna nazw z chronicznie ujemną historią (>=5 zamknięć, <40% traf.)
