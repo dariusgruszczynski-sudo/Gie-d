@@ -1,21 +1,21 @@
-# Audyt GielDarek — 2026-09-24T17:50:08Z
+# Audyt GielDarek — 2026-09-24T21:26:48Z
 
 **Wdrożenie:** kod 3b3f16e (zbud. 2026-09-21T20:07Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
-**Od zmiany strategii (tylko akcje):** 88 zamknięć · trafność 36.4% · zrealizowany $12.12
-**7 dni:** 26 zamknięć · 46.2% · $18.41   |   **30 dni:** 55 · 40.0% · $-4.01
-**Edge:** śr. wygrana +$2.08 vs strata $-0.97 → na transakcję $0.14 (payoff 2.14×)
+**Od zmiany strategii (tylko akcje):** 89 zamknięć · trafność 36.0% · zrealizowany $11.92
+**7 dni:** 24 zamknięć · 41.7% · $18.39   |   **30 dni:** 55 · 38.2% · $-5.27
+**Edge:** śr. wygrana +$2.08 vs strata $-0.96 → na transakcję $0.13 (payoff 2.17×)
 **Trzymanie:** zyski ~3.2 dni · straty ~2.2 dni
 
 ## Wnioski
-- (good) Wynik zamkniętych transakcji od 10.08: 88 zamknięć, trafność 36% — realnie zarabia (+$12.12).
-- (good) Trafność 7 dni 46% vs 30 dni 40% — rośnie.
-- (good) Ostatnie 7 dni: +18.41 $ z 26 zamknięć.
-- (neu) Średnia wygrana +$2.08 vs strata −$0.97 (wygrana 2.14× większa) → na transakcję +$0.14. Edge ledwo dodatni — w granicach szumu małej próbki, nie licz na to jak na pewny zysk.
+- (good) Wynik zamkniętych transakcji od 10.08: 89 zamknięć, trafność 36% — realnie zarabia (+$11.92).
+- (neu) Trafność 7 dni 42% vs 30 dni 38% — stabilna.
+- (good) Ostatnie 7 dni: +18.39 $ z 24 zamknięć.
+- (neu) Średnia wygrana +$2.08 vs strata −$0.96 (wygrana 2.17× większa) → na transakcję +$0.13. Edge ledwo dodatni — w granicach szumu małej próbki, nie licz na to jak na pewny zysk.
 - (bad) ⚠ Zyski trzymane dłużej (~3 dni) niż straty (~2 dni) — automat zwleka z realizacją zysku.
 - (neu) Największy przeciek: MSFT (-6.91 $, 8 zamk.) — kandydat do wyrzucenia z listy.
 - (neu) Limit wejść bywa osiągany (47 dni) — podniesienie może dołożyć wejść.
-- (neu) Najczęstszy powód pominięcia wejścia: „Zbyt niska pewność: 0.62 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału” (23× z ostatnich 300 decyzji).
+- (neu) Najczęstszy powód pominięcia wejścia: „Zbyt niska pewność: 0.62 < próg 0.69 (baza 0.60 + 3 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału” (22× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
 - MSFT: $-6.91 (8 zamk., 0%)
@@ -38,10 +38,10 @@
 - próg pewności — baza (env): 0.6 · progresja +0.03/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
-- ostatnie 120 decyzji · wykonanych: 62 · odrzuconych: 58
+- ostatnie 120 decyzji · wykonanych: 60 · odrzuconych: 60
 
 **Najczęstsze powody odrzucenia (top):**
-- 34× — brak powodu
+- 36× — brak powodu
 - 15× — Limit nowych wejść na dziś osiągnięty (6) — nowe BUY wstrzymane do jutra (anty-churn)
 - 4× — size_pct <= 0, nic do zrobienia
 - 3× — Zbyt niska pewność: 0.60 < próg 0.81 (baza 0.60 + 7 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
@@ -49,6 +49,11 @@
 - 1× — Zbyt niska pewność: 0.62 < próg 0.78 (baza 0.60 + 6 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 
 **Ostatnie 20 decyzji:**
+- 2026-09-24T19:38:09.337934 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-09-24T19:08:03.202296 AAPL BUY conf=0.62 trig=news_event ✅WYKONANE
+- 2026-09-24T19:07:58.058238 QQQ BUY conf=0.68 trig=news_event ✅WYKONANE
+- 2026-09-24T18:38:00.672493 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-09-24T18:07:56.718199 SMH SELL conf=0.55 trig=news_event ✅WYKONANE
 - 2026-09-24T17:37:53.981997 — HOLD conf=0.0 trig=news_event ⛔ ?
 - 2026-09-24T17:07:57.770991 SMH BUY conf=0.65 trig=news_event ✅WYKONANE
 - 2026-09-24T16:37:55.146013 — HOLD conf=0.6 trig=news_event ⛔ ?
@@ -64,8 +69,3 @@
 - 2026-09-23T19:07:54.525044 — HOLD conf=0.0 trig=news_event ⛔ ?
 - 2026-09-23T18:37:57.048801 — HOLD conf=0.0 trig=news_event ⛔ ?
 - 2026-09-23T18:07:59.143192 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-09-23T17:37:56.334825 — HOLD conf=0.0 trig=news_event ⛔ ?
-- 2026-09-23T17:08:05.228512 META SELL conf=0.65 trig=news_event ✅WYKONANE
-- 2026-09-23T16:38:03.216181 SMH SELL conf=0.55 trig=news_event ✅WYKONANE
-- 2026-09-23T16:08:04.497884 MSFT BUY conf=0.62 trig=news_event ✅WYKONANE
-- 2026-09-23T16:07:58.950687 NVDA SELL conf=0.65 trig=news_event ✅WYKONANE
