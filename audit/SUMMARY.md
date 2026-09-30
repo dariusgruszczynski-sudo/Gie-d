@@ -1,17 +1,17 @@
-# Audyt GielDarek — 2026-09-30T18:24:09Z
+# Audyt GielDarek — 2026-09-30T20:46:37Z
 
 **Wdrożenie:** kod 3b3f16e (zbud. 2026-09-21T20:07Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
-**Od zmiany strategii (tylko akcje):** 101 zamknięć · trafność 32.7% · zrealizowany $6.58
-**7 dni:** 15 zamknięć · 13.3% · $-5.44   |   **30 dni:** 59 · 35.6% · $-0.37
-**Edge:** śr. wygrana +$2.02 vs strata $-0.88 → na transakcję $0.06 (payoff 2.3×)
-**Trzymanie:** zyski ~3.1 dni · straty ~2.7 dni
+**Od zmiany strategii (tylko akcje):** 104 zamknięć · trafność 31.7% · zrealizowany $5.84
+**7 dni:** 18 zamknięć · 11.1% · $-6.18   |   **30 dni:** 62 · 33.9% · $-1.11
+**Edge:** śr. wygrana +$2.02 vs strata $-0.86 → na transakcję $0.06 (payoff 2.35×)
+**Trzymanie:** zyski ~3.1 dni · straty ~2.6 dni
 
 ## Wnioski
-- (good) Wynik zamkniętych transakcji od 10.08: 101 zamknięć, trafność 33% — realnie zarabia (+$6.58).
-- (bad) Trafność 7 dni 13% vs 30 dni 36% — spada.
-- (bad) Ostatnie 7 dni: -5.44 $ z 15 zamknięć.
-- (neu) Średnia wygrana +$2.02 vs strata −$0.88 (wygrana 2.3× większa) → na transakcję +$0.06. Edge ledwo dodatni — w granicach szumu małej próbki, nie licz na to jak na pewny zysk.
+- (good) Wynik zamkniętych transakcji od 10.08: 104 zamknięć, trafność 32% — realnie zarabia (+$5.84).
+- (bad) Trafność 7 dni 11% vs 30 dni 34% — spada.
+- (bad) Ostatnie 7 dni: -6.18 $ z 18 zamknięć.
+- (neu) Średnia wygrana +$2.02 vs strata −$0.86 (wygrana 2.35× większa) → na transakcję +$0.06. Edge ledwo dodatni — w granicach szumu małej próbki, nie licz na to jak na pewny zysk.
 - (good) Czas trzymania zysków (~3 dni) i strat (~3 dni) podobny — bez „siedzenia na zysku”.
 - (neu) Największy przeciek: MSFT (-7.11 $, 10 zamk.) — kandydat do wyrzucenia z listy.
 - (neu) Limit wejść bywa osiągany (51 dni) — podniesienie może dołożyć wejść.
@@ -25,8 +25,8 @@
 - AVGO: $-3.66 (4 zamk., 25%)
 - ESTC: $-2.48 (2 zamk., 0%)
 - GLD: $-2.37 (2 zamk., 0%)
+- AMZN: $-2.3 (2 zamk., 0%)
 - V: $-2.29 (2 zamk., 0%)
-- AMZN: $-2.22 (1 zamk., 0%)
 - OKTA: $-1.65 (1 zamk., 0%)
 
 ## Wejścia vs limit
@@ -44,10 +44,16 @@
 - 39× — brak powodu
 - 9× — size_pct <= 0, nic do zrobienia
 - 2× — Auto-degradacja AVGO: ujemna historia (1W/4L, P&L -3.73) — nowe wejście zablokowane
-- 1× — Limit nowych wejść na dziś osiągnięty (6) — nowe BUY wstrzymane do jutra (anty-churn)
+- 1× — Zbyt niska pewność: 0.62 < próg 0.81 (baza 0.60 + 7 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 1× — Zbyt niska pewność: 0.62 < próg 0.87 (baza 0.60 + 9 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 
 **Ostatnie 20 decyzji:**
+- 2026-09-30T19:38:10.298660 NFLX BUY conf=0.62 trig=news_event ⛔ Zbyt niska pewność: 0.62 < próg 0.81 (baza 0.60 + 7 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
+- 2026-09-30T19:08:03.956299 GOOGL BUY conf=0.6 trig=news_event ✅WYKONANE
+- 2026-09-30T19:07:59.279639 AMZN SELL conf=0.5 trig=news_event ✅WYKONANE
+- 2026-09-30T19:07:54.364187 COST SELL conf=0.55 trig=news_event ✅WYKONANE
+- 2026-09-30T18:38:04.877039 LLY BUY conf=0.62 trig=news_event ✅WYKONANE
+- 2026-09-30T18:37:59.674963 META SELL conf=0.55 trig=news_event ✅WYKONANE
 - 2026-09-30T18:07:51.936454 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-09-30T17:37:50.271175 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-09-30T17:07:52.375682 NFLX BUY conf=0.62 trig=news_event ⛔ Zbyt niska pewność: 0.62 < próg 0.87 (baza 0.60 + 9 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
@@ -62,9 +68,3 @@
 - 2026-09-30T13:38:18.742215 GOOGL BUY conf=0.6 trig=scheduled_daily ✅WYKONANE
 - 2026-09-30T13:38:12.513296 MSFT BUY conf=0.62 trig=scheduled_daily ✅WYKONANE
 - 2026-09-29T19:37:58.880255 SMH BUY conf=0.62 trig=news_event ✅WYKONANE
-- 2026-09-29T19:37:53.774583 AAPL SELL conf=0.55 trig=news_event ✅WYKONANE
-- 2026-09-29T19:07:55.348060 AVGO BUY conf=0.62 trig=news_event ⛔ Auto-degradacja AVGO: ujemna historia (1W/4L, P&L -3.73) — nowe wejście zablokowane
-- 2026-09-29T18:37:51.157454 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-09-29T18:07:53.373267 GOOGL SELL conf=0.55 trig=news_event ✅WYKONANE
-- 2026-09-29T17:37:52.462001 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-09-29T17:07:57.966912 NVDA BUY conf=0.3 trig=news_event ⛔ size_pct <= 0, nic do zrobienia
