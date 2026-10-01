@@ -76,9 +76,14 @@ function NowStrip({ status }: { status: StatusResponse }) {
       <div className="gd-now-sep" />
       <div className="gd-now-item">
         <span className="k">Bot teraz</span>
-        <span className="v" style={{ color: status.is_halted ? "var(--rose)" : status.is_paused ? "var(--gold)" : "var(--mint)" }}>
-          {status.is_halted ? "wstrzymany (HALT)" : status.is_paused ? "wstrzymany" : open ? "pilnuje pozycji" : "czeka na otwarcie"}
+        {(() => {
+          const paused = crypto ? !!status.crypto_paused : status.is_paused;
+          return (
+        <span className="v" style={{ color: status.is_halted ? "var(--rose)" : paused ? "var(--gold)" : "var(--mint)" }}>
+          {status.is_halted ? "wstrzymany (HALT)" : paused ? "wstrzymany" : open ? "pilnuje pozycji" : "czeka na otwarcie"}
         </span>
+          );
+        })()}
       </div>
       <div className="gd-now-sep" />
       <div className="gd-now-item">
@@ -607,7 +612,10 @@ export function Console({ status, alpaca, extended, simple = false, onGoPosition
   const sesjaCount = positions.length;
   const sc = alpaca?.scorecard ?? null;
 
-  const usLive = !status.is_halted && !status.is_paused;
+  // Wskaźnik silnika: gdy krypto włączone, odzwierciedlaj pauzę venue krypto
+  // (to ono jest aktywnym silnikiem po pivocie), nie pauzę nogi akcji.
+  const venuePaused = status.crypto_enabled ? !!status.crypto_paused : status.is_paused;
+  const usLive = !status.is_halted && !venuePaused;
 
   const livePrices: Record<string, number> = {
     ...JSON.parse(alpaca?.current?.prices_json || "{}"),
