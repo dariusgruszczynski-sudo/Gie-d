@@ -1,24 +1,24 @@
-# Audyt GielDarek — 2026-10-01T18:48:31Z
+# Audyt GielDarek — 2026-10-01T23:05:19Z
 
-**Wdrożenie:** kod 3b3f16e (zbud. 2026-09-21T20:07Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 29deae9 (zbud. 2026-10-01T20:08Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
-**Od zmiany strategii (tylko akcje):** 109 zamknięć · trafność 30.3% · zrealizowany $2.84
-**7 dni:** 20 zamknięć · 5.0% · $-9.07   |   **30 dni:** 67 · 31.3% · $-4.11
-**Edge:** śr. wygrana +$2.02 vs strata $-0.84 → na transakcję $0.03 (payoff 2.4×)
-**Trzymanie:** zyski ~3.1 dni · straty ~2.8 dni
+**Od zmiany strategii (tylko akcje):** 112 zamknięć · trafność 30.4% · zrealizowany $8.37
+**7 dni:** 23 zamknięć · 8.7% · $-3.54   |   **30 dni:** 70 · 31.4% · $1.42
+**Edge:** śr. wygrana +$2.13 vs strata $-0.82 → na transakcję $0.07 (payoff 2.6×)
+**Trzymanie:** zyski ~3.3 dni · straty ~2.7 dni
 
 ## Wnioski
-- (neu) Wynik zamkniętych transakcji od 10.08: 109 zamknięć, trafność 30% — praktycznie na zero (+$2.84) — drepcze w miejscu.
-- (bad) Trafność 7 dni 5% vs 30 dni 31% — spada.
-- (bad) Ostatnie 7 dni: -9.07 $ z 20 zamknięć.
-- (neu) Średnia wygrana +$2.02 vs strata −$0.84 (wygrana 2.4× większa) → na transakcję +$0.03. Edge ledwo dodatni — w granicach szumu małej próbki, nie licz na to jak na pewny zysk.
-- (good) Czas trzymania zysków (~3 dni) i strat (~3 dni) podobny — bez „siedzenia na zysku”.
-- (neu) Największy przeciek: MSFT (-7.11 $, 10 zamk.) — kandydat do wyrzucenia z listy.
+- (good) Wynik zamkniętych transakcji od 10.08: 112 zamknięć, trafność 30% — realnie zarabia (+$8.37).
+- (bad) Trafność 7 dni 9% vs 30 dni 31% — spada.
+- (bad) Ostatnie 7 dni: -3.54 $ z 23 zamknięć.
+- (neu) Średnia wygrana +$2.13 vs strata −$0.82 (wygrana 2.6× większa) → na transakcję +$0.07. Edge ledwo dodatni — w granicach szumu małej próbki, nie licz na to jak na pewny zysk.
+- (bad) ⚠ Zyski trzymane dłużej (~3 dni) niż straty (~3 dni) — automat zwleka z realizacją zysku.
+- (neu) Największy przeciek: MSFT (-7.26 $, 11 zamk.) — kandydat do wyrzucenia z listy.
 - (neu) Limit wejść bywa osiągany (52 dni) — podniesienie może dołożyć wejść.
 - (neu) Najczęstszy powód pominięcia wejścia: „size_pct <= 0, nic do zrobienia” (16× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
-- MSFT: $-7.11 (10 zamk., 0%)
+- MSFT: $-7.26 (11 zamk., 0%)
 - AAPL: $-4.4 (3 zamk., 0%)
 - JAZZ: $-4.31 (1 zamk., 0%)
 - CRWD: $-3.72 (1 zamk., 0%)
@@ -41,13 +41,18 @@
 - ostatnie 120 decyzji · wykonanych: 68 · odrzuconych: 52
 
 **Najczęstsze powody odrzucenia (top):**
-- 37× — brak powodu
+- 36× — brak powodu
 - 11× — size_pct <= 0, nic do zrobienia
 - 2× — Auto-degradacja AVGO: ujemna historia (1W/4L, P&L -3.73) — nowe wejście zablokowane
+- 1× — Automat (alpaca) zapauzowany ręcznie
 - 1× — Zbyt niska pewność: 0.62 < próg 0.81 (baza 0.60 + 7 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 1× — Zbyt niska pewność: 0.62 < próg 0.87 (baza 0.60 + 9 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 
 **Ostatnie 20 decyzji:**
+- 2026-10-01T19:07:31.591585 — HOLD conf=0.0 trig=news_event ⛔ Automat (alpaca) zapauzowany ręcznie
+- 2026-10-01T18:52:03.724443 QQQ SELL conf=1.0 trig=manual ✅WYKONANE
+- 2026-10-01T18:51:47.277251 MSFT SELL conf=1.0 trig=manual ✅WYKONANE
+- 2026-10-01T18:51:35.938142 SMH SELL conf=1.0 trig=manual ✅WYKONANE
 - 2026-10-01T18:37:50.364629 META SELL conf=0.55 trig=news_event ✅WYKONANE
 - 2026-10-01T18:07:55.883388 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-10-01T17:37:53.036951 — HOLD conf=0.0 trig=news_event ⛔ ?
@@ -64,7 +69,3 @@
 - 2026-10-01T13:38:09.962787 — HOLD conf=0.6 trig=price_move ⛔ ?
 - 2026-09-30T19:38:10.298660 NFLX BUY conf=0.62 trig=news_event ⛔ Zbyt niska pewność: 0.62 < próg 0.81 (baza 0.60 + 7 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 2026-09-30T19:08:03.956299 GOOGL BUY conf=0.6 trig=news_event ✅WYKONANE
-- 2026-09-30T19:07:59.279639 AMZN SELL conf=0.5 trig=news_event ✅WYKONANE
-- 2026-09-30T19:07:54.364187 COST SELL conf=0.55 trig=news_event ✅WYKONANE
-- 2026-09-30T18:38:04.877039 LLY BUY conf=0.62 trig=news_event ✅WYKONANE
-- 2026-09-30T18:37:59.674963 META SELL conf=0.55 trig=news_event ✅WYKONANE
