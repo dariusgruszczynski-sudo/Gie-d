@@ -102,6 +102,17 @@ def init_db() -> None:
     _add_column_if_missing("system_state", "market_regime_json", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "extended_market_regime_json", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "extended_whitelist_json", "TEXT", "''")
+    # Crypto (24/7) venue: its own isolated per-cycle state columns (same shapes
+    # as extended), so enabling crypto never touches the equities/extended paths.
+    _add_column_if_missing("system_state", "crypto_paused", "BOOLEAN", "1")
+    _add_column_if_missing("system_state", "crypto_check_prices_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "crypto_position_peaks_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "crypto_stop_loss_cooldowns_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "crypto_seen_ticker_headlines_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "crypto_partial_tp_taken_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "crypto_stop_loss_streak_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "crypto_analysis_state_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "crypto_market_regime_json", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "peak_account_value", "FLOAT", "0.0")
     _add_column_if_missing("system_state", "pending_peak_value", "FLOAT", "0.0")
     _add_column_if_missing("system_state", "pending_peak_confirmations", "INTEGER", "0")

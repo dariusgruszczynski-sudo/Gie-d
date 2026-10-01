@@ -90,6 +90,34 @@ def _extended_job() -> None:
         db.close()
 
 
+def _crypto_job() -> None:
+    """The CRYPTO (24/7) leg -- same Alpaca account, crypto asset class. Runs only
+    when CRYPTO_ENABLED; shares the same pause/halt STOP gate (crypto_paused) and
+    uses its own higher-volatility profile, fixed liquid pair universe, and
+    isolated per-leg state columns. always_open=True: crypto has no session, so
+    it never session-gates (market_hours.is_tradable_for('crypto', ...) is always
+    True) and skips the SPY buy-and-hold benchmark (crypto-only leg)."""
+    settings = get_settings()
+    if not settings.crypto_enabled:
+        return
+    db = SessionLocal()
+    try:
+        broker = AlpacaClient(settings)
+        news = NewsClient(settings)
+        advisor = ClaudeAdvisor(settings)
+        market_ctx = MarketContextClient()
+        decision = run_cycle(
+            db, effective_settings(settings, "crypto"), broker, news, advisor, market_ctx,
+            venue="crypto", whitelist=settings.crypto_symbols, always_open=True,
+        )
+        if decision is not None:
+            logger.info("Crypto cycle produced decision: %s %s", decision.action, decision.symbol)
+    except Exception:
+        logger.exception("Crypto trading cycle failed")
+    finally:
+        db.close()
+
+
 def _regime_job() -> None:
     """Keeps the dashboard's market read ("temperatura rynku" + adaptive
     aggression) CURRENT independently of trading: refreshes + caches both
@@ -385,6 +413,14 @@ def start_scheduler() -> BackgroundScheduler:
         "interval",
         minutes=settings.extended_poll_interval_minutes,
         id="extended_trading_cycle",
+    )
+    # Crypto (24/7, same Alpaca account) venue -- no-ops unless CRYPTO_ENABLED, so
+    # it's always registered and just idles until enabled.
+    scheduler.add_job(
+        _crypto_job,
+        "interval",
+        minutes=settings.crypto_poll_interval_minutes,
+        id="crypto_trading_cycle",
     )
     # Keep the market read fresh even when nothing is trading (see _regime_job).
     scheduler.add_job(

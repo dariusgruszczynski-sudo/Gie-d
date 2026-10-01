@@ -141,12 +141,25 @@ def _news_blackout_active(db: Session, settings: Settings, headlines: list, venu
 # the two venues' per-cycle state (price anchors, trailing peaks, cooldowns,
 # seen headlines) never collide.
 _STATE_COLUMNS = {
-    "anchors": {"alpaca": "last_check_prices_json", "extended": "extended_check_prices_json"},
-    "peaks": {"alpaca": "position_peaks_json", "extended": "extended_position_peaks_json"},
-    "cooldowns": {"alpaca": "stop_loss_cooldowns_json", "extended": "extended_stop_loss_cooldowns_json"},
-    "seen": {"alpaca": "seen_ticker_headlines_json", "extended": "extended_seen_ticker_headlines_json"},
-    "partial": {"alpaca": "partial_tp_taken_json", "extended": "extended_partial_tp_taken_json"},
-    "streak": {"alpaca": "stop_loss_streak_json", "extended": "extended_stop_loss_streak_json"},
+    "anchors": {"alpaca": "last_check_prices_json", "extended": "extended_check_prices_json", "crypto": "crypto_check_prices_json"},
+    "peaks": {"alpaca": "position_peaks_json", "extended": "extended_position_peaks_json", "crypto": "crypto_position_peaks_json"},
+    "cooldowns": {"alpaca": "stop_loss_cooldowns_json", "extended": "extended_stop_loss_cooldowns_json", "crypto": "crypto_stop_loss_cooldowns_json"},
+    "seen": {"alpaca": "seen_ticker_headlines_json", "extended": "extended_seen_ticker_headlines_json", "crypto": "crypto_seen_ticker_headlines_json"},
+    "partial": {"alpaca": "partial_tp_taken_json", "extended": "extended_partial_tp_taken_json", "crypto": "crypto_partial_tp_taken_json"},
+    "streak": {"alpaca": "stop_loss_streak_json", "extended": "extended_stop_loss_streak_json", "crypto": "crypto_stop_loss_streak_json"},
+}
+
+# venue -> SystemState column holding its {last_full_date, last_at} analysis blob.
+# The equities venue keeps its original scalar columns (handled below); extended
+# and crypto each use a dedicated JSON blob so their heartbeat never collides.
+_ANALYSIS_BLOB_COL = {"extended": "extended_analysis_state_json", "crypto": "crypto_analysis_state_json"}
+
+# venue -> SystemState column caching that venue's last market-regime blob (so
+# the dashboard can show a per-venue regime chip without cross-contamination).
+_REGIME_COL = {
+    "alpaca": "market_regime_json",
+    "extended": "extended_market_regime_json",
+    "crypto": "crypto_market_regime_json",
 }
 
 
@@ -156,22 +169,27 @@ def _state_col(kind: str, venue: str) -> str:
 
 def _get_analysis_marks(state, venue: str) -> tuple[str, str]:
     """(last_full_analysis_date, last_analysis_at) for a venue. Equities uses
-    the original scalar columns; extended uses its own JSON blob."""
-    if venue != "extended":
+    the original scalar columns; extended/crypto each use their own JSON blob."""
+    col = _ANALYSIS_BLOB_COL.get(venue)
+    if col is None:
         return state.last_full_analysis_date, state.last_analysis_at
-    b = json.loads(state.extended_analysis_state_json or "{}")
+    b = json.loads(getattr(state, col) or "{}")
     return b.get("last_full_date", ""), b.get("last_at", "")
 
 
 def _set_analysis_marks(state, venue: str, full_date: str, at: str) -> None:
-    if venue != "extended":
+    col = _ANALYSIS_BLOB_COL.get(venue)
+    if col is None:
         state.last_full_analysis_date = full_date
         state.last_analysis_at = at
     else:
-        state.extended_analysis_state_json = json.dumps({"last_full_date": full_date, "last_at": at})
+        setattr(state, col, json.dumps({"last_full_date": full_date, "last_at": at}))
 
 
 def _base_asset(symbol: str, quote_currency: str) -> str:
+    # Crypto pairs are "BASE/QUOTE" -> base is the part before the slash.
+    if "/" in symbol:
+        return symbol.split("/", 1)[0]
     return symbol.replace(quote_currency, "")
 
 
@@ -468,6 +486,11 @@ def venue_for_holding(
     re-attributed to the other leg as an entry-less "adopted" position. A holding
     with no trade history on either leg (pre-existing / bought by hand) is
     classified by whitelist membership as a last resort."""
+    # Crypto pairs carry the quote separator ("BTC/USD") and equities never do,
+    # so a crypto holding is unambiguously the crypto leg's -- no whitelist/ledger
+    # tie-break needed (crypto can't collide with an equity ticker).
+    if "/" in symbol:
+        return "crypto"
     if extended_syms is None:
         from app.services.whitelist_review import get_extended_whitelist
 
@@ -733,10 +756,7 @@ def compute_and_cache_regime(db: Session, settings: Settings, broker, market_ctx
         regime["aggression_label"] = adaptive_risk.aggression_label(aggression)
 
     state = risk_manager.get_state(db)
-    if venue == "extended":
-        state.extended_market_regime_json = json.dumps(regime)
-    else:
-        state.market_regime_json = json.dumps(regime)
+    setattr(state, _REGIME_COL.get(venue, "market_regime_json"), json.dumps(regime))
     db.commit()
     return regime
 
@@ -2277,10 +2297,7 @@ def run_cycle(
         regime["aggression"] = round(aggression, 2)
         regime["aggression_label"] = adaptive_risk.aggression_label(aggression)
     # Cache per venue so /api/status can show each venue's regime chip.
-    if venue == "extended":
-        state.extended_market_regime_json = json.dumps(regime)
-    else:
-        state.market_regime_json = json.dumps(regime)
+    setattr(state, _REGIME_COL.get(venue, "market_regime_json"), json.dumps(regime))
     db.commit()
     # Venue-appropriate regime gate: equities gate on the equity regime + equity
     # defensive names; extended on its own regime (spot-only -> no defensive set).

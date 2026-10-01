@@ -195,6 +195,20 @@ class SystemState(Base):
     extended_stop_loss_cooldowns_json: Mapped[str] = mapped_column(Text, default="{}")
     extended_seen_ticker_headlines_json: Mapped[str] = mapped_column(Text, default="{}")
     extended_analysis_state_json: Mapped[str] = mapped_column(Text, default="{}")
+    # Dedicated per-cycle state for the CRYPTO (24/7) venue -- same JSON shapes as
+    # their equities counterparts, in separate columns so crypto state never
+    # collides with the equities/extended venues (zero risk to those paths).
+    # crypto_paused defaults True so a freshly-enabled venue never trades until
+    # the human presses START.
+    crypto_paused: Mapped[bool] = mapped_column(Boolean, default=True)
+    crypto_check_prices_json: Mapped[str] = mapped_column(Text, default="{}")
+    crypto_position_peaks_json: Mapped[str] = mapped_column(Text, default="{}")
+    crypto_stop_loss_cooldowns_json: Mapped[str] = mapped_column(Text, default="{}")
+    crypto_seen_ticker_headlines_json: Mapped[str] = mapped_column(Text, default="{}")
+    crypto_partial_tp_taken_json: Mapped[str] = mapped_column(Text, default="{}")
+    crypto_stop_loss_streak_json: Mapped[str] = mapped_column(Text, default="{}")
+    crypto_analysis_state_json: Mapped[str] = mapped_column(Text, default="{}")
+    crypto_market_regime_json: Mapped[str] = mapped_column(Text, default="{}")
     claude_budget_month_key: Mapped[str] = mapped_column(String(7), default="")
     claude_spend_usd_this_month: Mapped[float] = mapped_column(Float, default=0.0)
     # Ręczne nadpisanie miesięcznego budżetu tokenów, ustawiane z UI (0 = użyj

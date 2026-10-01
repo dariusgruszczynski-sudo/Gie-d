@@ -242,7 +242,11 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
 
 
 def _venue_paused(state: SystemState, venue: str) -> bool:
-    return state.extended_paused if venue == "extended" else state.is_paused
+    if venue == "extended":
+        return state.extended_paused
+    if venue == "crypto":
+        return state.crypto_paused
+    return state.is_paused
 
 
 def can_trade_automated(db: Session, venue: str = "alpaca") -> ValidationResult:
@@ -297,6 +301,8 @@ def pause(db: Session, venue: str = "alpaca") -> SystemState:
     state = get_state(db)
     if venue == "extended":
         state.extended_paused = True
+    elif venue == "crypto":
+        state.crypto_paused = True
     else:
         state.is_paused = True
     db.commit()
@@ -309,6 +315,8 @@ def resume(db: Session, venue: str = "alpaca") -> SystemState:
     state = get_state(db)
     if venue == "extended":
         state.extended_paused = False
+    elif venue == "crypto":
+        state.crypto_paused = False
     else:
         state.is_paused = False
         # The loss-limit halt is account-wide; clear it on the main (Alpaca)
