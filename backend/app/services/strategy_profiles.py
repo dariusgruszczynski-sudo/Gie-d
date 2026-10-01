@@ -61,6 +61,9 @@ _CRYPTO_OVERRIDES = {
     "crypto_full_analysis_every_minutes": "full_analysis_every_minutes",
     "crypto_signal_timeframe": "signal_timeframe",
     "crypto_poll_interval_minutes": "poll_interval_minutes",
+    # Tani silnik: krypto deployuje gotówkę mechanicznie (auto-deploy on), żeby
+    # działać bez LLM. Wejścia i tak przechodzą filtr konfluencji (entry_min_score).
+    "crypto_auto_deploy_enabled": "auto_deploy_enabled",
 }
 
 

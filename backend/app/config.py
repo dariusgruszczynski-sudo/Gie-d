@@ -153,6 +153,13 @@ class Settings(BaseSettings):
     crypto_full_analysis_every_minutes: int = 0
     crypto_poll_interval_minutes: int = 15
     crypto_signal_timeframe: str = "1h"
+    # TANI SILNIK (lekcja z akcji: LLM zjadł ~$196). Dla krypto decyzje napędza
+    # MECHANIKA: wyjścia po stopach/celach (zawsze), a wejścia przez auto-deploy w
+    # najlepsze technicznie setupy (entry_confluence). LLM jest DOMYŚLNIE WYŁĄCZONY
+    # dla krypto -> ~$0 kosztu. Włącz crypto_llm_enabled=True tylko, gdy świadomie
+    # chcesz dołożyć ocenę Claude (drożej).
+    crypto_llm_enabled: bool = False
+    crypto_auto_deploy_enabled: bool = True
 
     daily_loss_limit_pct: float = 20.0
     # Zacieśnione z 70% -> 25%: tygodniowy 70% to praktycznie brak ochrony małego

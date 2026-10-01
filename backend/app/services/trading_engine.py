@@ -2387,18 +2387,25 @@ def run_cycle(
     # per-action risk pipeline (_process_decision) a single decision used to;
     # between executed trades we refresh the portfolio so the next action sees
     # updated cash/positions (BUY sizes apply in order against free cash).
-    decisions_data = _advise_portfolio(
-        advisor,
-        whitelist=tradable_symbols,
-        market_data=market_data,
-        news=headlines,
-        portfolio=portfolio,
-        risk_context=risk_context,
-        market_context=global_context,
-        performance_context=performance_context,
-        trigger_reason=trigger_reason.value,
-        venue=venue,
-    )
+    # TANI SILNIK (krypto): na zaplanowanym cyklu NIE wołaj (płatnego) Claude, gdy
+    # LLM jest dla krypto wyłączony -- wejścia napędza mechaniczny auto-deploy
+    # (najlepsze setupy wg konfluencji), a wyjścia stopy/cele. Koszt = $0. Ręczne
+    # „Wymuś analizę" (force) i podgląd (dry_run) nadal pytają Claude na życzenie.
+    if venue == "crypto" and not settings.crypto_llm_enabled and not force and not dry_run:
+        decisions_data = []
+    else:
+        decisions_data = _advise_portfolio(
+            advisor,
+            whitelist=tradable_symbols,
+            market_data=market_data,
+            news=headlines,
+            portfolio=portfolio,
+            risk_context=risk_context,
+            market_context=global_context,
+            performance_context=performance_context,
+            trigger_reason=trigger_reason.value,
+            venue=venue,
+        )
     # PODGLĄD (dry-run): mamy już propozycje Claude z ŻYWYCH danych. Policz
     # orientacyjny rozmiar tą SAMĄ funkcją co egzekucja, ale NIC nie zlecaj, nie
     # persystuj decyzji ani nie oznaczaj analizy jako zrobionej (żeby nie zaburzyć
