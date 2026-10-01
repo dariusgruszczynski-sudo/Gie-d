@@ -30,6 +30,12 @@ DATA_URL = "https://data.alpaca.markets"
 # Free-tier market data only includes the IEX feed, not the full-market SIP
 # feed -- requesting it explicitly avoids a subscription error on free accounts.
 DATA_FEED = "iex"
+# Crypto uses a SEPARATE market-data API (v1beta3) keyed by pair ("BTC/USD"),
+# no feed param, and trades 24/7. The trading API (/v2/orders, /v2/positions,
+# /v2/account) is SHARED with equities -- only the order time-in-force differs
+# (crypto needs GTC; Alpaca rejects DAY for crypto). A symbol is crypto iff it
+# carries the pair separator "/".
+CRYPTO_DATA_BASE = "/v1beta3/crypto/us"
 # Market orders fill almost immediately during regular hours, but the AddOrder
 # response doesn't carry the fill synchronously -- poll briefly for it.
 FILL_POLL_ATTEMPTS = 10
@@ -64,6 +70,19 @@ class AlpacaAPIError(RuntimeError):
     pass
 
 
+def _normalize_position_symbol(position: dict) -> str:
+    """Alpaca /v2/positions returns crypto with a slash-less symbol ("BTCUSD")
+    while our universe/book keys on the pair form ("BTC/USD"). Re-insert the
+    separator for crypto positions so balances reconcile with crypto_symbols;
+    equities pass through unchanged."""
+    symbol = position["symbol"]
+    if position.get("asset_class") == "crypto" and "/" not in symbol:
+        for quote in ("USDT", "USDC", "USD"):
+            if symbol.endswith(quote) and len(symbol) > len(quote):
+                return f"{symbol[: -len(quote)]}/{quote}"
+    return symbol
+
+
 class AlpacaClient:
     def __init__(self, settings: Settings):
         self._settings = settings
@@ -84,6 +103,12 @@ class AlpacaClient:
         if resp.status_code >= 400:
             raise AlpacaAPIError(f"Alpaca {method} {path}: {resp.status_code} {resp.text}")
         return resp.json()
+
+    @staticmethod
+    def _is_crypto(symbol: str) -> bool:
+        """A crypto pair carries the quote separator (e.g. 'BTC/USD'); equity
+        tickers never do. Drives data endpoint + order time-in-force routing."""
+        return "/" in symbol
 
     def get_asset(self, symbol: str) -> dict:
         """Asset metadata (tradable, status, class, fractionable) for ONE symbol.
@@ -110,6 +135,11 @@ class AlpacaClient:
     # ---- market data ----
 
     def get_price(self, symbol: str) -> float:
+        if self._is_crypto(symbol):
+            data = self._request(
+                self._data, "GET", f"{CRYPTO_DATA_BASE}/latest/trades", params={"symbols": symbol}
+            )
+            return float(data["trades"][symbol]["p"])
         data = self._request(self._data, "GET", f"/v2/stocks/{symbol}/trades/latest", params={"feed": DATA_FEED})
         return float(data["trade"]["p"])
 
@@ -125,6 +155,21 @@ class AlpacaClient:
         technicals as its reason to HOLD)."""
         timeframe = _TIMEFRAMES.get(interval, "1Hour")
         minutes = _TIMEFRAME_MINUTES.get(interval, 60)
+        if self._is_crypto(symbol):
+            # Crypto trades 24/7, so `limit` bars span almost exactly limit*minutes
+            # of wall-clock time (small buffer for gaps). Separate v1beta3 endpoint,
+            # keyed by pair, no feed param, bars nested under the symbol.
+            start = datetime.now(UTC) - timedelta(minutes=int(minutes * limit * 1.2) + minutes)
+            data = self._request(
+                self._data,
+                "GET",
+                f"{CRYPTO_DATA_BASE}/bars",
+                params={"symbols": symbol, "timeframe": timeframe, "limit": limit,
+                        "start": start.isoformat(), "sort": "desc"},
+            )
+            raw = (data.get("bars") or {}).get(symbol) or []
+            bars = list(reversed(raw))  # back to oldest-first for the indicators
+            return [[b["t"], b["o"], b["h"], b["l"], b["c"], b["v"]] for b in bars[-limit:]]
         start = datetime.now(UTC) - timedelta(minutes=minutes * limit * _CALENDAR_SPAN_FACTOR)
         data = self._request(
             self._data,
@@ -155,7 +200,7 @@ class AlpacaClient:
         for p in positions:
             qty = float(p["qty"])
             if qty > 0:
-                balances[p["symbol"]] = qty
+                balances[_normalize_position_symbol(p)] = qty
         return balances
 
     def get_account_summary(self) -> dict[str, float]:
@@ -184,7 +229,9 @@ class AlpacaClient:
         limit_price: float | None = None,
         extended_hours: bool = False,
     ) -> dict:
-        body: dict = {"symbol": symbol, "side": side.lower(), "type": order_type, "time_in_force": "day"}
+        # Crypto requires GTC (Alpaca rejects DAY for crypto); equities use DAY.
+        tif = "gtc" if self._is_crypto(symbol) else "day"
+        body: dict = {"symbol": symbol, "side": side.lower(), "type": order_type, "time_in_force": tif}
         if notional is not None:
             body["notional"] = f"{notional:.2f}"
         else:
