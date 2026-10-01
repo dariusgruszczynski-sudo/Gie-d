@@ -39,11 +39,38 @@ _EXTENDED_OVERRIDES = {
 }
 
 
+# crypto_* override field  ->  base field it replaces for the crypto (24/7) leg.
+# Krypto jest dużo bardziej zmienne niż akcje, więc profil ma szersze stopy i
+# mniejsze ryzyko/transakcję (patrz config.Settings crypto_* defaults).
+_CRYPTO_OVERRIDES = {
+    "crypto_risk_per_trade_pct": "risk_per_trade_pct",
+    "crypto_max_concurrent_positions": "max_concurrent_positions",
+    "crypto_min_buy_confidence": "min_buy_confidence",
+    "crypto_max_new_positions_per_day": "max_new_positions_per_day",
+    "crypto_min_hold_minutes": "min_hold_minutes",
+    "crypto_max_position_pct": "max_position_pct",
+    "crypto_reward_risk_ratio": "reward_risk_ratio",
+    "crypto_trailing_stop_frac": "trailing_stop_frac",
+    "crypto_partial_take_profit_frac": "partial_take_profit_frac",
+    "crypto_partial_take_profit_r": "partial_take_profit_r",
+    "crypto_stop_loss_vol_mult": "stop_loss_vol_mult",
+    "crypto_stop_loss_min_pct": "stop_loss_min_pct",
+    "crypto_stop_loss_max_pct": "stop_loss_max_pct",
+    "crypto_volatility_reference_pct": "volatility_reference_pct",
+    "crypto_price_move_trigger_pct": "price_move_trigger_pct",
+    "crypto_full_analysis_every_minutes": "full_analysis_every_minutes",
+    "crypto_signal_timeframe": "signal_timeframe",
+    "crypto_poll_interval_minutes": "poll_interval_minutes",
+}
+
+
 def effective_settings(settings: Settings, venue: str) -> Settings:
     """Returns the Settings the given leg's cycle should actually run with:
-    the conservative extended-hours profile for venue=="extended", the base
-    (regular-session) settings unchanged otherwise."""
-    if venue != "extended":
+    the conservative extended-hours profile for venue=="extended", the 24/7
+    higher-volatility profile for venue=="crypto", the base (regular-session)
+    settings unchanged otherwise."""
+    overrides = {"extended": _EXTENDED_OVERRIDES, "crypto": _CRYPTO_OVERRIDES}.get(venue)
+    if overrides is None:
         return settings
-    update = {base: getattr(settings, override) for override, base in _EXTENDED_OVERRIDES.items()}
+    update = {base: getattr(settings, override) for override, base in overrides.items()}
     return settings.model_copy(update=update)

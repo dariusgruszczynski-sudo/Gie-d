@@ -120,6 +120,40 @@ class Settings(BaseSettings):
     alpaca_allocation_pct: float = 100.0
     extended_allocation_pct: float = 100.0
 
+    # --- KRYPTO (venue "crypto"): trzeci lot na TYM SAMYM koncie Alpaca --------
+    # Rynek 24/7 (brak sesji/holidays), pary kwotowane w USD ("BTC/USD"), handel
+    # FRAKCYJNY (notional), zlecenia MARKET. To docelowy, główny venue po pivocie
+    # na papier (2026-10): akcje wyszły ~na zero, a największym kosztem był LLM --
+    # dlatego krypto startuje jako NAUKA na sztucznym kapitale (ALPACA_PAPER=true),
+    # z tanim silnikiem (mechanika najpierw, LLM rzadko). crypto_enabled=False do
+    # czasu pełnego podpięcia egzekucji (Faza 2) -- additive, nic nie psuje.
+    crypto_enabled: bool = False
+    # Ciasna, PŁYNNA lista par (najgłębszy book na Alpaca). Celowo wąska: płynność
+    # > egzotyka. Format par Alpaca: "BTC/USD".
+    crypto_universe: str = "BTC/USD,ETH/USD,SOL/USD,LINK/USD,AVAX/USD,LTC/USD,DOGE/USD"
+    crypto_allocation_pct: float = 100.0
+    # Profil krypto (nadpisuje bazowe TYLKO dla venue "crypto" -- patrz
+    # strategy_profiles._CRYPTO_OVERRIDES). Krypto jest DUŻO bardziej zmienne niż
+    # akcje, więc stopy są szersze, a ryzyko/transakcję mniejsze (głębsze swingi).
+    crypto_risk_per_trade_pct: float = 1.5
+    crypto_max_concurrent_positions: int = 5
+    crypto_min_buy_confidence: float = 0.60
+    crypto_max_new_positions_per_day: int = 0        # 0 = bez limitu (24/7)
+    crypto_min_hold_minutes: int = 60                 # krótsze trzymanie niż akcje (24/7)
+    crypto_max_position_pct: float = 40.0             # max udział jednej pary
+    crypto_reward_risk_ratio: float = 2.0
+    crypto_trailing_stop_frac: float = 0.5
+    crypto_partial_take_profit_frac: float = 0.33
+    crypto_partial_take_profit_r: float = 1.5
+    crypto_stop_loss_vol_mult: float = 4.0
+    crypto_stop_loss_min_pct: float = 4.0            # krypto rusza się 3-5%+ dziennie
+    crypto_stop_loss_max_pct: float = 18.0
+    crypto_volatility_reference_pct: float = 3.0     # „normalna" dzienna zmienność krypto
+    crypto_price_move_trigger_pct: float = 4.0
+    crypto_full_analysis_every_minutes: int = 0
+    crypto_poll_interval_minutes: int = 15
+    crypto_signal_timeframe: str = "1h"
+
     daily_loss_limit_pct: float = 20.0
     # Zacieśnione z 70% -> 25%: tygodniowy 70% to praktycznie brak ochrony małego
     # konta. 25% to realny bezpiecznik: seria złych dni zatrzyma automat, zanim
@@ -733,6 +767,12 @@ class Settings(BaseSettings):
     @property
     def whitelist_symbols(self) -> list[str]:
         return [s.strip().upper() for s in self.trading_whitelist.split(",") if s.strip()]
+
+    @property
+    def crypto_symbols(self) -> list[str]:
+        """Pary krypto do handlu na venue 'crypto', np. ['BTC/USD', 'ETH/USD'].
+        Zachowuje separator '/' (format par Alpaca), normalizuje wielkość liter."""
+        return [s.strip().upper() for s in self.crypto_universe.split(",") if s.strip()]
 
     @property
     def symbol_blacklist_set(self) -> set[str]:

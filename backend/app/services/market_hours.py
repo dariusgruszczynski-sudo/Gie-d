@@ -148,6 +148,8 @@ def is_extended_session(session: str) -> bool:
 
 
 def is_tradable_for(venue: str, session: str) -> bool:
-    """Per-leg session gate: the extended leg trades PRE/POST, the regular
-    (default) leg trades REGULAR."""
+    """Per-leg session gate: crypto trades 24/7 (no session gate at all), the
+    extended leg trades PRE/POST, the regular (default) leg trades REGULAR."""
+    if venue == "crypto":
+        return True  # krypto: rynek 24/7, brak sesji/holidays
     return is_extended_session(session) if venue == "extended" else is_tradable_session(session)
