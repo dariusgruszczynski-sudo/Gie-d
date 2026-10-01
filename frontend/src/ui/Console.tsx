@@ -47,7 +47,10 @@ function NowStrip({ status }: { status: StatusResponse }) {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-  const open = status.market_session === "regular";
+  // Krypto handluje 24/7 — nie ma „sesji" ani zamknięcia, więc rynek jest zawsze
+  // otwarty i nie pokazujemy odliczania do otwarcia/zamknięcia.
+  const crypto = !!status.crypto_enabled;
+  const open = crypto || status.market_session === "regular";
   const b = status.session_bounds;
   const target = open ? b?.regular_close : b?.regular_open;
   const t = target ? Date.parse(target) : NaN;
@@ -60,15 +63,15 @@ function NowStrip({ status }: { status: StatusResponse }) {
   return (
     <div className="gd-now">
       <div className="gd-now-item">
-        <span className="k">Rynek US</span>
+        <span className="k">{crypto ? "Rynek krypto" : "Rynek US"}</span>
         <span className="v" style={{ color: open ? "var(--mint)" : "var(--dim)" }}>
-          {open ? "otwarty" : "zamknięty"}
+          {crypto ? "24/7 otwarty" : open ? "otwarty" : "zamknięty"}
         </span>
       </div>
       <div className="gd-now-sep" />
       <div className="gd-now-item">
-        <span className="k">{open ? "Do zamknięcia" : "Do otwarcia"}</span>
-        <span className="v">{Number.isFinite(left) ? fmtLeft(left) : "—"}</span>
+        <span className="k">{crypto ? "Handel" : open ? "Do zamknięcia" : "Do otwarcia"}</span>
+        <span className="v">{crypto ? "bez przerwy" : Number.isFinite(left) ? fmtLeft(left) : "—"}</span>
       </div>
       <div className="gd-now-sep" />
       <div className="gd-now-item">

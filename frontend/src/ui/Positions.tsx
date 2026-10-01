@@ -38,7 +38,8 @@ export function Positions({ status, alpaca, extended, decisions, onChanged }: {
   const climbing = states.filter((s) => s === "climbing").length;
   const nearStop = states.filter((s) => s === "near_stop").length;
   const bypassPct = status.profiles.alpaca.min_hold_profit_bypass_pct;
-  const marketOpen = status.market_session === "regular";
+  // Krypto handluje 24/7 -> rynek zawsze otwarty, żaden baner „zamknięte".
+  const marketOpen = !!status.crypto_enabled || status.market_session === "regular";
 
   return (
     <div className="gd-view">

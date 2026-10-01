@@ -93,6 +93,13 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
 
     return {
         "mode": "testnet" if settings.alpaca_paper else "live",
+        # True gdy to konto PAPIEROWE (sztuczny kapitał) -- front pokazuje wyraźną
+        # plakietkę „PAPIER", żeby nie pomylić z realnymi pieniędzmi.
+        "paper": settings.alpaca_paper,
+        # Krypto (24/7) venue: gdy włączone, front przełącza komunikaty z „sesji US"
+        # na „rynek 24/7" i nie straszy „rynek zamknięty".
+        "crypto_enabled": settings.crypto_enabled,
+        "crypto_paused": state.crypto_paused,
         "quote_currency": settings.quote_currency,
         "is_paused": state.is_paused,
         "extended_paused": state.extended_paused,
