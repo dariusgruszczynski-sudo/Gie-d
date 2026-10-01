@@ -53,6 +53,9 @@ def _yahoo_symbol(symbol: str) -> str:
     isn't in the map and passes through unchanged. Without this a extended
     symbol was sent to Yahoo verbatim and returned nothing, so the extended
     venue could never be backtested at all."""
+    # Crypto PAIR form ("BTC/USD") maps straight to Yahoo's dash form ("BTC-USD").
+    if "/" in symbol:
+        return symbol.upper().replace("/", "-")
     return EXTENDED_YAHOO_SYMBOL.get(symbol.upper(), symbol)
 
 

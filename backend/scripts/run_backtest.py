@@ -166,8 +166,8 @@ def main() -> None:
         # basket of alts vs. just holding bitcoin is the crypto analogue of
         # "beating SPY"). Alpaca's own crypto history is too short for a
         # multi-year regime test, so this is Yahoo-only.
-        whitelist = settings.crypto_whitelist_symbols
-        benchmark = "BTCUSD"
+        whitelist = settings.crypto_symbols
+        benchmark = "BTC/USD"
         if args.source == "alpaca":
             print("Uwaga: --venue crypto wymaga Yahoo — ignoruję --source alpaca.")
         args.source = "yahoo"
