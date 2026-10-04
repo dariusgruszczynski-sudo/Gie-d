@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-10-04T11:34:23Z
+# Audyt GielDarek — 2026-10-04T17:51:49Z
 
-**Wdrożenie:** kod 29deae9 (zbud. 2026-10-01T20:08Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 29deae9 (zbud. 2026-10-04T17:48Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 112 zamknięć · trafność 30.4% · zrealizowany $8.37
 **7 dni:** 22 zamknięć · 9.1% · $-3.5   |   **30 dni:** 67 · 32.8% · $8.33
