@@ -4,10 +4,9 @@ import { Console } from "./ui/Console";
 import { Control } from "./ui/Control";
 import { Health } from "./ui/Health";
 import { History } from "./ui/History";
-import { News } from "./ui/News";
+import { Knowledge } from "./ui/Knowledge";
 import { Positions } from "./ui/Positions";
 import { Week } from "./ui/Week";
-import { Analiza } from "./ui/Analiza";
 import { HelpModal, Onboarding, useOnboarding } from "./ui/Help";
 import { Icon } from "./ui/kit";
 import { isSoundMuted, playTradeSound, setSoundMuted } from "./tradeSound";
@@ -15,15 +14,14 @@ import { isSoundMuted, playTradeSound, setSoundMuted } from "./tradeSound";
 const REFRESH_MS = 15000;
 // Pięć ekranów: Pulpit (high-level + statystyka) · Pozycje (akcje + miarki
 // „kiedy sprzedam") · Newsy · Puls (health) · Steruj (panel sterowania).
-type View = "dashboard" | "positions" | "week" | "history" | "analiza" | "news" | "health" | "control";
+type View = "dashboard" | "positions" | "week" | "history" | "wiedza" | "health" | "control";
 
 const NAV: Array<{ key: View; label: string; icon: "console" | "positions" | "control" | "pulse" | "news" | "journal" | "engines" }> = [
   { key: "dashboard", label: "Pulpit", icon: "console" },
   { key: "positions", label: "Pozycje", icon: "positions" },
   { key: "week", label: "Tydzień", icon: "engines" },
   { key: "history", label: "Historia", icon: "journal" },
-  { key: "analiza", label: "Analiza", icon: "console" },
-  { key: "news", label: "Newsy", icon: "news" },
+  { key: "wiedza", label: "Co umiem", icon: "news" },
   { key: "health", label: "Puls", icon: "pulse" },
   { key: "control", label: "Steruj", icon: "control" },
 ];
@@ -224,10 +222,8 @@ export default function App() {
               <Week status={status} />
             ) : view === "history" ? (
               <History status={status} />
-            ) : view === "analiza" ? (
-              <Analiza />
-            ) : view === "news" ? (
-              <News />
+            ) : view === "wiedza" ? (
+              <Knowledge />
             ) : view === "control" ? (
               <Control status={status} onChanged={refresh} />
             ) : (

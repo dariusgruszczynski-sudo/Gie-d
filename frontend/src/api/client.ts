@@ -39,6 +39,14 @@ export interface ClaudeBudget {
   total_tokens: number;
 }
 
+export interface KnowledgeResponse {
+  venue: string;
+  playbook: string[];
+  lessons: string[];
+  lessons_updated: string | null;
+  llm_active: boolean;
+}
+
 export interface StatusResponse {
   mode: "testnet" | "live";
   // true = konto PAPIEROWE (sztuczny kapitał) — UI pokazuje plakietkę „PAPIER".
@@ -320,6 +328,7 @@ async function apiFetch<T>(path: string, init?: RequestInit, timeoutMs: number =
 
 export const api = {
   status: () => apiFetch<StatusResponse>(withShare("/api/status")),
+  knowledge: () => apiFetch<KnowledgeResponse>(withShare("/api/knowledge")),
   // 600 per-cycle snapshots (~kilka dni handlu) to plenty for the chart while
   // keeping every 15s/SSE refresh light -- 2000 uncompressed rows on each poll
   // was a big chunk of the "apka działa wolno". P&L "od początku" stays correct

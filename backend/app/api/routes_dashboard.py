@@ -19,7 +19,7 @@ from app.config import Settings, get_settings
 from app.db import SessionLocal, get_db
 from app.models import Decision, PortfolioSnapshot, SystemState, Trade
 from app.serialization import serialize
-from app.services import budget_tracker, market_hours, risk_manager, scorecard, shadow_analysis
+from app.services import budget_tracker, market_hours, playbook, risk_manager, scorecard, self_review, shadow_analysis
 from app.services.strategy_profiles import effective_settings
 from app.services.trading_engine import _state_col, average_cost_basis, describe_position_plan, position_opened_at
 from app.services.whitelist_review import get_extended_whitelist
@@ -418,6 +418,26 @@ def _trading_pnl_series(db: Session, venue: str, rows_asc: list) -> list[float]:
             unreal += (price - avg) * held
         series.append(round(realized + unreal, 2))
     return series
+
+
+@router.get("/knowledge")
+def knowledge(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> dict:
+    """'Co umiem' -- trwała wiedza, którą czyta LLM, gdy włączony. STAŁY playbook
+    (zasady + nasze twarde lekcje z akcji) oraz ŚWIEŻE lekcje destylowane co
+    tydzień z własnego handlu (self_review). To dokładnie to, co trafia do
+    promptu jako your_performance.playbook / lessons_learned."""
+    venue = "crypto" if settings.crypto_enabled else "alpaca"
+    lessons = [l.get("lesson", "") for l in self_review.get_lessons(db) if l.get("lesson")]
+    state = risk_manager.get_state(db)
+    return {
+        "venue": venue,
+        "playbook": playbook.get_playbook(venue),
+        "lessons": lessons,
+        "lessons_updated": state.last_self_review_date or None,
+        # Czy LLM realnie używa tej wiedzy TERAZ (krypto gra mechanicznie -> LLM
+        # wyłączony, wiedza się gromadzi i czeka na włączenie Sonneta).
+        "llm_active": bool(settings.crypto_llm_enabled) if venue == "crypto" else True,
+    }
 
 
 @router.get("/portfolio")
