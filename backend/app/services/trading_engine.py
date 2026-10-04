@@ -276,6 +276,21 @@ def compute_portfolio(db: Session, settings: Settings, broker, *, venue: str = "
 
     prices: dict[str, float] = {}
     coin_balances: dict[str, float] = {}
+    # Last known prices from the previous snapshot for THIS venue: if a price
+    # fetch fails transiently (data-API hiccup), fall back to the last price
+    # instead of dropping the position to $0 -- a phantom -100% on a held
+    # position craters the account value and can trip a FALSE drawdown halt
+    # (exactly what happened when crypto value briefly vanished). A one-cycle
+    # stale price is vastly safer than a phantom liquidation.
+    last_prices: dict[str, float] = {}
+    try:
+        _prev = db.execute(
+            select(PortfolioSnapshot).where(PortfolioSnapshot.venue == venue).order_by(PortfolioSnapshot.id.desc())
+        ).scalars().first()
+        if _prev is not None:
+            last_prices = json.loads(_prev.prices_json or "{}")
+    except Exception:
+        last_prices = {}
     failed_symbols: list[str] = []
     total_value = usdt_balance
 
@@ -288,9 +303,16 @@ def compute_portfolio(db: Session, settings: Settings, broker, *, venue: str = "
         try:
             price = broker.get_price(symbol)
         except Exception:
-            logger.warning("Failed to fetch price for %s, skipping it this cycle", symbol, exc_info=True)
-            failed_symbols.append(symbol)
-            continue
+            # Transient fetch failure: reuse the last known price so a held
+            # position keeps its value this cycle instead of vanishing to $0.
+            fallback = last_prices.get(symbol)
+            if fallback and fallback > 0:
+                logger.warning("Price fetch failed for %s, using last-known %.6f", symbol, fallback)
+                price = fallback
+            else:
+                logger.warning("Failed to fetch price for %s, skipping it this cycle", symbol, exc_info=True)
+                failed_symbols.append(symbol)
+                continue
         base = _base_asset(symbol, settings.quote_currency)
         # Extended positions come back from Alpaca keyed by the FULL symbol
         # ("BTCUSD"), equities by the plain ticker (== base). Try the full

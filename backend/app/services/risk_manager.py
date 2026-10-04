@@ -314,23 +314,22 @@ def pause(db: Session, venue: str = "alpaca") -> SystemState:
 def resume(db: Session, venue: str = "alpaca") -> SystemState:
     state = get_state(db)
     if venue == "extended":
+        # Secondary leg: just unpause it, never touches the account-wide halt.
         state.extended_paused = False
-    elif venue == "crypto":
-        state.crypto_paused = False
     else:
-        state.is_paused = False
-        # The loss-limit halt is account-wide; clear it on the main (Alpaca)
-        # resume and force the day/week loss baselines to re-initialize to the
-        # current portfolio value on the next update_portfolio_value() call --
-        # otherwise a halt tripped earlier today re-trips itself on the very
-        # next cycle, since the old (pre-loss) baseline is still in place.
+        # The primary leg (alpaca) AND crypto each unpause themselves and clear
+        # the ACCOUNT-WIDE loss-limit halt, re-baselining day/week/peak to the
+        # current value on the next cycle -- otherwise a halt re-trips instantly
+        # on the stale pre-loss baseline. Crypto MUST be able to clear the halt:
+        # after the full pivot it is the only engine the user controls.
+        if venue == "crypto":
+            state.crypto_paused = False
+        else:
+            state.is_paused = False
         state.is_halted = False
         state.halted_reason = None
         state.day_start_date = ""
         state.week_start_date = ""
-        # Re-baseline the all-time peak too, on the SAME logic as day/week --
-        # otherwise a drawdown halt tripped by a real loss would instantly
-        # re-trip on the very next cycle since the old (pre-loss) peak stands.
         state.peak_account_value = 0.0
         state.pending_peak_value = 0.0
         state.pending_peak_confirmations = 0

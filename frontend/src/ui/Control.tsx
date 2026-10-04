@@ -18,10 +18,11 @@ function LegControls({ status, onChanged }: { status: StatusResponse; onChanged:
   // Jeden silnik: gdy POZA SESJĄ wyłączona, pokazujemy tylko silnik pozycyjny.
   // Po pełnym przełączeniu na krypto (crypto_enabled) pokazujemy WYŁĄCZNIE silnik
   // krypto -- stare silniki akcji znikają z UI.
-  const legs: Array<{ v: "alpaca" | "extended" | "crypto"; name: string; paused: boolean; on: boolean }> = status.crypto_enabled
-    ? [{ v: "crypto", name: "KRYPTO · 24/7 (papier)", paused: !!status.crypto_paused, on: true }]
+  const halted = !!status.is_halted;
+  const legs: Array<{ v: "alpaca" | "extended" | "crypto"; name: string; paused: boolean; on: boolean; halted?: boolean }> = status.crypto_enabled
+    ? [{ v: "crypto", name: "KRYPTO · 24/7 (papier)", paused: !!status.crypto_paused || halted, on: true, halted }]
     : [
-        { v: "alpaca", name: status.extended_enabled ? "SESJA · Akcje US" : "Silnik pozycyjny · Akcje US", paused: status.is_paused, on: true },
+        { v: "alpaca", name: status.extended_enabled ? "SESJA · Akcje US" : "Silnik pozycyjny · Akcje US", paused: status.is_paused || halted, on: true, halted },
         ...(status.extended_enabled
           ? [{ v: "extended" as const, name: "POZA SESJĄ · ETF", paused: status.extended_paused, on: status.extended_enabled }]
           : []),
@@ -29,12 +30,17 @@ function LegControls({ status, onChanged }: { status: StatusResponse; onChanged:
   return (
     <div className="gd-card">
       <h4>{status.extended_enabled ? "Silniki" : "Silnik"}</h4>
+      {halted && (
+        <div className="gd-closed-banner" style={{ marginBottom: 14 }}>
+          ⛔ <b>Automat zatrzymany bezpiecznikiem (HALT).</b> {status.halted_reason || ""} — naciśnij <b>▶ Wznów</b>, żeby odblokować i wyzerować punkty odniesienia.
+        </div>
+      )}
       {legs.map((l) => (
         <div key={l.v} style={{ marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <b style={{ fontFamily: "var(--font-display)" }}>{l.name}</b>
-            <span className={`gd-chip ${!l.on ? "gd-chip-neu" : l.paused ? "gd-chip-off" : "gd-chip-on"}`}>
-              {!l.on ? "wyłączony" : l.paused ? "zatrzymany" : "handluje"}
+            <span className={`gd-chip ${!l.on ? "gd-chip-neu" : l.halted ? "gd-chip-off" : l.paused ? "gd-chip-off" : "gd-chip-on"}`}>
+              {!l.on ? "wyłączony" : l.halted ? "HALT" : l.paused ? "zatrzymany" : "handluje"}
             </span>
           </div>
           <div className="gd-btnrow">
