@@ -27,14 +27,14 @@
   --txt: #e9e6e1;           /* silver */
   --dim: #a39a8d;           /* warm silver-grey */
   --dim-2: #6b6459;
-  /* Liquid Glass — wspólny język szkła (mrożone powierzchnie nad żywym tłem). */
-  --glass: rgba(22, 17, 11, 0.44);
-  --glass-strong: rgba(18, 14, 9, 0.58);
-  --glass-sheen: linear-gradient(150deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.015) 46%, rgba(0, 0, 0, 0.06));
-  --glass-edge: rgba(255, 255, 255, 0.14);
-  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  --glass-shadow: 0 10px 34px rgba(0, 0, 0, 0.34);
-  --glass-blur: blur(20px) saturate(160%);
+  /* Liquid Glass — lżejszy/czystszy: mniej blur, mniej połysku, spokojniejszy cień. */
+  --glass: rgba(22, 17, 11, 0.40);
+  --glass-strong: rgba(18, 14, 9, 0.52);
+  --glass-sheen: linear-gradient(150deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01) 46%, rgba(0, 0, 0, 0.04));
+  --glass-edge: rgba(255, 255, 255, 0.10);
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  --glass-shadow: 0 6px 20px rgba(0, 0, 0, 0.20);
+  --glass-blur: blur(13px) saturate(125%);
   --rail-w: 240px;
   --rail-w-sm: 68px;
   color: var(--txt);
@@ -89,7 +89,7 @@
 .gd-brand-mark {
   width: 30px; height: 30px; border-radius: 9px; flex: 0 0 auto;
   background: conic-gradient(from 210deg, var(--mint), var(--amber), var(--mint));
-  box-shadow: 0 0 20px -4px var(--mint);
+  box-shadow: 0 0 10px -4px var(--mint);
   position: relative;
 }
 .gd-brand-mark::after {
@@ -179,8 +179,8 @@
 }
 .gd-lane:hover { transform: translateY(-2px); border-color: var(--line-strong); background: rgba(255, 255, 255, 0.035); }
 .gd-lane::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
-.gd-lane-sesja::before { background: var(--mint); box-shadow: 0 0 18px var(--mint); }
-.gd-lane-poza::before { background: var(--amber); box-shadow: 0 0 18px var(--amber); }
+.gd-lane-sesja::before { background: var(--mint); box-shadow: 0 0 9px var(--mint); }
+.gd-lane-poza::before { background: var(--amber); box-shadow: 0 0 9px var(--amber); }
 .gd-lane-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .gd-lane-name { font-family: var(--font-display); font-weight: 700; letter-spacing: 0.04em; }
 .gd-lane-val { font-family: var(--font-display); font-size: 1.7rem; font-weight: 700; letter-spacing: -0.01em; }
@@ -249,7 +249,7 @@
 .gd-dec-rej { font-size: 0.72rem; color: var(--amber); margin-top: 4px; }
 
 /* controls ------------------------------------------------------------------- */
-.gd-card { border: 1px solid var(--line); border-radius: 18px; padding: 18px; background: rgba(255,255,255,0.02); margin-bottom: 14px; }
+.gd-card { border: 1px solid var(--line); border-radius: 18px; padding: 22px; background: rgba(255,255,255,0.02); margin-bottom: 18px; }
 .gd-card h4 { margin: 0 0 14px; font-family: var(--font-display); font-size: 0.95rem; font-weight: 700; }
 .gd-btnrow { display: flex; flex-wrap: wrap; gap: 10px; }
 .gd-btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line-strong); background: rgba(255,255,255,0.04); color: var(--txt); font-weight: 700; font-size: 0.84rem; padding: 11px 18px; border-radius: 999px; cursor: pointer; transition: all 0.15s ease; }
@@ -270,7 +270,7 @@
 /* health --------------------------------------------------------------------- */
 .gd-hl { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
 .gd-hl-item { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 14px; padding: 13px 15px; background: rgba(255,255,255,0.02); }
-.gd-hl-led { width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 12px currentColor; }
+.gd-hl-led { width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 7px currentColor; }
 .gd-hl-led.ok { color: var(--mint); background: var(--mint); }
 .gd-hl-led.warn { color: var(--amber); background: var(--amber); }
 .gd-hl-led.down { color: var(--rose); background: var(--rose); }
@@ -718,10 +718,10 @@
   animation: gd-in 0.4s cubic-bezier(0.22,1,0.36,1) both;
 }
 .gd-stat::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--dim-2); }
-.gd-stat.up::before { background: var(--mint); box-shadow: 0 0 12px var(--mint); }
-.gd-stat.down::before { background: var(--rose); box-shadow: 0 0 12px var(--rose); }
+.gd-stat.up::before { background: var(--mint); box-shadow: 0 0 6px var(--mint); }
+.gd-stat.down::before { background: var(--rose); box-shadow: 0 0 6px var(--rose); }
 .gd-stat-l { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); font-weight: 700; }
-.gd-stat-v { font-family: var(--font-display); font-size: 1.2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.gd-stat-v { font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .gd-stat.up .gd-stat-v { color: var(--mint); } .gd-stat.down .gd-stat-v { color: var(--rose); }
 .gd-stat-sub { font-size: 0.62rem; color: var(--dim); }
 
