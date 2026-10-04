@@ -24,6 +24,7 @@ from app.services import (
 )
 from app.services.alpaca_client import AlpacaAPIError
 from app.services.claude_advisor import ClaudeAdvisor
+from app.services import crypto_market_structure
 from app.services.market_context import MarketContextClient
 from app.services.market_hours import SessionInfo
 from app.services.news_client import NewsClient
@@ -191,6 +192,16 @@ def _base_asset(symbol: str, quote_currency: str) -> str:
     if "/" in symbol:
         return symbol.split("/", 1)[0]
     return symbol.replace(quote_currency, "")
+
+
+def _venue_market_context(market_ctx, venue: str) -> dict:
+    """Makro/kontekst rynku dla danego venue. Krypto dostaje STRUKTURĘ RYNKU
+    KRYPTO (funding/OI/long-short/Fear&Greed) zamiast US-owych indeksów/VIX,
+    które dla krypto nic nie znaczą. Zapisywane w decision.market_context_snapshot
+    -> wpada do logu/pamięci i (gdy LLM włączony) do promptu."""
+    if venue == "crypto":
+        return crypto_market_structure.get_crypto_structure()
+    return market_ctx.get_market_context() if market_ctx is not None else {}
 
 
 def volatility_adjusted_size(settings: Settings, requested_pct: float, ticker_vol_pct: float | None) -> float:
@@ -748,7 +759,7 @@ def compute_and_cache_regime(db: Session, settings: Settings, broker, market_ctx
             continue
         market_data[symbol] = {"technical": compute_technical_indicators(closes)}
 
-    global_context = market_ctx.get_market_context() if market_ctx is not None else {}
+    global_context = _venue_market_context(market_ctx, venue)
     regime = compute_market_regime(market_data, global_context, settings, venue=venue)
     if settings.adaptive_risk_enabled:
         _, aggression = adaptive_risk.adaptive_settings(settings, regime)
@@ -2284,7 +2295,7 @@ def run_cycle(
         db.refresh(decision)
         return decision
 
-    global_context = market_ctx.get_market_context() if market_ctx is not None else {}
+    global_context = _venue_market_context(market_ctx, venue)
     # Risk regime, computed per venue from that venue's OWN signals: equities
     # from SPY trend + VIX + tape; extended from BTC trend + extended breadth.
     # Always given to Claude; gates BUYs while risk-off (see the gate below).
