@@ -16,16 +16,16 @@ function useAction() {
 function LegControls({ status, onChanged }: { status: StatusResponse; onChanged: () => void }) {
   const a = useAction();
   // Jeden silnik: gdy POZA SESJĄ wyłączona, pokazujemy tylko silnik pozycyjny.
-  // Krypto (24/7) pojawia się jako osobny silnik, gdy włączone — z własnym START/STOP.
-  const legs: Array<{ v: "alpaca" | "extended" | "crypto"; name: string; paused: boolean; on: boolean }> = [
-    ...(status.crypto_enabled
-      ? [{ v: "crypto" as const, name: "KRYPTO · 24/7 (papier)", paused: !!status.crypto_paused, on: true }]
-      : []),
-    { v: "alpaca", name: status.extended_enabled ? "SESJA · Akcje US" : "Silnik pozycyjny · Akcje US", paused: status.is_paused, on: true },
-    ...(status.extended_enabled
-      ? [{ v: "extended" as const, name: "POZA SESJĄ · ETF", paused: status.extended_paused, on: status.extended_enabled }]
-      : []),
-  ];
+  // Po pełnym przełączeniu na krypto (crypto_enabled) pokazujemy WYŁĄCZNIE silnik
+  // krypto -- stare silniki akcji znikają z UI.
+  const legs: Array<{ v: "alpaca" | "extended" | "crypto"; name: string; paused: boolean; on: boolean }> = status.crypto_enabled
+    ? [{ v: "crypto", name: "KRYPTO · 24/7 (papier)", paused: !!status.crypto_paused, on: true }]
+    : [
+        { v: "alpaca", name: status.extended_enabled ? "SESJA · Akcje US" : "Silnik pozycyjny · Akcje US", paused: status.is_paused, on: true },
+        ...(status.extended_enabled
+          ? [{ v: "extended" as const, name: "POZA SESJĄ · ETF", paused: status.extended_paused, on: status.extended_enabled }]
+          : []),
+      ];
   return (
     <div className="gd-card">
       <h4>{status.extended_enabled ? "Silniki" : "Silnik"}</h4>

@@ -66,7 +66,10 @@ export default function App() {
       setStatus(s); setError(null); setReconnecting(false);
       if (!s.extended_enabled) { setExtendedPortfolio(null); setExtendedTrades([]); }
 
-      const [p, t, d] = await Promise.all([api.portfolio("alpaca"), api.trades("alpaca"), api.decisions()]);
+      // Po pełnym przełączeniu na krypto: główny portfel/transakcje/decyzje to
+      // venue "crypto" (tam są pozycje). Dla akcji zostaje "alpaca".
+      const primary = s.crypto_enabled ? "crypto" : "alpaca";
+      const [p, t, d] = await Promise.all([api.portfolio(primary), api.trades(primary), api.decisions(s.crypto_enabled ? "crypto" : undefined)]);
       setPortfolio(p); setTrades(t); setDecisions(d);
       failCount.current = 0;
 

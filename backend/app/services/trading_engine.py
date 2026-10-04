@@ -298,7 +298,11 @@ def compute_portfolio(db: Session, settings: Settings, broker, *, venue: str = "
         # would hide the position and zero out its value on the dashboard).
         qty = balances.get(symbol, balances.get(base, 0.0))
         prices[symbol] = price
-        coin_balances[base] = qty
+        # Key balances by the FULL symbol too (== prices key) so the display
+        # layer matches: equities' ticker == base (no change), crypto pairs stay
+        # "BTC/USD" so extract()/cost_basis line up (base "BTC" vs price "BTC/USD"
+        # mismatch was hiding every crypto position from the dashboard).
+        coin_balances[symbol] = qty
         total_value += qty * price
 
     snapshot = PortfolioSnapshot(

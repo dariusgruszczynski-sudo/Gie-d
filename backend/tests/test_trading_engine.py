@@ -374,11 +374,14 @@ def test_compute_portfolio_records_held_extended_qty(db_session, settings):
         db_session, extended_settings, broker, venue="extended", whitelist=["BTCUSD", "ETHUSD"]
     )
 
-    # 0.01 BTC @ 50k = 500 of position value on top of 500 cash.
-    assert portfolio["balances"]["BTC"] == 0.01
+    # 0.01 BTC @ 50k = 500 of position value on top of 500 cash. Balances are
+    # keyed by the FULL symbol ("BTCUSD") == the prices key, so the display layer
+    # (extract/cost_basis) lines up -- the old base ("BTC") keying mismatched the
+    # "BTCUSD" prices key and hid the position on the dashboard.
+    assert portfolio["balances"]["BTCUSD"] == 0.01
     assert portfolio["total_value_usdt"] == 1000.0
     snapshot = db_session.query(PortfolioSnapshot).order_by(PortfolioSnapshot.id.desc()).first()
-    assert json.loads(snapshot.balances_json)["BTC"] == 0.01
+    assert json.loads(snapshot.balances_json)["BTCUSD"] == 0.01
 
 
 def test_compute_portfolio_values_held_position_off_whitelist(db_session, settings):

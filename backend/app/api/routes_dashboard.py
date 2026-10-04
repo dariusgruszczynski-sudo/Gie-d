@@ -100,6 +100,7 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         # na „rynek 24/7" i nie straszy „rynek zamknięty".
         "crypto_enabled": settings.crypto_enabled,
         "crypto_paused": state.crypto_paused,
+        "crypto_universe": settings.crypto_symbols,
         "quote_currency": settings.quote_currency,
         "is_paused": state.is_paused,
         "extended_paused": state.extended_paused,
@@ -449,29 +450,29 @@ def get_portfolio(
     ).scalar_one_or_none()
     inception = serialize(inception_row) if inception_row else None
 
-    whitelist = get_extended_whitelist(db, settings) if venue == "extended" else settings.whitelist_symbols
+    if venue == "extended":
+        whitelist = get_extended_whitelist(db, settings)
+    elif venue == "crypto":
+        whitelist = settings.crypto_symbols
+    else:
+        whitelist = settings.whitelist_symbols
 
-    # Average entry price per currently-held base asset ("BTC" -> 61234.5), so
-    # the dashboard can show per-position unrealized P&L. Keyed by base asset to
-    # match balances_json. IMPORTANT: cover every ACTUALLY-HELD symbol, not just
-    # the static whitelist -- a position bought from the dynamic universe (or an
-    # ETF adopted from the extended leg) sits OUTSIDE trading_whitelist, so a
-    # whitelist-only loop left it without an entry price and the dashboard showed
-    # no +/- on it. Union: held bases (from the latest snapshot) ∪ whitelist.
-    held_bases: set[str] = set()
+    # Average entry price per currently-held symbol, so the dashboard can show
+    # per-position unrealized P&L. Keyed by the FULL symbol to match balances_json
+    # (equities ticker == base; crypto pairs stay "BTC/USD"). Cover every
+    # ACTUALLY-HELD symbol, not just the static whitelist -- a position bought
+    # outside the whitelist still needs its entry price.
+    held_syms: set[str] = set()
     if current is not None:
         try:
-            held_bases = {b for b, q in json.loads(current.get("balances_json") or "{}").items() if q and q > 0}
+            held_syms = {s for s, q in json.loads(current.get("balances_json") or "{}").items() if q and q > 0}
         except (TypeError, ValueError):
-            held_bases = set()
-    q = settings.quote_currency
-    lookup = set(whitelist) | {b + q for b in held_bases} | held_bases
+            held_syms = set()
     cost_basis: dict[str, float] = {}
-    for symbol in lookup:
+    for symbol in set(whitelist) | held_syms:
         basis = average_cost_basis(db, symbol, venue=venue)
         if basis is not None:
-            base = symbol[: -len(q)] if symbol.endswith(q) else symbol
-            cost_basis[base] = round(basis, 6)
+            cost_basis[symbol] = round(basis, 6)
 
     # Scorecard vs buy-and-hold benchmark, computed from the latest snapshot's
     # prices (no live broker call needed on this hot, auth-gated endpoint).

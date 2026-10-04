@@ -46,6 +46,7 @@ export interface StatusResponse {
   // true = venue krypto (24/7) włączone — UI przełącza „sesję US" na „rynek 24/7".
   crypto_enabled?: boolean;
   crypto_paused?: boolean;
+  crypto_universe?: string[];
   quote_currency: string;
   is_paused: boolean;
   extended_paused: boolean;

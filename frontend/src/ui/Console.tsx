@@ -604,8 +604,8 @@ export function Console({ status, alpaca, extended, simple = false, onGoPosition
   const acc = status.account;
   const total = useCountUp(acc?.total_value ?? 0);
   const cash = acc?.cash ?? 0;
-  const sesjaVal = acc?.equity_positions_value ?? 0;
-  const invested = sesjaVal + (acc?.extended_positions_value ?? 0);
+  const invested = acc ? ((acc.equity_positions_value ?? 0) + (acc.extended_positions_value ?? 0) + (acc.crypto_positions_value ?? 0)) : 0;
+  const sesjaVal = invested;
   const invPct = acc && acc.total_value > 0 ? Math.round((invested / acc.total_value) * 100) : 0;
 
   const positions = [...extract(alpaca, "sesja"), ...extract(extended, "poza")];
@@ -635,7 +635,7 @@ export function Console({ status, alpaca, extended, simple = false, onGoPosition
             <div className="gd-sec"><h3>Twoja kasa</h3><span className="gd-sec-note">gdzie są pieniądze</span></div>
             <div className="gd-statgrid gd-statgrid-3">
               <StatCard label="Na koncie" value={acc ? money0(acc.total_value) : "…"} sub="wszystkie środki razem" />
-              <StatCard label="W akcjach" value={money0(invested)} sub={`${sesjaCount} ${sesjaCount === 1 ? "pozycja" : "pozycji"} · ${invPct}% konta`} />
+              <StatCard label={status.crypto_enabled ? "W krypto" : "W akcjach"} value={money0(invested)} sub={`${sesjaCount} ${sesjaCount === 1 ? "pozycja" : "pozycji"} · ${invPct}% konta`} />
               <StatCard label="Wolna gotówka" value={money0(cash)} sub="czeka na wejścia" />
             </div>
           </div>
@@ -694,7 +694,7 @@ export function Console({ status, alpaca, extended, simple = false, onGoPosition
 
   return (
     <div className={`gd-view ${layout.compact ? "gd-compact" : ""}`}>
-      <TickerTape sesja={status.whitelist} poza={status.extended_enabled ? status.extended_whitelist : []} prices={livePrices} />
+      <TickerTape sesja={status.crypto_enabled ? (status.crypto_universe ?? []) : status.whitelist} poza={status.crypto_enabled ? [] : (status.extended_enabled ? status.extended_whitelist : [])} prices={livePrices} />
       <div className="gd-topline">
         <span className="gd-kicker">Pulpit · {new Date().toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })}</span>
         <span className={`gd-mode ${status.mode === "live" ? "live" : ""}`}>
