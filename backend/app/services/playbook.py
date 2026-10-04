@@ -35,6 +35,26 @@ SEED_PLAYBOOK: list[str] = [
 ]
 
 
-def get_playbook() -> list[str]:
-    """Kopia listy zasad (żeby wołający jej nie zmutował)."""
-    return list(SEED_PLAYBOOK)
+# Krypto (venue 24/7) -- doklejane do playbooka TYLKO dla nogi krypto. Koduje
+# naszą strategię + TWARDE lekcje z 4 miesięcy akcji (patrz docs/), żeby gdy
+# właściciel włączy LLM (Sonnet), model startował Z TĄ wiedzą, nie na zimno.
+SEED_PLAYBOOK_CRYPTO: list[str] = [
+    "Poprzeczka to TRZYMANIE BTC, nie 'czy zarobiłem': jeśli aktywny handel nie bije buy&hold BTC w oknie — lepiej po prostu trzymać BTC.",
+    "Płynność > egzotyka: graj WĄSKĄ listą najpłynniejszych par (BTC/ETH/SOL/majors). Śmieciowe alty = szeroki spread + dumpy; to był największy przeciek na akcjach.",
+    "Fee ~0,1–0,25%/stronę + spread to STAŁY koszt: mniej, większych, dłużej trzymanych pozycji bije częsty scalping, który zżerają koszty.",
+    "Krypto bywa silnie trendujące ORAZ brutalnie zmienne: szersze stopy (pod zmienność), mniejszy % ryzyka/transakcję niż na akcjach.",
+    "Korelacja: większość altów to lewarowany BTC — 5 altów to często JEDNA transakcja na BTC. Nie udawaj dywersyfikacji; licz ryzyko na czynnik, nie na ticker.",
+    "Nie goń świeżego pumpa z FOMO: do czasu wejścia ruch zwykle już się wydarzył. Czekaj na potwierdzony setup, nie na nagłówek.",
+    "Ekstremalny funding / masowo zatłoczone longi/shorty bywają sygnałem KONTRARIAŃSKIM (nadchodzą likwidacje) — nie dokładaj do tłumu na szczycie.",
+    "24/7 = brak luki na otwarciu, ale cieńsza płynność nocą/w weekend i nagłe knoty. Większa ostrożność z rozmiarem poza godzinami US.",
+    "Największym kosztem przy małym koncie był LLM (~$196 na akcjach): wołaj drogi model tylko do decyzji WYSOKIEJ wartości, nie na każdy cykl. Gotówka to pełnoprawna pozycja.",
+]
+
+
+def get_playbook(venue: str = "alpaca") -> list[str]:
+    """Kopia listy zasad (żeby wołający jej nie zmutował). Dla venue 'crypto'
+    dokleja zasady krypto -- tak, by LLM (gdy włączony) startował z tą wiedzą."""
+    rules = list(SEED_PLAYBOOK)
+    if venue == "crypto":
+        rules += SEED_PLAYBOOK_CRYPTO
+    return rules

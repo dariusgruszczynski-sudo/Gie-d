@@ -1470,7 +1470,7 @@ def build_performance_context(
         "scorecard": card,
         # Trwała baza zachowań destylowana z praktyki innych traderów/botów --
         # startowa wiedza, na której Claude buduje własne (świeższe) lekcje.
-        "playbook": playbook.get_playbook(),
+        "playbook": playbook.get_playbook(venue),
         "lessons_learned": lessons,
         # Quantitative per-symbol track record -- what actually works for me.
         "per_symbol_stats": compute_symbol_stats(db, venue=venue),
