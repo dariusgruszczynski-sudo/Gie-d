@@ -280,18 +280,24 @@ def _account_view(db: Session, settings: Settings | None = None) -> dict | None:
     # -- inaczej ta sama pozycja policzyłaby się podwójnie (raz w alpaca, raz w
     # nieodświeżanym extended).
     c = _latest_snapshot(db, "extended") if (settings or get_settings()).extended_enabled else None
-    if a is None and c is None:
+    # Crypto (24/7) venue: its positions live in the SAME account. Read its
+    # snapshot when enabled -- otherwise crypto position value silently drops out
+    # of the account total (account looked like it 'lost' the deployed cash).
+    cr = _latest_snapshot(db, "crypto") if (settings or get_settings()).crypto_enabled else None
+    if a is None and c is None and cr is None:
         return None
-    # Cash is identical in both snapshots; take it from the freshest one.
-    freshest = max((s for s in (a, c) if s is not None), key=lambda s: s.timestamp)
+    # Cash is identical in every snapshot; take it from the freshest one.
+    freshest = max((s for s in (a, c, cr) if s is not None), key=lambda s: s.timestamp)
     cash = freshest.usdt_balance
     equity_positions_value = (a.total_value_usdt - a.usdt_balance) if a else 0.0
     extended_positions_value = (c.total_value_usdt - c.usdt_balance) if c else 0.0
+    crypto_positions_value = (cr.total_value_usdt - cr.usdt_balance) if cr else 0.0
     return {
         "cash": round(cash, 2),
         "equity_positions_value": round(equity_positions_value, 2),
         "extended_positions_value": round(extended_positions_value, 2),
-        "total_value": round(cash + equity_positions_value + extended_positions_value, 2),
+        "crypto_positions_value": round(crypto_positions_value, 2),
+        "total_value": round(cash + equity_positions_value + extended_positions_value + crypto_positions_value, 2),
     }
 
 
@@ -876,7 +882,7 @@ def get_widget(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "losses": losses,
         "closed": closed,
         "market_open": sess.get("market_session") == "regular",
-        "invested": (account["equity_positions_value"] + account["extended_positions_value"]) if account else None,
+        "invested": (account["equity_positions_value"] + account["extended_positions_value"] + account.get("crypto_positions_value", 0.0)) if account else None,
         # "Zysk automatu" -- TEN SAM deposit-proof wskaźnik co na Konsoli
         # (zrealizowany + papierowy, bez wpłat), żeby widżet i apka pokazywały
         # to samo. net_result_usd zostaje dla zgodności wstecznej, ale widżet go

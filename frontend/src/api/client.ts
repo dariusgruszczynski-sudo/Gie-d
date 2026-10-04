@@ -22,6 +22,7 @@ export interface AccountView {
   cash: number;
   equity_positions_value: number;
   extended_positions_value: number;
+  crypto_positions_value?: number;
   total_value: number;
 }
 

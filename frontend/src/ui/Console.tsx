@@ -427,7 +427,7 @@ function WinBar({ pct: p, wins, losses }: { pct: number | null; wins: number; lo
 function RiskScale({ status }: { status: StatusResponse }) {
   const acc = status.account;
   const invPct = acc && acc.total_value > 0
-    ? Math.round(((acc.equity_positions_value ?? 0) + (acc.extended_positions_value ?? 0)) / acc.total_value * 100)
+    ? Math.round(((acc.equity_positions_value ?? 0) + (acc.extended_positions_value ?? 0) + (acc.crypto_positions_value ?? 0)) / acc.total_value * 100)
     : 0;
   const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 
