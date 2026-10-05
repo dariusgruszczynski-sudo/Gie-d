@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-10-05T11:08:52Z
+# Audyt GielDarek — 2026-10-05T11:27:22Z
 
-**Wdrożenie:** kod f3c1ae8 (zbud. 2026-10-05T04:38Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 6f79021 (zbud. 2026-10-05T11:25Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 112 zamknięć · trafność 30.4% · zrealizowany $8.37
 **7 dni:** 22 zamknięć · 9.1% · $-3.5   |   **30 dni:** 67 · 32.8% · $8.33
@@ -15,7 +15,7 @@
 - (bad) ⚠ Zyski trzymane dłużej (~3 dni) niż straty (~3 dni) — automat zwleka z realizacją zysku.
 - (neu) Największy przeciek: MSFT (-7.26 $, 11 zamk.) — kandydat do wyrzucenia z listy.
 - (neu) Limit wejść bywa osiągany (54 dni) — podniesienie może dołożyć wejść.
-- (neu) Najczęstszy powód pominięcia wejścia: „Dzienny limit strat przekroczony: -99.6% (limit 20.0%)” (33× z ostatnich 300 decyzji).
+- (neu) Najczęstszy powód pominięcia wejścia: „Dzienny limit strat przekroczony: -99.6% (limit 20.0%)” (35× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
 - MSFT: $-7.26 (11 zamk., 0%)
@@ -41,16 +41,18 @@
 - ostatnie 120 decyzji · wykonanych: 35 · odrzuconych: 85
 
 **Najczęstsze powody odrzucenia (top):**
-- 33× — Dzienny limit strat przekroczony: -99.6% (limit 20.0%)
+- 35× — Dzienny limit strat przekroczony: -99.6% (limit 20.0%)
 - 17× — Spadek od szczytu konta przekroczony: -88.5% (limit 45.0%, szczyt $99,448.83)
 - 14× — Automat (alpaca) zapauzowany ręcznie
-- 13× — brak powodu
-- 4× — size_pct <= 0, nic do zrobienia
+- 12× — brak powodu
+- 3× — size_pct <= 0, nic do zrobienia
 - 2× — Auto-degradacja AVGO: ujemna historia (1W/4L, P&L -3.73) — nowe wejście zablokowane
 - 1× — Zbyt niska pewność: 0.62 < próg 0.81 (baza 0.60 + 7 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 - 1× — Zbyt niska pewność: 0.62 < próg 0.87 (baza 0.60 + 9 pozycji × 0.03) — wejście pominięte, kolejne wejścia wymagają mocniejszego sygnału
 
 **Ostatnie 20 decyzji:**
+- 2026-10-05T11:24:00.023066 — HOLD conf=0.0 trig=news_event ⛔ Dzienny limit strat przekroczony: -99.6% (limit 20.0%)
+- 2026-10-05T11:09:00.231016 — HOLD conf=0.0 trig=news_event ⛔ Dzienny limit strat przekroczony: -99.6% (limit 20.0%)
 - 2026-10-05T10:53:59.865321 — HOLD conf=0.0 trig=news_event ⛔ Dzienny limit strat przekroczony: -99.6% (limit 20.0%)
 - 2026-10-05T10:39:00.033581 — HOLD conf=0.0 trig=news_event ⛔ Dzienny limit strat przekroczony: -99.6% (limit 20.0%)
 - 2026-10-05T10:24:00.032392 — HOLD conf=0.0 trig=news_event ⛔ Dzienny limit strat przekroczony: -99.6% (limit 20.0%)
@@ -69,5 +71,3 @@
 - 2026-10-05T06:23:59.810938 — HOLD conf=0.0 trig=news_event ⛔ Dzienny limit strat przekroczony: -99.6% (limit 20.0%)
 - 2026-10-05T05:38:59.931714 — HOLD conf=0.0 trig=news_event ⛔ Dzienny limit strat przekroczony: -99.6% (limit 20.0%)
 - 2026-10-05T05:23:59.764749 — HOLD conf=0.0 trig=news_event ⛔ Dzienny limit strat przekroczony: -99.6% (limit 20.0%)
-- 2026-10-05T04:33:37.733538 — HOLD conf=0.0 trig=news_event ⛔ Dzienny limit strat przekroczony: -99.6% (limit 20.0%)
-- 2026-10-05T04:18:37.736848 — HOLD conf=0.0 trig=news_event ⛔ Dzienny limit strat przekroczony: -99.6% (limit 20.0%)
