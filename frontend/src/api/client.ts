@@ -336,7 +336,6 @@ export const api = {
   portfolio: (venue: string = "alpaca") => apiFetch<PortfolioResponse>(withShare(`/api/portfolio?limit=600&venue=${venue}`)),
   trades: (venue?: string) => apiFetch<Trade[]>(withShare(venue ? `/api/trades?venue=${venue}` : "/api/trades")),
   decisions: (venue?: string) => apiFetch<Decision[]>(withShare(venue ? `/api/decisions?venue=${venue}` : "/api/decisions")),
-  news: () => apiFetch<{ items: NewsItem[] }>(withShare("/api/news")),
   logout: () => apiFetch<{ message: string }>("/api/auth/logout", { method: "POST" }),
   pause: (venue: string = "alpaca") => apiFetch<unknown>(`/api/control/pause?venue=${venue}`, { method: "POST" }),
   resume: (venue: string = "alpaca") => apiFetch<unknown>(`/api/control/resume?venue=${venue}`, { method: "POST" }),
@@ -400,7 +399,6 @@ export const api = {
   history: () => apiFetch<HistoryResponse>(withShare("/api/history")),
   audit: () => apiFetch<AuditResponse>(withShare("/api/audit")),
   health: () => apiFetch<HealthReport>("/api/health"),
-  newsSources: () => apiFetch<NewsSourcesResponse>("/api/news/sources"),
   healthReset: (action: string) =>
     apiFetch<{ action: string; message: string }>("/api/health/reset", {
       method: "POST",
@@ -478,38 +476,6 @@ export interface AuditResponse {
   decisions: { by_action: Record<string, number>; rejected: number; reasons: Array<{ reason: string; n: number }> };
   settings: Record<string, number | string>;
   conclusions: Array<{ t: string; tone: "good" | "bad" | "neu" }>;
-}
-
-export interface NewsItem {
-  title: string;
-  source: string;
-  published_at: string | null;
-  tickers: string[];
-}
-
-export interface NewsSource {
-  name: string;
-  group: string;
-  status: "ok" | "down";
-  count: number;
-}
-
-export interface NewsSourceHeadline {
-  title: string;
-  source: string;
-  published_at: string | null;
-  sentiment_label?: string;
-  sentiment_score?: number;
-}
-
-export interface NewsSourcesResponse {
-  sources: NewsSource[];
-  headlines: NewsSourceHeadline[];
-  summary: { ok: number; down: number; headlines: number };
-  // Auto-odkrywanie źródeł: ile trwale odkrytych + ile dołożył ostatni przebieg.
-  discovery?: { total: number; added_last: number; date: string | null };
-  generated_at?: string;
-  cached?: boolean;
 }
 
 export interface PositionPlan {
