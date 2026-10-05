@@ -631,7 +631,10 @@ class Settings(BaseSettings):
     smtp_username: str = ""
     smtp_password: str = ""
     smtp_from_email: str = ""
-    report_recipient_email: str = "0grucha0@gmail.com"
+    # Adresat raportu/alertu e-mail. PUSTE domyślnie -- nie zaszywamy cudzego
+    # adresu w kodzie (to repo i prywatność). Ustaw REPORT_RECIPIENT_EMAIL w .env;
+    # bez tego wysyłka maili jest po prostu pomijana (patrz email_reporter).
+    report_recipient_email: str = ""
     # Godzina codziennego podsumowania PUSH (nie maila -- patrz push_notifier.
     # send_daily_summary_push / scheduler._report_job).
     report_hour: int = 8

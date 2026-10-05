@@ -357,6 +357,9 @@ def send_daily_report(db: Session, settings: Settings) -> None:
     if not settings.smtp_username or not settings.smtp_password:
         logger.warning("SMTP not configured (SMTP_USERNAME/SMTP_PASSWORD empty) -- skipping report email")
         return
+    if not settings.report_recipient_email:
+        logger.warning("REPORT_RECIPIENT_EMAIL nie ustawiony -- pomijam raport e-mail (ustaw w .env)")
+        return
 
     html, chart_png = build_report(db, settings)
 
@@ -385,7 +388,7 @@ def send_trade_alert(settings: Settings, trade, reason: str = "") -> None:
     Silently skipped if alerts are off or SMTP isn't configured."""
     if not settings.trade_alerts_enabled:
         return
-    if not settings.smtp_username or not settings.smtp_password:
+    if not settings.smtp_username or not settings.smtp_password or not settings.report_recipient_email:
         return
 
     try:

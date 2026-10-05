@@ -39,7 +39,6 @@ _SHARE_READONLY_PREFIXES = (
     "/api/position-plans",
     "/api/history",
     "/api/audit",
-    "/api/monthly",
 )
 
 
