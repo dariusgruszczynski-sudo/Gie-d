@@ -47,6 +47,43 @@ def test_realized_pnl_and_win_rate(db_session, settings):
     assert card["win_rate_pct"] == 50.0
 
 
+def test_crypto_scorecard_benchmarks_btc_and_counts_crypto_trades(db_session, settings):
+    """Krypto bije „trzymaj BTC" (nie SPY) i liczy trafność z transakcji krypto.
+    Baseline bierze się z najstarszego snapshotu krypto, więc nie koliduje z akcjami."""
+    import json
+
+    from app.models import PortfolioSnapshot
+    from tests.test_trading_engine import FakeAlpaca
+
+    # Najstarszy snapshot krypto = punkt odniesienia: BTC @50k, konto $1000.
+    db_session.add(PortfolioSnapshot(
+        total_value_usdt=1000.0, usdt_balance=1000.0,
+        balances_json="{}", prices_json=json.dumps({"BTC/USD": 50000.0}),
+        failed_symbols_json="[]", venue="crypto",
+    ))
+    db_session.commit()
+
+    crypto_settings = settings.model_copy(update={"crypto_enabled": True})
+    broker = FakeAlpaca(prices={"BTC/USD": 50000.0}, balances={"USD": 10000.0})
+    trading_engine.execute_manual_trade(db_session, crypto_settings, broker, symbol="BTC/USD", side="BUY", usdt_amount=500.0, venue="crypto", whitelist=["BTC/USD"])
+    broker.prices["BTC/USD"] = 60000.0
+    held = trading_engine.compute_portfolio(db_session, crypto_settings, broker, venue="crypto", whitelist=["BTC/USD"])
+    trading_engine.execute_manual_trade(
+        db_session, crypto_settings, broker, symbol="BTC/USD", side="SELL",
+        quantity=held["balances"]["BTC/USD"], venue="crypto", whitelist=["BTC/USD"],
+    )  # +~20% win
+
+    # BTC podwaja się do 100k: trzymanie dałoby 1000*(100k/50k)=2000.
+    card = scorecard.compute_scorecard(
+        db_session, crypto_settings, {"total_value_usdt": 1200.0, "prices": {"BTC/USD": 100000.0}}, venue="crypto",
+    )
+    assert card["benchmark_symbol"] == "BTC/USD"
+    assert card["benchmark_value"] == 2000.0
+    assert card["wins"] == 1
+    assert card["losses"] == 0
+    assert card["win_rate_pct"] == 100.0
+
+
 def test_scorecard_degrades_without_baseline(db_session, settings):
     card = scorecard.compute_scorecard(db_session, settings, {"total_value_usdt": 0.0, "prices": {}})
     assert card["benchmark_value"] is None

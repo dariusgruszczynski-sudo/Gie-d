@@ -384,6 +384,24 @@ def test_compute_portfolio_records_held_extended_qty(db_session, settings):
     assert json.loads(snapshot.balances_json)["BTCUSD"] == 0.01
 
 
+def test_held_qty_symbol_base_and_equity(settings):
+    """Regression: after balances moved to full-symbol keys ("BTC/USD"), the
+    engine's position lookups must still find the qty. _held_qty tries the full
+    symbol first, then the base ("BTC"), so crypto stops/exits/concurrency never
+    silently read 0. Equities (symbol==base) stay a plain lookup."""
+    # Full-pair key (the new crypto convention): found directly.
+    pf_pair = {"balances": {"BTC/USD": 0.5}, "prices": {"BTC/USD": 60000.0}}
+    assert trading_engine._held_qty(pf_pair, "BTC/USD", settings) == 0.5
+    # Base key (old/legacy convention): found via the base fallback.
+    pf_base = {"balances": {"BTC": 0.5}, "prices": {"BTC/USD": 60000.0}}
+    assert trading_engine._held_qty(pf_base, "BTC/USD", settings) == 0.5
+    # Equity ticker: symbol == base, plain lookup.
+    pf_eq = {"balances": {"SPY": 3.0}, "prices": {"SPY": 500.0}}
+    assert trading_engine._held_qty(pf_eq, "SPY", settings) == 3.0
+    # Not held at all -> 0.0 (never None, so arithmetic downstream is safe).
+    assert trading_engine._held_qty({"balances": {}}, "ETH/USD", settings) == 0.0
+
+
 def test_compute_portfolio_values_held_position_off_whitelist(db_session, settings):
     """A held ticker that isn't on the trading whitelist must still be valued and
     surfaced -- otherwise it vanishes from the dashboard and the account total is

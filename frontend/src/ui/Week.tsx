@@ -4,19 +4,20 @@ import { money, money0 } from "./kit";
 
 /* EKRAN TYDZIEŃ (paczka D) — proste podsumowanie ostatnich 7 dni na telefon:
    ile bot zarobił, ile transakcji, najlepsza/najgorsza, dzień po dniu. Liczone
-   z Historii (tylko akcje sesji), plus aktualny stan konta ze statusu. */
+   z Historii nogi głównej (krypto po przełączeniu), plus stan konta ze statusu. */
 export function Week({ status }: { status: StatusResponse | null }) {
   const [trades, setTrades] = useState<HistoryTrade[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const primaryVenue = status?.crypto_enabled ? "crypto" : "alpaca";
 
   useEffect(() => {
     let dead = false;
     (async () => {
-      try { const r = await api.history(); if (!dead) setTrades(r.trades.filter((t) => (t.venue ?? "alpaca") === "alpaca")); }
+      try { const r = await api.history(); if (!dead) setTrades(r.trades.filter((t) => (t.venue ?? "alpaca") === primaryVenue)); }
       catch (e) { if (!dead) setErr(String(e)); }
     })();
     return () => { dead = true; };
-  }, []);
+  }, [primaryVenue]);
 
   const now = Date.now();
   const week = (trades ?? []).filter((t) => t.sold_at && now - Date.parse(t.sold_at) <= 7 * 86400000);

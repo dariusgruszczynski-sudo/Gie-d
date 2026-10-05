@@ -4,6 +4,7 @@ win/loss tally on closed trades. Without this the whole strategy is unmeasured
 -- and you can't improve what you don't measure. Feeds both the dashboard and
 Claude's own decision context ("you're underperforming buy-and-hold, rethink")."""
 
+import json
 from collections import defaultdict
 from datetime import UTC
 
@@ -15,7 +16,7 @@ from app.models import SystemState, Trade
 from app.services import risk_manager
 
 
-def _walk_realized(db: Session, since=None, alpaca_only: bool = False) -> tuple[float, int, int]:
+def _walk_realized(db: Session, since=None, alpaca_only: bool = False, venue: str | None = None) -> tuple[float, int, int]:
     """Walks the full trade history per ticker, tracking a running average
     cost, and books realized P&L on each SELL. Returns
     (total_realized_usd, winning_sells, losing_sells).
@@ -24,7 +25,9 @@ def _walk_realized(db: Session, since=None, alpaca_only: bool = False) -> tuple[
     result -- but the average cost is still walked from the very beginning, so
     the P&L per sale is correct. `alpaca_only` pomija w liczeniu nogę POZA SESJĄ
     (venue!=alpaca) -- czyli krypto i inne zaszłości. Oba filtry pozwalają
-    pokazać „staty od ostatniej zmiany, bez krypto" bez kasowania transakcji."""
+    pokazać „staty od ostatniej zmiany, bez krypto" bez kasowania transakcji.
+    `venue` (opcjonalne) liczy TYLKO sprzedaże danej nogi (np. 'crypto') — tak
+    liczymy trafność/wynik dla pulpitu krypto (zamiast alpaca_only)."""
 
     trades = db.execute(select(Trade).order_by(Trade.timestamp.asc())).scalars().all()
     qty_by: dict[str, float] = defaultdict(float)
@@ -49,6 +52,8 @@ def _walk_realized(db: Session, since=None, alpaca_only: bool = False) -> tuple[
                 ts = t.timestamp if t.timestamp.tzinfo else t.timestamp.replace(tzinfo=UTC)
                 in_window = ts >= since
             if alpaca_only and getattr(t, "venue", "alpaca") != "alpaca":
+                in_window = False
+            if venue is not None and getattr(t, "venue", "alpaca") != venue:
                 in_window = False
             if in_window:
                 realized += pnl
@@ -197,41 +202,80 @@ def total_realized_pnl(db: Session) -> float:
     return round(realized, 2)
 
 
-def compute_scorecard(db: Session, settings: Settings, portfolio: dict) -> dict:
+def _crypto_benchmark_baseline(db: Session, benchmark_symbol: str) -> tuple[float, float, str]:
+    """Krypto nie ma osobnej kolumny baseline w SystemState (to jedno konto na
+    akcje). Wyliczamy punkt odniesienia „trzymaj BTC" z NAJSTARSZEGO snapshotu
+    krypto, który umiał wycenić BTC: (cena_BTC_wtedy, wartość_konta_wtedy, data).
+    Dzięki temu alfa vs BTC liczy się bez migracji i bez kolizji z baseline akcji.
+    Zwraca (0,0,"") gdy nie ma jeszcze takiego snapshotu."""
+    from app.models import PortfolioSnapshot
+
+    rows = db.execute(
+        select(PortfolioSnapshot)
+        .where(PortfolioSnapshot.venue == "crypto", PortfolioSnapshot.total_value_usdt > 0)
+        .order_by(PortfolioSnapshot.id.asc())
+    ).scalars().all()
+    for snap in rows:
+        try:
+            price = json.loads(snap.prices_json or "{}").get(benchmark_symbol)
+        except (TypeError, ValueError):
+            price = None
+        if price and price > 0:
+            when = snap.timestamp.date().isoformat() if snap.timestamp else ""
+            return float(price), float(snap.total_value_usdt), when
+    return 0.0, 0.0, ""
+
+
+def compute_scorecard(db: Session, settings: Settings, portfolio: dict, *, venue: str = "alpaca") -> dict:
     """Portfolio vs benchmark buy-and-hold, plus realized P&L and win rate.
     All fields degrade to None when there isn't a baseline / price yet, so the
-    dashboard and Claude context never break on a fresh account."""
+    dashboard and Claude context never break on a fresh account.
+
+    `venue` wybiera punkt odniesienia i trafność właściwą dla nogi: akcje biją
+    SPY (baseline w SystemState), krypto bije „trzymaj BTC" (baseline z pierwszego
+    snapshotu krypto). Trafność/wynik liczymy z transakcji TEJ nogi."""
     state = risk_manager.get_state(db)
     portfolio_value = portfolio.get("total_value_usdt", 0.0)
-    benchmark_price_now = portfolio["prices"].get(settings.benchmark_symbol)
+    benchmark_symbol = "BTC/USD" if venue == "crypto" else settings.benchmark_symbol
+    benchmark_price_now = portfolio["prices"].get(benchmark_symbol)
+
+    if venue == "crypto":
+        bench_start_price, bench_start_value, bench_start_date = _crypto_benchmark_baseline(db, benchmark_symbol)
+    else:
+        bench_start_price = state.benchmark_start_price
+        bench_start_value = state.benchmark_start_value
+        bench_start_date = state.benchmark_start_date
 
     benchmark_value = None
     alpha_usd = None
     alpha_pct = None
-    if state.benchmark_start_price > 0 and benchmark_price_now:
-        benchmark_value = state.benchmark_start_value * (benchmark_price_now / state.benchmark_start_price)
+    if bench_start_price > 0 and benchmark_price_now:
+        benchmark_value = bench_start_value * (benchmark_price_now / bench_start_price)
         alpha_usd = portfolio_value - benchmark_value
         if benchmark_value > 0:
             alpha_pct = alpha_usd / benchmark_value * 100
 
     # Skuteczność/trafność liczona OD OSTATNIEJ ZMIANY (auto: stats_epoch albo
-    # domyślny start strategii) i TYLKO akcje sesji (bez krypto / POZA SESJĄ) —
-    # żeby nowa strategia nie tonęła w starej epoce churnu i zaszłościach.
-    # realized_pnl_usd zostaje ŻYCIOWE (zasila „wynik netto"), bo to inny wskaźnik.
+    # domyślny start strategii). Dla akcji bierzemy nogę sesji (alpaca_only);
+    # dla krypto — transakcje nogi krypto. realized_pnl_usd zostaje ŻYCIOWE
+    # (zasila „wynik netto"), bo to inny wskaźnik.
     epoch, epoch_raw = effective_epoch(state, settings)
     realized, _wl, _ll = _walk_realized(db)
-    _r2, wins, losses = _walk_realized(db, since=epoch, alpaca_only=True)
+    if venue == "crypto":
+        _r2, wins, losses = _walk_realized(db, since=epoch, venue="crypto")
+    else:
+        _r2, wins, losses = _walk_realized(db, since=epoch, alpaca_only=True)
     closed = wins + losses
 
     return {
         "portfolio_value": round(portfolio_value, 2),
         "stats_since": (epoch_raw or None),
-        "benchmark_symbol": settings.benchmark_symbol,
+        "benchmark_symbol": benchmark_symbol,
         # Baseline exposed so the frontend can draw a full buy-and-hold series
         # over the portfolio chart (per-snapshot benchmark prices come from
         # each snapshot's own prices_json).
-        "benchmark_start_price": state.benchmark_start_price if state.benchmark_start_price > 0 else None,
-        "benchmark_start_value": state.benchmark_start_value if state.benchmark_start_value > 0 else None,
+        "benchmark_start_price": bench_start_price if bench_start_price > 0 else None,
+        "benchmark_start_value": bench_start_value if bench_start_value > 0 else None,
         "benchmark_value": round(benchmark_value, 2) if benchmark_value is not None else None,
         "alpha_usd": round(alpha_usd, 2) if alpha_usd is not None else None,
         "alpha_pct": round(alpha_pct, 2) if alpha_pct is not None else None,
@@ -240,7 +284,7 @@ def compute_scorecard(db: Session, settings: Settings, portfolio: dict) -> dict:
         "wins": wins,
         "losses": losses,
         "win_rate_pct": round(wins / closed * 100, 1) if closed > 0 else None,
-        "since": state.benchmark_start_date or None,
+        "since": bench_start_date or None,
     }
 
 

@@ -194,6 +194,20 @@ def _base_asset(symbol: str, quote_currency: str) -> str:
     return symbol.replace(quote_currency, "")
 
 
+def _held_qty(portfolio: dict, symbol: str, settings: Settings) -> float:
+    """Quantity currently held for a symbol, robust to the balances dict being
+    keyed by the full pair ("BTC/USD") OR the base ("BTC"): try the full symbol
+    first, then the base. For equities symbol==base so this is a plain lookup.
+    Centralises what used to be scattered `balances.get(_base_asset(...))` calls
+    that silently returned 0 for crypto after balances moved to full-symbol keys
+    (which disabled stops, exits and the concurrency cap for crypto)."""
+    b = portfolio.get("balances", {})
+    q = b.get(symbol)
+    if q is None:
+        q = b.get(_base_asset(symbol, settings.quote_currency), 0.0)
+    return q or 0.0
+
+
 def _venue_market_context(market_ctx, venue: str) -> dict:
     """Makro/kontekst rynku dla danego venue. Krypto dostaje STRUKTURĘ RYNKU
     KRYPTO (funding/OI/long-short/Fear&Greed) zamiast US-owych indeksów/VIX,
@@ -1189,7 +1203,7 @@ def check_take_profit_stop_loss(
                 new_partials[symbol] = partials[symbol]
             continue
         base = _base_asset(symbol, settings.quote_currency)
-        qty = portfolio["balances"].get(base, 0.0)
+        qty = _held_qty(portfolio, symbol, settings)
         if qty <= 0:
             continue  # not held -> drop any stale peak / partial mark
         basis = average_cost_basis(db, symbol, venue=venue)
@@ -1435,7 +1449,7 @@ def count_open_positions(portfolio: dict, settings: Settings, symbols: list[str]
     per-venue concurrency cap that bounds correlated exposure."""
     n = 0
     for sym in symbols:
-        qty = portfolio["balances"].get(_base_asset(sym, settings.quote_currency), 0.0)
+        qty = _held_qty(portfolio, sym, settings)
         price = portfolio["prices"].get(sym)
         if qty > 0 and price and qty * price >= MIN_SELL_NOTIONAL_USD:
             n += 1
@@ -1455,8 +1469,7 @@ def build_performance_context(
     symbols = whitelist if whitelist is not None else settings.whitelist_symbols
     open_positions = []
     for symbol in symbols:
-        base = _base_asset(symbol, settings.quote_currency)
-        qty = portfolio["balances"].get(base, 0.0)
+        qty = _held_qty(portfolio, symbol, settings)
         price = portfolio["prices"].get(symbol)
         if qty <= 0 or price is None:
             continue
@@ -1794,9 +1807,8 @@ def _process_decision(
         # Concurrency cap: bound correlated exposure (the whitelist is mostly
         # tech beta -> many open names are really one bet). Scaling INTO an
         # already-held name is exempt.
-        base_sym = _base_asset(decision_data.symbol, settings.quote_currency)
         already_held = (
-            portfolio["balances"].get(base_sym, 0.0) * portfolio["prices"].get(decision_data.symbol, 0.0)
+            _held_qty(portfolio, decision_data.symbol, settings) * portfolio["prices"].get(decision_data.symbol, 0.0)
             >= MIN_SELL_NOTIONAL_USD
         )
         if (
@@ -1926,8 +1938,7 @@ def _candidate_score(settings: Settings, md: dict | None) -> tuple[int, float, b
 def _held_symbols(portfolio: dict, settings: Settings, symbols: list[str]) -> list[str]:
     out = []
     for sym in symbols:
-        base = _base_asset(sym, settings.quote_currency)
-        qty = portfolio["balances"].get(base, 0.0)
+        qty = _held_qty(portfolio, sym, settings)
         price = portfolio["prices"].get(sym)
         if qty > 0 and price and qty * price >= MIN_SELL_NOTIONAL_USD:
             out.append(sym)
@@ -2004,8 +2015,7 @@ def _run_auto_deploy(
         score, _mom, ok = _candidate_score(settings, market_data.get(sym))
         if not ok:
             return False
-        base = _base_asset(sym, settings.quote_currency)
-        if pf["balances"].get(base, 0.0) * (pf["prices"].get(sym) or 0.0) >= MIN_SELL_NOTIONAL_USD:
+        if _held_qty(pf, sym, settings) * (pf["prices"].get(sym) or 0.0) >= MIN_SELL_NOTIONAL_USD:
             return False  # już trzymana
         if regime_gate_on and regime.get("regime") == "risk_off" and sym not in defensive_list:
             return False
@@ -2298,7 +2308,12 @@ def run_cycle(
     # padły (za mało nagłówków), NIE otwieramy nowych pozycji na ślepo -- alarm
     # push i HOLD. Mechaniczne wyjścia już przebiegły wyżej w tym cyklu, więc
     # otwarte pozycje dalej są chronione stopami mimo braku newsów.
-    if not force and _news_blackout_active(db, settings, headlines, venue):
+    # WYJĄTEK — tani silnik krypto (LLM wyłączony): wejścia napędza mechaniczna
+    # konfluencja techniczna, NIE newsy. Blackout newsowy blokowałby wtedy
+    # auto-deploy bez powodu (decyzja i tak nie zależy od nagłówków), więc go
+    # pomijamy — stopy/cele dalej chronią otwarte pozycje jak wyżej.
+    cheap_crypto_cycle = venue == "crypto" and not settings.crypto_llm_enabled and not force and not dry_run
+    if not force and not cheap_crypto_cycle and _news_blackout_active(db, settings, headlines, venue):
         decision = Decision(
             symbol=None,
             action=TradeAction.HOLD,
@@ -2569,7 +2584,7 @@ def _execute_trade(
             prefer_limit=prefer_limit, limit_buffer_pct=settings.regular_limit_buffer_pct,
         )
     elif action == "SELL":
-        base_balance = portfolio["balances"].get(_base_asset(symbol, settings.quote_currency), 0.0)
+        base_balance = _held_qty(portfolio, symbol, settings)
         quantity = base_balance * (size_pct / 100)
         result = broker.place_order_for_session(symbol, "SELL", quantity=quantity, session=session)
     else:

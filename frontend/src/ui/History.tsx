@@ -248,8 +248,10 @@ export function History({ status }: { status: StatusResponse | null }) {
     return () => clearInterval(id);
   }, []);
 
-  // Tylko akcje sesji — bez krypto / POZA SESJĄ (zaszłości), zgodnie z prośbą.
-  const eq = (data?.trades ?? []).filter((t) => (t.venue ?? "alpaca") === "alpaca");
+  // Noga główna: po przełączeniu na krypto pokazujemy zamknięcia krypto (wcześniej
+  // akcje sesji). Zaszłości z drugiej nogi zostają ukryte, żeby staty były czyste.
+  const primaryVenue = status?.crypto_enabled ? "crypto" : "alpaca";
+  const eq = (data?.trades ?? []).filter((t) => (t.venue ?? "alpaca") === primaryVenue);
   const wins = eq.filter((t) => t.pnl_usd >= 0).length;
   const losses = eq.length - wins;
   const totalPnl = eq.reduce((s2, t) => s2 + t.pnl_usd, 0);

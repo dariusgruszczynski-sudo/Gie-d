@@ -496,15 +496,16 @@ def get_portfolio(
 
     # Scorecard vs buy-and-hold benchmark, computed from the latest snapshot's
     # prices (no live broker call needed on this hot, auth-gated endpoint).
-    # Account-wide benchmark is Alpaca-driven; the extended venue has no scorecard.
+    # Akcje biją SPY, krypto bije „trzymaj BTC" (benchmark + trafność liczone per
+    # noga w compute_scorecard). POZA SESJĄ (extended) nie ma własnego scorecardu.
     latest = rows[0] if rows else None
     card = None
-    if latest is not None and venue == "alpaca":
+    if latest is not None and venue in ("alpaca", "crypto"):
         snapshot_portfolio = {
             "total_value_usdt": latest.total_value_usdt,
             "prices": json.loads(latest.prices_json or "{}"),
         }
-        card = scorecard.compute_scorecard(db, settings, snapshot_portfolio)
+        card = scorecard.compute_scorecard(db, settings, snapshot_portfolio, venue=venue)
 
     return {
         "current": current,
@@ -824,16 +825,21 @@ def get_widget(db: Session = Depends(get_db), settings: Settings = Depends(get_s
     if account is not None and state.day_start_value > 0:
         day_pnl_pct = round((account["total_value"] - state.day_start_value) / state.day_start_value * 100, 2)
 
-    positions = _widget_positions(db, settings, "alpaca")
+    # Po przełączeniu na krypto główną nogą jest "crypto" (tam są pozycje i
+    # krzywa konta); akcje/POZA SESJĄ dokładamy tylko jeśli coś na nich wisi.
+    primary_venue = "crypto" if settings.crypto_enabled else "alpaca"
+    positions = _widget_positions(db, settings, primary_venue)
+    if primary_venue != "alpaca":
+        positions += _widget_positions(db, settings, "alpaca")
     if settings.extended_enabled:
         positions += _widget_positions(db, settings, "extended")
     positions.sort(key=lambda p: p["value"], reverse=True)
 
-    # Downsampled account-value curve (equities-venue history == the account
-    # when extended is off; a fair trend proxy otherwise). ~30 points, oldest→newest.
+    # Downsampled account-value curve for the PRIMARY venue (== the account when
+    # the other legs are empty; a fair trend proxy otherwise). ~30 points, oldest→newest.
     rows = db.execute(
         select(PortfolioSnapshot.total_value_usdt)
-        .where(PortfolioSnapshot.venue == "alpaca", PortfolioSnapshot.total_value_usdt > 0)
+        .where(PortfolioSnapshot.venue == primary_venue, PortfolioSnapshot.total_value_usdt > 0)
         .order_by(PortfolioSnapshot.timestamp.desc())
         .limit(400)
     ).scalars().all()
@@ -872,7 +878,7 @@ def get_widget(db: Session = Depends(get_db), settings: Settings = Depends(get_s
 
     # Edge (średnia wygrana vs strata) + ostatnia zamknięta transakcja — dla
     # bogatszego widżetu (duży kafel / edge / ostatni ruch). Z historii zamknięć.
-    closes_hist = scorecard.realized_history(db, venue="alpaca", limit=200)
+    closes_hist = scorecard.realized_history(db, venue=primary_venue, limit=200)
     win_pnls = [c["pnl_usd"] for c in closes_hist if (c.get("pnl_usd") or 0) >= 0]
     loss_pnls = [c["pnl_usd"] for c in closes_hist if (c.get("pnl_usd") or 0) < 0]
     avg_win = round(sum(win_pnls) / len(win_pnls), 2) if win_pnls else None
