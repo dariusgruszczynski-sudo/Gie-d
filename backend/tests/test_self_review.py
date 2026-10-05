@@ -25,6 +25,32 @@ def test_self_review_stores_parsed_lessons_and_marks_date(db_session, settings):
     assert json.loads(state.lessons_json)[0]["lesson"].startswith("MSTR")
 
 
+def test_self_review_reviews_crypto_venue_not_stock(db_session, settings):
+    """Pętla nauki po przełączeniu na krypto: przegląd bierze transakcje KRYPTO
+    (nie zaszłe akcje), więc lekcje w „Co umiem" dotyczą tego, czym realnie gramy."""
+    cs = settings.model_copy(update={"crypto_enabled": True})
+    # Zaszła transakcja akcji (noga alpaca) + świeża krypto (noga główna).
+    _make_trade(db_session, settings, symbol="SPY", side="BUY")
+    broker = FakeAlpaca(prices={"BTC/USD": 60000.0}, balances={"USD": 10000.0})
+    trading_engine.execute_manual_trade(
+        db_session, cs, broker, symbol="BTC/USD", side="BUY",
+        usdt_amount=500.0, venue="crypto", whitelist=["BTC/USD"],
+    )
+
+    seen = {}
+
+    def fake_generate(s, prompt):
+        seen["prompt"] = prompt
+        return "- Majors trzymać dłużej, mniej scalpingu przez fee\n", 0.01, 100, 50
+
+    lessons = self_review.run_self_review(db_session, cs, generate=fake_generate)
+    assert len(lessons) == 1
+    # Przegląd dotyczy krypto, nie zaszłych akcji.
+    assert "BTC/USD" in seen["prompt"]
+    assert "SPY" not in seen["prompt"]
+    assert "krypto" in seen["prompt"].lower()
+
+
 def test_self_review_failure_keeps_previous_lessons(db_session, settings):
     _make_trade(db_session, settings)
     state = risk_manager.get_state(db_session)

@@ -69,17 +69,21 @@ def run_self_review(
     """Runs the weekly review and returns the updated lessons list. Never
     raises -- a failed review just leaves the previous lessons in place."""
     state = risk_manager.get_state(db)
+    # Przegląd dotyczy NOGI GŁÓWNEJ (krypto po przełączeniu), żeby lekcje były o
+    # tym, czym realnie handlujemy -- a nie mieszały zaszłości z ery akcji.
+    venue = "crypto" if settings.crypto_enabled else "alpaca"
+    market_label = "krypto (24/7, pary USD)" if venue == "crypto" else "akcje/ETF (sesja US)"
     since = datetime.now(UTC) - timedelta(days=7)
     trades = list(
         db.execute(
             select(Trade)
-            .where(Trade.timestamp >= since)
+            .where(Trade.timestamp >= since, Trade.venue == venue)
             .order_by(Trade.timestamp.desc())
             .limit(MAX_TRADES_REVIEWED)
         ).scalars()
     )
     if not trades:
-        logger.info("Self-review skipped: no trades in the last 7 days")
+        logger.info("Self-review skipped: no %s trades in the last 7 days", venue)
         return get_lessons(db)
 
     trade_lines = "\n".join(
@@ -87,13 +91,15 @@ def run_self_review(
         f"(${t.usdt_value:.2f}){' | ' + t.decision.reasoning[:140] if t.decision and t.decision.reasoning else ''}"
         for t in reversed(trades)
     )
-    # Scorecard without live prices still yields realized P&L / win rate.
-    card = scorecard.compute_scorecard(db, settings, {"total_value_usdt": 0.0, "prices": {}})
+    # Scorecard nogi głównej (krypto -> trafność/realized z transakcji krypto),
+    # bez live cen i tak daje zrealizowany P&L i win-rate.
+    card = scorecard.compute_scorecard(db, settings, {"total_value_usdt": 0.0, "prices": {}}, venue=venue)
     previous = get_lessons(db)
     previous_txt = "\n".join(f"- {l.get('lesson', '')}" for l in previous) or "(brak)"
 
     prompt = (
-        "Jesteś traderem robiącym cotygodniowy przegląd własnych transakcji. "
+        "Jesteś traderem robiącym cotygodniowy przegląd własnych transakcji "
+        f"na rynku: {market_label}. "
         "Poniżej Twoje transakcje z ostatnich 7 dni, wynik (zrealizowany P&L, trafność) "
         "i Twoje dotychczasowe lekcje.\n\n"
         f"TRANSAKCJE:\n{trade_lines}\n\n"
