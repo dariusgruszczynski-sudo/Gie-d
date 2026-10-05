@@ -160,6 +160,15 @@ class Settings(BaseSettings):
     # chcesz dołożyć ocenę Claude (drożej).
     crypto_llm_enabled: bool = False
     crypto_auto_deploy_enabled: bool = True
+    # Limity ryzyka DEDYKOWANE krypto (24/7, dużo wyższa zmienność niż akcje).
+    # Gdy CRYPTO_ENABLED, to ONE są autorytatywne dla account-wide haltu (patrz
+    # risk_manager.update_portfolio_value) -- bo stockowe 20%/25%/45% są zbyt
+    # ciasne na normalny dzień krypto i fałszywie zatrzymywałyby bota. Dzienny
+    # halt i tak sam schodzi na przełomie doby UTC; to bezpiecznik na prawdziwy
+    # zjazd, nie na normalny ruch. Zmień w .env (CRYPTO_DAILY_LOSS_LIMIT_PCT itd.).
+    crypto_daily_loss_limit_pct: float = 30.0
+    crypto_weekly_loss_limit_pct: float = 40.0
+    crypto_max_drawdown_halt_pct: float = 55.0
 
     daily_loss_limit_pct: float = 20.0
     # Zacieśnione z 70% -> 25%: tygodniowy 70% to praktycznie brak ochrony małego

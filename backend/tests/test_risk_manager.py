@@ -40,6 +40,23 @@ def test_resume_clears_halt(db_session, settings):
     assert risk_manager.can_trade_automated(db_session).approved is True
 
 
+def test_crypto_uses_wider_dedicated_loss_limits(db_session, settings):
+    """24/7 krypto ma własne, szersze progi: spadek, który ubiłby stockowy limit
+    20%, NIE zatrzymuje krypto (limit 30%); dopiero przekroczenie progu krypto tnie."""
+    cs = settings.model_copy(update={
+        "crypto_enabled": True,
+        "crypto_daily_loss_limit_pct": 30.0,
+        "crypto_weekly_loss_limit_pct": 40.0,
+        "crypto_max_drawdown_halt_pct": 55.0,
+    })
+    risk_manager.update_portfolio_value(db_session, cs, 1000.0)  # start dnia
+    within = risk_manager.update_portfolio_value(db_session, cs, 780.0)  # -22% (>20% akcji, <30% krypto)
+    assert within.is_halted is False  # stockowy limit by tu zatrzymał -- krypto nie
+    tripped = risk_manager.update_portfolio_value(db_session, cs, 650.0)  # -35% -> przekracza 30%
+    assert tripped.is_halted is True
+    assert "Dzienny limit" in (tripped.halted_reason or "") and "30.0%" in (tripped.halted_reason or "")
+
+
 def test_daily_halt_auto_clears_on_new_day(db_session, settings):
     """Dzienny limit to bezpiecznik 'stop na dziś' -- po przełomie doby (UTC) halt
     schodzi sam (świeży start), bez ręcznego Wznów."""

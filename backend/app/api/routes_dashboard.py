@@ -111,9 +111,10 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         # Rekomendacja #5: ZREALIZOWANY dziś wynik (deposit-proof, zaksięgowany) --
         # towarzyszy dziennemu P&L (wycena), żeby „-7%" nie straszyło samo.
         "day_realized_usd": _day_realized_usd(db),
-        "daily_loss_limit_pct": settings.daily_loss_limit_pct,
-        "weekly_loss_limit_pct": settings.weekly_loss_limit_pct,
-        "max_drawdown_halt_pct": settings.max_drawdown_halt_pct,
+        # Progi autorytatywne dla konta: krypto (24/7) ma własne, szersze limity.
+        "daily_loss_limit_pct": settings.crypto_daily_loss_limit_pct if settings.crypto_enabled else settings.daily_loss_limit_pct,
+        "weekly_loss_limit_pct": settings.crypto_weekly_loss_limit_pct if settings.crypto_enabled else settings.weekly_loss_limit_pct,
+        "max_drawdown_halt_pct": settings.crypto_max_drawdown_halt_pct if settings.crypto_enabled else settings.max_drawdown_halt_pct,
         "peak_account_value": state.peak_account_value,
         "max_position_pct": settings.max_position_pct,
         "whitelist": settings.whitelist_symbols,

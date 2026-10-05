@@ -220,29 +220,37 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
             state.is_halted = False
             state.halted_reason = None
 
+    # Limity autorytatywne dla CAŁEGO konta: przy krypto 24/7 (dużo wyższa
+    # zmienność) używamy dedykowanych, szerszych progów krypto NIEZALEŻNIE od
+    # tego, która noga akurat odpytała -- inaczej stockowe 20% fałszywie ucinałoby
+    # normalny dzień krypto. Gdy krypto wyłączone, zostają klasyczne progi akcji.
+    daily_limit = settings.crypto_daily_loss_limit_pct if settings.crypto_enabled else settings.daily_loss_limit_pct
+    weekly_limit = settings.crypto_weekly_loss_limit_pct if settings.crypto_enabled else settings.weekly_loss_limit_pct
+    dd_limit = settings.crypto_max_drawdown_halt_pct if settings.crypto_enabled else settings.max_drawdown_halt_pct
+
     newly_halted = False
     if not state.is_halted:
-        if day_loss_pct >= settings.daily_loss_limit_pct:
+        if day_loss_pct >= daily_limit:
             state.is_halted = True
             state.halted_reason = (
                 f"Dzienny limit strat przekroczony: -{day_loss_pct:.1f}% "
-                f"(limit {settings.daily_loss_limit_pct}%)"
+                f"(limit {daily_limit}%)"
             )
             _log_event(db, "daily_stop_triggered", state.halted_reason)
             newly_halted = True
-        elif week_loss_pct >= settings.weekly_loss_limit_pct:
+        elif week_loss_pct >= weekly_limit:
             state.is_halted = True
             state.halted_reason = (
                 f"Tygodniowy limit strat przekroczony: -{week_loss_pct:.1f}% "
-                f"(limit {settings.weekly_loss_limit_pct}%)"
+                f"(limit {weekly_limit}%)"
             )
             _log_event(db, "weekly_stop_triggered", state.halted_reason)
             newly_halted = True
-        elif settings.max_drawdown_halt_pct > 0 and drawdown_pct >= settings.max_drawdown_halt_pct:
+        elif dd_limit > 0 and drawdown_pct >= dd_limit:
             state.is_halted = True
             state.halted_reason = (
                 f"Spadek od szczytu konta przekroczony: -{drawdown_pct:.1f}% "
-                f"(limit {settings.max_drawdown_halt_pct}%, szczyt ${state.peak_account_value:,.2f})"
+                f"(limit {dd_limit}%, szczyt ${state.peak_account_value:,.2f})"
             )
             _log_event(db, "drawdown_stop_triggered", state.halted_reason)
             newly_halted = True
