@@ -816,22 +816,42 @@ def _other_venue(venue: str) -> str:
     return "alpaca" if venue == "extended" else "extended"
 
 
-def account_total_value(db: Session, portfolio: dict, venue: str) -> float:
+def _active_venues(settings: Settings) -> list[str]:
+    """Nogi, które realnie trzymają pozycje na WSPÓLNYM koncie Alpaca: akcje
+    (zawsze -- baza konta + gotówka), POZA SESJĄ i KRYPTO gdy włączone. Każda,
+    której tu brakuje, wypada z sumy konta -- a to właśnie przez pominięcie
+    krypto cykl akcji widział konto jako „samą gotówkę" (~$350 z $100k) i
+    wyzwalał FAŁSZYWY limit dzienny -99,6%."""
+    venues = ["alpaca"]
+    if settings.extended_enabled:
+        venues.append("extended")
+    if settings.crypto_enabled:
+        venues.append("crypto")
+    return venues
+
+
+def account_total_value(db: Session, settings: Settings, portfolio: dict, venue: str) -> float:
     """Whole-account total: shared cash (counted once) + THIS venue's own live
-    positions + the OTHER venue's positions from its most recently stored
-    snapshot. Both engines share one Alpaca account, so any per-cycle figure
-    that claims to represent "the account" -- allocation room, day/week/peak-
-    drawdown risk baselines -- must be built from this, not from a single
-    venue's own total_value_usdt (which only ever sees its own slice)."""
+    positions + EVERY OTHER active venue's positions from its most recently
+    stored snapshot. All engines share one Alpaca account, so any per-cycle
+    figure that claims to represent "the account" -- allocation room,
+    day/week/peak-drawdown risk baselines -- must sum ALL legs, not just one
+    "other" venue. Missing crypto here is exactly what fed the risk manager a
+    cash-only total on a non-crypto poll and tripped a phantom loss halt."""
     cash = portfolio["usdt_balance"]
     this_pos = max(0.0, portfolio["total_value_usdt"] - cash)
-    other = db.execute(
-        select(PortfolioSnapshot)
-        .where(PortfolioSnapshot.venue == _other_venue(venue))
-        .order_by(PortfolioSnapshot.timestamp.desc())
-        .limit(1)
-    ).scalar_one_or_none()
-    other_pos = max(0.0, other.total_value_usdt - other.usdt_balance) if other else 0.0
+    other_pos = 0.0
+    for v in _active_venues(settings):
+        if v == venue:
+            continue
+        snap = db.execute(
+            select(PortfolioSnapshot)
+            .where(PortfolioSnapshot.venue == v)
+            .order_by(PortfolioSnapshot.timestamp.desc())
+            .limit(1)
+        ).scalar_one_or_none()
+        if snap is not None:
+            other_pos += max(0.0, snap.total_value_usdt - snap.usdt_balance)
     return cash + this_pos + other_pos
 
 
@@ -848,7 +868,7 @@ def venue_allocation_room(db: Session, settings: Settings, portfolio: dict, venu
         return 0.0
     cash = portfolio["usdt_balance"]
     this_pos = max(0.0, portfolio["total_value_usdt"] - cash)
-    account_total = account_total_value(db, portfolio, venue)
+    account_total = account_total_value(db, settings, portfolio, venue)
     target = account_total * alloc_pct / 100.0
     room = max(0.0, target - this_pos)
     return min(cash, room)
@@ -2036,7 +2056,7 @@ def _run_auto_deploy(
         target = getattr(settings, "auto_deploy_max_position_pct", cap) or cap
         if free <= 0:
             return cap
-        account_total = account_total_value(db, pf, venue)
+        account_total = account_total_value(db, settings, pf, venue)
         target_usd = account_total * target / 100.0
         return round(min(cap, 100.0, target_usd / free * 100.0), 4)
 
@@ -2161,7 +2181,7 @@ def run_cycle(
     settings = opus_controller.apply_knob_overrides(db, settings)
     symbols = whitelist if whitelist is not None else settings.whitelist_symbols
     portfolio = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
-    account_total = account_total_value(db, portfolio, venue)
+    account_total = account_total_value(db, settings, portfolio, venue)
     state = risk_manager.update_portfolio_value(db, settings, account_total)
     if venue == "alpaca":
         scorecard.update_benchmark_baseline(db, settings, portfolio)

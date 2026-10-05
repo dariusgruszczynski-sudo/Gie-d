@@ -40,6 +40,53 @@ def test_resume_clears_halt(db_session, settings):
     assert risk_manager.can_trade_automated(db_session).approved is True
 
 
+def test_phantom_loss_does_not_trip_halt(db_session, settings):
+    """Widmowa strata w jednym odczycie (>60%, np. pozycje wypadły z sumy konta)
+    to błąd wyceny, nie ruch rynku -- NIE zatrzymujemy na niej handlu."""
+    risk_manager.update_portfolio_value(db_session, settings, 99000.0)  # start dnia
+    read = risk_manager.update_portfolio_value(db_session, settings, 350.0)  # pozorne -99,6%
+    assert read.is_halted is False  # widmo pominięte, nie halt
+    assert risk_manager.can_trade_automated(db_session).approved is True
+
+
+def test_existing_phantom_halt_self_heals(db_session, settings):
+    """Istniejący WIDMOWY halt (-99,6% wpisany przed poprawką) ma się SAM zdjąć,
+    gdy poprawna wycena wraca -- bez ręcznego Wznów."""
+    risk_manager.update_portfolio_value(db_session, settings, 99000.0)  # start dnia
+    state = risk_manager.get_state(db_session)
+    state.is_halted = True
+    state.halted_reason = "Dzienny limit strat przekroczony: -99.6% (limit 20.0%)"
+    db_session.commit()
+
+    healed = risk_manager.update_portfolio_value(db_session, settings, 99000.0)  # wycena poprawna
+    assert healed.is_halted is False
+    assert healed.halted_reason is None
+    assert risk_manager.can_trade_automated(db_session).approved is True
+
+
+def test_real_loss_halt_not_self_healed(db_session, settings):
+    """Realny halt limitu dnia (zapisana strata < 60%) NIE znika sam -- zostaje
+    lepki do ręcznego Wznów, nawet gdy wycena potem wygląda zdrowo."""
+    risk_manager.update_portfolio_value(db_session, settings, 1000.0)
+    halted = risk_manager.update_portfolio_value(db_session, settings, 850.0)  # -15%, realny trip
+    assert halted.is_halted is True
+    # Wycena wraca do zdrowej -- realny (nie-widmowy) halt mimo to zostaje.
+    still = risk_manager.update_portfolio_value(db_session, settings, 1000.0)
+    assert still.is_halted is True
+
+
+def test_real_drawdown_halt_not_self_healed(db_session, settings):
+    """Realny halt spadku-od-szczytu (zapisane < 60%) zostaje lepki -- zdejmuje go
+    tylko ręczny Wznów, nie samo-leczenie widmowe."""
+    risk_manager.update_portfolio_value(db_session, settings, 1000.0)
+    state = risk_manager.get_state(db_session)
+    state.is_halted = True
+    state.halted_reason = "Spadek od szczytu konta przekroczony: -50.0% (limit 45.0%, szczyt $1,000.00)"
+    db_session.commit()
+    after = risk_manager.update_portfolio_value(db_session, settings, 1000.0)
+    assert after.is_halted is True
+
+
 def test_drawdown_halt_trips_on_slow_bleed_below_peak(db_session, settings):
     """Catches a decline that never breaches the daily/weekly limit in any
     single window but has still eaten a real chunk of the all-time peak."""

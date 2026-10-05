@@ -1569,18 +1569,38 @@ def test_compute_and_cache_regime_refreshes_without_trading(db_session, settings
 def test_account_total_value_combines_both_venues(db_session, settings):
     from app.models import PortfolioSnapshot
 
+    ext = settings.model_copy(update={"extended_enabled": True})
     db_session.add(PortfolioSnapshot(total_value_usdt=150.0, usdt_balance=100.0, venue="alpaca"))
     db_session.commit()
 
     extended_portfolio = {"usdt_balance": 100.0, "total_value_usdt": 180.0}
     # cash 100 + extended positions 80 + equity positions 50 = 230.
-    assert trading_engine.account_total_value(db_session, extended_portfolio, "extended") == pytest.approx(230.0)
+    assert trading_engine.account_total_value(db_session, ext, extended_portfolio, "extended") == pytest.approx(230.0)
 
 
 def test_account_total_value_ignores_missing_other_venue(db_session, settings):
     extended_portfolio = {"usdt_balance": 100.0, "total_value_usdt": 180.0}
     # No alpaca snapshot exists yet -> falls back to just this venue's total.
-    assert trading_engine.account_total_value(db_session, extended_portfolio, "extended") == pytest.approx(180.0)
+    assert trading_engine.account_total_value(db_session, settings, extended_portfolio, "extended") == pytest.approx(180.0)
+
+
+def test_account_total_value_counts_crypto_from_stock_poll(db_session, settings):
+    """Regresja fałszywego HALTU: gdy cykl AKCJI liczy sumę konta, pozycje KRYPTO
+    (na tym samym koncie) MUSZĄ się liczyć. Wcześniej account_total_value brał
+    tylko jedną 'drugą' nogę akcji, więc poll akcji widział konto jako samą
+    gotówkę (~$350 z $100k) i wyzwalał limit dzienny -99,6%."""
+    from app.models import PortfolioSnapshot
+
+    crypto_settings = settings.model_copy(update={"crypto_enabled": True})
+    # Krypto trzyma $98k pozycji; snapshot krypto jak z żywego cyklu.
+    db_session.add(PortfolioSnapshot(total_value_usdt=99000.0, usdt_balance=1000.0, venue="crypto"))
+    db_session.commit()
+
+    # Poll AKCJI: brak pozycji akcji, sama gotówka $1000 w portfelu nogi.
+    alpaca_portfolio = {"usdt_balance": 1000.0, "total_value_usdt": 1000.0}
+    total = trading_engine.account_total_value(db_session, crypto_settings, alpaca_portfolio, "alpaca")
+    # gotówka $1000 + pozycje krypto $98000 = $99000 (NIE $1000 jak przy buggu).
+    assert total == pytest.approx(99000.0)
 
 
 def test_extended_only_drawdown_trips_account_wide_halt(db_session, settings):

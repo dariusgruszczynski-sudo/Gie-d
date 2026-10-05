@@ -230,8 +230,15 @@ def _net_result_view(db: Session, settings: Settings) -> dict:
     be too) -- so "are we ahead" answers with real money, not brutto P&L that
     ignores the AI bill."""
     budget = budget_tracker.get_budget_status(db, settings)
-    realized = scorecard.total_realized_pnl(db)
+    # Wynik liczymy dla NOGI GŁÓWNEJ (krypto po przełączeniu), nie dla zaszłości.
+    venues = _primary_pnl_venues(settings)
+    realized = sum(scorecard._walk_realized(db, venue=v)[0] for v in venues)
     lifetime_spend = risk_manager.get_state(db).claude_spend_usd_lifetime
+    # Koszt LLM w wyniku NETTO: krypto jedzie mechanicznie (LLM off) => jego koszt
+    # ~$0. lifetime_spend to koszt ery AKCJI -- nie mieszamy go do krypto-czystego
+    # wyniku, ale pokazujemy go osobno (claude_cost_lifetime_usd), uczciwie.
+    crypto_mechanical = settings.crypto_enabled and not settings.crypto_llm_enabled
+    cost_for_net = 0.0 if crypto_mechanical else lifetime_spend
     # Rekomendacja A (skala kapitału): ile koszt AV zjada w stosunku do KONTA i do
     # zysku. Na małym koncie koszt stały (Claude + spread) jest głównym progiem
     # rentowności -- pokazujemy to wprost, żeby świadomie wybrać tryb
@@ -240,8 +247,8 @@ def _net_result_view(db: Session, settings: Settings) -> dict:
     account_total = account["total_value"] if account else 0.0
     cost_vs_account_pct = round(lifetime_spend / account_total * 100, 1) if account_total > 0 else None
     return {
-        "realized_pnl_usd": realized,
-        "net_result_usd": round(realized - lifetime_spend, 2),
+        "realized_pnl_usd": round(realized, 2),
+        "net_result_usd": round(realized - cost_for_net, 2),
         "claude_cost_lifetime_usd": round(lifetime_spend, 2),
         "cost_vs_account_pct": cost_vs_account_pct,
         # Suma wpłat (U7): pozwala UI oddzielić WPŁATY od zysku bota na krzywej
@@ -302,16 +309,27 @@ def _account_view(db: Session, settings: Settings | None = None) -> dict | None:
     }
 
 
+def _primary_pnl_venues(settings: Settings) -> tuple[str, ...]:
+    """Nogi, z których liczymy WYNIK AUTOMATU na pulpicie. Po przełączeniu na
+    krypto liczymy TYLKO krypto -- żeby zaszłości z ery akcji (zamknięte $1,43,
+    koszt LLM) nie zanieczyszczały krypto-czystego widoku. Bez krypto: akcje
+    (+ POZA SESJĄ, gdy włączona), jak dotąd."""
+    if settings.crypto_enabled:
+        return ("crypto",)
+    return ("alpaca", "extended") if settings.extended_enabled else ("alpaca",)
+
+
 def _trading_pnl_view(db: Session, settings: Settings | None = None) -> dict:
     """Ile ZAROBIŁ/STRACIŁ sam automat -- ODPORNE na wpłaty. Wpłata dodaje
     gotówkę, nie tworzy transakcji, więc nie rusza tej liczby. To jest czysty
     wynik handlu = zrealizowany (z zamkniętych) + niezrealizowany (papierowy na
-    otwartych pozycjach)."""
-    realized = scorecard.total_realized_pnl(db)
+    otwartych pozycjach). Liczone dla NOGI GŁÓWNEJ (krypto po przełączeniu), nie
+    dla zaszłości z ery akcji."""
+    settings = settings or get_settings()
+    venues = _primary_pnl_venues(settings)
+    # Zrealizowany: tylko transakcje nóg głównych (krypto po przełączeniu).
+    realized = sum(scorecard._walk_realized(db, venue=v)[0] for v in venues)
     unrealized = 0.0
-    # Gdy POZA SESJĄ wyłączona, cały kapitał jest w portfelu sesji -- pomijamy
-    # zamrożony snapshot extended, żeby nie liczyć pozycji podwójnie.
-    venues = ("alpaca", "extended") if (settings or get_settings()).extended_enabled else ("alpaca",)
     for venue in venues:
         snap = _latest_snapshot(db, venue)
         if snap is None:

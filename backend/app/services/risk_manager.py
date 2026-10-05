@@ -11,6 +11,8 @@ trades initiated by the human from the dashboard are never blocked here by
 design — that is the whole point of keeping a manual override available.
 """
 
+import logging
+import re
 from dataclasses import dataclass
 from datetime import date, timedelta
 
@@ -20,6 +22,8 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.models import RiskEvent, SystemState
 
+logger = logging.getLogger(__name__)
+
 # See update_portfolio_value(): a candidate new all-time-high must be seen on
 # this many total updates (the first sighting plus this many minus one more)
 # at/above it before it's promoted to the real peak used by the drawdown
@@ -27,6 +31,30 @@ from app.models import RiskEvent, SystemState
 # reads without resetting the candidate.
 PEAK_CONFIRMATION_UPDATES = 2
 PEAK_CONFIRMATION_TOLERANCE = 0.999
+
+# Strata w JEDNYM odczycie grubo ponad fizycznie możliwą (>60%) to nie ruch
+# rynku, tylko BŁĄD WYCENY -- np. pozycje (krypto) chwilowo wypadły z sumy konta
+# i konto odczytało się jako „sama gotówka" (~$350 z $100k = pozorne -99%). Na
+# takim widmie NIE zatrzymujemy handlu, a istniejący widmowy halt sam się zdejmie,
+# gdy wycena wróci. Realny limit (np. -20% dnia) trzyma się normalnie i zostaje
+# lepki do ręcznego Wznów. Spot-konto majorsów nie traci 60% w jednym cyklu.
+PHANTOM_LOSS_PCT = 60.0
+
+
+def _halt_was_phantom(reason: str | None) -> bool:
+    """Czy zapisany powód haltu niesie WIDMOWĄ stratę (>= PHANTOM_LOSS_PCT)? Powody
+    mają stały format „... -<liczba>% ...", więc wyłuskujemy pierwszą liczbę po
+    minusie. Realny limit (np. -20%) -> False (halt zostaje lepki); widmowe -99,6%
+    -> True (kwalifikuje się do samo-zdjęcia po powrocie poprawnej wyceny)."""
+    if not reason:
+        return False
+    m = re.search(r"-(\d+(?:[.,]\d+)?)\s*%", reason)
+    if not m:
+        return False
+    try:
+        return float(m.group(1).replace(",", ".")) >= PHANTOM_LOSS_PCT
+    except ValueError:
+        return False
 
 
 @dataclass
@@ -190,8 +218,33 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
         else 0
     )
 
+    # Czy bieżący odczyt to WIDMO (błąd wyceny), a nie realna strata? Każda z
+    # trzech „strat" grubo ponad fizycznie możliwą => pozycje wypadły z sumy konta.
+    phantom_read = (
+        day_loss_pct >= PHANTOM_LOSS_PCT
+        or week_loss_pct >= PHANTOM_LOSS_PCT
+        or drawdown_pct >= PHANTOM_LOSS_PCT
+    )
+
+    # SAMO-LECZENIE WIDMOWEGO haltu: jeśli jesteśmy zatrzymani, a świeża (poprawna)
+    # wycena pokazuje, że straty NIE MA (wszystkie limity w normie) ORAZ halt był
+    # wpisany z WIDMOWĄ wartością (>60% — patrz PHANTOM_LOSS_PCT), zdejmij go. Dzięki
+    # temu istniejący fałszywy halt -99,6% schodzi sam po naprawie wyceny, a REALNY
+    # limit (np. -20%) zostaje lepki do ręcznego Wznów (jego zapisana wartość < 60%).
+    if (
+        state.is_halted
+        and _halt_was_phantom(state.halted_reason)
+        and day_loss_pct < settings.daily_loss_limit_pct
+        and week_loss_pct < settings.weekly_loss_limit_pct
+        and (settings.max_drawdown_halt_pct <= 0 or drawdown_pct < settings.max_drawdown_halt_pct)
+    ):
+        cleared = state.halted_reason
+        state.is_halted = False
+        state.halted_reason = None
+        _log_event(db, "halt_auto_cleared", f"Auto-zdjęto WIDMOWY halt po poprawnej wycenie: {cleared}")
+
     newly_halted = False
-    if not state.is_halted:
+    if not state.is_halted and not phantom_read:
         if day_loss_pct >= settings.daily_loss_limit_pct:
             state.is_halted = True
             state.halted_reason = (
@@ -216,6 +269,12 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
             )
             _log_event(db, "drawdown_stop_triggered", state.halted_reason)
             newly_halted = True
+    elif phantom_read and not state.is_halted:
+        logger.warning(
+            "Pomijam WIDMOWY limit (dzień -%.1f%% / tydzień -%.1f%% / spadek -%.1f%%) — "
+            "prawdopodobnie błąd wyceny (pozycje wypadły z sumy konta), nie realna strata",
+            day_loss_pct, week_loss_pct, drawdown_pct,
+        )
 
     db.commit()
     db.refresh(state)
