@@ -106,6 +106,11 @@ def test_auto_deploy_buys_when_claude_holds(db_session, settings, monkeypatch):
     buys = [o for o in broker.orders if o.side == "BUY"]
     assert buys, "auto-deploy powinien kupić mimo HOLD od Claude"
     assert broker.balances["USD"] < 1000.0
+    # Pamięć: decyzja mechaniczna zapisuje OBSERWACJĘ RYNKU (nie pustkę), żeby log
+    # rósł też bez LLM -- „co się działo na rynku, gdy mechanika wchodziła".
+    from app.models import Decision as _Dec
+    execed = [d for d in db_session.query(_Dec).all() if d.executed and d.market_context_snapshot]
+    assert any("fear_greed_index" in (d.market_context_snapshot or "") for d in execed)
 
 
 def test_auto_deploy_spreads_across_names(db_session, settings, monkeypatch):

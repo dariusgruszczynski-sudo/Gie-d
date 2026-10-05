@@ -2013,6 +2013,7 @@ def _run_auto_deploy(
     venue: str,
     symbols: list[str],
     edge_payoff: float | None,
+    global_context: dict | None = None,
 ) -> tuple[list[Decision], dict]:
     """PEŁNE ZAINWESTOWANIE + ROTACJA. Uruchamiane PO decyzjach Claude'a (które
     dostają pierwszeństwo i dostarczają weta: nazwy oznaczone SELL są pomijane).
@@ -2075,8 +2076,12 @@ def _run_auto_deploy(
         )
         return _process_decision(
             db, settings, broker,
+            # Zapisz OBSERWACJĘ RYNKU (funding/OI/long-short/Fear&Greed dla krypto)
+            # do decyzji mechanicznej -> pamięć rośnie też w fazie $0 (LLM off),
+            # więc gdy właściciel włączy Sonneta, ma log „co się działo na rynku,
+            # gdy mechanika wchodziła/wychodziła", nie tylko gołe transakcje.
             decision_data=dd, portfolio=pf, market_data=market_data, headlines=[],
-            global_context={}, trigger_reason=trigger_reason, regime=regime,
+            global_context=global_context or {}, trigger_reason=trigger_reason, regime=regime,
             regime_gate_on=regime_gate_on, defensive_list=defensive_list,
             earnings_days=earnings_days, performance_context=performance_context,
             trade_check=trade_check, tradable=tradable, session_info=session_info,
@@ -2577,6 +2582,7 @@ def run_cycle(
                 earnings_days=earnings_days, performance_context=performance_context,
                 trade_check=trade_check, tradable=tradable, session_info=session_info,
                 trigger_reason=trigger_reason, venue=venue, symbols=symbols, edge_payoff=edge_payoff,
+                global_context=global_context,
             )
             if primary is None and auto_execs:
                 primary = auto_execs[0]
