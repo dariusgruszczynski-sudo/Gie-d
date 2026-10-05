@@ -1325,3 +1325,16 @@
 }
 .gd-know-list li::before { content: "·"; position: absolute; left: 12px; top: 8px; font-size: 1.3rem; line-height: 1; color: var(--mint); }
 .gd-know-lessons li::before { content: "✓"; font-size: 0.8rem; top: 11px; color: var(--gold); }
+
+/* Playbook pogrupowany w domeny — czyta się jak podręcznik, nie płaska lista. */
+.gd-know-domain { margin: 14px 0 0; }
+.gd-know-dh { display: flex; align-items: center; gap: 8px; margin: 0 2px 8px; }
+.gd-know-di { font-size: 0.95rem; line-height: 1; }
+.gd-know-dn {
+  font-family: var(--font-display); font-size: 0.8rem; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--ink, #fff); opacity: 0.85;
+}
+.gd-know-dc {
+  font-size: 0.68rem; font-weight: 700; color: var(--dim);
+  background: rgba(255,255,255,0.06); border-radius: 999px; padding: 1px 7px;
+}
