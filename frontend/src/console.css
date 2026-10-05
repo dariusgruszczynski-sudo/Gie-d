@@ -211,6 +211,8 @@
 .gd-leg-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
 .gd-leg-dot.sesja { background: var(--mint); box-shadow: 0 0 8px var(--mint); }
 .gd-leg-dot.poza { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+/* Krypto (24/7) -- fioletowy akcent, spójny z tagiem „krypto" w decyzjach. */
+.gd-leg-dot.crypto { background: #a78bfa; box-shadow: 0 0 8px #a78bfa; }
 .gd-pos-plan { font-size: 0.72rem; color: var(--dim); margin-top: 2px; max-width: 46ch; }
 .gd-pos-fig { text-align: right; }
 .gd-pos-fig .val { font-weight: 700; font-variant-numeric: tabular-nums; }

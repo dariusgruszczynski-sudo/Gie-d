@@ -124,14 +124,14 @@ export function PosRow({ p, plan, note, onChanged }: { p: Pos; plan?: PositionPl
   const daysLabel = days === null || days === undefined ? null : days === 0 ? "dziś" : days === 1 ? "1 dzień" : `${days} dni`;
   const hasCard = !!(plan && (daysLabel || entry || plan.stop_price || plan.target_price || plan.thesis));
   async function sell() {
-    if (!window.confirm(`Sprzedać CAŁĄ pozycję ${p.asset} (~${money(p.value)})? Realne zlecenie.`)) return;
+    if (!window.confirm(`Sprzedać CAŁĄ pozycję ${p.asset} (~${money(p.value)})? Zamknięcie pozycji.`)) return;
     setBusy(true);
     try { await api.sellAll(p.asset, p.venue); onChanged?.(); } finally { setBusy(false); }
   }
   return (
     <div className="gd-pos-row">
       <div className="gd-pos-tk">
-        <span className={`gd-leg-dot ${p.leg}`} />
+        <span className={`gd-leg-dot ${p.venue === "crypto" ? "crypto" : p.leg}`} />
         <div>
           <b>{p.asset}</b>{daysLabel && <span className="gd-pos-days">· trzymana {daysLabel}</span>}
           {noteText && <div className="gd-pos-plan">{noteText}</div>}
@@ -314,7 +314,7 @@ export function PositionCard({ p, plan, bypassPct, marketOpen = true, onChanged,
     const eff = p.pnlUsd !== null && p.pnlUsd !== undefined
       ? `\n\nDostaniesz ~${money(p.value)}. To ${p.pnlUsd >= 0 ? "ZYSK" : "STRATA"} ~${money(Math.abs(p.pnlUsd))}${p.pnlPct !== null ? ` (${p.pnlPct >= 0 ? "+" : ""}${p.pnlPct.toFixed(1)}%)` : ""}.`
       : `\n\nDostaniesz ~${money(p.value)}.`;
-    if (!window.confirm(`Sprzedać CAŁĄ pozycję ${p.asset}?${eff}\n\nRealne zlecenie.`)) return;
+    if (!window.confirm(`Sprzedać CAŁĄ pozycję ${p.asset}?${eff}\n\nZamknięcie pozycji.`)) return;
     setBusy(true);
     try { await api.sellAll(p.asset, p.venue); onChanged?.(); } finally { setBusy(false); }
   }
