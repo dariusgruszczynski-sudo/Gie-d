@@ -135,9 +135,25 @@ def reset_budget_meter(db: Session = Depends(get_db), settings: Settings = Depen
 
 
 def _broker_for(venue: str, settings: Settings):
+    """(broker, whitelist nogi, always_open) dla danego venue. KRYPTO 24/7 ->
+    crypto_symbols + always_open=True (inaczej ręczne przyciski krypto leciały na
+    whiteliście AKCJI i były bramkowane godzinami giełdy). POZA SESJĄ -> ETF-y,
+    always_open; domyślnie akcje sesji (gated godzinami)."""
+    broker = AlpacaClient(settings)
+    if venue == "crypto":
+        return broker, settings.crypto_symbols, True
     if venue == "extended":
-        return AlpacaClient(settings), settings.extended_whitelist_symbols, True
-    return AlpacaClient(settings), settings.whitelist_symbols, False
+        return broker, settings.extended_whitelist_symbols, True
+    return broker, settings.whitelist_symbols, False
+
+
+def _require_venue_enabled(venue: str, settings: Settings) -> None:
+    """Spójna bramka: krypto/poza-sesją muszą być włączone, inaczej 400 z jasnym
+    powodem (zamiast cicho działać na złej nodze)."""
+    if venue == "crypto" and not settings.crypto_enabled:
+        raise HTTPException(status_code=400, detail="Silnik krypto jest wyłączony (CRYPTO_ENABLED=false)")
+    if venue == "extended" and not settings.extended_enabled:
+        raise HTTPException(status_code=400, detail="Silnik poza sesją jest wyłączony (EXTENDED_ENABLED=false)")
 
 
 @router.post("/sell-all")
@@ -146,8 +162,7 @@ def sell_all(symbol: str, venue: str = "alpaca", db: Session = Depends(get_db), 
     account currently holds (read live from the broker), so a dollar amount that
     rounds to more shares than held can't cause an 'insufficient qty' reject.
     Works for any held symbol -- including adopted / off-whitelist ones."""
-    if venue == "extended" and not settings.extended_enabled:
-        raise HTTPException(status_code=400, detail="Silnik poza sesją jest wyłączony (EXTENDED_ENABLED=false)")
+    _require_venue_enabled(venue, settings)
     broker, whitelist, _ = _broker_for(venue, settings)
     sym = symbol.upper()
     try:
@@ -235,11 +250,20 @@ def set_widget_metric(metric: Literal["total", "day", "account", "positions"], d
 
 @router.post("/panic")
 def panic(db: Session = Depends(get_db), settings: Settings = Depends(get_settings), request: Request = None):
-    """STOP WSZYSTKO (przycisk paniki): (1) wstrzymuje bota, (2) sprzedaje
-    WSZYSTKIE trzymane pozycje sesji. Saldo czytane na żywo z brokera; każda
-    nazwa best-effort — jedna nieudana sprzedaż nie blokuje reszty. Zwraca, co
-    sprzedano i co się nie udało."""
+    """STOP WSZYSTKO (przycisk paniki): (1) wstrzymuje KAŻDĄ włączoną nogę
+    (akcje + poza sesją + krypto), (2) sprzedaje WSZYSTKIE trzymane pozycje.
+    Saldo czytane na żywo z brokera; każda nazwa best-effort — jedna nieudana
+    sprzedaż nie blokuje reszty. Każdą pozycję stemplujemy jej właściwą nogą,
+    żeby koszt/bilans trafił do właściwego venue. Zwraca, co sprzedano i co nie."""
+    from app.services.trading_engine import venue_for_holding
+
+    # Pauza WSZYSTKICH aktywnych nóg — inaczej np. silnik krypto zostałby aktywny
+    # po panice i mógłby odkupić to, co właśnie sprzedaliśmy.
     risk_manager.pause(db, "alpaca")
+    if settings.extended_enabled:
+        risk_manager.pause(db, "extended")
+    if settings.crypto_enabled:
+        risk_manager.pause(db, "crypto")
     broker = AlpacaClient(settings)
     try:
         balances = broker.get_account_balances()
@@ -249,12 +273,14 @@ def panic(db: Session = Depends(get_db), settings: Settings = Depends(get_settin
     sold: list[str] = []
     failed: list[str] = []
     for raw, q in balances.items():
-        sym = str(raw).upper()
+        sym = str(raw)
         qty = float(q or 0.0)
-        if qty <= 0:
+        # Pomiń gotówkę (klucz waluty kwotowanej) i puste salda.
+        if qty <= 0 or sym.upper() == settings.quote_currency.upper():
             continue
+        v = venue_for_holding(db, sym, settings)
         try:
-            execute_manual_trade(db, settings, broker, symbol=sym, side="SELL", quantity=qty, venue="alpaca", whitelist=[sym])
+            execute_manual_trade(db, settings, broker, symbol=sym, side="SELL", quantity=qty, venue=v, whitelist=[sym])
             sold.append(sym)
         except Exception:  # best-effort: nie przerywaj na jednej nazwie
             failed.append(sym)
@@ -269,7 +295,7 @@ class ManualTradeRequest(BaseModel):
     side: Literal["BUY", "SELL"]
     usdt_amount: float | None = None
     quantity: float | None = None
-    venue: Literal["alpaca", "extended"] = "alpaca"
+    venue: Literal["alpaca", "extended", "crypto"] = "alpaca"
 
     @model_validator(mode="after")
     def check_amount(self):
@@ -285,20 +311,16 @@ def manual_trade(
     settings: Settings = Depends(get_settings),
     request: Request = None,
 ):
-    if req.venue == "extended":
-        if not settings.extended_enabled:
-            raise HTTPException(status_code=400, detail="Silnik poza sesją jest wyłączony (EXTENDED_ENABLED=false)")
-        broker = AlpacaClient(settings)
-        whitelist = settings.extended_whitelist_symbols
-    else:
-        broker = AlpacaClient(settings)
-        whitelist = settings.whitelist_symbols
+    _require_venue_enabled(req.venue, settings)
+    broker, whitelist, _ = _broker_for(req.venue, settings)
+    # Krypto podajemy jako parę ("BTC/USD") -> nie .upper() na slashu; akcje wielkimi.
+    symbol = req.symbol if req.venue == "crypto" else req.symbol.upper()
     try:
         trade = execute_manual_trade(
             db,
             settings,
             broker,
-            symbol=req.symbol.upper(),
+            symbol=symbol,
             side=req.side,
             usdt_amount=req.usdt_amount,
             quantity=req.quantity,
@@ -306,11 +328,11 @@ def manual_trade(
             whitelist=whitelist,
         )
     except (ValueError, AlpacaAPIError) as exc:
-        audit.record(db, "manual-trade", detail=f"{req.side} {req.symbol.upper()} venue={req.venue} FAILED",
+        audit.record(db, "manual-trade", detail=f"{req.side} {symbol} venue={req.venue} FAILED",
                      request=request, outcome="error")
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     amt = f"${req.usdt_amount:g}" if req.usdt_amount is not None else f"{req.quantity:g} szt."
-    audit.record(db, "manual-trade", detail=f"{req.side} {req.symbol.upper()} {amt} venue={req.venue}", request=request)
+    audit.record(db, "manual-trade", detail=f"{req.side} {symbol} {amt} venue={req.venue}", request=request)
     return serialize(trade)
 
 
@@ -319,9 +341,8 @@ def run_cycle_now(venue: str = "alpaca", db: Session = Depends(get_db), settings
     """Forces one full Claude analysis immediately (bypassing the price/schedule
     trigger gate) instead of waiting for the scheduler's next poll -- this is
     the dashboard's "Wymuś analizę" button, so it must always produce a
-    decision rather than returning 'no trigger'. Per venue (equities/extended)."""
-    if venue == "extended" and not settings.extended_enabled:
-        raise HTTPException(status_code=400, detail="Silnik poza sesją jest wyłączony (EXTENDED_ENABLED=false)")
+    decision rather than returning 'no trigger'. Per venue (equities/extended/crypto)."""
+    _require_venue_enabled(venue, settings)
     broker, whitelist, always_open = _broker_for(venue, settings)
     news = NewsClient(settings)
     advisor = ClaudeAdvisor(settings)
@@ -343,8 +364,7 @@ def dry_run(venue: str = "alpaca", db: Session = Depends(get_db), settings: Sett
     jako zrobionej. Zwraca propozycje (co bot BY zrobił) z orientacyjnym rozmiarem
     liczonym tą samą mechaniką co egzekucja. Do sprawdzenia strategii bez ryzyka.
     Koszt Claude jest realny (wywołanie się odbyło)."""
-    if venue == "extended" and not settings.extended_enabled:
-        raise HTTPException(status_code=400, detail="Silnik poza sesją jest wyłączony (EXTENDED_ENABLED=false)")
+    _require_venue_enabled(venue, settings)
     broker, whitelist, always_open = _broker_for(venue, settings)
     news = NewsClient(settings)
     advisor = ClaudeAdvisor(settings)
@@ -370,8 +390,7 @@ def refresh_portfolio(venue: str = "alpaca", db: Session = Depends(get_db), sett
     proves the API key works and populates the dashboard (saldo, ceny, pozycje)
     on demand, at zero Claude cost and zero trading risk, even while the automat
     is stopped before START."""
-    if venue == "extended" and not settings.extended_enabled:
-        raise HTTPException(status_code=400, detail="Silnik poza sesją jest wyłączony (EXTENDED_ENABLED=false)")
+    _require_venue_enabled(venue, settings)
     broker, whitelist, _ = _broker_for(venue, settings)
     try:
         portfolio = compute_portfolio(db, settings, broker, venue=venue, whitelist=whitelist)

@@ -5,18 +5,23 @@ import { ago, money, money0, pct, PnlBand, TickerTape } from "./kit";
 import { Info } from "./Help";
 
 export type Leg = "sesja" | "poza";
+export type Venue = "alpaca" | "extended" | "crypto";
 export interface Pos {
-  asset: string; leg: Leg; venue: "alpaca" | "extended";
+  asset: string; leg: Leg; venue: Venue;
   qty: number; entry: number | null; price: number; value: number;
   pnlPct: number | null; pnlUsd: number | null;
 }
 
-export function extract(portfolio: PortfolioResponse | null, leg: Leg): Pos[] {
+// `venue` nadpisuje domyślne mapowanie nogi: po przełączeniu na krypto noga
+// „sesja" to realnie venue "crypto" (App podaje portfel krypto jako `alpaca`),
+// więc sprzedaż/plany wyjścia muszą trafić do właściwej nogi, nie do akcji.
+export function extract(portfolio: PortfolioResponse | null, leg: Leg, venue?: Venue): Pos[] {
   const cur = portfolio?.current;
   if (!cur) return [];
   const balances: Record<string, number> = JSON.parse(cur.balances_json || "{}");
   const prices: Record<string, number> = JSON.parse(cur.prices_json || "{}");
   const cost = portfolio?.cost_basis ?? {};
+  const resolvedVenue: Venue = venue ?? (leg === "poza" ? "extended" : "alpaca");
   const out: Pos[] = [];
   for (const [asset, qtyRaw] of Object.entries(balances)) {
     const qty = Number(qtyRaw);
@@ -26,7 +31,7 @@ export function extract(portfolio: PortfolioResponse | null, leg: Leg): Pos[] {
     if (value < 1) continue;
     const entry = cost[asset] ?? null;
     out.push({
-      asset, leg, venue: leg === "poza" ? "extended" : "alpaca", qty, entry, price, value,
+      asset, leg, venue: resolvedVenue, qty, entry, price, value,
       pnlPct: entry && entry > 0 ? ((price - entry) / entry) * 100 : null,
       pnlUsd: entry ? (price - entry) * qty : null,
     });
@@ -174,7 +179,7 @@ export function DecRow({ d }: { d: Decision }) {
       <div>
         <div className="gd-dec-top">
           {d.symbol && <span className="gd-dec-sym">{d.symbol}</span>}
-          <span className="gd-dec-leg">{(d.venue ?? "alpaca") === "extended" ? "poza sesją" : "sesja"}</span>
+          <span className="gd-dec-leg">{{ extended: "poza sesją", crypto: "krypto" }[(d.venue ?? "alpaca") as string] ?? "sesja"}</span>
           <span className="gd-dec-conf">pewność {(d.confidence * 100).toFixed(0)}%</span>
         </div>
         <div className="gd-dec-time">{ago(d.timestamp)}{d.executed ? " · wykonano" : ""}</div>
@@ -608,7 +613,7 @@ export function Console({ status, alpaca, extended, simple = false, onGoPosition
   const sesjaVal = invested;
   const invPct = acc && acc.total_value > 0 ? Math.round((invested / acc.total_value) * 100) : 0;
 
-  const positions = [...extract(alpaca, "sesja"), ...extract(extended, "poza")];
+  const positions = [...extract(alpaca, "sesja", status.crypto_enabled ? "crypto" : "alpaca"), ...extract(extended, "poza")];
   const sesjaCount = positions.length;
   const sc = alpaca?.scorecard ?? null;
 

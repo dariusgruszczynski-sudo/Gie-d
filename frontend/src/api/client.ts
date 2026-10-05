@@ -371,9 +371,9 @@ export const api = {
     side: "BUY" | "SELL";
     usdt_amount?: number;
     quantity?: number;
-    venue?: "alpaca" | "extended";
+    venue?: "alpaca" | "extended" | "crypto";
   }) => apiFetch<Trade>("/api/control/manual-trade", { method: "POST", body: JSON.stringify(body) }, LONG_TIMEOUT_MS),
-  sellAll: (symbol: string, venue: "alpaca" | "extended" = "alpaca") =>
+  sellAll: (symbol: string, venue: "alpaca" | "extended" | "crypto" = "alpaca") =>
     apiFetch<Trade>(`/api/control/sell-all?symbol=${encodeURIComponent(symbol)}&venue=${venue}`, { method: "POST" }, LONG_TIMEOUT_MS),
   setBudget: (amount: number) =>
     apiFetch<{ claude_budget: ClaudeBudget }>(`/api/control/set-budget?amount=${amount}`, { method: "POST" }),

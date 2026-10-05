@@ -12,7 +12,8 @@ export function Positions({ status, alpaca, extended, decisions, onChanged }: {
   decisions: Decision[];
   onChanged: () => void;
 }) {
-  const positions = [...extract(alpaca, "sesja"), ...extract(extended, "poza")].sort((a, b) => b.value - a.value);
+  const primaryVenue: "alpaca" | "crypto" = status.crypto_enabled ? "crypto" : "alpaca";
+  const positions = [...extract(alpaca, "sesja", primaryVenue), ...extract(extended, "poza")].sort((a, b) => b.value - a.value);
   const invested = positions.reduce((s, p) => s + p.value, 0);
 
   const [plans, setPlans] = useState<Record<string, PositionPlan>>({});
@@ -21,8 +22,8 @@ export function Positions({ status, alpaca, extended, decisions, onChanged }: {
     let dead = false;
     (async () => {
       const map: Record<string, PositionPlan> = {};
-      const legs: Array<[Leg, "alpaca" | "extended"]> = [];
-      if (hasA) legs.push(["sesja", "alpaca"]);
+      const legs: Array<[Leg, "alpaca" | "extended" | "crypto"]> = [];
+      if (hasA) legs.push(["sesja", primaryVenue]);
       if (hasE) legs.push(["poza", "extended"]);
       await Promise.all(legs.map(async ([leg, venue]) => {
         try { const r = await api.positionPlans(venue); r.positions.forEach((pp) => (map[`${leg}:${pp.asset}`] = pp)); } catch { /* best effort */ }
@@ -30,7 +31,7 @@ export function Positions({ status, alpaca, extended, decisions, onChanged }: {
       if (!dead) setPlans(map);
     })();
     return () => { dead = true; };
-  }, [hasA, hasE, invested]);
+  }, [hasA, hasE, invested, primaryVenue]);
 
   // Podsumowanie stanów wyjścia — ile pozycji jest „do wzięcia", ile blisko stopu.
   const states = positions.map((p) => plans[`${p.leg}:${p.asset}`]?.sell_plan?.state);
