@@ -113,6 +113,46 @@ class FakeMarketContext:
         return {"fear_greed_index": 62, "btc_dominance_pct": 54.1, "global_market_cap_change_24h_pct": 1.8}
 
 
+def test_crypto_cheap_cycle_stop_loss_closes_without_llm(db_session, settings):
+    """Integracja (audyt #16): tani silnik krypto (LLM OFF) zamyka STRATNĄ pozycję
+    mechanicznym stopem i NIE woła LLM. Pełna ścieżka: wejście -> spadek -> stop ->
+    wyjście, na parze 'BTC/USD' (klucze pełnego symbolu, 24/7)."""
+    from app.services.strategy_profiles import effective_settings
+
+    cs = settings.model_copy(update={
+        "crypto_enabled": True,
+        "crypto_llm_enabled": False,
+        "crypto_auto_deploy_enabled": False,  # izoluj wyjście (bez odkupu w tym samym cyklu)
+        "crypto_min_hold_minutes": 0,         # stop nie czeka na min-hold
+    })
+    eff = effective_settings(cs, "crypto")
+    broker = FakeAlpaca(prices={"BTC/USD": 60000.0}, balances={"USD": 10000.0})
+    # Wejście: ustala pozycję + koszt wejścia (BUY krypto), stempel venue=crypto.
+    trading_engine.execute_manual_trade(
+        db_session, eff, broker, symbol="BTC/USD", side="BUY",
+        usdt_amount=1000.0, venue="crypto", whitelist=["BTC/USD"],
+    )
+    assert broker.balances["BTC/USD"] > 0
+    # Noga krypto startuje zapauzowana (crypto_paused=True) -> mechaniczne wyjścia
+    # są wtedy wstrzymane. Wznawiamy, żeby stop mógł zadziałać.
+    risk_manager.resume(db_session, venue="crypto")
+
+    # Spadek ~-25% -> poniżej stopu (crypto_stop_loss_max_pct domyślnie 18%).
+    broker.prices["BTC/USD"] = 45000.0
+
+    advisor = FakeAdvisor(TradingDecision("HOLD", None, 0, 0.0, "nie powinienem być wołany"))
+    trading_engine.run_cycle(
+        db_session, eff, broker, FakeNews(), advisor,
+        venue="crypto", whitelist=["BTC/USD"], always_open=True,
+    )
+
+    # LLM nie był wołany (tani silnik), a mechaniczny stop zamknął BTC.
+    assert advisor.calls == 0
+    sells = [o for o in broker.orders if o.side == "SELL" and o.symbol == "BTC/USD"]
+    assert len(sells) >= 1
+    assert broker.balances["BTC/USD"] <= 1e-9
+
+
 def test_hold_decision_creates_no_trade(db_session, settings):
     broker = FakeAlpaca()
     advisor = FakeAdvisor(TradingDecision("HOLD", None, 0, 0.8, "Rynek stabilny, czekamy."))

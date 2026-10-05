@@ -29,6 +29,32 @@ def test_sell_all_404_when_nothing_held(db_session, settings, monkeypatch):
     assert ei.value.status_code == 404
 
 
+def test_broker_for_crypto_uses_crypto_universe_and_24_7(settings):
+    """Regresja audytu #1: sterowanie dla krypto MUSI dostać whitelistę krypto i
+    always_open=True -- inaczej przyciski krypto leciały na symbolach AKCJI i były
+    bramkowane godzinami giełdy."""
+    cs = settings.model_copy(update={"crypto_enabled": True})
+    _broker, whitelist, always_open = routes_control._broker_for("crypto", cs)
+    assert list(whitelist) == list(cs.crypto_symbols)
+    assert always_open is True
+
+
+def test_require_venue_enabled_guards(settings):
+    """Spójna bramka 400 dla wyłączonych nóg."""
+    disabled = settings.model_copy(update={"crypto_enabled": False, "extended_enabled": False})
+    with pytest.raises(HTTPException) as ei:
+        routes_control._require_venue_enabled("crypto", disabled)
+    assert ei.value.status_code == 400
+    # Włączona noga przechodzi bez wyjątku.
+    routes_control._require_venue_enabled("crypto", settings.model_copy(update={"crypto_enabled": True}))
+
+
+def test_manual_trade_request_accepts_crypto_venue():
+    """Regresja audytu #2: ręczny handel krypto musi być dopuszczony przez model."""
+    req = routes_control.ManualTradeRequest(symbol="BTC/USD", side="BUY", usdt_amount=100.0, venue="crypto")
+    assert req.venue == "crypto"
+
+
 def test_set_plan_and_widget_metric_persist(db_session):
     from app.api import routes_control
     from app.services import risk_manager
