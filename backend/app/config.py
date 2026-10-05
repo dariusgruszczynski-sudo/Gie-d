@@ -428,8 +428,10 @@ class Settings(BaseSettings):
     auto_blacklist_hours: int = 48
     # Send an email the moment any trade executes (BUY/SELL, incl. TP/SL exits).
     # Uses the same SMTP config as the daily report; silently skipped if SMTP
-    # isn't configured. Set False to keep only the daily report.
-    trade_alerts_enabled: bool = True
+    # isn't configured. DOMYŚLNIE WYŁĄCZONE -- właściciel chce tylko jeden
+    # zbiorczy raport dziennie, a nie mail przy każdej transakcji (24/7 krypto
+    # generowałoby ich lawinę). Włącz ustawiając TRADE_ALERTS_ENABLED=true.
+    trade_alerts_enabled: bool = False
     # CURATED, FOCUSED universe (trimmed from a 30-ticker list): a wide roster
     # spread attention and Claude's context thin without adding real edge --
     # fewer, deeper-liquidity names is easier to trade well AND cheaper (less

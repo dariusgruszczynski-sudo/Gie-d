@@ -116,9 +116,8 @@ def _scorecard_html(card: dict | None) -> str:
 
 
 def _venue_tag(venue: str) -> str:
-    is_extended = venue == "extended"
-    color = "#fb923c" if is_extended else GOLD
-    label = "Poza sesją" if is_extended else "Akcje US"
+    color = {"extended": "#fb923c", "crypto": "#a78bfa"}.get(venue, GOLD)
+    label = {"extended": "Poza sesją", "crypto": "Krypto"}.get(venue, "Akcje US")
     return (
         f'<span style="font-size:10px;font-weight:700;color:{color};border:1px solid {color};'
         f'border-radius:4px;padding:1px 5px;">{label}</span>'
@@ -127,8 +126,8 @@ def _venue_tag(venue: str) -> str:
 
 def _build_html(
     *,
-    alpaca_current: PortfolioSnapshot | None,
-    extended_current: PortfolioSnapshot | None,
+    account: dict,
+    crypto_enabled: bool,
     extended_enabled: bool,
     day_pnl_pct: float | None,
     week_pnl_pct: float | None,
@@ -139,13 +138,32 @@ def _build_html(
     recent_trades: list[Trade],
     scorecard_card: dict | None = None,
 ) -> str:
-    mode_label = "PRODUKCJA (realny kapitał)"
-    alpaca_status = "zatrzymany (limit strat)" if state.is_halted else "zapauzowany" if state.is_paused else "aktywny"
-    extended_status = "wyłączony" if not extended_enabled else ("zatrzymany" if state.extended_paused else "aktywny")
+    mode_label = "PAPIER (sztuczny kapitał)" if account.get("paper") else "PRODUKCJA (realny kapitał)"
 
-    alpaca_val = alpaca_current.total_value_usdt if alpaca_current else 0.0
-    extended_val = extended_current.total_value_usdt if (extended_enabled and extended_current) else 0.0
-    total_val = alpaca_val + extended_val
+    # Widok zbiorczy: po przełączeniu na krypto główną nogą jest krypto. Pokazujemy
+    # kubełki tylko dla nóg, które coś znaczą (krypto gdy włączone, akcje/poza sesją
+    # gdy mają wartość), a RAZEM to pełna suma konta z _account_view.
+    cash = account.get("cash", 0.0)
+    crypto_val = account.get("crypto_positions_value", 0.0)
+    alpaca_val = account.get("equity_positions_value", 0.0)
+    extended_val = account.get("extended_positions_value", 0.0)
+    total_val = account.get("total_value", cash + crypto_val + alpaca_val + extended_val)
+
+    crypto_status = "zatrzymany (limit strat)" if state.is_halted else ("zapauzowany" if state.crypto_paused else "aktywny")
+
+    cells = []
+    if crypto_enabled:
+        cells.append(("KRYPTO (24/7)", f'${crypto_val:,.2f} <span style="color:{MUTED};font-size:11px;">({crypto_status})</span>'))
+    if alpaca_val > 0 or not crypto_enabled:
+        a_status = "zatrzymany (limit strat)" if state.is_halted else ("zapauzowany" if state.is_paused else "aktywny")
+        cells.append(("AKCJE US", f'${alpaca_val:,.2f} <span style="color:{MUTED};font-size:11px;">({a_status})</span>'))
+    if extended_enabled and extended_val > 0:
+        cells.append(("POZA SESJĄ", f'${extended_val:,.2f}'))
+    cells.append(("GOTÓWKA", f'${cash:,.2f}'))
+    portfolio_head = "".join(f'<td style="color:{MUTED};font-size:11px;">{h}</td>' for h, _ in cells)
+    portfolio_head += f'<td style="color:{MUTED};font-size:11px;">RAZEM</td>'
+    portfolio_body = "".join(f'<td style="font-weight:700;padding-top:2px;">{v}</td>' for _, v in cells)
+    portfolio_body += f'<td style="font-weight:800;padding-top:2px;color:{GOLD_BRIGHT};">${total_val:,.2f}</td>'
 
     decisions_rows = "".join(
         f"""
@@ -185,12 +203,6 @@ def _build_html(
         else ""
     )
 
-    extended_cell = (
-        f'${extended_val:,.2f} <span style="color:{MUTED};font-size:11px;">({extended_status})</span>'
-        if extended_enabled
-        else f'<span style="color:{MUTED};">wyłączony</span>'
-    )
-
     return f"""\
 <div style="background:{BG};padding:24px 16px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:{TEXT};">
   <div style="max-width:640px;margin:0 auto;">
@@ -203,18 +215,10 @@ def _build_html(
     </div>
 
     <div style="background:{PANEL};border:1px solid {BORDER};border-radius:10px;padding:16px;margin-bottom:16px;">
-      <div style="color:{GOLD};font-size:13px;font-weight:700;margin-bottom:10px;">Portfele — widok zbiorczy</div>
+      <div style="color:{GOLD};font-size:13px;font-weight:700;margin-bottom:10px;">Konto — widok zbiorczy</div>
       <table style="width:100%;border-collapse:collapse;">
-        <tr>
-          <td style="color:{MUTED};font-size:11px;">PORTFEL DZIENNY (AKCJE US)</td>
-          <td style="color:{MUTED};font-size:11px;">PORTFEL POZA SESJĄ</td>
-          <td style="color:{MUTED};font-size:11px;">RAZEM</td>
-        </tr>
-        <tr>
-          <td style="font-weight:700;padding-top:2px;">${alpaca_val:,.2f} <span style="color:{MUTED};font-size:11px;">({alpaca_status})</span></td>
-          <td style="font-weight:700;padding-top:2px;">{extended_cell}</td>
-          <td style="font-weight:800;padding-top:2px;color:{GOLD_BRIGHT};">${total_val:,.2f}</td>
-        </tr>
+        <tr>{portfolio_head}</tr>
+        <tr>{portfolio_body}</tr>
       </table>
     </div>
 
@@ -273,57 +277,69 @@ def _latest_snapshot(db: Session, venue: str) -> PortfolioSnapshot | None:
 
 
 def build_report(db: Session, settings: Settings) -> tuple[str, bytes]:
-    alpaca_current = _latest_snapshot(db, "alpaca")
-    extended_current = _latest_snapshot(db, "extended")
+    import json as _json
+
+    from app.api.routes_dashboard import _account_view
+    from app.services import scorecard as scorecard_svc
+
+    # Noga główna: po przełączeniu na krypto raport kręci się wokół krypto
+    # (wykres, benchmark, wynik), a nie wokół pustego konta akcji.
+    primary_venue = "crypto" if settings.crypto_enabled else "alpaca"
+    primary_current = _latest_snapshot(db, primary_venue)
+
+    # Headline = pełna suma konta (gotówka + krypto + akcje + poza sesją), żeby
+    # jeden dzienny mail był realnym widokiem zbiorczym, nie samą nogą akcji.
+    account = _account_view(db, settings) or {}
+    account["paper"] = settings.alpaca_paper
+
     since = datetime.utcnow() - timedelta(days=7)
-    # Chart tracks the Alpaca (day) portfolio -- the account-wide day/week
-    # loss baselines are Alpaca-driven.
+    # Wykres śledzi nogę główną (krypto po przełączeniu).
     history = list(
         db.execute(
             select(PortfolioSnapshot)
-            .where(PortfolioSnapshot.timestamp >= since, PortfolioSnapshot.venue == "alpaca")
+            .where(PortfolioSnapshot.timestamp >= since, PortfolioSnapshot.venue == primary_venue)
             .order_by(PortfolioSnapshot.timestamp.asc())
         ).scalars()
     )
 
     state = risk_manager.get_state(db)
+    # Dzienny/tygodniowy P&L liczony OD CAŁEGO KONTA (okna ryzyka są account-wide),
+    # a nie od pojedynczej nogi -- inaczej przy krypto pokazywałby ~0.
+    total_now = account.get("total_value")
     day_pnl_pct = (
-        (alpaca_current.total_value_usdt - state.day_start_value) / state.day_start_value * 100
-        if alpaca_current and state.day_start_value > 0
+        (total_now - state.day_start_value) / state.day_start_value * 100
+        if total_now is not None and state.day_start_value > 0
         else None
     )
     week_pnl_pct = (
-        (alpaca_current.total_value_usdt - state.week_start_value) / state.week_start_value * 100
-        if alpaca_current and state.week_start_value > 0
+        (total_now - state.week_start_value) / state.week_start_value * 100
+        if total_now is not None and state.week_start_value > 0
         else None
     )
     budget = budget_tracker.get_budget_status(db, settings)
 
-    # Recent activity across BOTH portfolios so the report is a single
-    # collective view (each row is tagged with its venue).
+    # Recent activity across ALL venues so the report is a single collective view
+    # (each row is tagged with its venue).
     recent_decisions = list(
         db.execute(select(Decision).order_by(Decision.timestamp.desc()).limit(12)).scalars()
     )
     latest_decision = recent_decisions[0] if recent_decisions else None
     recent_trades = list(db.execute(select(Trade).order_by(Trade.timestamp.desc()).limit(12)).scalars())
 
-    # Scorecard vs buy-and-hold (Alpaca only -- SPY benchmark).
+    # Scorecard vs buy-and-hold nogi głównej (krypto -> „trzymaj BTC", akcje -> SPY).
     card = None
-    if alpaca_current is not None:
-        import json as _json
-
-        from app.services import scorecard as scorecard_svc
-
+    if primary_current is not None:
         card = scorecard_svc.compute_scorecard(
             db,
             settings,
-            {"total_value_usdt": alpaca_current.total_value_usdt, "prices": _json.loads(alpaca_current.prices_json or "{}")},
+            {"total_value_usdt": primary_current.total_value_usdt, "prices": _json.loads(primary_current.prices_json or "{}")},
+            venue=primary_venue,
         )
 
     chart_png = _render_chart_png(history)
     html = _build_html(
-        alpaca_current=alpaca_current,
-        extended_current=extended_current,
+        account=account,
+        crypto_enabled=settings.crypto_enabled,
         extended_enabled=settings.extended_enabled,
         day_pnl_pct=day_pnl_pct,
         week_pnl_pct=week_pnl_pct,
