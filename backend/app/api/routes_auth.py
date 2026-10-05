@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import logging
 import secrets
 import threading
@@ -25,12 +27,44 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 # bezpieczeństwa, nie księgowość; trwały ślad i tak ląduje w audit_log.
 _FAIL_WINDOW_S = 15 * 60
 _ALARM_COOLDOWN_S = 30 * 60
+# Po tylu nieudanych próbach w oknie IP jest ZABLOKOWANE (429) do czasu, aż
+# starsze próby wygasną -- hamuje brute-force (dotąd był tylko alarm, bez blokady).
+_LOCKOUT_AFTER = 10
 _fail_lock = threading.Lock()
 _fail_times: dict[str, list[float]] = {}
 _last_alarm_at: dict[str, float] = {}
 
 
-def _record_failure(ip: str, threshold: int) -> int:
+def _password_matches(provided: str, stored: str) -> bool:
+    """Weryfikacja hasła panelu, WSTECZNIE ZGODNA: jeśli zapisane hasło ma format
+    'sha256$<sól>$<hex>' -> porównujemy skróty (hasło nie leży jawnie w .env).
+    W przeciwnym razie traktujemy je jak dotąd jako jawny tekst (stare wdrożenia
+    działają bez zmian) i logujemy jednorazowe ostrzeżenie, żeby zachęcić do migracji.
+    Obie ścieżki używają porównania w stałym czasie."""
+    if stored.startswith("sha256$"):
+        try:
+            _, salt, digest = stored.split("$", 2)
+        except ValueError:
+            return False
+        calc = hashlib.sha256(f"{salt}{provided}".encode()).hexdigest()
+        return hmac.compare_digest(calc, digest)
+    if not _PLAINTEXT_PW_WARNED["done"]:
+        logger.warning("Hasło panelu trzymane JAWNYM TEKSTEM w DASHBOARD_USERS — rozważ format sha256$<sól>$<hex>.")
+        _PLAINTEXT_PW_WARNED["done"] = True
+    return secrets.compare_digest(provided, stored)
+
+
+_PLAINTEXT_PW_WARNED = {"done": False}
+
+
+def _is_locked(ip: str) -> bool:
+    now = time.time()
+    with _fail_lock:
+        recent = [t for t in _fail_times.get(ip, []) if now - t <= _FAIL_WINDOW_S]
+        return len(recent) >= _LOCKOUT_AFTER
+
+
+def _record_failure(ip: str) -> int:
     """Dopisz nieudaną próbę i zwróć liczbę prób w oknie. Czyści stare wpisy."""
     now = time.time()
     with _fail_lock:
@@ -82,9 +116,14 @@ def login(
     settings: Settings = Depends(get_settings),
 ):
     ip = audit.client_ip(request)
+    # Lockout: za dużo nieudanych prób z tego IP -> odbijamy BEZ sprawdzania hasła,
+    # aż starsze próby wygasną (brute-force hamowany, nie tylko alarmowany).
+    if _is_locked(ip):
+        audit.record(db, "login-locked", detail=f"IP zablokowane (brute-force) user={req.username[:32]}", request=request, outcome="error")
+        raise HTTPException(status_code=429, detail="Za dużo nieudanych prób. Spróbuj ponownie za kilka minut.")
     expected = settings.dashboard_credentials.get(req.username)
-    if expected is None or not secrets.compare_digest(req.password, expected):
-        count = _record_failure(ip, settings.security_alert_failed_logins)
+    if expected is None or not _password_matches(req.password, expected):
+        count = _record_failure(ip)
         audit.record(db, "login-fail", detail=f"user={req.username[:32]} próba #{count}", request=request, outcome="error")
         # Próg przekroczony -> jeden alarm push (z cooldownem), żeby nie spamować.
         if settings.security_alert_enabled and count >= settings.security_alert_failed_logins and _should_alarm(ip):

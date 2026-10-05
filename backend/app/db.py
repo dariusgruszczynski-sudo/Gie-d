@@ -1,6 +1,6 @@
 import os
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_settings
@@ -20,6 +20,21 @@ engine = create_engine(
     settings.database_url,
     connect_args={"check_same_thread": False} if settings.database_url.startswith("sqlite") else {},
 )
+
+# SQLite + wiele wątków (scheduler, wątek primingu, requesty) pisze do jednego
+# pliku. Bez WAL i busy_timeout współbieżny zapis sypie „database is locked".
+# WAL = równoległe czytanie w trakcie zapisu; busy_timeout = czekaj (nie rzucaj)
+# gdy plik chwilowo zajęty; synchronous=NORMAL = bezpieczny i szybki pod WAL.
+if settings.database_url.startswith("sqlite"):
+
+    @event.listens_for(engine, "connect")
+    def _sqlite_pragmas(dbapi_conn, _record):  # pragma: no cover - zależne od sterownika
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA busy_timeout=5000")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.close()
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -147,7 +162,27 @@ def init_db() -> None:
     _drop_column_if_exists("portfolio_snapshots", "eth_price")
     _drop_column_if_exists("system_state", "last_btc_check_price")
     _drop_column_if_exists("system_state", "last_eth_check_price")
+    _ensure_hot_indexes()
     _seed_stopped_state_on_fresh_deploy()
+
+
+def _ensure_hot_indexes() -> None:
+    """Indeksy pod gorące zapytania pulpitu (filtr po venue + sort po timestamp).
+    create_all nie dodaje indeksów do ISTNIEJĄCYCH tabel, więc dokładamy je tu
+    ręcznie (IF NOT EXISTS -> idempotentne). Bez nich rosnąca historia trade'ów/
+    decyzji/snapshotów liniowo spowalnia każde odświeżenie dashboardu."""
+    index_ddls = (
+        "CREATE INDEX IF NOT EXISTS ix_trades_venue_ts ON trades (venue, timestamp)",
+        "CREATE INDEX IF NOT EXISTS ix_decisions_venue_ts ON decisions (venue, timestamp)",
+        "CREATE INDEX IF NOT EXISTS ix_snapshots_venue_ts ON portfolio_snapshots (venue, timestamp)",
+    )
+    existing = set(inspect(engine).get_table_names())
+    needed = {"trades", "decisions", "portfolio_snapshots"}
+    if not needed.issubset(existing):
+        return
+    with engine.begin() as conn:
+        for ddl in index_ddls:
+            conn.execute(text(ddl))
 
 
 def seed_stopped_state(session) -> None:

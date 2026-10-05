@@ -99,12 +99,20 @@ def _path_matches_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
 
 
 class SessionAuthMiddleware:
-    def __init__(self, app, credentials: dict[str, str], get_secret, get_share_token=None):
+    def __init__(self, app, credentials, get_secret, get_share_token=None):
         self.app = app
-        self.credentials = credentials
+        # `credentials` może być słownikiem (zgodność wsteczna, np. testy) albo
+        # CALLABLE zwracającym aktualny słownik -- dzięki czemu zmiana userów po
+        # przeładowaniu configu nie wymaga re-tworzenia middleware (spójnie z
+        # get_secret/get_share_token, które już są callable).
+        self._credentials = credentials if callable(credentials) else (lambda: credentials)
         self.get_secret = get_secret
         # Callable returning the current read-only share token ("" = disabled).
         self.get_share_token = get_share_token or (lambda: "")
+
+    @property
+    def credentials(self) -> dict[str, str]:
+        return self._credentials() or {}
 
     def _share_ok(self, scope, path: str) -> bool:
         """Read-only share link: valid token + GET + an allowed dashboard path."""

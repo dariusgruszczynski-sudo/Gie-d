@@ -14,7 +14,14 @@ design — that is the whole point of keeping a manual override available.
 import logging
 import re
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
+
+
+def _today_utc() -> date:
+    """Granica doby w UTC -- spójna z resztą (np. „zrealizowane dziś" liczone od
+    północy UTC). Wcześniej date.today() brało strefę serwera, więc dzienne okno
+    ryzyka i dzienny zrealizowany P&L mogły mieć różne „doby"."""
+    return datetime.now(UTC).date()
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -66,7 +73,7 @@ class ValidationResult:
 def get_state(db: Session) -> SystemState:
     state = db.get(SystemState, 1)
     if state is None:
-        today = date.today().isoformat()
+        today = _today_utc().isoformat()
         state = SystemState(
             id=1,
             day_start_date=today,
@@ -144,7 +151,7 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
     """Call this every time we compute a fresh portfolio value. Rolls the
     day/week windows forward and trips the halt if a loss limit is breached."""
     state = get_state(db)
-    today = date.today()
+    today = _today_utc()
     today_str = today.isoformat()
 
     if state.day_start_date != today_str:

@@ -16,6 +16,36 @@ def test_valid_token_verifies():
     assert verify_session_token(token, SECRET, {"Darek", "Pola"}) == "Darek"
 
 
+def test_password_matches_plaintext_and_hashed():
+    import hashlib
+
+    from app.api.routes_auth import _password_matches
+
+    # Legacy: jawny tekst nadal działa.
+    assert _password_matches("tajne", "tajne") is True
+    assert _password_matches("zle", "tajne") is False
+    # Nowy format sha256$<sól>$<hex> -- hasło nie leży jawnie.
+    salt = "abc123"
+    digest = hashlib.sha256(f"{salt}tajne".encode()).hexdigest()
+    stored = f"sha256${salt}${digest}"
+    assert _password_matches("tajne", stored) is True
+    assert _password_matches("zle", stored) is False
+
+
+def test_login_lockout_after_repeated_failures():
+    import app.api.routes_auth as ra
+
+    ip = "203.0.113.9"
+    with ra._fail_lock:
+        ra._fail_times.pop(ip, None)
+    for _ in range(ra._LOCKOUT_AFTER):
+        ra._record_failure(ip)
+    assert ra._is_locked(ip) is True
+    with ra._fail_lock:
+        ra._fail_times.pop(ip, None)
+    assert ra._is_locked(ip) is False
+
+
 def test_unknown_user_rejected():
     token = create_session_token("Ktos", SECRET)
     assert verify_session_token(token, SECRET, {"Darek"}) is None

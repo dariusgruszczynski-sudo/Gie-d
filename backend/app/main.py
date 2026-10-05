@@ -63,7 +63,7 @@ app.add_middleware(
 )
 app.add_middleware(
     SessionAuthMiddleware,
-    credentials=get_settings().dashboard_credentials,
+    credentials=lambda: get_settings().dashboard_credentials,
     get_secret=get_session_secret,
     get_share_token=lambda: get_settings().share_token,
 )
