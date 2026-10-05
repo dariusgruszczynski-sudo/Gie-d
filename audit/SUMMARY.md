@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-10-05T12:47:20Z
+# Audyt GielDarek — 2026-10-05T13:08:31Z
 
-**Wdrożenie:** kod 323432a (zbud. 2026-10-05T12:46Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 3b9523d (zbud. 2026-10-05T12:56Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 112 zamknięć · trafność 30.4% · zrealizowany $8.37
 **7 dni:** 22 zamknięć · 9.1% · $-3.5   |   **30 dni:** 67 · 32.8% · $8.33
