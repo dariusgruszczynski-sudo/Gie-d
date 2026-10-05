@@ -2182,6 +2182,22 @@ def run_cycle(
     symbols = whitelist if whitelist is not None else settings.whitelist_symbols
     portfolio = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
     account_total = account_total_value(db, settings, portfolio, venue)
+    # GROUND TRUTH anty-widmo: brokerowa equity to autorytatywna wartość CAŁEGO
+    # konta (jedno konto Alpaca na wszystkie nogi). Jeśli nasza zrekonstruowana
+    # suma drastycznie zaniża względem equity brokera (np. jakaś noga chwilowo
+    # nie wyceniona), karmienie managera ryzyka tą liczbą dałoby FAŁSZYWY halt.
+    # Bierzemy wtedy equity brokera (fakt), zamiast magnitudowych heurystyk.
+    try:
+        if hasattr(broker, "get_account_summary"):
+            equity = float(broker.get_account_summary().get("equity") or 0.0)
+            if equity > 0 and account_total < equity * 0.8:
+                logger.warning(
+                    "Suma konta z rekonstrukcji (%.2f) << equity brokera (%.2f) — "
+                    "używam equity brokera (ground truth) dla ryzyka", account_total, equity,
+                )
+                account_total = equity
+    except Exception:  # pragma: no cover - rekoncyliacja best-effort, nigdy nie wywala cyklu
+        logger.warning("Rekoncyliacja z equity brokera nie powiodła się (kontynuuję)", exc_info=True)
     state = risk_manager.update_portfolio_value(db, settings, account_total)
     if venue == "alpaca":
         scorecard.update_benchmark_baseline(db, settings, portfolio)

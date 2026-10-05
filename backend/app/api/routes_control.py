@@ -313,8 +313,9 @@ def manual_trade(
 ):
     _require_venue_enabled(req.venue, settings)
     broker, whitelist, _ = _broker_for(req.venue, settings)
-    # Krypto podajemy jako parę ("BTC/USD") -> nie .upper() na slashu; akcje wielkimi.
-    symbol = req.symbol if req.venue == "crypto" else req.symbol.upper()
+    # Zawsze wielkimi: dla pary krypto slash jest nietknięty ("BTC/USD" -> "BTC/USD"),
+    # a wejście małymi literami ("btc/usd") normalizuje się do whitelisty.
+    symbol = req.symbol.upper()
     try:
         trade = execute_manual_trade(
             db,

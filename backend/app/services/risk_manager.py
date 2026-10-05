@@ -11,10 +11,14 @@ trades initiated by the human from the dashboard are never blocked here by
 design — that is the whole point of keeping a manual override available.
 """
 
-import logging
-import re
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.config import Settings
+from app.models import RiskEvent, SystemState
 
 
 def _today_utc() -> date:
@@ -23,13 +27,6 @@ def _today_utc() -> date:
     ryzyka i dzienny zrealizowany P&L mogły mieć różne „doby"."""
     return datetime.now(UTC).date()
 
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
-
-from app.config import Settings
-from app.models import RiskEvent, SystemState
-
-logger = logging.getLogger(__name__)
 
 # See update_portfolio_value(): a candidate new all-time-high must be seen on
 # this many total updates (the first sighting plus this many minus one more)
@@ -38,30 +35,6 @@ logger = logging.getLogger(__name__)
 # reads without resetting the candidate.
 PEAK_CONFIRMATION_UPDATES = 2
 PEAK_CONFIRMATION_TOLERANCE = 0.999
-
-# Strata w JEDNYM odczycie grubo ponad fizycznie możliwą (>60%) to nie ruch
-# rynku, tylko BŁĄD WYCENY -- np. pozycje (krypto) chwilowo wypadły z sumy konta
-# i konto odczytało się jako „sama gotówka" (~$350 z $100k = pozorne -99%). Na
-# takim widmie NIE zatrzymujemy handlu, a istniejący widmowy halt sam się zdejmie,
-# gdy wycena wróci. Realny limit (np. -20% dnia) trzyma się normalnie i zostaje
-# lepki do ręcznego Wznów. Spot-konto majorsów nie traci 60% w jednym cyklu.
-PHANTOM_LOSS_PCT = 60.0
-
-
-def _halt_was_phantom(reason: str | None) -> bool:
-    """Czy zapisany powód haltu niesie WIDMOWĄ stratę (>= PHANTOM_LOSS_PCT)? Powody
-    mają stały format „... -<liczba>% ...", więc wyłuskujemy pierwszą liczbę po
-    minusie. Realny limit (np. -20%) -> False (halt zostaje lepki); widmowe -99,6%
-    -> True (kwalifikuje się do samo-zdjęcia po powrocie poprawnej wyceny)."""
-    if not reason:
-        return False
-    m = re.search(r"-(\d+(?:[.,]\d+)?)\s*%", reason)
-    if not m:
-        return False
-    try:
-        return float(m.group(1).replace(",", ".")) >= PHANTOM_LOSS_PCT
-    except ValueError:
-        return False
 
 
 @dataclass
@@ -154,16 +127,19 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
     today = _today_utc()
     today_str = today.isoformat()
 
-    if state.day_start_date != today_str:
+    new_day = state.day_start_date != today_str
+    if new_day:
         state.day_start_date = today_str
         state.day_start_value = total_value_usdt
 
+    new_week = False
     if not state.week_start_date:
         state.week_start_date = today_str
         state.week_start_value = total_value_usdt
     else:
         week_start = date.fromisoformat(state.week_start_date)
         if today - week_start >= timedelta(days=7):
+            new_week = True
             state.week_start_date = today_str
             state.week_start_value = total_value_usdt
 
@@ -225,33 +201,27 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
         else 0
     )
 
-    # Czy bieżący odczyt to WIDMO (błąd wyceny), a nie realna strata? Każda z
-    # trzech „strat" grubo ponad fizycznie możliwą => pozycje wypadły z sumy konta.
-    phantom_read = (
-        day_loss_pct >= PHANTOM_LOSS_PCT
-        or week_loss_pct >= PHANTOM_LOSS_PCT
-        or drawdown_pct >= PHANTOM_LOSS_PCT
-    )
-
-    # SAMO-LECZENIE WIDMOWEGO haltu: jeśli jesteśmy zatrzymani, a świeża (poprawna)
-    # wycena pokazuje, że straty NIE MA (wszystkie limity w normie) ORAZ halt był
-    # wpisany z WIDMOWĄ wartością (>60% — patrz PHANTOM_LOSS_PCT), zdejmij go. Dzięki
-    # temu istniejący fałszywy halt -99,6% schodzi sam po naprawie wyceny, a REALNY
-    # limit (np. -20%) zostaje lepki do ręcznego Wznów (jego zapisana wartość < 60%).
-    if (
-        state.is_halted
-        and _halt_was_phantom(state.halted_reason)
-        and day_loss_pct < settings.daily_loss_limit_pct
-        and week_loss_pct < settings.weekly_loss_limit_pct
-        and (settings.max_drawdown_halt_pct <= 0 or drawdown_pct < settings.max_drawdown_halt_pct)
-    ):
-        cleared = state.halted_reason
-        state.is_halted = False
-        state.halted_reason = None
-        _log_event(db, "halt_auto_cleared", f"Auto-zdjęto WIDMOWY halt po poprawnej wycenie: {cleared}")
+    # RESET CZASOWY haltu limitu STRAT (bezpiecznik typu „stop na dziś"): halt
+    # DZIENNY znika, gdy zaczyna się nowy dzień (UTC); TYGODNIOWY — gdy nowy tydzień.
+    # To standardowe zachowanie circuit-breakera: nie zdejmujemy ochrony w środku
+    # złego dnia (żaden odbój w trakcie go nie kasuje), tylko pozwalamy wrócić do
+    # handlu po przełomie okna. Halt SPADKU-OD-SZCZYTU NIE jest resetowany czasem
+    # (to nie okno kroczące, tylko realny ubytek kapitału) -> zostaje lepki do
+    # ręcznego Wznów. Fałszywe halty z błędnej wyceny eliminujemy u ŹRÓDŁA
+    # (account_total_value widzi wszystkie nogi + rekoncyliacja z equity brokera
+    # w run_cycle), nie magnitudą po fakcie.
+    if state.is_halted and state.halted_reason:
+        if new_day and "Dzienny limit" in state.halted_reason:
+            _log_event(db, "halt_auto_cleared", f"Nowy dzień — zdjęto dzienny halt: {state.halted_reason}")
+            state.is_halted = False
+            state.halted_reason = None
+        elif new_week and "Tygodniowy limit" in state.halted_reason:
+            _log_event(db, "halt_auto_cleared", f"Nowy tydzień — zdjęto tygodniowy halt: {state.halted_reason}")
+            state.is_halted = False
+            state.halted_reason = None
 
     newly_halted = False
-    if not state.is_halted and not phantom_read:
+    if not state.is_halted:
         if day_loss_pct >= settings.daily_loss_limit_pct:
             state.is_halted = True
             state.halted_reason = (
@@ -276,12 +246,6 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
             )
             _log_event(db, "drawdown_stop_triggered", state.halted_reason)
             newly_halted = True
-    elif phantom_read and not state.is_halted:
-        logger.warning(
-            "Pomijam WIDMOWY limit (dzień -%.1f%% / tydzień -%.1f%% / spadek -%.1f%%) — "
-            "prawdopodobnie błąd wyceny (pozycje wypadły z sumy konta), nie realna strata",
-            day_loss_pct, week_loss_pct, drawdown_pct,
-        )
 
     db.commit()
     db.refresh(state)
