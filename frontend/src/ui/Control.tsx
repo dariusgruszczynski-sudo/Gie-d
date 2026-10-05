@@ -112,20 +112,28 @@ function Ops({ onChanged }: { onChanged: () => void }) {
   );
 }
 
+type TradeVenue = "alpaca" | "extended" | "crypto";
+
 function ManualTrade({ status, onChanged }: { status: StatusResponse; onChanged: () => void }) {
   const a = useAction();
-  const [venue, setVenue] = useState<"alpaca" | "extended">("alpaca");
-  const list = venue === "extended" ? status.extended_whitelist : status.whitelist;
+  // Po przełączeniu na krypto ręczny handel dotyczy par krypto (noga główna);
+  // stare nogi akcji znikają z UI, spójnie z panelem silników powyżej.
+  const crypto = !!status.crypto_enabled;
+  const listFor = (v: TradeVenue): string[] =>
+    v === "crypto" ? (status.crypto_universe ?? []) : v === "extended" ? status.extended_whitelist : status.whitelist;
+  const [venue, setVenue] = useState<TradeVenue>(crypto ? "crypto" : "alpaca");
+  const list = listFor(venue);
   const [symbol, setSymbol] = useState(list[0] ?? "");
   const [side, setSide] = useState<"BUY" | "SELL">("BUY");
   const [usd, setUsd] = useState("50");
+  const paper = status.mode !== "live";
   return (
     <div className="gd-card">
-      <h4>Ręczna transakcja</h4>
-      {status.extended_enabled && (
+      <h4>Ręczna transakcja{crypto ? " · krypto" : ""}</h4>
+      {!crypto && status.extended_enabled && (
         <div className="gd-field">
           <label>Noga</label>
-          <select value={venue} onChange={(e) => { const v = e.target.value as "alpaca" | "extended"; setVenue(v); setSymbol((v === "extended" ? status.extended_whitelist : status.whitelist)[0] ?? ""); }}>
+          <select value={venue} onChange={(e) => { const v = e.target.value as TradeVenue; setVenue(v); setSymbol(listFor(v)[0] ?? ""); }}>
             <option value="alpaca">SESJA · Akcje US</option>
             <option value="extended">POZA SESJĄ · ETF</option>
           </select>
@@ -148,7 +156,7 @@ function ManualTrade({ status, onChanged }: { status: StatusResponse; onChanged:
         <input type="number" value={usd} min="1" onChange={(e) => setUsd(e.target.value)} />
       </div>
       <button className="gd-btn primary" disabled={a.busy === "mt" || !symbol}
-        onClick={() => { if (window.confirm(`${side} ${symbol} za $${usd}? Realne zlecenie.`)) a.run("mt", () => api.manualTrade({ symbol, side, usdt_amount: Number(usd), venue }).then(onChanged), "Zlecenie złożone"); }}>
+        onClick={() => { if (window.confirm(`${side} ${symbol} za $${usd}? ${paper ? "Zlecenie na koncie papierowym." : "REALNE zlecenie (żywe środki)."}`)) a.run("mt", () => api.manualTrade({ symbol, side, usdt_amount: Number(usd), venue }).then(onChanged), "Zlecenie złożone"); }}>
         Złóż zlecenie
       </button>
       {a.msg && <div className={`gd-msg ${a.msg.ok ? "ok" : "err"}`}>{a.msg.t}</div>}
@@ -197,13 +205,15 @@ function PushMode({ status, onChanged }: { status: StatusResponse; onChanged: ()
   );
 }
 
-function DryRun() {
+function DryRun({ status }: { status: StatusResponse }) {
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<DryRunResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Symuluj nogę główną (krypto po przełączeniu), nie na sztywno akcje.
+  const venue = status.crypto_enabled ? "crypto" : "alpaca";
   async function run() {
     setBusy(true); setErr(null); setRes(null);
-    try { setRes(await api.dryRun("alpaca")); } catch (e) { setErr(String(e)); } finally { setBusy(false); }
+    try { setRes(await api.dryRun(venue)); } catch (e) { setErr(String(e)); } finally { setBusy(false); }
   }
   const acts = (res?.proposals ?? []).filter((p) => p.action !== "HOLD");
   return (
@@ -410,7 +420,7 @@ export function Control({ status, onChanged }: { status: StatusResponse; onChang
           <PanicButton onChanged={onChanged} />
           <OpusController status={status} onChanged={onChanged} />
           <LegControls status={status} onChanged={onChanged} />
-          <DryRun />
+          <DryRun status={status} />
           <PushMode status={status} onChanged={onChanged} />
           <PlanGoal status={status} onChanged={onChanged} />
           <WidgetMetric status={status} onChanged={onChanged} />
