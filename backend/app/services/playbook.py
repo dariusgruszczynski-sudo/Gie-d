@@ -67,6 +67,12 @@ SEED_PLAYBOOK_CRYPTO: list[str] = [
     "Proces i meta · Poprzeczka to TRZYMANIE BTC, nie 'czy jestem na plusie': jeśli aktywny handel nie bije buy&hold BTC w oknie ≥ kilkudziesięciu transakcji, poprawnym ruchem jest trzymać BTC i wyłączyć handel.",
     "Proces i meta · Nie oceniaj edge na małej próbie: potrzeba ~50+ zamknięć, zanim win-rate/payoff coś znaczą. Do tego czasu trzymaj proces i NIE kręć knobami pod ostatnie kilka transakcji — to dopasowanie do szumu.",
     "Proces i meta · Największy koszt małego konta to LLM (~$196 na akcjach przy ~zerowym wyniku): drogi model tylko do decyzji WYSOKIEJ wartości, nie na każdy cykl. Mechanika (stopy/cele/konfluencja) prowadzi domyślnie za $0; LLM to weto i edge, nie rutyna.",
+    # --- Dowody (research 2020-2026): co REALNIE ma przewagę w krypto. ---
+    "Reżim i trend · DOWÓD: time-series momentum / trend-following to najmocniejsza, udokumentowana przewaga w krypto (dekada walk-forward; 2020-25 ~32%/rok, Sharpe ~1.6). Rdzeń strategii: podążaj za trendem wyższego TF z filtrem reżimu, nie zgaduj dołków.",
+    "Ryzyko i rozmiar · DOWÓD: asymetria robi wynik — TNIJ STRATY szybko (stop zawsze), POZWÓL ZYSKOM BIEC. Nie ścinaj zwycięzcy sztywnym małym take-profitem (to ujemny skos). Lockuj część na partialu, resztę prowadź trailingiem; twardy TP tylko na paraboliczny blow-off.",
+    "Ryzyko i rozmiar · DOWÓD: sizing pod ZMIENNOŚĆ (volatility targeting) poprawia zwrot skorygowany o ryzyko i spłaszcza obsunięcia — stałe $-ryzyko do stopa, mniej jednostek na zmienny alt, więcej na spokojny. Ale vol patrzy wstecz: luka/news potrafi przebić budżet, więc i tak twardy stop.",
+    "Mikrostruktura i egzekucja · DOWÓD: koszty transakcyjne REALNIE zjadają momentum — wiele teoretycznie zyskownych portfeli traci istotność po fee+spread. Wniosek: mniej, dłuższych, wyższej-konwikcji pozycji; NIE scalping. 'Dynamiczny' = responsywny na zmianę trendu, nie 'więcej transakcji'.",
+    "Reżim i trend · DOWÓD: w krypto cross-sectional momentum (ranking/rotacja między nazwami) jest SŁABSZY niż time-series. Nie przesadzaj z rotacją w pogoni za relatywną siłą — trzymaj trend, który działa; rotuj tylko, gdy wyraźnie się łamie.",
 ]
 
 

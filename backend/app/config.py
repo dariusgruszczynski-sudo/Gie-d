@@ -142,9 +142,15 @@ class Settings(BaseSettings):
     crypto_min_hold_minutes: int = 60                 # krótsze trzymanie niż akcje (24/7)
     crypto_max_position_pct: float = 40.0             # max udział jednej pary
     crypto_reward_risk_ratio: float = 2.0
-    crypto_trailing_stop_frac: float = 0.5
-    crypto_partial_take_profit_frac: float = 0.33
+    # TREND-FOLLOWING (dowody: time-series momentum to najmocniejsza, udokumentowana
+    # przewaga w krypto — dekada walk-forward + 2020-25). Rdzeń: TNIJ STRATY szybko,
+    # POZWÓL ZYSKOM BIEC. Dlatego NIE ścinamy każdego zwycięzcy sztywnym +6% (to był
+    # ujemny skos: mały zysk, duży stop). Ride robi trailing, część lockuje partial,
+    # a twardy TP łapie tylko paraboliczny blow-off. crypto_hard_take_profit_pct niżej.
+    crypto_trailing_stop_frac: float = 0.6          # szerszy trail = dłuższa jazda trendem
+    crypto_partial_take_profit_frac: float = 0.33   # zabierz 1/3 przy 1.5R (de-risk), reszta jedzie
     crypto_partial_take_profit_r: float = 1.5
+    crypto_hard_take_profit_pct: float = 40.0       # tylko blow-off; zwykłe trendy jadą na trailingu
     crypto_stop_loss_vol_mult: float = 4.0
     crypto_stop_loss_min_pct: float = 4.0            # krypto rusza się 3-5%+ dziennie
     crypto_stop_loss_max_pct: float = 18.0
