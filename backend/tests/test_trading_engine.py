@@ -773,6 +773,35 @@ def test_no_exit_within_thresholds(db_session, settings):
     assert trading_engine.check_take_profit_stop_loss(db_session, settings, broker, portfolio) == []
 
 
+def test_breakeven_ratchet_winner_not_becoming_loser(settings):
+    """Ulepszenie 1: po szczycie >= breakeven_trigger% pozycja nie może zejść pod
+    wejście -- zamykamy na breakeven zamiast oddać cały zysk."""
+    s = settings.model_copy(update={"breakeven_trigger_pct": 8.0, "trend_exit_ma_period": 0})
+    # basis 100, szczyt 112 (+12% >= 8), cena wróciła do 100 (0%).
+    reason, pct, kind = trading_engine._decide_mechanical_exit(s, "BTC", 100.0, 100.0, 112.0, stop_pct=10.0)
+    assert kind == "breakeven" and pct == 100.0
+
+
+def test_trend_invalidation_exit_below_ma(settings):
+    """Ulepszenie 3: zamknięcie pod średnią trendu -> wyjście (trend się złamał),
+    zanim zadziała szeroki stop."""
+    s = settings.model_copy(update={"trend_exit_ma_period": 50})
+    # cena 100 < SMA 105, strata płytka (-? ) ale trend złamany.
+    reason, pct, kind = trading_engine._decide_mechanical_exit(
+        s, "ETH", 102.0, 100.0, 108.0, stop_pct=10.0, trend_ma=105.0
+    )
+    assert kind == "trend_exit" and pct == 100.0
+
+
+def test_no_trend_exit_when_disabled_or_above_ma(settings):
+    """Trend-exit nie odpala, gdy wyłączony (akcje) albo cena jest NAD średnią."""
+    off = settings.model_copy(update={"trend_exit_ma_period": 0})
+    assert trading_engine._decide_mechanical_exit(off, "ETH", 102.0, 100.0, 108.0, stop_pct=10.0, trend_ma=105.0)[2] != "trend_exit"
+    on_above = settings.model_copy(update={"trend_exit_ma_period": 50})
+    # basis 100, cena 110 > SMA 105 -> trend trzyma, brak trend-exit.
+    assert trading_engine._decide_mechanical_exit(on_above, "ETH", 100.0, 110.0, 112.0, stop_pct=10.0, trend_ma=105.0)[2] != "trend_exit"
+
+
 def test_tpsl_does_not_fire_while_stopped(db_session, settings):
     broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
     trading_engine.execute_manual_trade(db_session, settings, broker, symbol="SPY", side="BUY", usdt_amount=100.0)

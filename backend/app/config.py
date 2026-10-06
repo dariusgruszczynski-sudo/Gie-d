@@ -176,6 +176,34 @@ class Settings(BaseSettings):
     crypto_weekly_loss_limit_pct: float = 40.0
     crypto_max_drawdown_halt_pct: float = 55.0
 
+    # --- 5 ULEPSZEŃ STRATEGII (trend-following, strona WYJŚĆ/RYZYKA — nie
+    # restrykcyjne weta wejść; backtest pokazał, że nadmiar filtrów wejścia szkodzi).
+    # Pola bazowe neutralne (0/False = wyłączone -> akcje/POZA SESJĄ bez zmian);
+    # wartości krypto nakładane przez _CRYPTO_OVERRIDES. ---
+    # (1) Breakeven ratchet: gdy szczyt zysku >= trigger%, zwycięzca NIE może zejść
+    #     poniżej wejścia -- zamykamy na ~zero zamiast oddać cały zysk w stratę.
+    breakeven_trigger_pct: float = 0.0
+    crypto_breakeven_trigger_pct: float = 8.0
+    # (2) Winner ratchet: po dużym biegu (>= trigger%) zacieśnij trailing (×mult),
+    #     żeby zablokować więcej zysku z silnego trendu.
+    ratchet_trigger_pct: float = 0.0
+    ratchet_trail_mult: float = 0.5
+    crypto_ratchet_trigger_pct: float = 15.0
+    crypto_ratchet_trail_mult: float = 0.5
+    # (3) Trend-invalidation exit: zamknij, gdy cena spadnie pod swoją średnią
+    #     trendu (SMA okresu) -- trend się złamał, nie czekaj na szeroki stop.
+    trend_exit_ma_period: int = 0
+    crypto_trend_exit_ma_period: int = 50
+    # (4)+(5) De-risk wejść przy ZATŁOCZENIU (kontrariańsko, bez twardego weta):
+    #     Fear&Greed >= progu (ekstremalna chciwość) LUB funding BTC >= progu
+    #     (longi zatłoczone) -> NOWE wejścia mniejsze (×derisk_size_mult).
+    fng_derisk_above: float = 0.0
+    funding_derisk_above_pct: float = 0.0
+    derisk_size_mult: float = 0.5
+    crypto_fng_derisk_above: float = 85.0
+    crypto_funding_derisk_above_pct: float = 0.08
+    crypto_derisk_size_mult: float = 0.5
+
     daily_loss_limit_pct: float = 20.0
     # Zacieśnione z 70% -> 25%: tygodniowy 70% to praktycznie brak ochrony małego
     # konta. 25% to realny bezpiecznik: seria złych dni zatrzyma automat, zanim

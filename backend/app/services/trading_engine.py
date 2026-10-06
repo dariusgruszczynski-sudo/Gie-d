@@ -1100,6 +1100,7 @@ def _decide_mechanical_exit(
     stop_pct: float | None = None,
     *,
     partial_taken: bool = False,
+    trend_ma: float | None = None,
 ) -> tuple[str | None, float, str | None]:
     """Returns (reason, sell_pct, kind) for a held position, or (None, 0.0,
     None) to hold. `kind` is one of "stop" / "trailing" / "take_profit" /
@@ -1110,6 +1111,7 @@ def _decide_mechanical_exit(
     the position first clears +partial_r, which locks in a realized win while
     the remainder keeps running under the trailing stop."""
     change_pct = (price - basis) / basis * 100
+    peak_gain_pct = (peak - basis) / basis * 100 if basis > 0 else 0.0
     stop = settings.stop_loss_pct if stop_pct is None else stop_pct
     tp_arm, trailing, partial_r = _reward_levels(settings, stop)
 
@@ -1118,6 +1120,29 @@ def _decide_mechanical_exit(
             f"Stop-loss: {base} {change_pct:.1f}% od wejścia (stop {stop:.1f}%, średnia {basis:.2f} → {price:.2f})",
             100.0,
             "stop",
+        )
+
+    # ULEPSZENIE 3 — TREND-INVALIDATION EXIT: trend (po którym weszliśmy) się złamał,
+    # cena zamyka się pod swoją średnią trendu -> wychodzimy, nie czekając na szeroki
+    # stop. Trend-following żyje z jazdy trendem; gdy trend umiera, kapitał idzie dalej.
+    if getattr(settings, "trend_exit_ma_period", 0) and trend_ma and price < trend_ma:
+        return (
+            f"Trend-exit: {base} zamknięcie pod SMA{settings.trend_exit_ma_period} "
+            f"({price:.2f} < {trend_ma:.2f}) — trend się złamał (wynik {change_pct:+.1f}%)",
+            100.0,
+            "trend_exit",
+        )
+
+    # ULEPSZENIE 1 — BREAKEVEN RATCHET: gdy pozycja była już wyraźnie na plusie
+    # (szczyt >= breakeven_trigger%) ALBO wzięliśmy już partial, zwycięzca NIE może
+    # zejść poniżej wejścia -> zamykamy na ~zero zamiast oddać cały zysk w stratę.
+    be_trigger = getattr(settings, "breakeven_trigger_pct", 0.0)
+    if (partial_taken or (be_trigger > 0 and peak_gain_pct >= be_trigger)) and change_pct <= 0:
+        return (
+            f"Breakeven: {base} cofnął się do wejścia po szczycie +{peak_gain_pct:.1f}% — "
+            f"chronię kapitał (wynik {change_pct:+.1f}%)",
+            100.0,
+            "breakeven",
         )
 
     # Hard take-profit floor: bank a STRONG gain outright even with trailing on,
@@ -1132,10 +1157,17 @@ def _decide_mechanical_exit(
 
     if settings.trailing_stop_enabled:
         armed = tp_arm <= 0 or peak >= basis * (1 + tp_arm / 100)
-        if armed and trailing > 0 and price <= peak * (1 - trailing / 100):
+        # ULEPSZENIE 2 — WINNER RATCHET: po dużym biegu (szczyt >= ratchet_trigger%)
+        # zacieśnij trailing (×mult), żeby zablokować więcej zysku z silnego trendu.
+        eff_trailing = trailing
+        rt = getattr(settings, "ratchet_trigger_pct", 0.0)
+        if rt > 0 and peak_gain_pct >= rt:
+            eff_trailing = trailing * getattr(settings, "ratchet_trail_mult", 0.5)
+        if armed and eff_trailing > 0 and price <= peak * (1 - eff_trailing / 100):
             drop = (price - peak) / peak * 100
+            tightened = " (zacieśniony po biegu)" if eff_trailing != trailing else ""
             return (
-                f"Trailing-stop: {base} spadł {drop:.1f}% od szczytu {peak:.2f} "
+                f"Trailing-stop{tightened}: {base} spadł {drop:.1f}% od szczytu {peak:.2f} "
                 f"(wejście {basis:.2f}, zysk +{change_pct:.1f}%)",
                 100.0,
                 "trailing",
@@ -1276,14 +1308,19 @@ def check_take_profit_stop_loss(
                 new_peaks[symbol] = peak  # still holding -> remember the peak
                 continue
         else:
-            # Volatility-scaled stop distance: fetch a short history for this
-            # held symbol and derive a stop that sits outside its normal noise.
+            # Volatility-scaled stop distance + średnia trendu (dla trend-exit):
+            # jeden fetch historii, z niego liczymy i zmienność, i SMA trendu.
             vol_pct = None
+            trend_ma = None
+            ma_period = getattr(settings, "trend_exit_ma_period", 0) or 0
+            bars_needed = max(30, ma_period + 1)
             try:
-                closes = [float(r[4]) for r in broker.get_klines(symbol, settings.signal_timeframe, 30)]
-                vol_pct = compute_volatility_pct(closes)
+                closes = [float(r[4]) for r in broker.get_klines(symbol, settings.signal_timeframe, bars_needed)]
+                vol_pct = compute_volatility_pct(closes[-30:])
+                if ma_period > 0 and len(closes) >= ma_period:
+                    trend_ma = sum(closes[-ma_period:]) / ma_period
             except Exception:
-                logger.warning("Volatility fetch failed for %s, using fixed stop", symbol, exc_info=True)
+                logger.warning("Volatility/MA fetch failed for %s, using fixed stop", symbol, exc_info=True)
             stop_pct = dynamic_stop_loss_pct(settings, vol_pct)
 
             # Ręczny plan wyjścia (jeśli ustawiony dla tego symbolu): DODATKOWY,
@@ -1296,7 +1333,8 @@ def check_take_profit_stop_loss(
                 sell_pct = 100.0
             else:
                 reason, sell_pct, kind = _decide_mechanical_exit(
-                    settings, base, basis, price, peak, stop_pct=stop_pct, partial_taken=already_partial
+                    settings, base, basis, price, peak, stop_pct=stop_pct,
+                    partial_taken=already_partial, trend_ma=trend_ma,
                 )
                 if kind is None:
                     new_peaks[symbol] = peak  # still holding, remember the peak
@@ -2059,7 +2097,21 @@ def _run_auto_deploy(
             return cap
         account_total = account_total_value(db, settings, pf, venue)
         target_usd = account_total * target / 100.0
-        return round(min(cap, 100.0, target_usd / free * 100.0), 4)
+        base_pct = min(cap, 100.0, target_usd / free * 100.0)
+        # ULEPSZENIA 4+5 — DE-RISK WEJŚĆ PRZY ZATŁOCZENIU (kontrariańsko, bez weta):
+        # ekstremalna chciwość (Fear&Greed) lub zatłoczone longi (dodatni funding)
+        # = podwyższone ryzyko lokalnego szczytu/flusha -> NOWE wejście mniejsze.
+        ctx = global_context or {}
+        fng = ctx.get("fear_greed")
+        funding = ctx.get("btc_funding_rate_pct")
+        fng_thr = getattr(settings, "fng_derisk_above", 0.0)
+        fund_thr = getattr(settings, "funding_derisk_above_pct", 0.0)
+        crowded = (fng_thr > 0 and fng is not None and fng >= fng_thr) or (
+            fund_thr > 0 and funding is not None and funding >= fund_thr
+        )
+        if crowded:
+            base_pct *= getattr(settings, "derisk_size_mult", 1.0)
+        return round(base_pct, 4)
 
     def run_one(action: str, sym: str, reason: str) -> Decision | None:
         # BUY: rozmiar celuje w udział KONTA (anty-koncentracja), z pewnością na

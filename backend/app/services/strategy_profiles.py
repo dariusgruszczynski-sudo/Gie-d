@@ -55,6 +55,14 @@ _CRYPTO_OVERRIDES = {
     "crypto_partial_take_profit_r": "partial_take_profit_r",
     # Trend-following: wysoki twardy TP (ride winners) nadpisuje stockowe 6%.
     "crypto_hard_take_profit_pct": "hard_take_profit_pct",
+    # 5 ulepszeń strategii (wyjścia/ryzyko) — aktywne tylko dla nogi krypto.
+    "crypto_breakeven_trigger_pct": "breakeven_trigger_pct",
+    "crypto_ratchet_trigger_pct": "ratchet_trigger_pct",
+    "crypto_ratchet_trail_mult": "ratchet_trail_mult",
+    "crypto_trend_exit_ma_period": "trend_exit_ma_period",
+    "crypto_fng_derisk_above": "fng_derisk_above",
+    "crypto_funding_derisk_above_pct": "funding_derisk_above_pct",
+    "crypto_derisk_size_mult": "derisk_size_mult",
     "crypto_stop_loss_vol_mult": "stop_loss_vol_mult",
     "crypto_stop_loss_min_pct": "stop_loss_min_pct",
     "crypto_stop_loss_max_pct": "stop_loss_max_pct",

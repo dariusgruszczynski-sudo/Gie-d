@@ -73,6 +73,9 @@ SEED_PLAYBOOK_CRYPTO: list[str] = [
     "Ryzyko i rozmiar · DOWÓD: sizing pod ZMIENNOŚĆ (volatility targeting) poprawia zwrot skorygowany o ryzyko i spłaszcza obsunięcia — stałe $-ryzyko do stopa, mniej jednostek na zmienny alt, więcej na spokojny. Ale vol patrzy wstecz: luka/news potrafi przebić budżet, więc i tak twardy stop.",
     "Mikrostruktura i egzekucja · DOWÓD: koszty transakcyjne REALNIE zjadają momentum — wiele teoretycznie zyskownych portfeli traci istotność po fee+spread. Wniosek: mniej, dłuższych, wyższej-konwikcji pozycji; NIE scalping. 'Dynamiczny' = responsywny na zmianę trendu, nie 'więcej transakcji'.",
     "Reżim i trend · DOWÓD: w krypto cross-sectional momentum (ranking/rotacja między nazwami) jest SŁABSZY niż time-series. Nie przesadzaj z rotacją w pogoni za relatywną siłą — trzymaj trend, który działa; rotuj tylko, gdy wyraźnie się łamie.",
+    # --- Co MECHANIKA robi już za Ciebie (żebyś nie dublował ręcznie). ---
+    "Proces i meta · Mechanika pilnuje wyjść: zwycięzca po szczycie ≥8% nie schodzi pod wejście (breakeven), po biegu ≥15% trailing się zacieśnia, a zamknięcie pod SMA50 zamyka pozycję (trend złamany). Nie ścinaj wygranych ręcznie z nerwów — od tego są te reguły.",
+    "Ryzyko i rozmiar · Mechanika sama ZMNIEJSZA nowe wejścia przy zatłoczeniu (Fear&Greed ≥85 lub wysoki funding BTC) — nie dokładaj wtedy ręcznie do euforii; to moment na mniejsze, nie większe pozycje.",
 ]
 
 

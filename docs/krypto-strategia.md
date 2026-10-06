@@ -50,6 +50,22 @@ dostroić strategię". Źródła na końcu.
 - Każda zmiana = knob w `.env`/configu, potem backtest na prodzie, potem obserwacja
   ≥50 zamknięć. Nie stroimy pod kilka ostatnich transakcji (błąd z ery akcji).
 
+## 5 ulepszeń strategii (wdrożone) — strona WYJŚĆ/RYZYKA
+Świadomie NIE dokładaliśmy restrykcyjnych filtrów WEJŚĆ (6-letni backtest: nadmiar
+filtrów wejścia pogarszał wynik). Przewaga trend-followingu żyje w zarządzaniu
+pozycją, więc 5 ulepszeń działa na wyjściach, ryzyku i sizingu (knoby `crypto_*`):
+1. **Breakeven ratchet** — gdy szczyt zysku ≥ `crypto_breakeven_trigger_pct` (8%),
+   zwycięzca nie może zejść pod wejście → zamknięcie na ~zero zamiast oddania zysku.
+2. **Winner ratchet** — po dużym biegu (≥ `crypto_ratchet_trigger_pct`, 15%)
+   trailing się zacieśnia (× `crypto_ratchet_trail_mult`), lockując więcej trendu.
+3. **Trend-invalidation exit** — zamknięcie pod `SMA crypto_trend_exit_ma_period`
+   (50) = trend złamany, wychodzimy przed szerokim stopem.
+4. **De-risk na chciwość** — Fear&Greed ≥ `crypto_fng_derisk_above` (85) → NOWE
+   wejścia mniejsze (× `crypto_derisk_size_mult`).
+5. **De-risk na zatłoczony funding** — funding BTC ≥ `crypto_funding_derisk_above_pct`
+   (0.08%) → NOWE wejścia mniejsze (longi przegrzane, ryzyko flusha).
+Wszystkie gate'owane configiem; dla akcji/POZA SESJĄ neutralne (0/off).
+
 ## Weryfikacja
 - Prod: `python backend/scripts/run_backtest.py --venue crypto` (benchmark BTC/USD).
 - Żywy paper: dzienny nadzór (audit-snapshots) + ten dziennik. Werdykt GO-LIVE
