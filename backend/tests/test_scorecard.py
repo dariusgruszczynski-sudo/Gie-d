@@ -84,6 +84,29 @@ def test_crypto_scorecard_benchmarks_btc_and_counts_crypto_trades(db_session, se
     assert card["win_rate_pct"] == 100.0
 
 
+def test_crypto_stats_exclude_legacy_slashless_trades(db_session, settings):
+    """Zaszłości: starsze krypto-trejdy w formacie slash-less (np. 'ADAUSD' z innego
+    eksperymentu) NIE mogą zanieczyszczać staty żywego runu (pary 'BTC/USD')."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.models import Trade, TradeMode
+
+    t0 = datetime(2026, 10, 4, tzinfo=UTC)
+    # Legacy slash-less: kup+sprzedaj ze STRATĄ (nie powinno się liczyć).
+    db_session.add(Trade(timestamp=t0, symbol="ADAUSD", side="BUY", quantity=10, price=1.0, usdt_value=10.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.add(Trade(timestamp=t0 + timedelta(hours=1), symbol="ADAUSD", side="SELL", quantity=10, price=0.5, usdt_value=5.0, mode=TradeMode.LIVE, venue="crypto"))
+    # Bieżący run (para): kup+sprzedaj z ZYSKIEM (jedyne, co ma się liczyć).
+    db_session.add(Trade(timestamp=t0 + timedelta(hours=2), symbol="BTC/USD", side="BUY", quantity=0.01, price=60000.0, usdt_value=600.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.add(Trade(timestamp=t0 + timedelta(hours=3), symbol="BTC/USD", side="SELL", quantity=0.01, price=66000.0, usdt_value=660.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.commit()
+
+    realized, wins, losses = scorecard._walk_realized(db_session, venue="crypto")
+    assert wins == 1 and losses == 0  # tylko zamknięcie BTC/USD
+    assert round(realized, 2) == 60.0  # +$60 z BTC, bez -$5 z ADA
+    hist = scorecard.realized_history(db_session, venue="crypto")
+    assert [h["symbol"] for h in hist] == ["BTC/USD"]  # legacy ADAUSD pominięty
+
+
 def test_scorecard_degrades_without_baseline(db_session, settings):
     card = scorecard.compute_scorecard(db_session, settings, {"total_value_usdt": 0.0, "prices": {}})
     assert card["benchmark_value"] is None

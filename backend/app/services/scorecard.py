@@ -55,6 +55,11 @@ def _walk_realized(db: Session, since=None, alpaca_only: bool = False, venue: st
                 in_window = False
             if venue is not None and getattr(t, "venue", "alpaca") != venue:
                 in_window = False
+            # BIEŻĄCY run krypto używa par ("BTC/USD"); starsze krypto-zaszłości
+            # (slash-less, np. "ADAUSD" z lipcowego eksperymentu) NIE liczą się do
+            # staty żywego konta -- inaczej trafność/realized pokazują cudzą epokę.
+            if venue == "crypto" and "/" not in sym:
+                in_window = False
             if in_window:
                 realized += pnl
                 if pnl >= 0:
@@ -160,6 +165,11 @@ def realized_history(db: Session, *, venue: str | None = None, limit: int = 300)
                 cost_by[sym] = 0.0
                 opened_by.pop(sym, None)
                 thesis_by.pop(sym, None)
+    # Bieżący run krypto = pary ("BTC/USD"); starsze krypto-zaszłości (slash-less)
+    # nie trafiają do Historii/edge żywego konta. Walk średniego kosztu liczył się
+    # po pełnej historii (poprawnie), filtrujemy dopiero prezentację.
+    if venue == "crypto":
+        out = [o for o in out if "/" in o["symbol"]]
     out.reverse()  # najnowsze pierwsze
     return out[:limit]
 
