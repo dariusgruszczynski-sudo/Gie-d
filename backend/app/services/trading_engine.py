@@ -2201,6 +2201,54 @@ def _run_auto_deploy(
     return executed, pf
 
 
+# Maksymalny wiek „ostatniej decyzji" na pulpicie dla taniego silnika krypto:
+# gdy bot tylko trzyma i nic nie wyzwala cyklu, i tak co tyle minut zapisujemy
+# lekki HOLD-heartbeat, żeby pulpit nie zamarł na STAREJ (np. zdjętej) decyzji.
+_CRYPTO_HEARTBEAT_MIN = 360
+
+
+def _maybe_crypto_heartbeat(db: Session, settings: Settings, portfolio: dict, symbols: list[str], venue: str):
+    """Lekki HOLD-heartbeat dla taniego silnika krypto. Gdy trzyma i NIC nie
+    wyzwoliło cyklu, run_cycle zwracał None i w logu zostawała STARA, czasem
+    strasząca decyzja (np. dawno zdjęty halt) jako „ostatnia" -> bot wyglądał na
+    zablokowanego, choć działa. Zapisujemy więc aktualny spokojny stan. Throttle:
+    ≤ raz na _CRYPTO_HEARTBEAT_MIN; wyjątek — gdy ostatnia decyzja to nieaktualny
+    halt/skip, odświeżamy OD RAZU, żeby zdjąć straszak z pulpitu."""
+    last = db.execute(
+        select(Decision).where(Decision.venue == venue).order_by(Decision.timestamp.desc()).limit(1)
+    ).scalars().first()
+    now = datetime.now(UTC)
+    stale_scary = bool(last and (last.rejection_reason or "") and "limit strat" in (last.rejection_reason or ""))
+    if last is not None and not stale_scary and last.timestamp is not None:
+        ts = last.timestamp if last.timestamp.tzinfo else last.timestamp.replace(tzinfo=UTC)
+        if (now - ts).total_seconds() < _CRYPTO_HEARTBEAT_MIN * 60:
+            return None  # świeżo — nie zaśmiecaj logu
+    held = _held_symbols(portfolio, settings, symbols)
+    n = len(held)
+    names = ", ".join(_base_asset(s, settings.quote_currency) for s in held[:6]) or "—"
+    decision = Decision(
+        symbol=None,
+        action=TradeAction.HOLD,
+        size_pct=0.0,
+        confidence=0.0,
+        reasoning=(
+            f"Trzymam {n} {'pozycję' if n == 1 else 'pozycji'} ({names}); brak nowego sygnału w tym cyklu. "
+            "Mechaniczne stopy/cele, trailing i breakeven czuwają 24/7 — to zdrowy stan, nie bezczynność."
+        ),
+        market_data_snapshot="{}",
+        news_snapshot="[]",
+        market_context_snapshot="{}",
+        triggered_by=TriggerType.SCHEDULED_DAILY,
+        executed=False,
+        rejection_reason=None,
+        venue=venue,
+    )
+    db.add(decision)
+    db.commit()
+    db.refresh(decision)
+    return decision
+
+
 def run_cycle(
     db: Session,
     settings: Settings,
@@ -2310,6 +2358,11 @@ def run_cycle(
     if force:
         trigger_reason = TriggerType.MANUAL
     elif not triggered:
+        # Tani silnik krypto, który tylko trzyma: zapisz HOLD-heartbeat (throttlowany),
+        # żeby pulpit pokazywał aktualny spokojny stan, a nie starą/zdjętą decyzję.
+        # Nie robimy tego przy realnym halcie (wtedy nie udawaj, że wszystko gra).
+        if venue == "crypto" and not settings.crypto_llm_enabled and not state.is_halted:
+            return _maybe_crypto_heartbeat(db, settings, portfolio, symbols, venue)
         return None
 
     trade_check = risk_manager.can_trade_automated(db, venue)

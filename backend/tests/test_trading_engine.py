@@ -153,6 +153,37 @@ def test_crypto_cheap_cycle_stop_loss_closes_without_llm(db_session, settings):
     assert broker.balances["BTC/USD"] <= 1e-9
 
 
+def test_crypto_heartbeat_writes_hold_and_throttles(db_session, settings):
+    """Tani silnik krypto, który tylko trzyma, zapisuje HOLD-heartbeat (żeby pulpit
+    nie zamarł na starej decyzji), ale throttluje świeże wpisy."""
+    cs = settings.model_copy(update={"crypto_enabled": True})
+    pf = {"balances": {"BTC/USD": 0.02}, "prices": {"BTC/USD": 60000.0},
+          "usdt_balance": 300.0, "total_value_usdt": 1500.0}
+    d1 = trading_engine._maybe_crypto_heartbeat(db_session, cs, pf, ["BTC/USD"], "crypto")
+    assert d1 is not None and d1.action.value == "HOLD" and d1.venue == "crypto"
+    # Od razu druga próba: ostatnia decyzja świeża i niestraszna -> throttle -> None.
+    assert trading_engine._maybe_crypto_heartbeat(db_session, cs, pf, ["BTC/USD"], "crypto") is None
+
+
+def test_crypto_heartbeat_replaces_stale_halt_immediately(db_session, settings):
+    """Gdy ostatnia decyzja to nieaktualny halt/skip (limit strat), heartbeat
+    odświeża OD RAZU, żeby zdjąć straszak z pulpitu (bez czekania na throttle)."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.models import Decision, TradeAction, TriggerType
+    db_session.add(Decision(
+        timestamp=datetime.now(UTC) - timedelta(minutes=5), symbol=None, action=TradeAction.HOLD,
+        size_pct=0.0, confidence=0.0, reasoning="skip",
+        rejection_reason="Dzienny limit strat przekroczony: -99.6% (limit 20.0%)",
+        triggered_by=TriggerType.SCHEDULED_DAILY, executed=False, venue="crypto",
+    ))
+    db_session.commit()
+    cs = settings.model_copy(update={"crypto_enabled": True})
+    pf = {"balances": {"BTC/USD": 0.02}, "prices": {"BTC/USD": 60000.0}, "usdt_balance": 300.0, "total_value_usdt": 1500.0}
+    d = trading_engine._maybe_crypto_heartbeat(db_session, cs, pf, ["BTC/USD"], "crypto")
+    assert d is not None and d.rejection_reason is None and "Trzymam" in d.reasoning
+
+
 def test_hold_decision_creates_no_trade(db_session, settings):
     broker = FakeAlpaca()
     advisor = FakeAdvisor(TradingDecision("HOLD", None, 0, 0.8, "Rynek stabilny, czekamy."))
