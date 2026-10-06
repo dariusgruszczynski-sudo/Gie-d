@@ -1,16 +1,16 @@
-# Audyt GielDarek — 2026-10-06T17:32:59Z
+# Audyt GielDarek — 2026-10-06T18:22:15Z
 
-**Wdrożenie:** kod dc455ed (zbud. 2026-10-05T18:24Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod dec6c2e (zbud. 2026-10-06T18:21Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 112 zamknięć · trafność 30.4% · zrealizowany $8.37
-**7 dni:** 13 zamknięć · 7.7% · $-0.67   |   **30 dni:** 67 · 32.8% · $8.33
+**7 dni:** 12 zamknięć · 8.3% · $-0.56   |   **30 dni:** 67 · 32.8% · $8.33
 **Edge:** śr. wygrana +$2.13 vs strata $-0.82 → na transakcję $0.07 (payoff 2.6×)
 **Trzymanie:** zyski ~3.3 dni · straty ~2.7 dni
 
 ## Wnioski
 - (good) Wynik zamkniętych transakcji od 10.08: 112 zamknięć, trafność 30% — realnie zarabia (+$8.37).
 - (bad) Trafność 7 dni 8% vs 30 dni 33% — spada.
-- (bad) Ostatnie 7 dni: -0.67 $ z 13 zamknięć.
+- (bad) Ostatnie 7 dni: -0.56 $ z 12 zamknięć.
 - (neu) Średnia wygrana +$2.13 vs strata −$0.82 (wygrana 2.6× większa) → na transakcję +$0.07. Edge ledwo dodatni — w granicach szumu małej próbki, nie licz na to jak na pewny zysk.
 - (bad) ⚠ Zyski trzymane dłużej (~3 dni) niż straty (~3 dni) — automat zwleka z realizacją zysku.
 - (neu) Największy przeciek: MSFT (-7.26 $, 11 zamk.) — kandydat do wyrzucenia z listy.
