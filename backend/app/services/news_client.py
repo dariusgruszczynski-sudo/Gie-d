@@ -230,6 +230,65 @@ PER_SUBREDDIT_LIMIT = 5
 # Reddit blocks the default httpx User-Agent -- needs a descriptive one.
 REDDIT_HEADERS = {"User-Agent": "GielDarek-trading-bot/1.0"}
 
+# ============================ KRYPTO (venue=="crypto") =======================
+# Po pełnym przełączeniu na krypto newsy i „dane z neta" muszą dotyczyć KRYPTO,
+# nie Wall Street. Osobne, keyless RSS-y krypto + krypto-subreddity + zapytania
+# per-moneta (BTC -> "Bitcoin", nie "BTC stock"). Każde źródło degraduje się
+# niezależnie do [] przy błędzie, dokładnie jak noga akcyjna. Dobór pod
+# osiągalność z datacenter (browser-UA RSS + Google News), spójnie z nogą US.
+CRYPTO_RSS_FEEDS: list[tuple[str, str]] = [
+    ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/"),
+    ("Cointelegraph", "https://cointelegraph.com/rss"),
+    ("Decrypt", "https://decrypt.co/feed"),
+    ("Bitcoin Magazine", "https://bitcoinmagazine.com/feed"),
+    ("CryptoSlate", "https://cryptoslate.com/feed/"),
+    ("The Block", "https://www.theblock.co/rss.xml"),
+    ("Bitcoinist", "https://bitcoinist.com/feed/"),
+    ("NewsBTC", "https://www.newsbtc.com/feed/"),
+    ("CryptoPotato", "https://cryptopotato.com/feed/"),
+    ("CoinGape", "https://coingape.com/feed/"),
+    ("U.Today", "https://u.today/rss"),
+    ("CoinJournal", "https://coinjournal.net/feed/"),
+    ("Google News — Crypto", "https://news.google.com/rss/search?q=cryptocurrency+when:1d&hl=en-US&gl=US&ceid=US:en"),
+    ("Google News — Bitcoin/ETH", "https://news.google.com/rss/search?q=bitcoin+OR+ethereum+when:1d&hl=en-US&gl=US&ceid=US:en"),
+    # Makro ma znaczenie dla krypto (stopy Fed, regulacje) — wąsko, keyless.
+    ("Google News — Crypto regulacje/Fed", "https://news.google.com/rss/search?q=crypto+regulation+OR+SEC+OR+%22interest+rates%22+when:2d&hl=en-US&gl=US&ceid=US:en"),
+]
+
+# Krypto-subreddity (sentyment tłumu). Reddit 403-uje IP datacenter jak na nodze
+# US — degraduje się do [] bez szkody; działa gdzie nie jest blokowany.
+CRYPTO_REDDIT_SUBREDDITS = ["CryptoCurrency", "Bitcoin", "ethtrader", "CryptoMarkets"]
+
+# Polski pasek newsów (display) — zapytania krypto zamiast „giełda USA".
+CRYPTO_PL_NEWS_QUERIES: list[str] = [
+    "kryptowaluty bitcoin",
+    "ethereum kurs",
+    "rynek krypto notowania",
+    "bitcoin cena prognoza",
+    "regulacje kryptowalut",
+]
+
+# Baza -> pełna nazwa do wyszukiwarki: „BTC" w Google News to szum, „Bitcoin" nie.
+CRYPTO_NAMES: dict[str, str] = {
+    "BTC": "Bitcoin", "ETH": "Ethereum", "SOL": "Solana", "XRP": "XRP Ripple",
+    "DOGE": "Dogecoin", "ADA": "Cardano", "AVAX": "Avalanche", "LINK": "Chainlink",
+    "LTC": "Litecoin", "DOT": "Polkadot", "MATIC": "Polygon", "POL": "Polygon",
+    "SHIB": "Shiba Inu", "BCH": "Bitcoin Cash", "UNI": "Uniswap", "AAVE": "Aave",
+    "ATOM": "Cosmos", "ARB": "Arbitrum", "OP": "Optimism", "SUI": "Sui crypto",
+    "APT": "Aptos", "NEAR": "NEAR Protocol", "TRX": "Tron", "XLM": "Stellar",
+    "ETC": "Ethereum Classic", "FIL": "Filecoin", "ICP": "Internet Computer",
+    "HBAR": "Hedera", "VET": "VeChain", "ALGO": "Algorand", "GRT": "The Graph",
+    "MKR": "Maker crypto", "LDO": "Lido", "PEPE": "Pepe coin", "WIF": "dogwifhat",
+}
+
+
+def _crypto_name(symbol: str) -> str:
+    """Czytelna nazwa monety do wyszukiwarki newsów. Przyjmuje zarówno bazę
+    ('BTC') jak i parę ('BTC/USD') -- zdejmuje walutę kwotowaną i mapuje na
+    pełną nazwę; fallback '<SYM> crypto' dla nieznanych monet."""
+    base = symbol.upper().split("/", 1)[0].strip()
+    return CRYPTO_NAMES.get(base, base)
+
 
 def _local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
@@ -269,18 +328,22 @@ def _get_rss(source: str, url: str, limit: int, params: dict | None = None) -> l
         return []
 
 
-def _ticker_query(ticker: str) -> str:
-    # US-equities/ETF only now (crypto venue removed) -- every whitelist symbol
-    # is a plain ticker.
+def _ticker_query(ticker: str, crypto: bool = False) -> str:
+    # Krypto: „BTC" -> „Bitcoin crypto" (szukanie po nazwie monety, nie po gołym
+    # tickerze). Akcje/ETF: „<ticker> stock".
+    if crypto:
+        name = _crypto_name(ticker)
+        return name if "crypto" in name.lower() else f"{name} crypto"
     return f"{ticker} stock"
 
 
-def _get_ticker_headlines(ticker: str, limit: int) -> list[dict]:
+def _get_ticker_headlines(ticker: str, limit: int, crypto: bool = False) -> list[dict]:
+    label = _crypto_name(ticker) if crypto else ticker
     return _get_rss(
-        f"Google News ({ticker})",
+        f"Google News ({label})",
         GOOGLE_NEWS_RSS_URL,
         limit,
-        params={"q": _ticker_query(ticker), "hl": "en-US", "gl": "US", "ceid": "US:en"},
+        params={"q": _ticker_query(ticker, crypto), "hl": "en-US", "gl": "US", "ceid": "US:en"},
     )
 
 
@@ -421,7 +484,9 @@ def _get_alpaca_company(ticker: str, creds: tuple[str, str]) -> list[dict]:
 ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"
 _ALPHA_VANTAGE_TTL_S = 1800  # 30 min -> <= ~48 calls/day worst case, well under free cap in practice
 _ALPHA_VANTAGE_LIMIT = 8
-_av_cache: dict = {"at": 0.0, "items": []}
+# Cache per TOPIC: krypto pyta topics=blockchain, akcje topics=financial_markets
+# -- osobne wiadra, żeby jedno venue nie serwowało drugiemu nie-swoich newsów.
+_av_cache: dict[str, dict] = {}
 
 
 def _av_items(feed: list, limit: int) -> list[dict]:
@@ -452,18 +517,19 @@ def _av_items(feed: list, limit: int) -> list[dict]:
     return out
 
 
-def _get_alpha_vantage_general(key: str) -> list[dict]:
+def _get_alpha_vantage_general(key: str, topics: str = "financial_markets") -> list[dict]:
     if not key:
         return []
     now = time.monotonic()
-    if _av_cache["items"] and now - _av_cache["at"] < _ALPHA_VANTAGE_TTL_S:
-        return _av_cache["items"]
+    bucket = _av_cache.setdefault(topics, {"at": 0.0, "items": []})
+    if bucket["items"] and now - bucket["at"] < _ALPHA_VANTAGE_TTL_S:
+        return bucket["items"]
     try:
         resp = httpx.get(
             ALPHA_VANTAGE_URL,
             params={
                 "function": "NEWS_SENTIMENT",
-                "topics": "financial_markets",
+                "topics": topics,
                 "sort": "LATEST",
                 "limit": _ALPHA_VANTAGE_LIMIT,
                 "apikey": key,
@@ -474,16 +540,16 @@ def _get_alpha_vantage_general(key: str) -> list[dict]:
         data = resp.json()
     except Exception as exc:
         logger.warning("Alpha Vantage failed (%s), keeping last cache", type(exc).__name__)
-        return _av_cache["items"] or []
+        return bucket["items"] or []
     feed = data.get("feed")
     if not isinstance(feed, list):
         # AV signals throttle/error with HTTP 200 + {"Information"/"Note": ...}.
         note = data.get("Information") or data.get("Note") or ""
         logger.warning("Alpha Vantage no feed (%s), keeping last cache", (note[:80] if note else list(data.keys())))
-        return _av_cache["items"] or []
+        return bucket["items"] or []
     items = _av_items(feed, _ALPHA_VANTAGE_LIMIT)
-    _av_cache["at"] = now
-    _av_cache["items"] = items
+    bucket["at"] = now
+    bucket["items"] = items
     return items
 
 
@@ -568,11 +634,15 @@ def _get_serpapi_general(key: str) -> list[dict]:
 
 
 def _get_ticker_all(
-    ticker: str, limit: int, finnhub_key: str = "", alpaca_creds: tuple[str, str] | None = None
+    ticker: str, limit: int, finnhub_key: str = "", alpaca_creds: tuple[str, str] | None = None,
+    crypto: bool = False,
 ) -> list[dict]:
-    """Per-ticker headlines from Alpaca News (primary) + Google News, plus
-    Finnhub company-news when a key is set. Merged so a keyless deployment still
-    works and a keyed one gets the reliable, non-IP-blocked sources on top."""
+    """Per-ticker headlines. Akcje: Alpaca News (primary) + Google News + Finnhub
+    company-news (gdy klucz). KRYPTO: tylko Google News po NAZWIE monety — Alpaca
+    company-news i Finnhub company-news to API akcji (symbol „BTC/USD" tam nie
+    istnieje), więc je pomijamy, żeby nie wstrzykiwać pustki/szumu akcyjnego."""
+    if crypto:
+        return _get_ticker_headlines(ticker, limit, crypto=True)
     items: list[dict] = []
     if alpaca_creds:
         items += _get_alpaca_company(ticker, alpaca_creds)
@@ -648,21 +718,23 @@ class NewsClient:
         return getattr(self._settings, "serpapi_api_key", "") or ""
 
     def get_new_ticker_headlines(
-        self, tickers: list[str], seen: dict[str, list[str]]
+        self, tickers: list[str], seen: dict[str, list[str]], venue: str = "alpaca"
     ) -> tuple[list[dict], dict[str, list[str]]]:
         """Cheap, per-ticker-only fetch (no Claude cost) used to detect a
-        brand-new headline -- earnings release, material single-stock news --
-        the moment it's published, independent of any price move. `seen` is
-        the previous cycle's {ticker: [recent titles]}; returns (genuinely
-        new headlines across all tickers, updated seen-state to persist)."""
+        brand-new headline -- earnings release, material single-stock news (akcje)
+        lub świeży news o monecie (krypto) -- the moment it's published,
+        independent of any price move. `seen` is the previous cycle's
+        {ticker: [recent titles]}; returns (genuinely new headlines across all
+        tickers, updated seen-state to persist)."""
         new_headlines: list[dict] = []
         updated_seen: dict[str, list[str]] = {}
 
+        crypto = venue == "crypto"
         key = self._finnhub_key
         creds = self._alpaca_creds
         with ThreadPoolExecutor(max_workers=max(len(tickers), 1)) as pool:
             futures = {
-                ticker: pool.submit(_get_ticker_all, ticker, PER_TICKER_LIMIT, key, creds) for ticker in tickers
+                ticker: pool.submit(_get_ticker_all, ticker, PER_TICKER_LIMIT, key, creds, crypto) for ticker in tickers
             }
             for ticker, future in futures.items():
                 try:
@@ -693,34 +765,45 @@ class NewsClient:
             logger.warning("Trending-symbols fetch failed, skipping discovery", exc_info=True)
             return []
 
-    def source_report(self, tickers: list[str]) -> dict:
+    def source_report(self, tickers: list[str], venue: str = "alpaca") -> dict:
         """Live status KAŻDEGO źródła osobno dla zakładki NEWSY: odpala każde
         źródło niezależnie i mówi ok/down + ile nagłówków ZWRÓCIŁO TERAZ (to jest
         'co widzę na żywo', nie tylko 'czy jest połączenie'). Zwraca też złączoną
         próbkę nagłówków (z sentymentem, gdy jest), żeby UI pokazał realny feed."""
+        crypto = venue == "crypto"
         key = self._finnhub_key
         creds = self._alpaca_creds
         av = self._alpha_vantage_key
 
         jobs: list[tuple[str, str, object]] = []
-        base_urls = {u for _, u in RSS_FEEDS}
-        for name, url in active_rss_feeds():
-            grp = "RSS / feedy" if url in base_urls else "RSS / auto-odkryte"
-            jobs.append((name, grp, lambda u=url, nm=name: _get_rss(nm, u, PER_SOURCE_LIMIT)))
-        for sub in REDDIT_SUBREDDITS:
+        if crypto:
+            for name, url in CRYPTO_RSS_FEEDS:
+                jobs.append((name, "RSS / krypto", lambda u=url, nm=name: _get_rss(nm, u, PER_SOURCE_LIMIT)))
+        else:
+            base_urls = {u for _, u in RSS_FEEDS}
+            for name, url in active_rss_feeds():
+                grp = "RSS / feedy" if url in base_urls else "RSS / auto-odkryte"
+                jobs.append((name, grp, lambda u=url, nm=name: _get_rss(nm, u, PER_SOURCE_LIMIT)))
+        for sub in (CRYPTO_REDDIT_SUBREDDITS if crypto else REDDIT_SUBREDDITS):
             jobs.append((f"Reddit r/{sub}", "Reddit", lambda s=sub: _get_reddit(s, PER_SUBREDDIT_LIMIT)))
         for t in tickers[:6]:
-            jobs.append((f"Per-ticker: {t}", "Per-ticker", lambda tt=t: _get_ticker_all(tt, PER_TICKER_LIMIT, key, creds)))
-        if creds:
-            jobs.append(("Alpaca News (Benzinga)", "Keyed (główne)", lambda: _get_alpaca_general(creds)))
-        if av:
-            jobs.append(("Alpha Vantage (sentyment)", "Keyed (główne)", lambda: _get_alpha_vantage_general(av)))
-        if self._newsapi_key:
-            jobs.append(("NewsAPI.org", "Keyed (główne)", lambda: _get_newsapi_general(self._newsapi_key)))
-        if self._serpapi_key:
-            jobs.append(("SerpAPI (Google News)", "Keyed (główne)", lambda: _get_serpapi_general(self._serpapi_key)))
-        if key:
-            jobs.append(("Finnhub", "Keyed (główne)", lambda: _get_finnhub_general(key)))
+            label = _crypto_name(t) if crypto else t
+            jobs.append((f"Per-moneta: {label}" if crypto else f"Per-ticker: {t}", "Per-moneta" if crypto else "Per-ticker",
+                         lambda tt=t: _get_ticker_all(tt, PER_TICKER_LIMIT, key, creds, crypto)))
+        if crypto:
+            if av:
+                jobs.append(("Alpha Vantage (blockchain)", "Keyed (główne)", lambda: _get_alpha_vantage_general(av, "blockchain")))
+        else:
+            if creds:
+                jobs.append(("Alpaca News (Benzinga)", "Keyed (główne)", lambda: _get_alpaca_general(creds)))
+            if av:
+                jobs.append(("Alpha Vantage (sentyment)", "Keyed (główne)", lambda: _get_alpha_vantage_general(av)))
+            if self._newsapi_key:
+                jobs.append(("NewsAPI.org", "Keyed (główne)", lambda: _get_newsapi_general(self._newsapi_key)))
+            if self._serpapi_key:
+                jobs.append(("SerpAPI (Google News)", "Keyed (główne)", lambda: _get_serpapi_general(self._serpapi_key)))
+            if key:
+                jobs.append(("Finnhub", "Keyed (główne)", lambda: _get_finnhub_general(key)))
 
         sources: list[dict] = []
         per_source_items: list[list[dict]] = []
@@ -774,30 +857,42 @@ class NewsClient:
                 break
         return out
 
-    def get_headlines(self, tickers: list[str], limit: int = 40) -> list[dict]:
+    def get_headlines(self, tickers: list[str], limit: int = 40, venue: str = "alpaca") -> list[dict]:
+        crypto = venue == "crypto"
         key = self._finnhub_key
         creds = self._alpaca_creds
         av_key = self._alpha_vantage_key
-        feeds = active_rss_feeds()
-        worker_count = len(feeds) + len(tickers) + len(REDDIT_SUBREDDITS) + 5
+        # Krypto: krypto-feedy + krypto-subreddity + per-moneta po NAZWIE. Stock-owe
+        # źródła keyed (Alpaca/Benzinga, Finnhub, AV topics=financial_markets,
+        # NewsAPI business, SerpAPI „stock market") są pomijane — to Wall Street,
+        # nie krypto. Akcje: jak dotąd (RSS US + per-ticker + Reddit + keyed).
+        feeds = CRYPTO_RSS_FEEDS if crypto else active_rss_feeds()
+        subs = CRYPTO_REDDIT_SUBREDDITS if crypto else REDDIT_SUBREDDITS
+        worker_count = len(feeds) + len(tickers) + len(subs) + 5
         with ThreadPoolExecutor(max_workers=worker_count) as pool:
             futures = [pool.submit(_get_rss, name, url, PER_SOURCE_LIMIT) for name, url in feeds]
-            futures += [pool.submit(_get_ticker_all, ticker, PER_TICKER_LIMIT, key, creds) for ticker in tickers]
-            futures += [pool.submit(_get_reddit, sub, PER_SUBREDDIT_LIMIT) for sub in REDDIT_SUBREDDITS]
-            # Keyed primary source (only when configured): broad US market news.
-            if key:
-                futures.append(pool.submit(_get_finnhub_general, key, "general"))
-            # Alpaca News general feed -- reliable, non-IP-blocked broad market news.
-            if creds:
-                futures.append(pool.submit(_get_alpaca_general, creds))
-            # Alpha Vantage general market sentiment (TTL-cached; sentiment-scored).
-            if av_key:
-                futures.append(pool.submit(_get_alpha_vantage_general, av_key))
-            # NewsAPI.org + SerpAPI general headlines (both TTL-cached).
-            if self._newsapi_key:
-                futures.append(pool.submit(_get_newsapi_general, self._newsapi_key))
-            if self._serpapi_key:
-                futures.append(pool.submit(_get_serpapi_general, self._serpapi_key))
+            futures += [pool.submit(_get_ticker_all, ticker, PER_TICKER_LIMIT, key, creds, crypto) for ticker in tickers]
+            futures += [pool.submit(_get_reddit, sub, PER_SUBREDDIT_LIMIT) for sub in subs]
+            if crypto:
+                # Krypto: sentyment keyed tylko gdzie API ma sens dla krypto
+                # (Alpha Vantage topics=blockchain). Reszta keyed = akcje, pomijamy.
+                if av_key:
+                    futures.append(pool.submit(_get_alpha_vantage_general, av_key, "blockchain"))
+            else:
+                # Keyed primary source (only when configured): broad US market news.
+                if key:
+                    futures.append(pool.submit(_get_finnhub_general, key, "general"))
+                # Alpaca News general feed -- reliable, non-IP-blocked broad market news.
+                if creds:
+                    futures.append(pool.submit(_get_alpaca_general, creds))
+                # Alpha Vantage general market sentiment (TTL-cached; sentiment-scored).
+                if av_key:
+                    futures.append(pool.submit(_get_alpha_vantage_general, av_key))
+                # NewsAPI.org + SerpAPI general headlines (both TTL-cached).
+                if self._newsapi_key:
+                    futures.append(pool.submit(_get_newsapi_general, self._newsapi_key))
+                if self._serpapi_key:
+                    futures.append(pool.submit(_get_serpapi_general, self._serpapi_key))
 
             per_source: list[list[dict]] = []
             for future in futures:

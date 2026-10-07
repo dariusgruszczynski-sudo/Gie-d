@@ -81,10 +81,10 @@ class Broker:
 
 
 class News:
-    def get_headlines(self, currencies, limit=10):
+    def get_headlines(self, currencies, limit=10, venue="alpaca"):
         return []
 
-    def get_new_ticker_headlines(self, tickers, seen):
+    def get_new_ticker_headlines(self, tickers, seen, venue="alpaca"):
         return [], {t: seen.get(t, []) for t in tickers}
 
 
@@ -295,10 +295,10 @@ def test_news_blackout_halts_new_entries_and_skips_claude(db_session):
     broker, ctx = Broker(), Ctx()
 
     class DarkNews:
-        def get_headlines(self, currencies, limit=10):
+        def get_headlines(self, currencies, limit=10, venue="alpaca"):
             return []  # feedy w dół
 
-        def get_new_ticker_headlines(self, tickers, seen):
+        def get_new_ticker_headlines(self, tickers, seen, venue="alpaca"):
             return [], {t: seen.get(t, []) for t in tickers}
 
     advisor = Advisor(TradingDecision("BUY", "SPY", 10, 0.9, "Nie powinno pójść do Claude."))

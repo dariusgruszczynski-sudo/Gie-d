@@ -89,10 +89,10 @@ class _FakeOrder:
 
 
 class FakeNews:
-    def get_headlines(self, currencies, limit=10):
+    def get_headlines(self, currencies, limit=10, venue="alpaca"):
         return []
 
-    def get_new_ticker_headlines(self, tickers, seen):
+    def get_new_ticker_headlines(self, tickers, seen, venue="alpaca"):
         return [], {ticker: seen.get(ticker, []) for ticker in tickers}
 
 
@@ -1004,10 +1004,10 @@ def test_news_event_triggers_cycle_independent_of_price_move(db_session, setting
     trading_engine.check_trigger(db_session, settings, broker.prices)  # seed last-check prices, rule out price-move
 
     class NewsWithFreshHeadline:
-        def get_headlines(self, currencies, limit=10):
+        def get_headlines(self, currencies, limit=10, venue="alpaca"):
             return []
 
-        def get_new_ticker_headlines(self, tickers, seen):
+        def get_new_ticker_headlines(self, tickers, seen, venue="alpaca"):
             return [{"title": "SPY Corp reports blowout earnings", "published_at": "", "source": "Yahoo Finance (SPY)"}], {
                 t: seen.get(t, []) for t in tickers
             }

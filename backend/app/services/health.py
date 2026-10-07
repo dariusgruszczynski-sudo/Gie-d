@@ -102,9 +102,17 @@ def _probe_news(db, settings):
             keyed_sources.append("SerpAPI")
         keyed = (" · keyed: " + ", ".join(keyed_sources)) if keyed_sources else " · tylko RSS (brak keyed)"
 
-        headlines = NewsClient(settings).get_headlines(
-            (settings.whitelist_symbols[:2] + settings.extended_whitelist_symbols[:1]), limit=40
-        )
+        # Po przełączeniu na krypto sprawdzamy KRYPTO-feedy (venue="crypto"),
+        # nie Wall Street -- inaczej health raportowałby „zdrowe" newsy, których
+        # krypto-silnik i tak nie używa.
+        crypto = getattr(settings, "crypto_enabled", False)
+        if crypto:
+            probe_symbols = settings.crypto_symbols[:3]
+            venue = "crypto"
+        else:
+            probe_symbols = settings.whitelist_symbols[:2] + settings.extended_whitelist_symbols[:1]
+            venue = "alpaca"
+        headlines = NewsClient(settings).get_headlines(probe_symbols, limit=40, venue=venue)
         n = len(headlines)
         floor = settings.news_min_headlines if getattr(settings, "news_blackout_halt_enabled", False) else 1
         if n < floor:

@@ -480,7 +480,7 @@ def check_news_trigger(
     seen_col = _state_col("seen", venue)
     symbols = whitelist if whitelist is not None else settings.whitelist_symbols
     seen: dict[str, list[str]] = json.loads(getattr(state, seen_col) or "{}")
-    new_headlines, updated_seen = news.get_new_ticker_headlines(symbols, seen)
+    new_headlines, updated_seen = news.get_new_ticker_headlines(symbols, seen, venue=venue)
     setattr(state, seen_col, json.dumps(updated_seen))
     db.commit()
     if new_headlines:
@@ -2440,7 +2440,7 @@ def run_cycle(
     # missing from market_data (Alpaca failure above) must not be a choosable
     # BUY/SELL target.
     tradable_symbols = list(market_data.keys())
-    headlines = news.get_headlines([_base_asset(s, settings.quote_currency) for s in symbols])
+    headlines = news.get_headlines([_base_asset(s, settings.quote_currency) for s in symbols], venue=venue)
     # The headlines that actually TRIGGERED this cycle (fresh earnings print,
     # breaking single-stock news) must stand out from routine background news,
     # or Claude can't tell what it's reacting to. Flag and front-load them.
