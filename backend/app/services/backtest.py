@@ -29,7 +29,12 @@ from datetime import UTC, datetime
 
 from app.config import Settings
 from app.services import signals
-from app.services.technical_indicators import compute_technical_indicators, compute_volatility_pct
+from app.services.technical_indicators import (
+    compute_adx,
+    compute_technical_indicators,
+    compute_volatility_pct,
+    donchian_high,
+)
 from app.services.trading_engine import (
     MIN_SELL_NOTIONAL_USD,
     _decide_mechanical_exit,
@@ -120,8 +125,26 @@ def run_backtest(
         return {"error": "insufficient history", "bars": 0}
 
     closes = {s: [float(r[4]) for r in bars_by_symbol[s]] for s in symbols}
+    # H/L dla mechanizmów wejścia #8 (Donchian) i #9 (ADX). Yahoo/Alpaca zwracają
+    # [t,o,h,l,c,v]; gdyby brakło kolumn, fallback na close (brak wybicia/ADX off).
+    highs = {s: [float(r[2]) if len(r) > 2 else float(r[4]) for r in bars_by_symbol[s]] for s in symbols}
+    lows = {s: [float(r[3]) if len(r) > 3 else float(r[4]) for r in bars_by_symbol[s]] for s in symbols}
     times = {s: [_epoch(r[0]) for r in bars_by_symbol[s]] for s in symbols}
     timeline = sorted({e for s in symbols for e in times[s]})
+
+    # Knoby 10 mechanizmów (te, które zmieniają KTÓRE trejdy / jak wychodzą; #2/#5/#7
+    # to nakładki pacing/ryzyka -> nie modelowane w backteście, obserwowane na żywo).
+    regime_on = getattr(settings, "regime_filter_enabled", False)
+    regime_ma = getattr(settings, "regime_filter_ma_period", 200) or 200
+    breakout_on = getattr(settings, "breakout_entry_enabled", False)
+    breakout_lb = getattr(settings, "breakout_lookback", 0) or 0
+    min_adx = getattr(settings, "min_adx", 0.0) or 0.0
+    max_expo = getattr(settings, "max_total_exposure_pct", 0.0) or 0.0
+    pyramid_on = getattr(settings, "pyramid_enabled", False)
+    pyramid_gain = getattr(settings, "pyramid_min_gain_pct", 0.0) or 0.0
+    pyramid_max = getattr(settings, "pyramid_max_position_pct", 0.0) or 0.0
+    exit_ma = getattr(settings, "trend_exit_ma_period", 0) or 0
+    exit_confirm = getattr(settings, "trend_exit_confirm_bars", 0) or 0
 
     cash = starting_cash
     positions: dict[str, _Pos] = {}
@@ -150,9 +173,19 @@ def run_backtest(
             pos = positions[s]
             pos.peak = max(pos.peak, price)
             basis = pos.cost / pos.qty
-            stop_pct = dynamic_stop_loss_pct(settings, compute_volatility_pct(sc[-(VOL_WINDOW + 2):]))
+            vol_pct = compute_volatility_pct(sc[-(VOL_WINDOW + 2):])
+            stop_pct = dynamic_stop_loss_pct(settings, vol_pct)
+            # Hartowany trend-exit (#3/+ bufor/potwierdzenie) i vol-trailing: te same
+            # wejścia do _decide_mechanical_exit, co w żywym silniku.
+            trend_ma = None
+            trend_bars_below = 0
+            if exit_ma and len(sc) >= exit_ma:
+                trend_ma = sum(sc[-exit_ma:]) / exit_ma
+                if exit_confirm and len(sc) >= exit_confirm:
+                    trend_bars_below = sum(1 for c in sc[-exit_confirm:] if c < trend_ma)
             reason, sell_pct, kind = _decide_mechanical_exit(
-                settings, s, basis, price, pos.peak, stop_pct=stop_pct, partial_taken=pos.partial
+                settings, s, basis, price, pos.peak, stop_pct=stop_pct, partial_taken=pos.partial,
+                trend_ma=trend_ma, trend_bars_below=trend_bars_below, vol_pct=vol_pct,
             )
             if kind is None:
                 continue
@@ -183,16 +216,70 @@ def run_backtest(
             bench_start_equity = starting_cash
 
         # ---- entries ----
+        # MECHANIZM 1 — reżim HTF: longi tylko gdy koszyk (benchmark, domyślnie BTC)
+        # jest NAD swoją długą średnią; inaczej żadne nowe wejście w tym kroku.
+        regime_ok = True
+        if regime_on and bench and idx.get(bench, 0) > 0:
+            bc = closes[bench][: idx[bench]]
+            if len(bc) >= regime_ma:
+                regime_ok = bc[-1] >= sum(bc[-regime_ma:]) / regime_ma
         for s in symbols:
-            if s in positions or idx[s] <= warmup:
+            if idx[s] <= warmup:
                 continue
+            sc = closes[s][: idx[s]]
+            price = sc[-1]
+
+            # MECHANIZM 10 — PIRAMIDOWANIE: dokładka do WYGRYWAJĄCEJ pozycji na nowym
+            # wybiciu (nigdy do straty), póki notional < pyramid_max_position_pct konta.
+            if s in positions:
+                if not pyramid_on or pyramid_max <= 0:
+                    continue
+                pos = positions[s]
+                basis = pos.cost / pos.qty
+                gain = (price - basis) / basis * 100 if basis > 0 else 0.0
+                dh = donchian_high(highs[s][: idx[s]], breakout_lb) if breakout_lb > 0 else None
+                notional = closes[s][idx[s] - 1] * pos.qty
+                if gain < pyramid_gain or dh is None or price < dh:
+                    continue
+                if equity <= 0 or notional / equity * 100 >= pyramid_max:
+                    continue
+                stop_pct = dynamic_stop_loss_pct(settings, compute_technical_indicators(sc).get("volatility_pct_1h"))
+                size_pct = min(
+                    risk_based_size_cap(settings, {"total_value_usdt": equity, "usdt_balance": cash}, stop_pct),
+                    settings.max_position_pct,
+                )
+                value = cash * size_pct / 100
+                if value < MIN_SELL_NOTIONAL_USD:
+                    continue
+                cash -= value
+                pos.qty += value / price
+                pos.cost += value
+                pos.peak = max(pos.peak, price)
+                n_entries += 1
+                continue
+
             if settings.max_concurrent_positions > 0 and len(positions) >= settings.max_concurrent_positions:
                 break
-            sc = closes[s][: idx[s]]
             technical = compute_technical_indicators(sc)
             if settings.entry_filter_enabled and not signals.entry_confluence(settings, technical).ok:
                 continue
-            price = sc[-1]
+            if not regime_ok:
+                continue
+            # MECHANIZM 8 — WYBICIE (Donchian): kup tylko na nowym maksimum okna.
+            if breakout_on and breakout_lb > 0:
+                dh = donchian_high(highs[s][: idx[s]], breakout_lb)
+                if dh is not None and price < dh:
+                    continue
+            # MECHANIZM 9 — ADX: wejście tylko gdy trend realnie istnieje.
+            if min_adx > 0:
+                adx = compute_adx(highs[s][: idx[s]], lows[s][: idx[s]], sc)
+                if adx is not None and adx < min_adx:
+                    continue
+            # MECHANIZM 4 — cap łącznej ekspozycji: brak nowych wejść przy przekroczeniu.
+            if max_expo > 0:
+                invested = sum(closes[x][idx[x] - 1] * positions[x].qty for x in positions if idx[x] > 0)
+                if equity > 0 and invested / equity * 100 >= max_expo:
+                    break
             stop_pct = dynamic_stop_loss_pct(settings, technical.get("volatility_pct_1h"))
             size_pct = min(
                 risk_based_size_cap(settings, {"total_value_usdt": equity, "usdt_balance": cash}, stop_pct),

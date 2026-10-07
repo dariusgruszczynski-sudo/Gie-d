@@ -1,0 +1,127 @@
+# Backtest strategii KRYPTO na realnych danych (Yahoo) — odpalany na runnerze
+# GitHuba, bo środowisko robocze Claude ma firewall (Yahoo/Alpaca/Binance 403).
+# Puszcza DWA przebiegi na tych samych świecach: (A) stary rdzeń (10 mechanizmów
+# OFF) i (B) z mechanizmami ON — i publikuje PORÓWNANIE na gałęzi audit-snapshots
+# (audit/backtest-crypto.md), skąd Claude je czyta. NIE wywołuje deployu.
+name: Crypto backtest
+
+on:
+  workflow_dispatch:
+    inputs:
+      years:
+        description: "Lata historii dziennej z Yahoo (crypto: BTC ~2014, ETH ~2017)"
+        default: "8"
+        required: false
+
+concurrency:
+  group: crypto-backtest
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    env:
+      SNAP_BRANCH: audit-snapshots
+      YEARS: ${{ inputs.years || '8' }}
+    steps:
+      - name: Checkout kodu (gałąź robocza)
+        uses: actions/checkout@v4
+        with:
+          ref: claude/automated-stock-trading-app-ulacio
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Zależności
+        run: pip install -r backend/requirements.txt
+
+      - name: Backtest — rdzeń BEZ mechanizmów (baseline)
+        working-directory: backend
+        env:
+          # 10 mechanizmów OFF -> czysty, poprzedni rdzeń (punkt odniesienia).
+          CRYPTO_REGIME_FILTER_ENABLED: "false"
+          CRYPTO_BREAKOUT_ENTRY_ENABLED: "false"
+          CRYPTO_MIN_ADX: "0"
+          CRYPTO_PYRAMID_ENABLED: "false"
+          CRYPTO_VOL_TRAIL_MULT: "0"
+          CRYPTO_TREND_EXIT_BUFFER_PCT: "0"
+          CRYPTO_TREND_EXIT_CONFIRM_BARS: "0"
+          CRYPTO_MAX_TOTAL_EXPOSURE_PCT: "0"
+        run: |
+          set -o pipefail
+          python scripts/run_backtest.py --venue crypto --years "${YEARS}" 2>&1 | tee ../baseline.txt
+
+      - name: Backtest — Z mechanizmami (10/10 ON, domyślne)
+        working-directory: backend
+        run: |
+          set -o pipefail
+          python scripts/run_backtest.py --venue crypto --years "${YEARS}" 2>&1 | tee ../mechanisms.txt
+
+      - name: Zbuduj porównanie (Markdown)
+        run: |
+          set -euo pipefail
+          pick() { grep -E "^[[:space:]]*$2[[:space:]]*:" "$1" | head -1 | sed -E 's/.*:[[:space:]]*//'; }
+          row() { printf '| %s | %s | %s |\n' "$1" "$(pick baseline.txt "$2")" "$(pick mechanisms.txt "$2")"; }
+          DATA_OK=yes
+          grep -q "Brak wystarczających danych" baseline.txt mechanisms.txt && DATA_OK=no || true
+          {
+            echo "# Backtest KRYPTO — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            echo "Dane: Yahoo, ${YEARS} lat, dzienne. Benchmark: trzymanie BTC. Mechaniczny rdzeń, bez Claude."
+            echo
+            if [ "$DATA_OK" = "no" ]; then
+              echo "> ⚠️ **Runner nie dociągnął danych z Yahoo** (prawdopodobnie 403 z datacenter IP)."
+              echo "> Backtest krypto trzeba odpalić tam, gdzie Yahoo jest osiągalny (VPS prod)."
+              echo
+            fi
+            echo "## Rdzeń BEZ mechanizmów  vs  Z 10 mechanizmami"
+            echo
+            echo "| Metryka | Bez (baseline) | Z mechanizmami |"
+            echo "|---|---|---|"
+            row "Zamknięć" "closed_trades"
+            row "Trafność %" "win_rate_pct"
+            row "Expectancy (R)" "expectancy_R"
+            row "Zwrot %" "total_return_pct"
+            row "Benchmark BTC %" "benchmark_return_pct"
+            row "Alpha %" "alpha_pct"
+            row "Max drawdown %" "max_drawdown_pct"
+            row "Wejść" "entries"
+            echo
+            echo "## Pełny wynik — BEZ mechanizmów"
+            echo '```'; cat baseline.txt; echo '```'
+            echo "## Pełny wynik — Z mechanizmami"
+            echo '```'; cat mechanisms.txt; echo '```'
+          } > BACKTEST.md
+          echo "Gotowe."
+
+      - name: Opublikuj na gałęzi audit-snapshots
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          STAMP=$(date -u +%Y-%m-%dT%H%MZ)
+          TMP=$(mktemp -d)
+          if git ls-remote --exit-code --heads "${REMOTE}" "${SNAP_BRANCH}" >/dev/null 2>&1; then
+            git clone --depth 1 --branch "${SNAP_BRANCH}" "${REMOTE}" "${TMP}"
+          else
+            git clone --depth 1 "${REMOTE}" "${TMP}"
+            git -C "${TMP}" checkout --orphan "${SNAP_BRANCH}"
+            git -C "${TMP}" rm -rf . >/dev/null 2>&1 || true
+          fi
+          mkdir -p "${TMP}/audit/backtests"
+          cp BACKTEST.md "${TMP}/audit/backtest-crypto.md"
+          cp BACKTEST.md "${TMP}/audit/backtests/${STAMP}.md"
+          cd "${TMP}"
+          git config user.name  "gieldarek-audit-bot"
+          git config user.email "audit@users.noreply.github.com"
+          git add audit
+          if git diff --cached --quiet; then echo "Brak zmian."; exit 0; fi
+          git commit -m "backtest krypto: ${STAMP}"
+          git push origin "HEAD:${SNAP_BRANCH}"
+          echo "Wypchnięto na ${SNAP_BRANCH}."

@@ -39,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.config import get_settings  # noqa: E402
 from app.services import backtest, historical_data  # noqa: E402
 from app.services.alpaca_client import AlpacaClient  # noqa: E402
+from app.services.strategy_profiles import effective_settings  # noqa: E402
 
 
 def _fmt_date(ms: float) -> str:
@@ -188,12 +189,17 @@ def main() -> None:
         print("\nBrak wystarczających danych do backtestu. Spróbuj --source yahoo --years 20.")
         return
 
+    # Użyj PROFILU venue (crypto_* nakładane na bazę przez effective_settings),
+    # żeby backtest widział DOKŁADNIE te knoby, co żywy silnik tej nogi — inaczej
+    # czytałby pola bazowe (mechanizmy krypto wyglądałyby na wyłączone).
+    eff = effective_settings(settings, args.venue)
+
     if args.sweep:
-        _run_sweep(bars_by_symbol, settings, benchmark, args.cash)
+        _run_sweep(bars_by_symbol, eff, benchmark, args.cash)
         return
 
     report = backtest.run_backtest(
-        bars_by_symbol, settings, benchmark_symbol=benchmark, starting_cash=args.cash
+        bars_by_symbol, eff, benchmark_symbol=benchmark, starting_cash=args.cash
     )
 
     print(f"\n=== WYNIK BACKTESTU ({source}, mechaniczny rdzeń, bez Claude) ===")
