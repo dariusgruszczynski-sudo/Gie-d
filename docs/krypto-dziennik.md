@@ -37,6 +37,29 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Wpis interwencyjny — 2026-10-07 (diagnoza + fix trend-exitu)
+Dane (venue=crypto, okno 2026-10-04 → 10-07, zrzut 14:22Z): **32 zamknięcia,
+realized −$9 376, trafność 12% (4/28), expectancy −$293/trade**, śr. wygrana
+**+0,34%** vs strata **−1,73%** (payoff 0.03×), mediana trzymania **3,9h**,
+każda para na minusie. BTC w oknie ≈ **−1%** → aktywny handel **grubo przegrywa**
+z trzymaniem BTC. Silnik żył (nie-halt, nie-paused), konto $87,8k, drawdown ~12%.
+
+**Diagnoza (read-only):** winowajca to **trend-exit (SMA50 na 1h, bez bufora i
+potwierdzenia)**. Sprawdzany co 15 min, pali się na pojedynczy tick pod średnią;
+w płaskim rynku cena bez przerwy przecina SMA50 → zwycięzcy ścinani przy ~0%,
+straty jadą do ~−1,7%, churn 32×/3 dni. To klasyczna porażka trend-followingu na
+rynku **bocznym**, wzmocniona zbyt czułym exitem (jedno z „5 ulepszeń", dec6c2e).
+Mechanika „pozwól zyskom biec" (breakeven 8% / ratchet 15% / hard-TP 40%) nigdy
+nie dochodziła do głosu — trend-exit zamykał wcześniej.
+
+**Fix (za zgodą właściciela „wdrażaj daleko"):** HARTOWANIE trend-exitu, zgodnie
+z udokumentowaną lekcją „nie dokładać filtrów WEJŚĆ" — ruszamy tylko WYJŚCIE:
+- bufor `crypto_trend_exit_buffer_pct=3%` (wyjście dopiero 3% pod średnią, nie tick),
+- potwierdzenie `crypto_trend_exit_confirm_bars=2` (2 świece zamknięte pod średnią).
+Reszta strategii bez zmian; knoby bazowe neutralne (akcje nietknięte). Próbka 3 dni
+jest za mała na strojenie pod wynik, ale to usunięcie strukturalnie twitchy exitu,
+nie curve-fit. Obserwujemy, czy payoff i trafność wracają do sensownych wartości.
+
 ### Tydzień 0 — start (2026-10-04)
 - Paper włączony, konto $100k (sztuczne), silnik mechaniczny, LLM off.
 - Zero transakcji jeszcze — zbieramy próbkę. Pierwszy realny wniosek po ~7 dniach.

@@ -58,8 +58,12 @@ pozycją, więc 5 ulepszeń działa na wyjściach, ryzyku i sizingu (knoby `cryp
    zwycięzca nie może zejść pod wejście → zamknięcie na ~zero zamiast oddania zysku.
 2. **Winner ratchet** — po dużym biegu (≥ `crypto_ratchet_trigger_pct`, 15%)
    trailing się zacieśnia (× `crypto_ratchet_trail_mult`), lockując więcej trendu.
-3. **Trend-invalidation exit** — zamknięcie pod `SMA crypto_trend_exit_ma_period`
-   (50) = trend złamany, wychodzimy przed szerokim stopem.
+3. **Trend-invalidation exit (HARTOWANY)** — zamknięcie pod `SMA crypto_trend_exit_ma_period`
+   (50) = trend złamany, wychodzimy przed szerokim stopem. Po żywym paperze (2026-10-07:
+   SMA50/1h bez bufora = whipsaw na rynku bocznym, payoff 0.03×) dołożony **bufor**
+   `crypto_trend_exit_buffer_pct` (3% — wyjście dopiero wyraźnie pod średnią, nie na tick)
+   i **potwierdzenie** `crypto_trend_exit_confirm_bars` (2 świece zamknięte pod średnią =
+   trwałe złamanie, nie knot). Hartujemy TYLKO wyjście — wejść nie filtrujemy (lekcja z akcji).
 4. **De-risk na chciwość** — Fear&Greed ≥ `crypto_fng_derisk_above` (85) → NOWE
    wejścia mniejsze (× `crypto_derisk_size_mult`).
 5. **De-risk na zatłoczony funding** — funding BTC ≥ `crypto_funding_derisk_above_pct`

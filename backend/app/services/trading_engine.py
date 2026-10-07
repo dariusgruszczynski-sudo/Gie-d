@@ -1101,6 +1101,7 @@ def _decide_mechanical_exit(
     *,
     partial_taken: bool = False,
     trend_ma: float | None = None,
+    trend_bars_below: int = 0,
 ) -> tuple[str | None, float, str | None]:
     """Returns (reason, sell_pct, kind) for a held position, or (None, 0.0,
     None) to hold. `kind` is one of "stop" / "trailing" / "take_profit" /
@@ -1124,14 +1125,24 @@ def _decide_mechanical_exit(
 
     # ULEPSZENIE 3 — TREND-INVALIDATION EXIT: trend (po którym weszliśmy) się złamał,
     # cena zamyka się pod swoją średnią trendu -> wychodzimy, nie czekając na szeroki
-    # stop. Trend-following żyje z jazdy trendem; gdy trend umiera, kapitał idzie dalej.
-    if getattr(settings, "trend_exit_ma_period", 0) and trend_ma and price < trend_ma:
-        return (
-            f"Trend-exit: {base} zamknięcie pod SMA{settings.trend_exit_ma_period} "
-            f"({price:.2f} < {trend_ma:.2f}) — trend się złamał (wynik {change_pct:+.1f}%)",
-            100.0,
-            "trend_exit",
-        )
+    # stop. HARTOWANE po żywym paperze (SMA50/1h bez bufora = whipsaw w rynku bocznym):
+    #   • bufor: cena musi być trend_exit_buffer_pct PONIŻEJ średniej (nie tick 0.1%),
+    #   • potwierdzenie: ostatnie trend_exit_confirm_bars świec zamknięte pod średnią
+    #     (trwałe złamanie, nie knot). 0/0 = zachowanie jak dawniej.
+    ma_period = getattr(settings, "trend_exit_ma_period", 0)
+    if ma_period and trend_ma:
+        buf = getattr(settings, "trend_exit_buffer_pct", 0.0) / 100.0
+        confirm = getattr(settings, "trend_exit_confirm_bars", 0) or 0
+        below_buffered = price < trend_ma * (1 - buf)
+        confirmed = confirm <= 0 or trend_bars_below >= confirm
+        if below_buffered and confirmed:
+            extra = (f", pod średnią przez {trend_bars_below}/{confirm} świec" if confirm > 0 else "")
+            return (
+                f"Trend-exit: {base} {price:.2f} < SMA{ma_period} {trend_ma:.2f} −{buf * 100:.0f}%{extra} "
+                f"— trend się złamał (wynik {change_pct:+.1f}%)",
+                100.0,
+                "trend_exit",
+            )
 
     # ULEPSZENIE 1 — BREAKEVEN RATCHET: gdy pozycja była już wyraźnie na plusie
     # (szczyt >= breakeven_trigger%) ALBO wzięliśmy już partial, zwycięzca NIE może
@@ -1312,13 +1323,19 @@ def check_take_profit_stop_loss(
             # jeden fetch historii, z niego liczymy i zmienność, i SMA trendu.
             vol_pct = None
             trend_ma = None
+            trend_bars_below = 0
             ma_period = getattr(settings, "trend_exit_ma_period", 0) or 0
-            bars_needed = max(30, ma_period + 1)
+            confirm_bars = getattr(settings, "trend_exit_confirm_bars", 0) or 0
+            bars_needed = max(30, ma_period + 1, confirm_bars + 1)
             try:
                 closes = [float(r[4]) for r in broker.get_klines(symbol, settings.signal_timeframe, bars_needed)]
                 vol_pct = compute_volatility_pct(closes[-30:])
                 if ma_period > 0 and len(closes) >= ma_period:
                     trend_ma = sum(closes[-ma_period:]) / ma_period
+                    # ile z ostatnich N świec zamknęło się pod średnią (potwierdzenie
+                    # trwałego złamania trendu dla hartowanego trend-exitu).
+                    if confirm_bars > 0 and len(closes) >= confirm_bars:
+                        trend_bars_below = sum(1 for c in closes[-confirm_bars:] if c < trend_ma)
             except Exception:
                 logger.warning("Volatility/MA fetch failed for %s, using fixed stop", symbol, exc_info=True)
             stop_pct = dynamic_stop_loss_pct(settings, vol_pct)
@@ -1334,7 +1351,7 @@ def check_take_profit_stop_loss(
             else:
                 reason, sell_pct, kind = _decide_mechanical_exit(
                     settings, base, basis, price, peak, stop_pct=stop_pct,
-                    partial_taken=already_partial, trend_ma=trend_ma,
+                    partial_taken=already_partial, trend_ma=trend_ma, trend_bars_below=trend_bars_below,
                 )
                 if kind is None:
                     new_peaks[symbol] = peak  # still holding, remember the peak

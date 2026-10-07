@@ -833,6 +833,26 @@ def test_no_trend_exit_when_disabled_or_above_ma(settings):
     assert trading_engine._decide_mechanical_exit(on_above, "ETH", 100.0, 110.0, 112.0, stop_pct=10.0, trend_ma=105.0)[2] != "trend_exit"
 
 
+def test_trend_exit_buffer_blocks_tiny_dip_below_ma(settings):
+    """HARTOWANIE: z buforem 3% drobne zejście pod średnią (0.5%) NIE wyrzuca —
+    koniec whipsawu w rynku bocznym. Dopiero złamanie o >bufor wychodzi."""
+    s = settings.model_copy(update={"trend_exit_ma_period": 50, "trend_exit_buffer_pct": 3.0, "trend_exit_confirm_bars": 0})
+    # cena 104.5 to 0.5% pod SMA 105 -> w buforze -> trzymamy.
+    assert trading_engine._decide_mechanical_exit(s, "ETH", 100.0, 104.5, 108.0, stop_pct=20.0, trend_ma=105.0)[2] != "trend_exit"
+    # cena 100 to ~4.8% pod SMA 105 -> poza buforem -> trend-exit.
+    assert trading_engine._decide_mechanical_exit(s, "ETH", 100.0, 100.0, 108.0, stop_pct=20.0, trend_ma=105.0)[2] == "trend_exit"
+
+
+def test_trend_exit_requires_confirmation_bars(settings):
+    """HARTOWANIE: z confirm_bars=2 jedna świeca pod średnią nie wystarcza —
+    wymagamy trwałego złamania (2 świece zamknięte pod średnią)."""
+    s = settings.model_copy(update={"trend_exit_ma_period": 50, "trend_exit_buffer_pct": 0.0, "trend_exit_confirm_bars": 2})
+    # poniżej średniej, ale tylko 1/2 świec pod nią -> jeszcze trzymamy (knot).
+    assert trading_engine._decide_mechanical_exit(s, "ETH", 100.0, 100.0, 108.0, stop_pct=20.0, trend_ma=105.0, trend_bars_below=1)[2] != "trend_exit"
+    # 2/2 świece pod średnią -> trwałe złamanie -> trend-exit.
+    assert trading_engine._decide_mechanical_exit(s, "ETH", 100.0, 100.0, 108.0, stop_pct=20.0, trend_ma=105.0, trend_bars_below=2)[2] == "trend_exit"
+
+
 def test_tpsl_does_not_fire_while_stopped(db_session, settings):
     broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
     trading_engine.execute_manual_trade(db_session, settings, broker, symbol="SPY", side="BUY", usdt_amount=100.0)

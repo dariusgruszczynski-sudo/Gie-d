@@ -194,6 +194,16 @@ class Settings(BaseSettings):
     #     trendu (SMA okresu) -- trend się złamał, nie czekaj na szeroki stop.
     trend_exit_ma_period: int = 0
     crypto_trend_exit_ma_period: int = 50
+    # (3a) HARTOWANIE trend-exit (lekcja z żywego paper: SMA50/1h bez bufora =
+    #     whipsaw na rynku bocznym -> zwycięzcy ścinani przy +0.3%, straty -1.7%,
+    #     32 churny w 3 dni). Bufor: wychodzimy dopiero, gdy cena jest buffer_pct
+    #     PONIŻEJ średniej (nie na pojedynczy tick 0.1%). Confirm_bars: dodatkowo
+    #     wymagamy, by ostatnie N świec ZAMKNĘŁO się pod średnią (trwałe złamanie
+    #     trendu, nie knot). 0/0 = zachowanie jak dawniej (akcje bez zmian).
+    trend_exit_buffer_pct: float = 0.0
+    crypto_trend_exit_buffer_pct: float = 3.0
+    trend_exit_confirm_bars: int = 0
+    crypto_trend_exit_confirm_bars: int = 2
     # (4)+(5) De-risk wejść przy ZATŁOCZENIU (kontrariańsko, bez twardego weta):
     #     Fear&Greed >= progu (ekstremalna chciwość) LUB funding BTC >= progu
     #     (longi zatłoczone) -> NOWE wejścia mniejsze (×derisk_size_mult).

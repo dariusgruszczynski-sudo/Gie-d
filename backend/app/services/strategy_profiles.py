@@ -60,6 +60,8 @@ _CRYPTO_OVERRIDES = {
     "crypto_ratchet_trigger_pct": "ratchet_trigger_pct",
     "crypto_ratchet_trail_mult": "ratchet_trail_mult",
     "crypto_trend_exit_ma_period": "trend_exit_ma_period",
+    "crypto_trend_exit_buffer_pct": "trend_exit_buffer_pct",
+    "crypto_trend_exit_confirm_bars": "trend_exit_confirm_bars",
     "crypto_fng_derisk_above": "fng_derisk_above",
     "crypto_funding_derisk_above_pct": "funding_derisk_above_pct",
     "crypto_derisk_size_mult": "derisk_size_mult",
