@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, DryRunResponse, StatusResponse } from "../api/client";
 
 /* STER — szuflada sterowania dostępna z każdego ekranu (zasada KONTROLA).
@@ -140,13 +140,37 @@ export function SterDrawer({ status, onChanged, onClose }: { status: StatusRespo
   const paused = status.crypto_enabled ? !!status.crypto_paused : status.is_paused;
   const halted = !!status.is_halted;
   const dotCol = halted ? "var(--cr-down)" : paused ? "var(--cr-warn)" : "var(--cr-up)";
+
+  // POWRÓT ze STER: sprzętowy „wstecz" (Android / gest na telefonie) i Escape
+  // zamykają szufladę zamiast wychodzić z apki. Wypychamy jeden wpis historii na
+  // wejściu i zdejmujemy go przy zamknięciu — bez tego „wstecz" opuszczał całą
+  // apkę i nie było jak wrócić do poprzedniego ekranu (zgłoszone przez użytkownika).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    window.history.pushState({ crSter: true }, "");
+    const onPop = () => onCloseRef.current();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCloseRef.current(); };
+    window.addEventListener("popstate", onPop);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      window.removeEventListener("keydown", onKey);
+      // Zamknięto przyciskiem (nie „wstecz") -> zdejmij nasz wpis, żeby historia
+      // była czysta. Gdy zamknięto „wstecz", wpisu już nie ma -> nic nie robimy.
+      if (window.history.state && (window.history.state as { crSter?: boolean }).crSter) {
+        window.history.back();
+      }
+    };
+  }, []);
+
   return (
     <>
       <div className="cr-scrim" onClick={onClose} />
       <aside className="cr-drawer" role="dialog" aria-label="Sterowanie botem">
         <div className="cr-drawer-head">
           <h2>⛭ Ster</h2>
-          <button className="x" onClick={onClose} aria-label="Zamknij">✕</button>
+          <button className="x" onClick={onClose} aria-label="Zamknij sterowanie">✕ Zamknij</button>
         </div>
         <div className="cr-drawer-body">
           <div className="cr-ster-who">
@@ -158,6 +182,7 @@ export function SterDrawer({ status, onChanged, onClose }: { status: StatusRespo
           <ManualSection status={status} onChanged={onChanged} />
           <DrySection status={status} />
           <LimitsSection status={status} />
+          <button className="cr-drawer-back" onClick={onClose}>← Wróć do pulpitu</button>
         </div>
       </aside>
     </>
