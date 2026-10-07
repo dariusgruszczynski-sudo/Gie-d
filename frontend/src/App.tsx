@@ -107,9 +107,21 @@ export default function App() {
   }, [refresh]);
 
   useEffect(() => {
+    // Throttle odświeżania z SSE: zdarzenia potrafią przyjść seriami, a każde
+    // refresh() to pełny re-render drzewa — to jedna z przyczyn „przycinania".
+    // Max raz na 4 s; ostatnie zdarzenie w oknie dociągane ogonem.
+    let last = 0;
+    let pending: ReturnType<typeof setTimeout> | undefined;
     const es = new EventSource(withShare("/api/events"));
-    es.onmessage = () => refresh();
-    return () => es.close();
+    es.onmessage = () => {
+      const now = Date.now();
+      const since = now - last;
+      if (since >= 4000) { last = now; refresh(); }
+      else if (!pending) {
+        pending = setTimeout(() => { pending = undefined; last = Date.now(); refresh(); }, 4000 - since);
+      }
+    };
+    return () => { es.close(); if (pending) clearTimeout(pending); };
   }, [refresh]);
 
   const changeView = useCallback((v: CrView) => {

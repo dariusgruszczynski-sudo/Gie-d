@@ -41,10 +41,14 @@
    „przycina na górze". */
 .cr-header {
   position: sticky;
+  position: -webkit-sticky;
   top: 0;
   z-index: 50;
   transform: translateZ(0);
+  -webkit-transform: translateZ(0);
   will-change: transform;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
   contain: layout paint;
   background: var(--cr-bg-2);
 }
