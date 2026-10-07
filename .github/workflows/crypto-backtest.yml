@@ -12,6 +12,10 @@ on:
         description: "Lata historii dziennej z Yahoo (crypto: BTC ~2014, ETH ~2017)"
         default: "8"
         required: false
+      sweep:
+        description: "Dołóż sweep (frontiera ryzyko/trade × pozycje): true/false"
+        default: "true"
+        required: false
 
 concurrency:
   group: crypto-backtest
@@ -62,6 +66,13 @@ jobs:
           set -o pipefail
           python scripts/run_backtest.py --venue crypto --years "${YEARS}" 2>&1 | tee ../mechanisms.txt
 
+      - name: Sweep — frontiera ekspozycji (gdy wybrany)
+        if: ${{ (inputs.sweep || 'true') == 'true' }}
+        working-directory: backend
+        run: |
+          set -o pipefail
+          python scripts/run_backtest.py --venue crypto --years "${YEARS}" --sweep 2>&1 | tee ../sweep.txt
+
       - name: Zbuduj porównanie (Markdown)
         run: |
           set -euo pipefail
@@ -96,6 +107,10 @@ jobs:
             echo '```'; cat baseline.txt; echo '```'
             echo "## Pełny wynik — Z mechanizmami"
             echo '```'; cat mechanisms.txt; echo '```'
+            if [ -f sweep.txt ]; then
+              echo "## Sweep — frontiera ryzyko/trade × równoczesne pozycje (z mechanizmami)"
+              echo '```'; cat sweep.txt; echo '```'
+            fi
           } > BACKTEST.md
           echo "Gotowe."
 
