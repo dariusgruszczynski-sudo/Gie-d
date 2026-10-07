@@ -29,15 +29,25 @@
 /* Płaski control-room — bez editorialnych blobów. */
 .cr .gd-bg { display: none; }
 .cr-root {
-  background:
-    linear-gradient(180deg, #0a0d13 0%, var(--cr-bg) 240px),
-    radial-gradient(120% 60% at 50% -10%, rgba(74, 158, 255, 0.05), transparent 60%);
+  /* Płaskie, tanie tło — żaden gradient nie repaintuje się przy scrollu. */
+  background: var(--cr-bg);
   min-height: 100vh;
 }
 
 /* ───────────────────────── STATUS BAR (zawsze na wierzchu) ──────────────── */
-/* Jeden wspólny, przyklejony nagłówek: pasek stanu + nawigacja razem. */
-.cr-header { position: sticky; top: 0; z-index: 50; }
+/* Jeden wspólny, przyklejony nagłówek: pasek stanu + nawigacja razem.
+   WŁASNA WARSTWA GPU (translateZ) + izolacja repaintu (contain): przyklejony
+   nagłówek nie przelicza się razem ze stroną przy każdej klatce scrolla — to był
+   „przycina na górze". */
+.cr-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  transform: translateZ(0);
+  will-change: transform;
+  contain: layout paint;
+  background: var(--cr-bg-2);
+}
 /* Nagłówek SOLIDNY (bez backdrop-filter) — blur na przyklejonym elemencie
    przelicza się przy każdej klatce scrolla i to był główny „przycina się na
    telefonie". Nieprzezroczyste tło = brak repaintu per-scroll. */
