@@ -14,6 +14,7 @@ from app.models import Decision, PortfolioSnapshot, Trade, TradeAction, TradeMod
 from app.services import (
     adaptive_risk,
     budget_tracker,
+    crypto_market_structure,
     earnings_calendar,
     email_reporter,
     market_hours,
@@ -24,7 +25,6 @@ from app.services import (
 )
 from app.services.alpaca_client import AlpacaAPIError
 from app.services.claude_advisor import ClaudeAdvisor
-from app.services import crypto_market_structure
 from app.services.market_context import MarketContextClient
 from app.services.market_hours import SessionInfo
 from app.services.news_client import NewsClient
@@ -1102,6 +1102,7 @@ def _decide_mechanical_exit(
     partial_taken: bool = False,
     trend_ma: float | None = None,
     trend_bars_below: int = 0,
+    vol_pct: float | None = None,
 ) -> tuple[str | None, float, str | None]:
     """Returns (reason, sell_pct, kind) for a held position, or (None, 0.0,
     None) to hold. `kind` is one of "stop" / "trailing" / "take_profit" /
@@ -1168,15 +1169,22 @@ def _decide_mechanical_exit(
 
     if settings.trailing_stop_enabled:
         armed = tp_arm <= 0 or peak >= basis * (1 + tp_arm / 100)
+        # MECHANIZM 3 — TRAILING SKALOWANY ZMIENNOŚCIĄ: podłoga trailingu rośnie ze
+        # zmiennością (vol_trail_mult × vol%), więc w rozchwianym krypto nie wyrzuca
+        # na zwykłym szumie; w spokoju schodzi do bazowego. Liczony PRZED ratchetem.
+        base_trailing = trailing
+        vtm = getattr(settings, "vol_trail_mult", 0.0)
+        if vtm > 0 and vol_pct:
+            base_trailing = max(base_trailing, vtm * vol_pct)
         # ULEPSZENIE 2 — WINNER RATCHET: po dużym biegu (szczyt >= ratchet_trigger%)
         # zacieśnij trailing (×mult), żeby zablokować więcej zysku z silnego trendu.
-        eff_trailing = trailing
+        eff_trailing = base_trailing
         rt = getattr(settings, "ratchet_trigger_pct", 0.0)
         if rt > 0 and peak_gain_pct >= rt:
-            eff_trailing = trailing * getattr(settings, "ratchet_trail_mult", 0.5)
+            eff_trailing = base_trailing * getattr(settings, "ratchet_trail_mult", 0.5)
         if armed and eff_trailing > 0 and price <= peak * (1 - eff_trailing / 100):
             drop = (price - peak) / peak * 100
-            tightened = " (zacieśniony po biegu)" if eff_trailing != trailing else ""
+            tightened = " (zacieśniony po biegu)" if eff_trailing != base_trailing else ""
             return (
                 f"Trailing-stop{tightened}: {base} spadł {drop:.1f}% od szczytu {peak:.2f} "
                 f"(wejście {basis:.2f}, zysk +{change_pct:.1f}%)",
@@ -1352,6 +1360,7 @@ def check_take_profit_stop_loss(
                 reason, sell_pct, kind = _decide_mechanical_exit(
                     settings, base, basis, price, peak, stop_pct=stop_pct,
                     partial_taken=already_partial, trend_ma=trend_ma, trend_bars_below=trend_bars_below,
+                    vol_pct=vol_pct,
                 )
                 if kind is None:
                     new_peaks[symbol] = peak  # still holding, remember the peak
@@ -1452,6 +1461,13 @@ def check_take_profit_stop_loss(
             # the partial is already booked so it fires only once.
             new_peaks[symbol] = peak
             new_partials[symbol] = True
+        else:
+            # MECHANIZM 2 — RE-ENTRY COOLDOWN: po KAŻDYM pełnym wyjściu (trailing /
+            # trend-exit / breakeven / take-profit) blokuj ponowny zakup przez N
+            # minut (anty-churn). Stop-loss ma własny, zwykle dłuższy cooldown wyżej.
+            cd = getattr(settings, "reentry_cooldown_min", 0) or 0
+            if cd > 0:
+                _set_stop_loss_cooldown(db, symbol, cd, venue=venue)
         # trailing / take-profit fully close the position -> drop peak & mark
 
     setattr(state, peaks_col, json.dumps(new_peaks))
@@ -2020,6 +2036,85 @@ def _held_symbols(portfolio: dict, settings: Settings, symbols: list[str]) -> li
     return out
 
 
+def _htf_regime_ok(broker, settings: Settings) -> tuple[bool, str]:
+    """MECHANIZM 1 — FILTR REŻIMU HTF: True gdy koszyk (domyślnie BTC) jest NAD
+    swoją długą średnią na interwale dziennym (risk-on). W chopie/bessie zwraca
+    False -> blokada nowych longów (siedzimy w gotówce). FAIL-OPEN: błąd danych
+    nie zamraża handlu (zwraca True), żeby chwilowy brak świec nie wyłączył bota."""
+    if not getattr(settings, "regime_filter_enabled", False):
+        return True, ""
+    sym = getattr(settings, "regime_filter_symbol", "BTC/USD")
+    tf = getattr(settings, "regime_filter_timeframe", "1d")
+    period = getattr(settings, "regime_filter_ma_period", 200) or 200
+    try:
+        closes = [float(r[4]) for r in broker.get_klines(sym, tf, period + 1)]
+    except Exception:
+        logger.warning("Regime HTF fetch failed (%s %s) — fail-open", sym, tf, exc_info=True)
+        return True, ""
+    if len(closes) < period:
+        return True, ""  # za mało historii -> nie blokuj
+    ma = sum(closes[-period:]) / period
+    price = closes[-1]
+    if price >= ma:
+        return True, f"{sym} {price:.0f} ≥ SMA{period} {ma:.0f}"
+    return False, f"{sym} {price:.0f} < SMA{period} {ma:.0f}"
+
+
+def _crypto_loss_streak_today(db: Session, venue: str) -> int:
+    """MECHANIZM 5 — liczba STRATNYCH zamknięć z rzędu DZIŚ (UTC), najnowsze
+    pierwsze. Liczymy tylko dzisiejsze, więc breaker sam schodzi na przełomie doby."""
+    from app.services import scorecard
+    try:
+        hist = scorecard.realized_history(db, venue=venue, limit=50)
+    except Exception:
+        return 0
+    today = datetime.now(UTC).date().isoformat()
+    streak = 0
+    for h in hist:
+        if not str(h.get("sold_at") or "").startswith(today):
+            break
+        if (h.get("pnl_usd") or 0) < 0:
+            streak += 1
+        else:
+            break
+    return streak
+
+
+def _new_entries_blocked(db: Session, settings: Settings, broker, pf: dict, global_context: dict | None, venue: str) -> str | None:
+    """Zbiorcza bramka NOWYCH wejść (mechanizmy #1 reżim / #4 ekspozycja / #5 seria
+    strat / #7 przegrzanie). NIE dotyka wyjść ani pozycji już trzymanych — tylko
+    wstrzymuje otwieranie nowych. Zwraca powód blokady albo None. Dla akcji knoby
+    bazowe = off, więc zwraca None (bez zmian)."""
+    ctx = global_context or {}
+    # #7 pauza na przegrzaniu (twardsza od de-risku)
+    fng = ctx.get("fear_greed")
+    funding = ctx.get("btc_funding_rate_pct")
+    fng_pause = getattr(settings, "fng_pause_above", 0.0)
+    fund_pause = getattr(settings, "funding_pause_above_pct", 0.0)
+    if fng_pause > 0 and fng is not None and fng >= fng_pause:
+        return f"Przegrzanie: Fear&Greed {fng} ≥ {fng_pause:.0f} — nowe wejścia wstrzymane"
+    if fund_pause > 0 and funding is not None and funding >= fund_pause:
+        return f"Przegrzanie: funding {funding}% ≥ {fund_pause}% — nowe wejścia wstrzymane"
+    # #4 cap łącznej ekspozycji (krypto silnie skorelowane -> chroni przed „wszystko czerwone")
+    cap = getattr(settings, "max_total_exposure_pct", 0.0)
+    if cap > 0:
+        total = account_total_value(db, settings, pf, venue)
+        invested = sum((_held_qty(pf, s, settings) * (pf["prices"].get(s) or 0.0)) for s in pf.get("prices", {}))
+        if total > 0 and invested / total * 100 >= cap:
+            return f"Cap ekspozycji: {invested / total * 100:.0f}% ≥ {cap:.0f}% konta — nowe wejścia wstrzymane"
+    # #5 breaker serii strat (dzisiejsze)
+    streak_pause = getattr(settings, "loss_streak_pause", 0) or 0
+    if streak_pause > 0:
+        n = _crypto_loss_streak_today(db, venue)
+        if n >= streak_pause:
+            return f"Breaker: {n} strat z rzędu dziś ≥ {streak_pause} — pauza nowych wejść do jutra (UTC)"
+    # #1 reżim HTF
+    ok, why = _htf_regime_ok(broker, settings)
+    if not ok:
+        return f"Reżim HTF risk-off: {why} — longi wstrzymane (gotówka)"
+    return None
+
+
 def auto_deploy_wants_action(db: Session, settings: Settings, portfolio: dict, symbols: list[str], venue: str) -> bool:
     """Tanie (bez Claude) sprawdzenie: czy jest leżąca gotówka I wolny slot —
     wtedy warto wymusić cykl (Claude jako weto + świeże dane), żeby auto-deploy
@@ -2084,6 +2179,14 @@ def _run_auto_deploy(
         return executed, portfolio
 
     pf = portfolio
+
+    # 10 mechanizmów (bramka NOWYCH wejść): reżim HTF / cap ekspozycji / seria
+    # strat / przegrzanie. Wyjścia i pozycje trzymane są nietknięte — to tylko
+    # wstrzymanie otwierania nowych w złych warunkach. Dla akcji knoby = off.
+    block = _new_entries_blocked(db, settings, broker, pf, global_context, venue)
+    if block:
+        logger.info("Auto-deploy wstrzymany (%s): %s", venue, block)
+        return executed, pf
 
     def eligible_new(sym: str) -> bool:
         if sym in veto_sell or sym not in market_data:

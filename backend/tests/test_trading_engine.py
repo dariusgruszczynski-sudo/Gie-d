@@ -843,6 +843,48 @@ def test_trend_exit_buffer_blocks_tiny_dip_below_ma(settings):
     assert trading_engine._decide_mechanical_exit(s, "ETH", 100.0, 100.0, 108.0, stop_pct=20.0, trend_ma=105.0)[2] == "trend_exit"
 
 
+def test_vol_scaled_trailing_widens_with_volatility(settings):
+    """MECHANIZM 3: wysoka zmienność rozszerza podłogę trailingu, więc normalny
+    szum nie wyrzuca. Bazowy trailing 5% (stop 10 × frac 0.5); vol_pct 8 × mult
+    1.5 = podłoga 12%. Spadek 8% od szczytu: BEZ vol wyrzuca, Z vol trzyma."""
+    s = settings.model_copy(update={
+        "trailing_stop_enabled": True, "trailing_stop_frac": 0.5, "reward_risk_ratio": 1.0,
+        "trend_exit_ma_period": 0, "breakeven_trigger_pct": 0.0, "ratchet_trigger_pct": 0.0,
+        "hard_take_profit_pct": 0.0, "partial_take_profit_enabled": False, "vol_trail_mult": 1.5,
+    })
+    # basis 100, peak 120 (armed), price 110.4 = spadek 8% od szczytu.
+    off = trading_engine._decide_mechanical_exit(s, "BTC", 100.0, 110.4, 120.0, stop_pct=10.0, vol_pct=None)
+    assert off[2] == "trailing"  # bez vol: 8% > bazowe 5% -> wyrzut
+    on = trading_engine._decide_mechanical_exit(s, "BTC", 100.0, 110.4, 120.0, stop_pct=10.0, vol_pct=8.0)
+    assert on[2] != "trailing"  # z vol: 8% < podłoga 12% -> trzyma
+
+
+def test_htf_regime_ok_blocks_below_long_ma(settings):
+    """MECHANIZM 1: reżim HTF = True nad długą średnią, False pod nią, fail-open
+    przy błędzie danych (nie zamraża bota)."""
+    class _FakeK:
+        def __init__(self, closes): self._c = closes
+        def get_klines(self, sym, interval, limit): return [[0, 0, 0, 0, c, 0] for c in self._c]
+    class _BoomK:
+        def get_klines(self, *a, **k): raise RuntimeError("brak danych")
+    s = settings.model_copy(update={"regime_filter_enabled": True, "regime_filter_ma_period": 3})
+    assert trading_engine._htf_regime_ok(_FakeK([10, 10, 10, 8]), s)[0] is False   # 8 < SMA ~9.33
+    assert trading_engine._htf_regime_ok(_FakeK([8, 8, 8, 10]), s)[0] is True       # 10 > SMA ~8.67
+    assert trading_engine._htf_regime_ok(_BoomK(), s)[0] is True                    # fail-open
+    off = settings.model_copy(update={"regime_filter_enabled": False})
+    assert trading_engine._htf_regime_ok(_BoomK(), off)[0] is True                  # wyłączony -> ok
+
+
+def test_new_entries_blocked_overheat_and_off(settings):
+    """MECHANIZM 7 (pauza przegrzania) blokuje, a przy knobach bazowych (akcje)
+    bramka nic nie blokuje (None)."""
+    hot = settings.model_copy(update={"fng_pause_above": 93.0})
+    msg = trading_engine._new_entries_blocked(None, hot, None, {"prices": {}}, {"fear_greed": 96}, "crypto")
+    assert msg is not None and "Przegrzanie" in msg
+    # knoby bazowe off -> brak blokady (db/broker nieużywane na tej ścieżce).
+    assert trading_engine._new_entries_blocked(None, settings, None, {"prices": {}}, {}, "alpaca") is None
+
+
 def test_trend_exit_requires_confirmation_bars(settings):
     """HARTOWANIE: z confirm_bars=2 jedna świeca pod średnią nie wystarcza —
     wymagamy trwałego złamania (2 świece zamknięte pod średnią)."""

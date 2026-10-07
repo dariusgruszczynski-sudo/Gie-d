@@ -214,6 +214,53 @@ class Settings(BaseSettings):
     crypto_funding_derisk_above_pct: float = 0.08
     crypto_derisk_size_mult: float = 0.5
 
+    # ======================================================================
+    # 10 MECHANIZMÓW podnoszących prawdopodobieństwo zysku na krypto (na prośbę
+    # właściciela). Pola bazowe neutralne (0/False/"" = off -> akcje/POZA SESJĄ
+    # bez zmian); wartości krypto nakładane przez _CRYPTO_OVERRIDES. Każdy za
+    # osobnym knobem -> można wyłączyć pojedynczy przez .env bez redeployu.
+    # Zaimplementowane TERAZ: #1 reżim HTF, #2 cooldown po każdym wyjściu,
+    # #3 trailing skalowany zmiennością, #4 cap ekspozycji, #5 breaker serii
+    # strat, #7 pauza na przegrzaniu. (#6 vol-targeting ~pokryte przez
+    # volatility_adjusted_size; #8 Donchian / #9 ADX / #10 piramidowanie wymagają
+    # świec OHLC w ścieżce wejścia + backtestu na prodzie -> osobny krok.)
+    # ----------------------------------------------------------------------
+    # #1 Filtr reżimu wyższego interwału: longi tylko gdy koszyk (domyślnie BTC)
+    #    jest NAD swoją długą średnią na interwale dziennym (risk-on). W chopie/
+    #    bessie bot siedzi w gotówce, zamiast łapać spadające noże.
+    regime_filter_enabled: bool = False
+    regime_filter_symbol: str = "BTC/USD"
+    regime_filter_timeframe: str = "1d"
+    regime_filter_ma_period: int = 200
+    crypto_regime_filter_enabled: bool = True
+    crypto_regime_filter_symbol: str = "BTC/USD"
+    crypto_regime_filter_timeframe: str = "1d"
+    crypto_regime_filter_ma_period: int = 200
+    # #2 Re-entry cooldown: po KAŻDYM pełnym wyjściu z symbolu blokuj ponowne
+    #    wejście przez N minut (anty-churn). Dotąd cooldown był tylko po stop-lossie.
+    reentry_cooldown_min: int = 0
+    crypto_reentry_cooldown_min: int = 180
+    # #3 Trailing skalowany zmiennością: efektywny trailing = max(bazowy,
+    #    vol_trail_mult × zmienność%). Luźniej w zdrowym trendzie, ciaśniej gdy
+    #    robi się nerwowo -> mniej przypadkowych wyrzutów niż stały %.
+    vol_trail_mult: float = 0.0
+    crypto_vol_trail_mult: float = 1.5
+    # #4 Cap łącznej ekspozycji: nie wchodź w nowe pozycje, gdy łącznie
+    #    zainwestowane >= cap% konta (krypto jest silnie skorelowane -> 5 altów to
+    #    jeden zakład; to chroni przed "wszystko czerwone naraz").
+    max_total_exposure_pct: float = 0.0
+    crypto_max_total_exposure_pct: float = 60.0
+    # #5 Circuit-breaker na serię strat: po N stratnych zamknięciach z rzędu
+    #    (venue, licznik z historii) pauza NOWYCH wejść do rolki doby UTC.
+    loss_streak_pause: int = 0
+    crypto_loss_streak_pause: int = 4
+    # #7 Pauza na przegrzaniu (twardsza od de-risku): przy ekstremalnej chciwości
+    #    LUB mocno dodatnim fundingu WSTRZYMAJ nowe longi (nie tylko zmniejsz).
+    fng_pause_above: float = 0.0
+    funding_pause_above_pct: float = 0.0
+    crypto_fng_pause_above: float = 93.0
+    crypto_funding_pause_above_pct: float = 0.15
+
     daily_loss_limit_pct: float = 20.0
     # Zacieśnione z 70% -> 25%: tygodniowy 70% to praktycznie brak ochrony małego
     # konta. 25% to realny bezpiecznik: seria złych dni zatrzyma automat, zanim

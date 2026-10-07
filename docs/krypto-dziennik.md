@@ -37,6 +37,24 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Wpis — 2026-10-07 (10 mechanizmów podnoszących P(zysk), wdrożone 6/10)
+Na prośbę właściciela („wszystkie") dołożone mechanizmy podnoszące
+prawdopodobieństwo zysku, każdy za osobnym knobem (można wyłączyć przez `.env`;
+akcje nietknięte — knoby bazowe off). **Wdrożone teraz (6):**
+1. **Filtr reżimu HTF** — longi tylko gdy BTC nad SMA200 na D1; w chopie/bessie gotówka.
+2. **Re-entry cooldown** — po KAŻDYM pełnym wyjściu blokada ponownego wejścia (180 min) — anty-churn.
+3. **Trailing skalowany zmiennością** — podłoga trailingu = max(bazowy, 1.5×vol%); mniej wyrzutów na szumie.
+4. **Cap ekspozycji** — brak nowych wejść przy ≥60% konta w grze (krypto skorelowane → „wszystko czerwone").
+5. **Breaker serii strat** — 4 straty z rzędu dziś → pauza nowych wejść do rolki doby UTC.
+7. **Pauza na przegrzaniu** — F&G ≥93 lub funding ≥0.15% → wstrzymanie nowych longów (twardziej niż de-risk).
+
+**Czeka na backtest na prodzie (3):** #8 Donchian breakout, #9 ADX-gate, #10 piramidowanie —
+wymagają świec OHLC w ścieżce wejścia (dziś tylko closes) i nie wrzucamy ich na ślepo.
+#6 vol-targeting sizingu ~pokryte przez `volatility_adjusted_size`.
+Uczciwie: 6 mechanizmów naraz = konfundowanie (nie odróżnimy per-mechanizm na małej
+próbie). Dlatego config-gated — obserwujemy, czy churn/„wszystko czerwone" znika; w razie
+czego wyłączamy pojedynczo. Testy 389/389, ruff czysty.
+
 ### Wpis interwencyjny — 2026-10-07 (diagnoza + fix trend-exitu)
 Dane (venue=crypto, okno 2026-10-04 → 10-07, zrzut 14:22Z): **32 zamknięcia,
 realized −$9 376, trafność 12% (4/28), expectancy −$293/trade**, śr. wygrana

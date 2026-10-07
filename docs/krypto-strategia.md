@@ -70,6 +70,19 @@ pozycją, więc 5 ulepszeń działa na wyjściach, ryzyku i sizingu (knoby `cryp
    (0.08%) → NOWE wejścia mniejsze (longi przegrzane, ryzyko flusha).
 Wszystkie gate'owane configiem; dla akcji/POZA SESJĄ neutralne (0/off).
 
+## 10 mechanizmów P(zysk) — 2026-10-07 (wdrożone 6/10)
+Wszystko config-gated, knoby bazowe off (akcje nietknięte), krypto przez `_CRYPTO_OVERRIDES`.
+Strona reżimu/ryzyka/wyjść (zgodne z lekcją „nie filtruj wejść restrykcyjnie").
+**Wdrożone:** (1) filtr reżimu HTF `crypto_regime_filter_*` (BTC>SMA200 D1 = risk-on);
+(2) re-entry cooldown `crypto_reentry_cooldown_min` (180) po każdym pełnym wyjściu;
+(3) trailing skalowany zmiennością `crypto_vol_trail_mult` (1.5×vol% jako podłoga);
+(4) cap ekspozycji `crypto_max_total_exposure_pct` (60%); (5) breaker serii strat
+`crypto_loss_streak_pause` (4/dzień → pauza do rolki UTC); (7) pauza na przegrzaniu
+`crypto_fng_pause_above` (93) / `crypto_funding_pause_above_pct` (0.15).
+**Czeka na backtest (prod):** (8) Donchian breakout, (9) ADX-gate, (10) piramidowanie
+— wymagają świec OHLC w ścieżce wejścia (dziś closes-only). (6) vol-targeting ~pokryte
+przez `volatility_adjusted_size`.
+
 ## Weryfikacja
 - Prod: `python backend/scripts/run_backtest.py --venue crypto` (benchmark BTC/USD).
 - Żywy paper: dzienny nadzór (audit-snapshots) + ten dziennik. Werdykt GO-LIVE
