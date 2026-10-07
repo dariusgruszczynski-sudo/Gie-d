@@ -13,9 +13,9 @@
   --cr-panel-2: #111622;
   --cr-line: rgba(150, 170, 200, 0.12);
   --cr-line-2: rgba(150, 170, 200, 0.22);
-  --cr-txt: #e6ebf2;
-  --cr-dim: #8b93a3;
-  --cr-dim-2: #5a6273;
+  --cr-txt: #eef2f8;
+  --cr-dim: #b4bdcd;
+  --cr-dim-2: #8a93a4;
   --cr-up: #35c28b;
   --cr-down: #f05d6c;
   --cr-warn: #e2b24a;
@@ -67,7 +67,7 @@
 }
 .cr-state .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
 .cr-state.live { color: var(--cr-up); border-color: color-mix(in srgb, var(--cr-up) 40%, transparent); background: color-mix(in srgb, var(--cr-up) 9%, transparent); }
-.cr-state.live .dot { background: var(--cr-up); box-shadow: 0 0 0 0 color-mix(in srgb, var(--cr-up) 70%, transparent); animation: cr-pulse 2.4s infinite; }
+.cr-state.live .dot { background: var(--cr-up); box-shadow: 0 0 6px color-mix(in srgb, var(--cr-up) 70%, transparent); }
 .cr-state.paused { color: var(--cr-warn); border-color: color-mix(in srgb, var(--cr-warn) 40%, transparent); background: color-mix(in srgb, var(--cr-warn) 9%, transparent); }
 .cr-state.paused .dot { background: var(--cr-warn); }
 .cr-state.halt { color: var(--cr-down); border-color: color-mix(in srgb, var(--cr-down) 46%, transparent); background: color-mix(in srgb, var(--cr-down) 11%, transparent); }
@@ -423,21 +423,51 @@
 .cr-screen .gd-pcards { display: grid; gap: 10px; }
 .cr-screen .gd-stream { display: flex; flex-direction: column; gap: 8px; }
 
+/* ═══════════════════════ CZYTELNOŚĆ (globalnie) ═════════════════════════
+   Control-room ma być GĘSTY, ale CZYTELNY. Większe liczby/etykiety, jaśniejszy
+   tekst, więcej powietrza — i te same rozmiary (albo większe) na telefonie. */
+.cr-num .k { font-size: 0.66rem; color: var(--cr-dim); }
+.cr-num .v { font-size: 1.12rem; }
+.cr-num .v.big { font-size: 1.34rem; }
+.cr-tab { font-size: 0.92rem; }
+.cr-ph h3 { font-size: 0.76rem; color: var(--cr-dim); }
+.cr-ph .note { font-size: 0.72rem; }
+.cr-metric .k { font-size: 0.72rem; color: var(--cr-dim); }
+.cr-metric .v { font-size: 1.5rem; }
+.cr-metric .s { font-size: 0.74rem; }
+.cr-doing .txt { font-size: 0.95rem; line-height: 1.5; }
+.cr-pulse .k { font-size: 0.68rem; color: var(--cr-dim); }
+.cr-pulse .v { font-size: 1.24rem; }
+.cr-pulse .s { font-size: 0.7rem; }
+.cr-rules li { font-size: 0.9rem; line-height: 1.55; }
+.cr-dh .nm { font-size: 0.9rem; }
+.cr-posbar .i b { font-size: 1.14rem; }
+.cr-posbar .i small { font-size: 0.7rem; }
+.cr-who, .cr-cyc { font-size: 0.78rem; }
+.cr-state { font-size: 0.86rem; }
+
+/* Reużyte widżety gd-* są z „lżejszego" motywu — za małe/za ciemne w control-roomie.
+   Podbijamy rozmiar i kontrast, żeby pozycje i decyzje były czytelne. */
+.cr-screen .gd-dec-reason, .cr-screen .gd-pcard-plan, .cr-screen .gd-pcard-thesis { font-size: 0.9rem; line-height: 1.5; color: var(--cr-txt); }
+.cr-screen .gd-dec-sym, .cr-screen .gd-pcard-sym { font-size: 1.02rem; }
+.cr-screen .gd-dec-leg, .cr-screen .gd-dec-conf, .cr-screen .gd-dec-time { font-size: 0.74rem; }
+.cr-screen .gd-pcard-val { font-size: 1.14rem; }
+.cr-screen .gd-pcard-pct { font-size: 0.95rem; }
+.cr-screen .gd-dec, .cr-screen .gd-pcard { padding: 13px 14px; }
+
 /* ───────────────────────────── MOBILE ──────────────────────────────────── */
 @media (max-width: 560px) {
-  .cr-sys { gap: 8px 10px; padding: 8px 12px; }
-  .cr-brand { font-size: 0.68rem; }
-  /* Mniej „szumu" w pasku na telefonie — kadencja skanu i marka schodzą,
-     zostaje to, co krytyczne: stan, kto steruje, PAPER i Pauza. */
-  .cr-cyc { font-size: 0.68rem; }
-  .cr-num { padding: 7px 11px; }
-  .cr-num .v { font-size: 0.9rem; } .cr-num .v.big { font-size: 1rem; }
-  .cr-tab { padding: 8px 12px; font-size: 0.8rem; }
-  .cr-hero .val { font-size: 2.1rem; }
-  .cr-screen { padding: 14px 14px 110px; }
-}
-@media (max-width: 380px) {
-  .cr-brand span.cr-brand-dot { display: none; }
+  .cr-sys { gap: 8px 12px; padding: 9px 13px; }
+  /* Na telefonie marka schodzi (oszczędza szerokość), ale status i liczby
+     ZOSTAJĄ DUŻE i czytelne — nie zmniejszamy ich. */
+  .cr-brand { display: none; }
+  .cr-num { padding: 9px 13px; }
+  .cr-num .v { font-size: 1.18rem; }
+  .cr-num .v.big { font-size: 1.4rem; }
+  .cr-tab { padding: 10px 14px; font-size: 0.95rem; }
+  .cr-hero .val { font-size: 2.3rem; }
+  .cr-metric .v { font-size: 1.55rem; }
+  .cr-screen { padding: 14px 14px 112px; }
 }
 /* Mniej ruchu = mniej pracy GPU na słabszych telefonach. */
 @media (prefers-reduced-motion: reduce) {

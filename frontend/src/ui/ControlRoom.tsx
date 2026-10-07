@@ -3,7 +3,6 @@ import {
   api, Decision, HistoryResponse, HistoryTrade, KnowledgeResponse,
   PortfolioResponse, PositionPlan, StatusResponse,
 } from "../api/client";
-import { useCountUp } from "../hooks/useCountUp";
 import { ago, money, money0, pct, PnlBand } from "./kit";
 import { DecRow, extract, Leg, PositionCard } from "./Console";
 
@@ -102,7 +101,7 @@ export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }:
   onGoFlow: () => void; onGoVerdict: () => void;
 }) {
   const acc = status.account;
-  const total = useCountUp(acc?.total_value ?? 0);
+  const total = acc?.total_value ?? 0;
   const invPct = acc && acc.total_value > 0 ? Math.round((investedOf(status) / acc.total_value) * 100) : 0;
   const totalUp = (acc?.total_value ?? 0) >= (portfolio?.inception?.total_value_usdt ?? acc?.total_value ?? 0);
   const fuel = riskFuel(status);
