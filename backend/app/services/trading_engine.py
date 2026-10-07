@@ -28,7 +28,12 @@ from app.services.claude_advisor import ClaudeAdvisor
 from app.services.market_context import MarketContextClient
 from app.services.market_hours import SessionInfo
 from app.services.news_client import NewsClient
-from app.services.technical_indicators import compute_technical_indicators, compute_volatility_pct
+from app.services.technical_indicators import (
+    compute_adx,
+    compute_technical_indicators,
+    compute_volatility_pct,
+    donchian_high,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -2198,6 +2203,20 @@ def _run_auto_deploy(
             return False  # już trzymana
         if regime_gate_on and regime.get("regime") == "risk_off" and sym not in defensive_list:
             return False
+        md = market_data.get(sym) or {}
+        price = pf["prices"].get(sym) or md.get("price") or 0.0
+        # MECHANIZM 8 — WYBICIE (Donchian): wejście tylko gdy cena bije szczyt
+        # poprzednich N świec. None (za mało danych) -> nie blokuj (fail-open).
+        if getattr(settings, "breakout_entry_enabled", False):
+            dh = md.get("donchian_high")
+            if dh is not None and price < dh:
+                return False
+        # MECHANIZM 9 — ADX: wejście tylko gdy trend realnie istnieje (ADX >= próg).
+        min_adx = getattr(settings, "min_adx", 0.0)
+        if min_adx > 0:
+            adx = md.get("adx")
+            if adx is not None and adx < min_adx:
+                return False
         return True
 
     def rank_key(sym: str):
@@ -2276,6 +2295,38 @@ def _run_auto_deploy(
         if dec is not None and dec.executed:
             executed.append(dec)
             pf = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
+
+    # MECHANIZM 10 — PIRAMIDOWANIE: dokładaj do WYGRYWAJĄCEJ pozycji na kolejnym
+    # wybiciu (nigdy nie uśredniaj strat). Dokłada, póki: zysk >= pyramid_min_gain_pct,
+    # cena robi nowe wybicie (Donchian) ORAZ łączna pozycja < pyramid_max_position_pct
+    # konta. Dokładka do już trzymanej jest zwolniona z limitu równoległych pozycji
+    # (patrz _process_decision). Liczba dokładek ograniczona naturalnie sufitem notional.
+    if getattr(settings, "pyramid_enabled", False):
+        acct_total = account_total_value(db, settings, pf, venue)
+        min_gain = getattr(settings, "pyramid_min_gain_pct", 0.0)
+        max_pos_pct = getattr(settings, "pyramid_max_position_pct", 0.0)
+        for sym in _held_symbols(pf, settings, symbols):
+            if sym in veto_sell or sym not in market_data:
+                continue
+            if venue_allocation_room(db, settings, pf, venue) < settings.auto_deploy_min_cash_usd:
+                break  # brak gotówki na dokładki
+            md = market_data.get(sym) or {}
+            price = pf["prices"].get(sym) or 0.0
+            notional = _held_qty(pf, sym, settings) * price
+            basis = average_cost_basis(db, sym, venue=venue) or 0.0
+            gain = ((price - basis) / basis * 100) if basis > 0 else 0.0
+            dh = md.get("donchian_high")
+            if gain < min_gain:
+                continue  # tylko wygrani, nigdy dokładka do straty
+            if dh is None or price < dh:
+                continue  # tylko na świeżym wybiciu (nowe maksimum okna)
+            if acct_total <= 0 or max_pos_pct <= 0 or notional / acct_total * 100 >= max_pos_pct:
+                continue  # pozycja już na suficie piramidy
+            pdec = run_one("BUY", sym, f"Piramida: dokładam do wygrywającego {sym} (+{gain:.1f}%) na wybiciu {dh:.2f}")
+            if pdec is not None and pdec.executed:
+                executed.append(pdec)
+                pf = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
+                acct_total = account_total_value(db, settings, pf, venue)
 
     # (2) ROTACJA: przy braku gotówki wymień najsłabszą trzymaną na wyraźnie lepszą.
     rotations = 0
@@ -2535,7 +2586,10 @@ def run_cycle(
         tf = settings.signal_timeframe
         try:
             recent_bars = broker.get_klines(symbol, tf, 24)
-            indicator_closes = [float(row[4]) for row in broker.get_klines(symbol, tf, 200)]
+            full_bars = broker.get_klines(symbol, tf, 200)
+            indicator_closes = [float(row[4]) for row in full_bars]
+            indicator_highs = [float(row[2]) for row in full_bars]
+            indicator_lows = [float(row[3]) for row in full_bars]
         except Exception:
             logger.warning("Failed to fetch klines for %s, excluding it from this cycle", symbol, exc_info=True)
             continue
@@ -2549,12 +2603,17 @@ def run_cycle(
             if len(recent_closes) >= 2 and recent_closes[0] > 0
             else None
         )
+        # Mechanizmy #8 (Donchian breakout) i #9 (ADX): liczone z H/L 200-świecowej
+        # historii (dotąd używaliśmy tylko closes). Gate'owane knobami w eligible_new.
+        lookback = getattr(settings, "breakout_lookback", 0) or 0
         market_data[symbol] = {
             "price": portfolio["prices"][symbol],
             "timeframe": tf,
             "change_period_pct": change_period_pct,
             "recent_bars": recent_bars[-8:],
             "technical": compute_technical_indicators(indicator_closes),
+            "donchian_high": donchian_high(indicator_highs, lookback) if lookback > 0 else None,
+            "adx": compute_adx(indicator_highs, indicator_lows, indicator_closes),
         }
     # Only offer Claude symbols it actually has data for this cycle -- a symbol
     # missing from market_data (Alpaca failure above) must not be a choosable

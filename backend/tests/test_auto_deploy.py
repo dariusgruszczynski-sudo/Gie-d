@@ -165,6 +165,30 @@ class SeriesAlpaca(FakeAlpaca):
         return [[0, c, c, c, c, "1"] for c in closes]
 
 
+def test_breakout_gate_blocks_entry_below_donchian_high(db_session, settings, monkeypatch):
+    """MECHANIZM 8: z bramką wybicia pullback POD szczytem okna nie jest kupowany;
+    bez bramki ten sam confluentny setup wchodzi. Izolujemy gate (confluencja
+    zmonkeypatchowana na BULL, Donchian liczony z prawdziwej serii świec)."""
+    monkeypatch.setattr(trading_engine, "compute_technical_indicators", lambda closes: dict(BULL))
+    # Wzrost do 150, potem pullback do 140 (bieżąca) -> Donchian(20) ~150 > 140.
+    series = {"SPY": [100.0 + i for i in range(50)] + [150.0] * 20 + [140.0]}
+    advisor = FakeAdvisor(TradingDecision("HOLD", None, 0, 0.8, "czekam"))
+
+    def mk(**over):
+        return _auto(settings, trading_whitelist="SPY", max_concurrent_positions=4,
+                     max_position_pct=90.0, risk_per_trade_pct=0.0, auto_deploy_max_position_pct=100.0, **over)
+
+    on = SeriesAlpaca(series=series, prices={"SPY": 140.0}, balances={"USD": 1000.0, "SPY": 0.0})
+    trading_engine.run_cycle(db_session, mk(breakout_entry_enabled=True, breakout_lookback=20),
+                             on, FakeNews(), advisor, FakeMarketContext())
+    assert not any(o.side == "BUY" for o in on.orders), "wybicie wymagane -> pullback pod szczytem nie kupuje"
+
+    off = SeriesAlpaca(series=series, prices={"SPY": 140.0}, balances={"USD": 1000.0, "SPY": 0.0})
+    trading_engine.run_cycle(db_session, mk(breakout_entry_enabled=False),
+                             off, FakeNews(), advisor, FakeMarketContext())
+    assert any(o.side == "BUY" for o in off.orders), "bez bramki ten sam setup wchodzi"
+
+
 def test_auto_rotation_swaps_weakest_for_better(db_session, settings):
     """Przy pełnym portfelu i braku gotówki: sprzedaje najsłabszą (płaską) pozycję
     i wchodzi w wyraźnie lepszy (rosnący) setup."""

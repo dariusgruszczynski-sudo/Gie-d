@@ -37,6 +37,18 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Wpis — 2026-10-07 (10/10 mechanizmów — dołożone wejścia #8/#9/#10)
+Na prośbę właściciela („wszystko") dołożone 3 pozostałe (strona WEJŚĆ), po
+doprowadzeniu świec OHLC do ścieżki wejścia (dotąd closes-only):
+8. **Wejście na WYBICIE (Donchian 20)** — kup tylko gdy cena bije szczyt poprzednich 20 świec.
+9. **Filtr siły trendu (ADX14 ≥ 20)** — wchodź tylko gdy trend realnie istnieje; pomija boki.
+10. **Piramidowanie** — dokładka do WYGRYWAJĄCEGO (+8%) na nowym wybiciu, sufit 25% konta,
+    nigdy do straty; zwolnione z limitu równoległych pozycji (dokładka ≠ nowy slot).
+Nowe wskaźniki ADX (Wilder) i Donchian w `technical_indicators`; H/L pobierane z 200-świec.
+⚠️ To strona WEJŚĆ — napięcie z lekcją „nie filtruj wejść restrykcyjnie". Wdrożone
+świadomie na życzenie, każdy za knobem (wyłączalny), ale WARTO zwalidować backtestem na
+prodzie, zanim uznamy je za poprawę. Testy 392/392, ruff czysty. 10/10 config-gated.
+
 ### Wpis — 2026-10-07 (10 mechanizmów podnoszących P(zysk), wdrożone 6/10)
 Na prośbę właściciela („wszystkie") dołożone mechanizmy podnoszące
 prawdopodobieństwo zysku, każdy za osobnym knobem (można wyłączyć przez `.env`;

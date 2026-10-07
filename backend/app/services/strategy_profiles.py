@@ -77,6 +77,13 @@ _CRYPTO_OVERRIDES = {
     "crypto_loss_streak_pause": "loss_streak_pause",
     "crypto_fng_pause_above": "fng_pause_above",
     "crypto_funding_pause_above_pct": "funding_pause_above_pct",
+    # #8 Donchian breakout, #9 ADX-gate, #10 piramidowanie (strona wejść — OHLC).
+    "crypto_breakout_entry_enabled": "breakout_entry_enabled",
+    "crypto_breakout_lookback": "breakout_lookback",
+    "crypto_min_adx": "min_adx",
+    "crypto_pyramid_enabled": "pyramid_enabled",
+    "crypto_pyramid_min_gain_pct": "pyramid_min_gain_pct",
+    "crypto_pyramid_max_position_pct": "pyramid_max_position_pct",
     "crypto_stop_loss_vol_mult": "stop_loss_vol_mult",
     "crypto_stop_loss_min_pct": "stop_loss_min_pct",
     "crypto_stop_loss_max_pct": "stop_loss_max_pct",

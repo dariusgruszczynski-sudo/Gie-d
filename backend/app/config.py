@@ -260,6 +260,26 @@ class Settings(BaseSettings):
     funding_pause_above_pct: float = 0.0
     crypto_fng_pause_above: float = 93.0
     crypto_funding_pause_above_pct: float = 0.15
+    # #8 Wejście na WYBICIE (Donchian): wchodź tylko, gdy cena przebija najwyższy
+    #    szczyt z poprzednich N świec (nowe maksimum okna = potwierdzona siła).
+    breakout_entry_enabled: bool = False
+    breakout_lookback: int = 20
+    crypto_breakout_entry_enabled: bool = True
+    crypto_breakout_lookback: int = 20
+    # #9 Filtr siły trendu (ADX): wchodź tylko gdy ADX(14) >= progu — pomija
+    #    martwe, boczne rynki (gdzie trend-following krwawi). 0 = off.
+    min_adx: float = 0.0
+    crypto_min_adx: float = 20.0
+    # #10 Piramidowanie w trendzie: dokładaj do WYGRYWAJĄCEJ pozycji na kolejnych
+    #    wybiciach (nigdy nie uśredniaj strat). Dokłada, póki zysk >= min_gain,
+    #    cena robi nowe wybicie, a łączna pozycja < pyramid_max_position_pct konta.
+    #    Liczba dokładek ograniczona naturalnie sufitem notional (bez stanu w DB).
+    pyramid_enabled: bool = False
+    pyramid_min_gain_pct: float = 8.0
+    pyramid_max_position_pct: float = 25.0
+    crypto_pyramid_enabled: bool = True
+    crypto_pyramid_min_gain_pct: float = 8.0
+    crypto_pyramid_max_position_pct: float = 25.0
 
     daily_loss_limit_pct: float = 20.0
     # Zacieśnione z 70% -> 25%: tygodniowy 70% to praktycznie brak ochrony małego

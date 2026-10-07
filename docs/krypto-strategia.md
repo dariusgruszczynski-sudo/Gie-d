@@ -70,7 +70,7 @@ pozycją, więc 5 ulepszeń działa na wyjściach, ryzyku i sizingu (knoby `cryp
    (0.08%) → NOWE wejścia mniejsze (longi przegrzane, ryzyko flusha).
 Wszystkie gate'owane configiem; dla akcji/POZA SESJĄ neutralne (0/off).
 
-## 10 mechanizmów P(zysk) — 2026-10-07 (wdrożone 6/10)
+## 10 mechanizmów P(zysk) — 2026-10-07 (wdrożone 10/10)
 Wszystko config-gated, knoby bazowe off (akcje nietknięte), krypto przez `_CRYPTO_OVERRIDES`.
 Strona reżimu/ryzyka/wyjść (zgodne z lekcją „nie filtruj wejść restrykcyjnie").
 **Wdrożone:** (1) filtr reżimu HTF `crypto_regime_filter_*` (BTC>SMA200 D1 = risk-on);
@@ -79,9 +79,14 @@ Strona reżimu/ryzyka/wyjść (zgodne z lekcją „nie filtruj wejść restrykcy
 (4) cap ekspozycji `crypto_max_total_exposure_pct` (60%); (5) breaker serii strat
 `crypto_loss_streak_pause` (4/dzień → pauza do rolki UTC); (7) pauza na przegrzaniu
 `crypto_fng_pause_above` (93) / `crypto_funding_pause_above_pct` (0.15).
-**Czeka na backtest (prod):** (8) Donchian breakout, (9) ADX-gate, (10) piramidowanie
-— wymagają świec OHLC w ścieżce wejścia (dziś closes-only). (6) vol-targeting ~pokryte
+**Wdrożone też (strona wejść — doprowadzone świece OHLC):** (8) wejście na WYBICIE
+`crypto_breakout_entry_enabled` + `crypto_breakout_lookback` (Donchian 20: kup tylko na
+nowym maksimum okna); (9) filtr siły trendu `crypto_min_adx` (ADX14 ≥ 20: pomija martwe
+boki); (10) piramidowanie `crypto_pyramid_*` (dokładka do wygrywającego na nowym wybiciu,
+sufit `pyramid_max_position_pct` 25% konta, nigdy do straty). (6) vol-targeting ~pokryte
 przez `volatility_adjusted_size`.
+⚠️ #8/#9/#10 to strona WEJŚĆ — wdrożone na prośbę właściciela („wszystko"), ale warto je
+zwalidować backtestem `run_backtest.py --venue crypto` na prodzie; każdy wyłączalny knobem.
 
 ## Weryfikacja
 - Prod: `python backend/scripts/run_backtest.py --venue crypto` (benchmark BTC/USD).

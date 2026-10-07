@@ -87,3 +87,57 @@ def compute_technical_indicators(closes: list[float]) -> dict:
         "sma50_vs_sma200_1h": compute_sma_trend(closes),
         "volatility_pct_1h": compute_volatility_pct(closes),
     }
+
+
+def donchian_high(highs: list[float], period: int) -> float | None:
+    """Najwyższy szczyt z POPRZEDNICH `period` świec (wyłączając bieżącą) — baza
+    wejścia na WYBICIE (mechanizm #8): cena > tego poziomu = nowe maksimum okna,
+    potwierdzona siła, nie łapanie dołka. None gdy za mało historii."""
+    if period <= 0 or len(highs) < period + 1:
+        return None
+    return max(highs[-period - 1:-1])
+
+
+def compute_adx(highs: list[float], lows: list[float], closes: list[float], period: int = 14) -> float | None:
+    """Wilder ADX (siła trendu, 0-100; >25 = realny trend). Mechanizm #9: filtr
+    wejść — wchodź tylko, gdy trend faktycznie istnieje, pomijaj martwe boki.
+    None gdy za mało świec (potrzeba ~2×period+1)."""
+    n = len(closes)
+    if n < 2 * period + 1 or len(highs) != n or len(lows) != n:
+        return None
+    trs: list[float] = []
+    plus_dm: list[float] = []
+    minus_dm: list[float] = []
+    for i in range(1, n):
+        up = highs[i] - highs[i - 1]
+        down = lows[i - 1] - lows[i]
+        plus_dm.append(up if (up > down and up > 0) else 0.0)
+        minus_dm.append(down if (down > up and down > 0) else 0.0)
+        trs.append(max(highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1])))
+    if len(trs) < period:
+        return None
+
+    def _wilder(vals: list[float]) -> list[float]:
+        out = [sum(vals[:period])]
+        for v in vals[period:]:
+            out.append(out[-1] - out[-1] / period + v)
+        return out
+
+    atr = _wilder(trs)
+    pdm = _wilder(plus_dm)
+    mdm = _wilder(minus_dm)
+    dx: list[float] = []
+    for a, p, m in zip(atr, pdm, mdm):
+        if a <= 0:
+            dx.append(0.0)
+            continue
+        pdi = 100 * p / a
+        mdi = 100 * m / a
+        s = pdi + mdi
+        dx.append(100 * abs(pdi - mdi) / s if s > 0 else 0.0)
+    if len(dx) < period:
+        return None
+    adx = sum(dx[:period]) / period
+    for d in dx[period:]:
+        adx = (adx * (period - 1) + d) / period
+    return round(adx, 1)
