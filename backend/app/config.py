@@ -135,8 +135,14 @@ class Settings(BaseSettings):
     # Profil krypto (nadpisuje bazowe TYLKO dla venue "crypto" -- patrz
     # strategy_profiles._CRYPTO_OVERRIDES). Krypto jest DUŻO bardziej zmienne niż
     # akcje, więc stopy są szersze, a ryzyko/transakcję mniejsze (głębsze swingi).
-    crypto_risk_per_trade_pct: float = 1.5
-    crypto_max_concurrent_positions: int = 5
+    # Nastrojone na podstawie 8-letniego backtestu + sweepa (2026-10-07): przy
+    # 10 mechanizmach bramki trzymają bota w gotówce, więc 1,5%×5 było
+    # NIEDOINWESTOWANE i przegrywało z trzymaniem BTC. Frontiera: 3,0%×4 = sweet
+    # spot (najwyższy zwrot ORAZ najlepszy Calmar ~1,4, bije BTC o ~1363pp,
+    # obsunięcie ~37% vs BTC 77%). Wybór właściciela („agresywnie"). Agresywne —
+    # większe pojedyncze straty; limit account-wide (30/40/55%) dalej chroni.
+    crypto_risk_per_trade_pct: float = 3.0
+    crypto_max_concurrent_positions: int = 4
     crypto_min_buy_confidence: float = 0.60
     crypto_max_new_positions_per_day: int = 0        # 0 = bez limitu (24/7)
     crypto_min_hold_minutes: int = 60                 # krótsze trzymanie niż akcje (24/7)

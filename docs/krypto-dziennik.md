@@ -37,6 +37,20 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Wpis — 2026-10-08 (strojenie ekspozycji: 1,5%×5 → 3,0%×4, decyzja z backtestu)
+Backtest + sweep na 8 latach realnych danych (Yahoo, z runnera GitHub) pokazał,
+że przy 10 mechanizmach bramki trzymają bota w gotówce → **1,5%×5 było
+niedoinwestowane i przegrywało z trzymaniem BTC** (alpha ujemna). Frontiera
+ryzyko/trejd × pozycje:
+- 1,5%×5 (poprzednie): ~+550%, DD ~30%, **przegrywa z BTC**.
+- 3,0%×4 (**wybrane, „agresywnie"**): +2713%, CAGR 51,8%, **Calmar 1,42**,
+  alpha **+1363pp** vs BTC, DD ~37% (BTC: 77%).
+Zmiana knoba `crypto_risk_per_trade_pct 1.5→3.0`, `crypto_max_concurrent_positions
+5→4` (wyraźna zgoda właściciela). UCZCIWIE: backtest bez prowizji/slippage,
+dzienny, 8-letni; 3% ryzyka/trejd to agresywnie (większe pojedyncze straty,
+grubsze wahania na żywo). Bezpiecznik account-wide (30/40/55%) dalej chroni.
+Obserwujemy żywy paper — werdykt dopiero na ≥50 zamknięciach / ~3 tyg.
+
 ### Wpis — 2026-10-07 (10/10 mechanizmów — dołożone wejścia #8/#9/#10)
 Na prośbę właściciela („wszystko") dołożone 3 pozostałe (strona WEJŚĆ), po
 doprowadzeniu świec OHLC do ścieżki wejścia (dotąd closes-only):
