@@ -241,7 +241,7 @@ class Settings(BaseSettings):
     crypto_regime_filter_enabled: bool = True
     crypto_regime_filter_symbol: str = "BTC/USD"
     crypto_regime_filter_timeframe: str = "1d"
-    crypto_regime_filter_ma_period: int = 200
+    crypto_regime_filter_ma_period: int = 100  # 2026-10-08: 200→100, żeby risk-on łapał szybciej (bot ma handlować i uczyć się, nie wisieć w gotówce)
     # #2 Re-entry cooldown: po KAŻDYM pełnym wyjściu z symbolu blokuj ponowne
     #    wejście przez N minut (anty-churn). Dotąd cooldown był tylko po stop-lossie.
     reentry_cooldown_min: int = 0
@@ -271,11 +271,11 @@ class Settings(BaseSettings):
     breakout_entry_enabled: bool = False
     breakout_lookback: int = 20
     crypto_breakout_entry_enabled: bool = True
-    crypto_breakout_lookback: int = 20
+    crypto_breakout_lookback: int = 10  # 2026-10-08: 20→10, więcej wybić się kwalifikuje (więcej wejść = więcej danych do nauki)
     # #9 Filtr siły trendu (ADX): wchodź tylko gdy ADX(14) >= progu — pomija
     #    martwe, boczne rynki (gdzie trend-following krwawi). 0 = off.
     min_adx: float = 0.0
-    crypto_min_adx: float = 20.0
+    crypto_min_adx: float = 12.0  # 2026-10-08: 20→12, wpuszcza słabsze trendy (luźniej, żeby zbierać próbkę)
     # #10 Piramidowanie w trendzie: dokładaj do WYGRYWAJĄCEJ pozycji na kolejnych
     #    wybiciach (nigdy nie uśredniaj strat). Dokłada, póki zysk >= min_gain,
     #    cena robi nowe wybicie, a łączna pozycja < pyramid_max_position_pct konta.

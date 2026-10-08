@@ -37,6 +37,18 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Wpis — 2026-10-08 (poluzowanie bramek wejścia — „bot ma się uczyć")
+Nadzór pokazał: od wdrożenia 10 mechanizmów bot NIE zawarł ani jednej nowej
+transakcji (konto płaskie, 100% gotówki) — nowe bramki (reżim HTF + wybicie +
+ADX) w płaskim rynku są zbyt restrykcyjne. Na paperze cel to ZBIERAĆ DANE do
+nauki, więc właściciel kazał poluzować. Zmiany (wyraźna prośba):
+- `crypto_regime_filter_ma_period 200→100` (risk-on łapie szybciej),
+- `crypto_breakout_lookback 20→10` (więcej wybić się kwalifikuje),
+- `crypto_min_adx 20→12` (wpuszcza słabsze trendy).
+UCZCIWIE: luźniej = WIĘCEJ wejść, ale NIŻSZA jakość/trejd (bliżej churnu z
+backtestu). To świadomy kompromis pod naukę, nie pod „bić BTC". Reżim/stopy/
+breaker dalej działają; wszystko reversible. Obserwujemy, czy wejścia ruszyły.
+
 ### Wpis — 2026-10-08 (strojenie ekspozycji: 1,5%×5 → 3,0%×4, decyzja z backtestu)
 Backtest + sweep na 8 latach realnych danych (Yahoo, z runnera GitHub) pokazał,
 że przy 10 mechanizmach bramki trzymają bota w gotówce → **1,5%×5 było
