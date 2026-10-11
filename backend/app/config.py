@@ -480,6 +480,13 @@ class Settings(BaseSettings):
     auto_demote_enabled: bool = False
     auto_demote_min_trades: int = 5
     auto_demote_win_rate_floor: float = 40.0
+    # Krypto (force-trade, zbieranie danych): auto-degradacja WYŁĄCZONA niezależnie
+    # od bazy. Na żywym stanie banowała 6/7 uniwersum (LTC 0W/5L, DOGE/AVAX/LINK/
+    # ETH/SOL) po ~5 trejdach z churnu -- czyli wyrok z „małej próbki" zamrażał
+    # cały rynek i głodził naukę, której właściciel chce. Wybór właściciela:
+    # „force-trade wszystko" ma wracać też do przegranych alt-ów (reszta ochrony
+    # ryzyka dalej działa). Noga akcji nietknięta (osobny override). Reversible.
+    crypto_auto_demote_enabled: bool = False
     # --- Ochrona przewagi: koszty / churn / koncentracja (Tier 2) -----------
     # Cap on concurrently-held positions per venue. The whitelist is heavily
     # correlated (tech beta), so many open names are really ONE bet -- this

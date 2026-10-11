@@ -37,6 +37,19 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Wpis — 2026-10-11 (auto-degradacja OFF dla krypto — ostatnia bramka force-trade)
+Diagnoza z żywych decyzji: **83/87** nowych wejść krypto odrzucała JEDNA bramka —
+auto-degradacja. Na prodzie była włączona (env) i zbanowała **6/7 uniwersum**:
+LTC 0W/5L (−$2 334), LINK, AVAX, DOGE, ETH 1W/4L (−$600), SOL. Jedyny dozwolony =
+BTC (już trzymany) → force-trade nie miał gdzie wejść, kapitał stał, w kółko
+„nowe wejście zablokowane". Wyrok zapadł na ~5 trejdach z fazy churnu — czyli
+dokładnie „mała próbka", na której NIE wyciągamy wniosków. Właściciel wybrał:
+„wyłącz dla krypto, force-trade naprawdę wszystko". Nowy knob
+`crypto_auto_demote_enabled=False` (override → auto_demote_enabled). Noga akcji
+nietknięta (baza dalej wg env). Reszta ochrony (stopy/cooldown/breaker/cap/halt)
+działa. UCZCIWIE: świadomy powrót do przegranych alt-ów pod zbieranie danych, nie
+pod zysk. Backend 118/118 (profile+silnik), ruff ok. Reversible jednym knobem.
+
 ### Wpis — 2026-10-11 (NAUKA — self-review widzi WARUNKI RYNKU, nie tylko „co kupił")
 Właściciel: „nauka nauka nauka". Audyt pętli uczenia na żywym stanie:
 - Pipeline JEST kompletny i **dzienny** (nie tygodniowy): każde wejście/wyjście —

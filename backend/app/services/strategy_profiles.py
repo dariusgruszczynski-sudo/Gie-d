@@ -82,6 +82,7 @@ _CRYPTO_OVERRIDES = {
     "crypto_breakout_entry_enabled": "breakout_entry_enabled",
     "crypto_breakout_lookback": "breakout_lookback",
     "crypto_min_adx": "min_adx",
+    "crypto_auto_demote_enabled": "auto_demote_enabled",
     "crypto_pyramid_enabled": "pyramid_enabled",
     "crypto_pyramid_min_gain_pct": "pyramid_min_gain_pct",
     "crypto_pyramid_max_position_pct": "pyramid_max_position_pct",
