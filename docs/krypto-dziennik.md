@@ -37,6 +37,15 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Wpis — 2026-10-11 (FORCE-TRADE — próg konfluencji krypto = 0)
+Właściciel: „force-trade wszystko, akceptuję churn" (rynek boczny, kapitał stał).
+crypto_entry_min_score=0 → auto-deploy ZAWSZE rozmieszcza gotówkę w najlepiej-
+rankowany setup, nawet słaby. Razem z reżim/wybicie/ADX OFF + ryzyko 3%×4 =
+maks. aktywność. UCZCIWIE: to świadomy powrót do churnu (per-symbol: małe alty
+LTC/DOGE/AVAX/LINK/SOL to krwawce) — cena za zbieranie danych/naukę, NIE pod
+bicie BTC. Ochrona (stopy/trend-exit/cooldown/breaker/cap/halt 30-40-55%) gra.
+Reversible. Nadzór policzy pierwsze realne zamknięcia nowej, agresywnej konfig.
+
 ### Wpis — 2026-10-11 (bramki wejścia OFF — kapitał ma pracować na 24/7)
 Mimo poluzowania (10-08) kapitał dalej stał w 100% gotówce dniami — na rynku
 24/7 to bez sensu, a cel paperu to ZBIERAĆ DANE. Właściciel: „krypto to 24/7,

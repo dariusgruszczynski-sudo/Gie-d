@@ -46,6 +46,7 @@ _CRYPTO_OVERRIDES = {
     "crypto_risk_per_trade_pct": "risk_per_trade_pct",
     "crypto_max_concurrent_positions": "max_concurrent_positions",
     "crypto_min_buy_confidence": "min_buy_confidence",
+    "crypto_entry_min_score": "entry_min_score",
     "crypto_max_new_positions_per_day": "max_new_positions_per_day",
     "crypto_min_hold_minutes": "min_hold_minutes",
     "crypto_max_position_pct": "max_position_pct",
