@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-10-11T10:41:04Z
+# Audyt GielDarek — 2026-10-11T11:10:38Z
 
-**Wdrożenie:** kod 41266a3 (zbud. 2026-10-08T06:03Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 16cfabd (zbud. 2026-10-11T11:06Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 112 zamknięć · trafność 30.4% · zrealizowany $8.37
 **7 dni:** 0 zamknięć · —% · $0.0   |   **30 dni:** 64 · 31.2% · $6.13
@@ -41,15 +41,16 @@
 
 **Najczęstsze powody odrzucenia (top):**
 - 33× — Automat (alpaca) zapauzowany ręcznie
-- 30× — Auto-degradacja LTC/USD: ujemna historia (0W/5L, P&L -2333.86) — nowe wejście zablokowane
+- 29× — Auto-degradacja LTC/USD: ujemna historia (0W/5L, P&L -2333.86) — nowe wejście zablokowane
 - 19× — Auto-degradacja LINK/USD: ujemna historia (0W/5L, P&L -1476.39) — nowe wejście zablokowane
 - 13× — Auto-degradacja AVAX/USD: ujemna historia (1W/4L, P&L -2392.28) — nowe wejście zablokowane
 - 10× — Auto-degradacja DOGE/USD: ujemna historia (0W/5L, P&L -1406.74) — nowe wejście zablokowane
 - 9× — Auto-degradacja ETH/USD: ujemna historia (1W/4L, P&L -600.04) — nowe wejście zablokowane
 - 3× — Auto-degradacja SOL/USD: ujemna historia (2W/4L, P&L -1150.07) — nowe wejście zablokowane
-- 2× — brak powodu
+- 3× — brak powodu
 
 **Ostatnie 20 decyzji:**
+- 2026-10-11T10:50:31.960680 — HOLD conf=0.6 trig=manual ⛔ ?
 - 2026-10-10T19:48:31.606670 ETH/USD BUY conf=0.6 trig=news_event ⛔ Auto-degradacja ETH/USD: ujemna historia (1W/4L, P&L -600.04) — nowe wejście zablokowane
 - 2026-10-10T19:18:31.488117 LTC/USD BUY conf=0.6 trig=news_event ⛔ Auto-degradacja LTC/USD: ujemna historia (0W/5L, P&L -2333.86) — nowe wejście zablokowane
 - 2026-10-10T19:03:31.778538 LTC/USD BUY conf=0.6 trig=news_event ⛔ Auto-degradacja LTC/USD: ujemna historia (0W/5L, P&L -2333.86) — nowe wejście zablokowane
@@ -69,4 +70,3 @@
 - 2026-10-10T09:48:34.624883 LINK/USD BUY conf=0.6 trig=news_event ⛔ Auto-degradacja LINK/USD: ujemna historia (0W/5L, P&L -1476.39) — nowe wejście zablokowane
 - 2026-10-10T09:33:31.462042 LINK/USD BUY conf=0.6 trig=news_event ⛔ Auto-degradacja LINK/USD: ujemna historia (0W/5L, P&L -1476.39) — nowe wejście zablokowane
 - 2026-10-10T09:18:31.483583 LINK/USD BUY conf=0.6 trig=scheduled_daily ⛔ Auto-degradacja LINK/USD: ujemna historia (0W/5L, P&L -1476.39) — nowe wejście zablokowane
-- 2026-10-10T09:03:31.604668 LINK/USD BUY conf=0.6 trig=scheduled_daily ⛔ Auto-degradacja LINK/USD: ujemna historia (0W/5L, P&L -1476.39) — nowe wejście zablokowane
