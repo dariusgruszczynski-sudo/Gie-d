@@ -45,6 +45,12 @@ class FakeAlpaca:
     def get_account_balances(self):
         return dict(self.balances)
 
+    def get_calendar(self, start, end):
+        # market_hours.get_session_info woła to przy budowie kontekstu decyzji;
+        # testy nie weryfikują kalendarza sesji, więc pusty kalendarz (= rynek
+        # zamknięty, brak świąt) wystarcza i nie zależy od sieci.
+        return []
+
     def place_market_order_usdt_amount(self, symbol, side, usdt_amount):
         price = self.prices[symbol]
         quantity = usdt_amount / price

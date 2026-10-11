@@ -37,6 +37,24 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Wpis — 2026-10-11 (NAUKA — self-review widzi WARUNKI RYNKU, nie tylko „co kupił")
+Właściciel: „nauka nauka nauka". Audyt pętli uczenia na żywym stanie:
+- Pipeline JEST kompletny i **dzienny** (nie tygodniowy): każde wejście/wyjście —
+  także mechaniczne (auto-deploy, bez LLM) — zapisuje `reasoning` **oraz**
+  `market_context_snapshot`; self-review co dzień destyluje 3-5 lekcji → `lessons_json`
+  (cap 30) → wraca do kontekstu KAŻDEJ decyzji. Potwierdzone: **87/87** decyzji krypto
+  ma wypełniony kontekst (funding BTC, OI 24h, long/short, Fear&Greed).
+- **Luka:** destylacja czytała tylko `reasoning` i IGNOROWAŁA ten kontekst → lekcje
+  płytkie („unikaj DOGE") zamiast przyczynowych. Surowiec był logowany i marnowany.
+- **Fix (ta zmiana):** `_market_ctx_tag()` dokleja do każdej transakcji w prompcie
+  warunki rynku `[F&G 61, funding -0,002%, L/S 1,45, OI24h +0,33%]`, a instrukcja
+  każe szukać ZALEŻNOŚCI (przy jakich warunkach wejścia zarabiały/się sypały).
+  Efekt: lekcje przyczynowe → przyszły Sonnet startuje „naładowany", nie na zero.
+- To NIE jest knob strategii (zero wpływu na handel) — czysta jakość nauki. 395/395, ruff ok.
+- UCZCIWIE o paliwie: 70 trejdów/7 dni, ale gros to churn AVAX z 10-07 (krwawienie
+  na rundach) + 1 BUY BTC 10-09 i ~2 dni ciszy. Force-trade wszedł na żywo dopiero
+  dziś 11:06Z — dopiero on wygeneruje gęstsze dane do tej lepszej destylacji.
+
 ### Wpis — 2026-10-11 (FORCE-TRADE — próg konfluencji krypto = 0)
 Właściciel: „force-trade wszystko, akceptuję churn" (rynek boczny, kapitał stał).
 crypto_entry_min_score=0 → auto-deploy ZAWSZE rozmieszcza gotówkę w najlepiej-

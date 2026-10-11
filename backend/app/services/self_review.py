@@ -61,6 +61,42 @@ def _parse_lessons(text: str) -> list[str]:
     return lessons
 
 
+def _market_ctx_tag(t: Trade) -> str:
+    """Kompaktowy opis WARUNKÓW RYNKU w chwili decyzji (Fear&Greed, funding BTC,
+    long/short, zmiana OI 24h) -- te liczby zapisujemy w
+    decision.market_context_snapshot przy KAŻDEJ decyzji (też mechanicznej).
+
+    Dzięki temu self-review widzi NIE tylko „co kupiłem", ale „przy jakich
+    warunkach" -- więc lekcje mogą być PRZYCZYNOWE ('wejścia przy F&G>60 i
+    dodatnim fundingu zawracały'), a nie tylko 'unikaj DOGE'. To największa
+    dźwignia nauki: surowiec był logowany, ale destylacja go ignorowała.
+    Pusto, gdy brak kontekstu (noga akcji / stary wpis / nieparsowalne)."""
+    dec = t.decision
+    raw = getattr(dec, "market_context_snapshot", None) if dec else None
+    if not raw:
+        return ""
+    try:
+        ctx = json.loads(raw) if isinstance(raw, str) else raw
+    except (json.JSONDecodeError, TypeError):
+        return ""
+    if not isinstance(ctx, dict) or not ctx:
+        return ""
+    bits: list[str] = []
+    fng = ctx.get("fear_greed")
+    if fng is not None:
+        bits.append(f"F&G {fng}")
+    funding = ctx.get("btc_funding_rate_pct")
+    if funding is not None:
+        bits.append(f"funding {funding:+.3f}%")
+    ls = ctx.get("btc_long_short_ratio")
+    if ls is not None:
+        bits.append(f"L/S {ls:.2f}")
+    oi = ctx.get("btc_open_interest_change_24h_pct")
+    if oi is not None:
+        bits.append(f"OI24h {oi:+.2f}%")
+    return (" [" + ", ".join(bits) + "]") if bits else ""
+
+
 def run_self_review(
     db: Session,
     settings: Settings,
@@ -88,7 +124,8 @@ def run_self_review(
 
     trade_lines = "\n".join(
         f"- {t.timestamp.strftime('%d.%m %H:%M')} {t.side} {t.symbol} @ {t.price:.2f} "
-        f"(${t.usdt_value:.2f}){' | ' + t.decision.reasoning[:140] if t.decision and t.decision.reasoning else ''}"
+        f"(${t.usdt_value:.2f}){_market_ctx_tag(t)}"
+        f"{' | ' + t.decision.reasoning[:120] if t.decision and t.decision.reasoning else ''}"
         for t in reversed(trades)
     )
     # Scorecard nogi głównej (krypto -> trafność/realized z transakcji krypto),
@@ -107,8 +144,14 @@ def run_self_review(
         f"trafność {card['win_rate_pct'] if card['win_rate_pct'] is not None else '—'}% "
         f"({card['wins']}W/{card['losses']}L)\n\n"
         f"DOTYCHCZASOWE LEKCJE:\n{previous_txt}\n\n"
+        "Przy transakcjach w nawiasie [...] masz WARUNKI RYNKU w chwili decyzji "
+        "(Fear&Greed, funding BTC, long/short, zmiana OI 24h). SZUKAJ ZALEŻNOŚCI: "
+        "przy jakich warunkach wejścia zarabiały, a przy jakich się sypały "
+        "(np. 'longi przy F&G>60 i dodatnim fundingu zawracały', 'churn na bocznym "
+        "rynku przy L/S>1,5 zżerał kapitał'). "
         "Napisz 3-5 KONKRETNYCH lekcji na przyszły tydzień -- co działało, czego nie powtarzać, "
-        "które tickery/setupy unikać lub preferować. Jedna lekcja = jedna linia zaczynająca się od '- '. "
+        "które tickery/setupy unikać lub preferować i W JAKICH WARUNKACH rynku. "
+        "Jedna lekcja = jedna linia zaczynająca się od '- '. "
         "Bez wstępu i podsumowania, tylko lekcje."
     )
 
