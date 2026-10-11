@@ -37,6 +37,21 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Wpis — 2026-10-11 (bramki wejścia OFF — kapitał ma pracować na 24/7)
+Mimo poluzowania (10-08) kapitał dalej stał w 100% gotówce dniami — na rynku
+24/7 to bez sensu, a cel paperu to ZBIERAĆ DANE. Właściciel: „krypto to 24/7,
+nic się nie da handlować? luzuj". Wyłączone dwie najtwardsze bramki wejścia +
+ADX (wyraźna prośba):
+- `crypto_regime_filter_enabled → False` (reżim HTF był ścianą),
+- `crypto_breakout_entry_enabled → False` (wymóg nowego maksimum rzadko trafiał),
+- `crypto_min_adx → 0` (ADX blokował w płaskim rynku).
+Wejścia napędza teraz KONFLUENCJA (RSI/MACD/SMA, entry_min_score) + auto-deploy.
+CAŁA ochrona ryzyka działa dalej: stopy vol, hartowany trend-exit, cooldown,
+breaker serii strat, cap ekspozycji, bezpiecznik konta 30/40/55%. UCZCIWIE:
+to powrót do wyższej rotacji (bliżej baseline'u z backtestu) — więcej wejść,
+niższa jakość/trejd; świadomie, pod naukę. Reversible knobami. Obserwujemy, czy
+ruszył handel.
+
 ### Wpis — 2026-10-08 (poluzowanie bramek wejścia — „bot ma się uczyć")
 Nadzór pokazał: od wdrożenia 10 mechanizmów bot NIE zawarł ani jednej nowej
 transakcji (konto płaskie, 100% gotówki) — nowe bramki (reżim HTF + wybicie +

@@ -68,7 +68,13 @@
   position: static;
   background: var(--cr-bg-2);
   border-bottom: 1px solid var(--cr-line);
+  /* iPhone: status-bar black-translucent + viewport-fit=cover rysuje POD notchem/
+     Dynamic Island. Bez tego góra nagłówka chowa się pod wyspą („nic nie widzę").
+     Wpychamy treść poniżej wyspy (tło nagłówka wypełnia pas wyspy). */
+  padding-top: env(safe-area-inset-top, 0px);
 }
+/* Boczne wcięcia (notch w poziomie) — treść nie wchodzi pod zaokrąglenia. */
+.cr-sys, .cr-nav { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
 /* Nagłówek SOLIDNY (bez backdrop-filter) — blur na przyklejonym elemencie
    przelicza się przy każdej klatce scrolla i to był główny „przycina się na
    telefonie". Nieprzezroczyste tło = brak repaintu per-scroll. */
