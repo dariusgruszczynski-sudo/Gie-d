@@ -37,6 +37,27 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Tydzień 1 — 2026-10-12 (start paper 2026-10-04, snapshot build 800d3ce)
+Dane: branch `audit-snapshots`, trades.json (filtr krypto), average-cost walk.
+- **Zamknięcia:** 61 | **trafność 28% (17W/44L)** | **realized −$9 382** | **expectancy −$154/trejd**.
+- **Payoff BRUTALNIE asymetryczny:** avg win **$3**, avg loss **−$214**. To sygnatura churnu —
+  wyjścia nie bankują nic na wygranych, a biorą pełne stopy na stratnych.
+- **vs BTC:** strategia głęboko PONIŻEJ trzymania BTC (BTC w oknie ~płasko, −$17 na 1 zamkn.;
+  strategia −$9,4k). Kryterium „bić BTC" — **ZŁAMANE**.
+- **Koncentracja:** straty rozłożone na wiele trejdów (nie 1-2), gros z churnu AVAX/LTC/SOL
+  6-7.10. Każdy alt na minusie: AVAX −$2,4k, LTC −$2,3k, LINK −$1,5k, DOGE −$1,4k, SOL −$1,2k, ETH −$0,6k.
+- **Drawdown:** konto $88,1k vs szczyt $99,8k = **−11,7%** (w granicy 25%, ale trend zły).
+- **Silnik:** żywy (crypto_paused=false, nie zhaltowany), paper=true, koszt AI ≈$0 (mechaniczny).
+  Po wyłączeniu auto-degradacji (11.10 17:10) kapitał RUSZYŁ: crypto $21,7k→$71,7k, gotówka
+  $66k→$16k (81% rozmieszczone); 3 nowe wejścia AVAX/LINK/SOL — jeszcze otwarte (unreal. +$343).
+
+**Werdykt: pogarsza się wg kryteriów GO-LIVE (poniżej BTC, ujemny expectancy).** ALE to świadoma
+faza force-trade/zbierania danych wybrana przez właściciela — NIE werdykt o „docelowej" strategii.
+Kryteria GO-LIVE: próbka 61 zamkn. ✓ ale <3 tyg. ✗ · bić BTC ✗ · expectancy>0 ✗ · DD≤25% ✓ ·
+nie z 1-2 trejdów ✓ · koszt AI≈$0 ✓. Największa lekcja do obserwacji: **asymetria payoffu** (win $3
+/ loss −$214) — jeśli po setce uczciwych trejdów się utrzyma, to sygnał że mechaniczne wyjścia
+tną zyski za wcześnie, a nie że „alty są złe". Bez zmian knobów (zgodnie z regułą nadzoru).
+
 ### Wpis — 2026-10-11 (auto-degradacja OFF dla krypto — ostatnia bramka force-trade)
 Diagnoza z żywych decyzji: **83/87** nowych wejść krypto odrzucała JEDNA bramka —
 auto-degradacja. Na prodzie była włączona (env) i zbanowała **6/7 uniwersum**:
