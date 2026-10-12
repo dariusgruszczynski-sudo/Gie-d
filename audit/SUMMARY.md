@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-10-12T09:34:29Z
+# Audyt GielDarek — 2026-10-12T13:59:45Z
 
-**Wdrożenie:** kod 800d3ce (zbud. 2026-10-11T17:05Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 97af68e (zbud. 2026-10-12T09:38Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 112 zamknięć · trafność 30.4% · zrealizowany $8.37
 **7 dni:** 0 zamknięć · —% · $0.0   |   **30 dni:** 61 · 32.8% · $13.67
@@ -14,7 +14,7 @@
 - (bad) ⚠ Zyski trzymane dłużej (~3 dni) niż straty (~3 dni) — automat zwleka z realizacją zysku.
 - (neu) Największy przeciek: MSFT (-7.26 $, 11 zamk.) — kandydat do wyrzucenia z listy.
 - (neu) Limit wejść bywa osiągany (58 dni) — podniesienie może dołożyć wejść.
-- (neu) Najczęstszy powód pominięcia wejścia: „Auto-degradacja LTC/USD: ujemna historia (0W/5L, P&L -2333.86) — nowe wejście zablokowane” (65× z ostatnich 300 decyzji).
+- (neu) Najczęstszy powód pominięcia wejścia: „Auto-degradacja LTC/USD: ujemna historia (0W/5L, P&L -2333.86) — nowe wejście zablokowane” (64× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
 - MSFT: $-7.26 (11 zamk., 0%)
@@ -41,14 +41,17 @@
 
 **Najczęstsze powody odrzucenia (top):**
 - 19× — Auto-degradacja DOGE/USD: ujemna historia (0W/5L, P&L -1406.74) — nowe wejście zablokowane
-- 19× — Auto-degradacja ETH/USD: ujemna historia (1W/4L, P&L -600.04) — nowe wejście zablokowane
 - 19× — Auto-degradacja LINK/USD: ujemna historia (0W/5L, P&L -1476.39) — nowe wejście zablokowane
 - 19× — Auto-degradacja LTC/USD: ujemna historia (0W/5L, P&L -2333.86) — nowe wejście zablokowane
-- 19× — Auto-degradacja SOL/USD: ujemna historia (2W/4L, P&L -1150.07) — nowe wejście zablokowane
 - 18× — Auto-degradacja AVAX/USD: ujemna historia (1W/4L, P&L -2392.28) — nowe wejście zablokowane
-- 4× — brak powodu
+- 18× — Auto-degradacja ETH/USD: ujemna historia (1W/4L, P&L -600.04) — nowe wejście zablokowane
+- 18× — Auto-degradacja SOL/USD: ujemna historia (2W/4L, P&L -1150.07) — nowe wejście zablokowane
+- 5× — brak powodu
+- 1× — Automat (alpaca) zapauzowany ręcznie
 
 **Ostatnie 20 decyzji:**
+- 2026-10-12T13:53:27.885875 — HOLD conf=0.0 trig=scheduled_daily ⛔ ?
+- 2026-10-12T13:38:29.288974 — HOLD conf=0.0 trig=price_move ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-12T06:35:28.250490 — HOLD conf=0.0 trig=scheduled_daily ⛔ ?
 - 2026-10-11T23:35:28.222242 — HOLD conf=0.0 trig=scheduled_daily ⛔ ?
 - 2026-10-11T17:10:15.844444 SOL/USD BUY conf=0.6 trig=manual ✅WYKONANE
@@ -67,5 +70,3 @@
 - 2026-10-11T17:03:31.330776 ETH/USD BUY conf=0.6 trig=news_event ⛔ Auto-degradacja ETH/USD: ujemna historia (1W/4L, P&L -600.04) — nowe wejście zablokowane
 - 2026-10-11T17:03:31.327510 SOL/USD BUY conf=0.6 trig=news_event ⛔ Auto-degradacja SOL/USD: ujemna historia (2W/4L, P&L -1150.07) — nowe wejście zablokowane
 - 2026-10-11T17:03:31.324047 LINK/USD BUY conf=0.6 trig=news_event ⛔ Auto-degradacja LINK/USD: ujemna historia (0W/5L, P&L -1476.39) — nowe wejście zablokowane
-- 2026-10-11T17:03:31.320453 AVAX/USD BUY conf=0.6 trig=news_event ⛔ Auto-degradacja AVAX/USD: ujemna historia (1W/4L, P&L -2392.28) — nowe wejście zablokowane
-- 2026-10-11T16:48:30.949248 LTC/USD BUY conf=0.6 trig=news_event ⛔ Auto-degradacja LTC/USD: ujemna historia (0W/5L, P&L -2333.86) — nowe wejście zablokowane
