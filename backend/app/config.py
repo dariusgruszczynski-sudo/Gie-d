@@ -564,6 +564,12 @@ class Settings(BaseSettings):
     auto_blacklist_stop_count: int = 3
     auto_blacklist_window_hours: int = 24
     auto_blacklist_hours: int = 48
+    # Krypto (force-trade, zbieranie danych): auto-blacklist WYŁĄCZONY (0). Przy
+    # force-trade churnie alt łatwo zbiera 3 stopy/24h i wypadałby na 48h — to
+    # parkowało kapitał, czego właściciel nie chce w fazie zbierania danych.
+    # Zostaje 60-min cooldown po stopie i 180-min reentry (hamulce anty-whipsaw).
+    # Noga akcji nietknięta (osobny override). Reversible: ustaw >0, by wrócić.
+    crypto_auto_blacklist_stop_count: int = 0
     # Send an email the moment any trade executes (BUY/SELL, incl. TP/SL exits).
     # Uses the same SMTP config as the daily report; silently skipped if SMTP
     # isn't configured. DOMYŚLNIE WYŁĄCZONE -- właściciel chce tylko jeden

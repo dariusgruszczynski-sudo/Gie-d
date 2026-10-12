@@ -37,6 +37,15 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Wpis — 2026-10-12 (auto-blacklist OFF dla krypto — hamulec, który parkował kapitał)
+Właściciel: „zdejmij blacklist". Auto-blacklist (3 stopy/24h → kwarantanna 48h) przy
+force-trade churnie wypychał alty na 2 dni i parkował kapitał — niechciane w fazie
+zbierania danych. Nowy knob `crypto_auto_blacklist_stop_count=0` + override →
+auto_blacklist_stop_count. ZOSTAJĄ hamulce anty-whipsaw: 60-min cooldown po stopie
+i 180-min reentry po pełnym wyjściu (ich właściciel nie zdejmował). Weryfikacja:
+baza (akcje) =3 nietknięte, krypto efektywnie =0. ruff + testy profili zielone.
+Reszta ochrony (stopy/cap/breaker/halt 30-40-55%) gra. Reversible: ustaw >0.
+
 ### Tydzień 1 — 2026-10-12 (start paper 2026-10-04, snapshot build 800d3ce)
 Dane: branch `audit-snapshots`, trades.json (filtr krypto), average-cost walk.
 - **Zamknięcia:** 61 | **trafność 28% (17W/44L)** | **realized −$9 382** | **expectancy −$154/trejd**.
