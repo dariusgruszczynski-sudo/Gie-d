@@ -162,7 +162,14 @@ class Settings(BaseSettings):
     crypto_stop_loss_max_pct: float = 18.0
     crypto_volatility_reference_pct: float = 3.0     # „normalna" dzienna zmienność krypto
     crypto_price_move_trigger_pct: float = 4.0
-    crypto_full_analysis_every_minutes: int = 0
+    # 2026-10-13: 0 -> 480 (8h). Heartbeat wymusza PEŁNĄ analizę Claude co 8h na
+    # nodze krypto, więc LLM realnie CZYTA krypto-newsy + funding/OI/long-short/
+    # F&G i decyduje wejścia (dotąd te dane tylko się zapisywały — silnik był
+    # czysto mechaniczny). Mechaniczny auto-deploy + stopy biegną dalej 24/7 między
+    # wywołaniami. ~3 wywołania/dzień ≈ ~$5-6/mies (sonnet-5) — mieści się w budżecie
+    # $9. Wybór właściciela: force-trade (entry_min_score=0) ZOSTAJE — Claude dokłada
+    # warstwę strategiczną, nie zastępuje mechaniki. Reversible: ustaw 0, by wyłączyć.
+    crypto_full_analysis_every_minutes: int = 480
     crypto_poll_interval_minutes: int = 15
     crypto_signal_timeframe: str = "1h"
     # TANI SILNIK (lekcja z akcji: LLM zjadł ~$196). Dla krypto decyzje napędza

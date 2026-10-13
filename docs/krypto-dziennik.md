@@ -37,6 +37,22 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Wpis — 2026-10-13 (mózg LLM ON na krypto — Claude co 8h czyta newsy+funding)
+Diagnoza: `crypto_full_analysis_every_minutes=0` → noga krypto NIGDY nie odpalała
+pełnej analizy Claude, więc krypto-newsy (CoinDesk/Cointelegraph/Decrypt…) i
+funding/OI/long-short/F&G tylko SIĘ ZAPISYWAŁY, nie sterowały wejściami (silnik
+czysto mechaniczny). Potwierdzone na żywo: tylko 2/107 decyzji krypto miało
+news_snapshot, choć market_context 87/87. Wybór właściciela: włącz analizę co 8h,
+ale ZOSTAW force-trade. Zmiana: `crypto_full_analysis_every_minutes` 0→480.
+Heartbeat wymusza pełną analizę Claude (sonnet-5) ~3×/dzień — LLM realnie czyta
+newsy+strukturę i decyduje wejścia; mechaniczny auto-deploy + stopy biegną 24/7
+między wywołaniami. Koszt ~$5-6/mies (stawki sonnet $3/$15 za 1M tok.) — mieści się
+w budżecie $9. `entry_min_score=0` i auto_deploy ZOSTAJĄ (Claude dokłada warstwę,
+nie zastępuje mechaniki). Akcje nietknięte (full_analysis=0). ruff + testy profili
+zielone. UCZCIWIE: brak dowodu, że warstwa LLM bije mechanikę — to eksperyment do
+zmierzenia, nie pewniak; nadzór policzy, czy decyzje z analizy są lepsze niż force
+mechaniczny. Reversible: ustaw 0.
+
 ### Wpis — 2026-10-12 (auto-blacklist OFF dla krypto — hamulec, który parkował kapitał)
 Właściciel: „zdejmij blacklist". Auto-blacklist (3 stopy/24h → kwarantanna 48h) przy
 force-trade churnie wypychał alty na 2 dni i parkował kapitał — niechciane w fazie
