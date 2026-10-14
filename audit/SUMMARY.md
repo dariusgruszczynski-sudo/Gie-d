@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-10-13T23:42:12Z
+# Audyt GielDarek — 2026-10-14T08:35:27Z
 
 **Wdrożenie:** kod 37384b8 (zbud. 2026-10-13T18:11Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
@@ -14,7 +14,7 @@
 - (bad) ⚠ Zyski trzymane dłużej (~3 dni) niż straty (~3 dni) — automat zwleka z realizacją zysku.
 - (neu) Największy przeciek: MSFT (-7.26 $, 11 zamk.) — kandydat do wyrzucenia z listy.
 - (neu) Limit wejść bywa osiągany (60 dni) — podniesienie może dołożyć wejść.
-- (neu) Najczęstszy powód pominięcia wejścia: „Automat (alpaca) zapauzowany ręcznie” (38× z ostatnich 300 decyzji).
+- (neu) Najczęstszy powód pominięcia wejścia: „Automat (alpaca) zapauzowany ręcznie” (37× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
 - MSFT: $-7.26 (11 zamk., 0%)
@@ -41,15 +41,18 @@
 
 **Najczęstsze powody odrzucenia (top):**
 - 25× — Automat (alpaca) zapauzowany ręcznie
-- 5× — Auto-degradacja LTC/USD: ujemna historia (0W/5L, P&L -2333.86) — nowe wejście zablokowane
 - 5× — brak powodu
-- 4× — Auto-degradacja AVAX/USD: ujemna historia (1W/4L, P&L -2392.28) — nowe wejście zablokowane
 - 4× — Auto-degradacja DOGE/USD: ujemna historia (0W/5L, P&L -1406.74) — nowe wejście zablokowane
 - 4× — Auto-degradacja ETH/USD: ujemna historia (1W/4L, P&L -600.04) — nowe wejście zablokowane
-- 4× — Auto-degradacja LINK/USD: ujemna historia (0W/5L, P&L -1476.39) — nowe wejście zablokowane
+- 4× — Auto-degradacja LTC/USD: ujemna historia (0W/5L, P&L -2333.86) — nowe wejście zablokowane
 - 4× — Auto-degradacja SOL/USD: ujemna historia (2W/4L, P&L -1150.07) — nowe wejście zablokowane
+- 3× — Auto-degradacja AVAX/USD: ujemna historia (1W/4L, P&L -2392.28) — nowe wejście zablokowane
+- 3× — Auto-degradacja LINK/USD: ujemna historia (0W/5L, P&L -1476.39) — nowe wejście zablokowane
 
 **Ostatnie 20 decyzji:**
+- 2026-10-14T08:27:13.016326 — HOLD conf=0.0 trig=news_event ⛔ Dzienny limit strat przekroczony: -174.6% (limit 30.0%)
+- 2026-10-14T07:57:12.922162 — HOLD conf=0.0 trig=news_event ⛔ Dzienny limit strat przekroczony: -174.6% (limit 30.0%)
+- 2026-10-14T07:42:13.680405 — HOLD conf=0.0 trig=news_event ⛔ Dzienny limit strat przekroczony: -174.6% (limit 30.0%)
 - 2026-10-13T19:42:15.192279 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-13T19:12:18.552823 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-13T18:42:15.050743 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
@@ -67,6 +70,3 @@
 - 2026-10-13T04:19:42.918484 DOGE/USD BUY conf=0.6 trig=news_event ⛔ Cooldown po stop-lossie: DOGE/USD zablokowany do odkupu jeszcze ~150 min
 - 2026-10-13T04:19:40.979617 LINK/USD BUY conf=0.6 trig=news_event ✅WYKONANE
 - 2026-10-13T04:04:41.176781 LTC/USD BUY conf=0.6 trig=news_event ⛔ Cooldown po stop-lossie: LTC/USD zablokowany do odkupu jeszcze ~90 min
-- 2026-10-13T04:04:41.172702 AVAX/USD BUY conf=0.6 trig=news_event ⛔ Cooldown po stop-lossie: AVAX/USD zablokowany do odkupu jeszcze ~90 min
-- 2026-10-13T04:04:41.168596 DOGE/USD BUY conf=0.6 trig=news_event ⛔ Cooldown po stop-lossie: DOGE/USD zablokowany do odkupu jeszcze ~165 min
-- 2026-10-13T04:04:41.164521 SOL/USD BUY conf=0.6 trig=news_event ⛔ Cooldown po stop-lossie: SOL/USD zablokowany do odkupu jeszcze ~15 min
