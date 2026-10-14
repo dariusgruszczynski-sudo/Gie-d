@@ -3,15 +3,20 @@
 
 Wipes the app's OWN record -- decisions log, trades log, portfolio-value
 snapshots (the chart), risk events -- and resets the Claude budget/token meters,
-benchmark baseline, learned lessons and per-cycle state. The dashboard then
-starts from zero.
+benchmark baseline, account-peak (drawdown re-bases) and per-cycle state. It also
+CLEARS a loss-limit HALT (is_halted -> False). Learned lessons are PRESERVED by
+default (a paper-balance reset shouldn't wipe the learning); pass --wipe-lessons
+to clear those too. The dashboard then starts from zero.
 
 It does NOT touch your real Alpaca account: no order is placed, cancelled or
 even read here. Your live positions and cash stay exactly as they are -- the
-next trading cycle simply re-snapshots them from scratch. Both engines are left
-STOPPED after the reset, so nothing trades until you press START.
+next trading cycle simply re-snapshots them from scratch. So this ALONE will NOT
+fix a blown balance (e.g. negative cash): reset the paper account on Alpaca first
+(app.alpaca.markets -> paper -> Reset) to restore cash and flatten positions, THEN
+run this to clean the app's mirror. Both engines are left STOPPED after the reset.
 
     docker compose exec -T app python scripts/reset_history.py --yes
+    # add --wipe-lessons only if you also want to erase learned lessons
 """
 
 import sys
@@ -38,10 +43,17 @@ RESET_STATE = {
     "crypto_analysis_state_json": "{}", "crypto_partial_tp_taken_json": "{}",
     "crypto_stop_loss_streak_json": "{}",
     "benchmark_start_date": "", "benchmark_start_price": 0.0, "benchmark_start_value": 0.0,
-    "lessons_json": "[]", "last_self_review_date": "",
+    "last_self_review_date": "",
     "market_regime_json": "{}", "crypto_market_regime_json": "{}",
+    # Szczyt konta re-bazuje się od świeżego salda (po resecie paper ~100k), żeby
+    # drawdown/halt nie liczył od starego szczyka zdmuchniętego konta. 0 => następny
+    # cykl ustawi peak = bieżąca wartość (patrz risk_manager).
+    "peak_account_value": 0.0,
     "is_paused": True, "crypto_paused": True, "is_halted": False, "halted_reason": None,
 }
+# UWAGA: lessons_json (nauczone lekcje) NIE są kasowane domyślnie — reset salda
+# paper nie powinien zdmuchiwać NAUKI (np. „force-trade/serial re-entry krwawi").
+# Pełne wyzerowanie także lekcji: uruchom z dodatkowym --wipe-lessons.
 
 
 def main() -> None:
@@ -60,16 +72,23 @@ def main() -> None:
         n_dec = db.query(Decision).delete()
         n_snap = db.query(PortfolioSnapshot).delete()
         n_re = db.query(RiskEvent).delete()
+        wipe_lessons = "--wipe-lessons" in sys.argv
         state = db.get(SystemState, 1)
         if state is not None:
             for key, value in RESET_STATE.items():
                 setattr(state, key, value)
+            if wipe_lessons:
+                state.lessons_json = "[]"
         db.commit()
+        lessons_note = "WYMAZANE" if wipe_lessons else "ZACHOWANE (nauka zostaje)"
         print("=" * 64)
         print(f"Wyczyszczono: transakcje(log)={n_tr}, decyzje={n_dec}, "
               f"snapshoty={n_snap}, zdarzenia_ryzyka={n_re}")
-        print("Zresetowano: licznik tokenów/budżetu, baseline benchmarku, lekcje, stan cykli.")
-        print("Oba silniki są STOP — naciśnij START, gdy gotowy. Konto Alpaca NIETKNIĘTE.")
+        print(f"Zresetowano: licznik tokenów/budżetu, baseline benchmarku, szczyt konta, "
+              f"HALT zdjęty, stan cykli. Lekcje: {lessons_note}.")
+        print("Oba silniki są STOP — naciśnij START, gdy gotowy.")
+        print("UWAGA: to NIE resetuje konta Alpaca. Ujemną gotówkę/pozycje cofa dopiero")
+        print("RESET PAPER w panelu Alpaca (app.alpaca.markets -> paper -> Reset).")
         print("=" * 64)
     finally:
         db.close()
