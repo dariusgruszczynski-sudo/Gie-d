@@ -43,6 +43,12 @@ class Settings(BaseSettings):
     # pairs, so it does NOT need to appear in trading_whitelist).
     alpaca_paper: bool = False
     quote_currency: str = "USD"
+    # Twardy limit wartości POJEDYNCZEGO zlecenia. Alpaca odrzuca zlecenia krypto
+    # powyżej $200k notional (403 code 40310000). Przy większym koncie % sizingu
+    # potrafił wygenerować zlecenie > $200k -> broker odrzucał je W CAŁOŚCI i kapitał
+    # nie wchodził. Trzymamy bufor pod limitem: duże wejście/wyjście dzieli się na
+    # kawałki ≤ tej wartości (auto-deploy i mechaniczne wyjścia i tak lecą co cykl).
+    max_order_notional_usd: float = 190000.0
 
     # --- POZA SESJĄ (extended hours): DRUGI lot na TYM SAMYM koncie Alpaca ---
     # Ta sama para kluczy i to samo konto co sesja regularna, ale handluje w

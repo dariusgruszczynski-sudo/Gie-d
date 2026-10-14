@@ -2925,6 +2925,11 @@ def _execute_trade(
         room = portfolio.get("allocation_room")
         if room is not None:
             usdt_amount = min(usdt_amount, room)
+        # Twardy sufit notional/zlecenie (Alpaca odrzuca > $200k). Duże wejście
+        # dzieli się na kawałki — auto-deploy dołoży resztę w kolejnych cyklach.
+        max_notional = getattr(settings, "max_order_notional_usd", 0.0)
+        if max_notional > 0:
+            usdt_amount = min(usdt_amount, max_notional)
         # Rekomendacja B: nazwy o szerokim spreadzie kupujemy marketable-LIMIT
         # (mniej poślizgu); reszta zostaje market. Fallback na market jest w
         # place_order_for_session, gdy kawałek < 1 akcja (małe konto, ułamki).
@@ -2940,6 +2945,13 @@ def _execute_trade(
     elif action == "SELL":
         base_balance = _held_qty(portfolio, symbol, settings)
         quantity = base_balance * (size_pct / 100)
+        # Ten sam sufit notional/zlecenie co przy BUY: wyjście z dużej pozycji
+        # dzieli się na kawałki ≤ limitu (lepiej sprzedać teraz część niż dostać
+        # 403 i NIE sprzedać nic). Mechaniczne wyjścia dobiją resztę w kolejnym cyklu.
+        max_notional = getattr(settings, "max_order_notional_usd", 0.0)
+        price = (portfolio.get("prices") or {}).get(symbol) or 0.0
+        if max_notional > 0 and price > 0 and quantity * price > max_notional:
+            quantity = max_notional / price
         result = broker.place_order_for_session(symbol, "SELL", quantity=quantity, session=session)
     else:
         raise ValueError(f"Cannot execute action {action}")

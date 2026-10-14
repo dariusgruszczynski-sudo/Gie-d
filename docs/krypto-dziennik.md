@@ -37,6 +37,15 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Wpis — 2026-10-14 (limit notional/zlecenie — Alpaca odrzuca > $200k)
+Na nowym (większym) koncie % sizingu wygenerował zlecenie **$250k**, a Alpaca ma
+twardy limit **$200k notional na pojedyncze zlecenie** (403 code 40310000) → zlecenie
+odrzucone W CAŁOŚCI, kapitał nie wchodził. Fix: knob `max_order_notional_usd=190000`
+(bufor pod limit) + clamp w `_execute_trade` na BUY **i** SELL — duże wejście/wyjście
+dzieli się na kawałki ≤ limitu (auto-deploy i mechaniczne wyjścia dobijają resztę w
+kolejnych cyklach; lepiej sprzedać część niż dostać 403 i nie sprzedać nic). Testy
+test_order_notional_cap (BUY+SELL). Backend 405/405, ruff czysty.
+
 ### Wpis — 2026-10-14 (Podłącz konto Alpaca z panelu — bez dostępu do serwera)
 Problem: reset lustra zadziałał (realized/budżet/peak=0, halt zdjęty), ale saldo
 dalej ujemne (cash −$85k, equity −$64k), bo apka patrzy na STARE zdmuchnięte konto,
