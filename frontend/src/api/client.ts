@@ -341,6 +341,9 @@ export const api = {
   resume: (venue: string = "alpaca") => apiFetch<unknown>(`/api/control/resume?venue=${venue}`, { method: "POST" }),
   panic: () => apiFetch<{ paused: boolean; sold: string[]; failed: string[]; message: string }>(
     "/api/control/panic", { method: "POST" }, LONG_TIMEOUT_MS),
+  resetHistory: (wipeLessons: boolean = false) =>
+    apiFetch<{ trades: number; decisions: number; snapshots: number; risk_events: number; lessons_wiped: boolean; message: string }>(
+      `/api/control/reset-history?confirm=RESET&wipe_lessons=${wipeLessons}`, { method: "POST" }, LONG_TIMEOUT_MS),
   setPushMode: (mode: "all" | "big" | "daily" | "off") =>
     apiFetch<{ push_mode: string; message: string }>(`/api/control/set-push-mode?mode=${mode}`, { method: "POST" }),
   setPlan: (monthlyDeposit: number, goal: number) =>

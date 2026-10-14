@@ -290,6 +290,34 @@ def panic(db: Session = Depends(get_db), settings: Settings = Depends(get_settin
             "message": f"Wstrzymano bota. Sprzedano: {len(sold)}." + (f" Nie udało się: {', '.join(failed)}." if failed else "")}
 
 
+@router.post("/reset-history")
+def reset_history_endpoint(
+    confirm: str = "",
+    wipe_lessons: bool = False,
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
+    """„Reset do czysta": czyści WŁASNĄ historię aplikacji (log decyzji/transakcji,
+    wykres, zdarzenia ryzyka), resetuje liczniki/szczyt konta/stan cykli, ZDEJMUJE
+    HALT i zostawia oba silniki w STOP. Lekcje (nauka) ZACHOWANE — wipe_lessons=true
+    kasuje też je. NIE rusza konta Alpaca: ujemną gotówkę/pozycje cofa dopiero RESET
+    PAPER w panelu Alpaca; ten endpoint czyści tylko lustro aplikacji, więc odpalaj
+    go PO resecie konta. Wymaga confirm='RESET' (ochrona przed przypadkowym tapnięciem)."""
+    if confirm != "RESET":
+        raise HTTPException(status_code=400, detail="Wymagane potwierdzenie: confirm=RESET")
+    from app.services.history_reset import reset_tracking
+
+    r = reset_tracking(db, wipe_lessons=wipe_lessons)
+    audit.record(
+        db, "reset-history",
+        detail=f"trades={r['trades']} decisions={r['decisions']} snapshots={r['snapshots']} "
+               f"risk_events={r['risk_events']} lessons_wiped={r['lessons_wiped']}",
+        request=request,
+    )
+    return {**r, "message": "Wyczyszczono historię aplikacji; HALT zdjęty; silniki w STOP. "
+            "Konto Alpaca nietknięte — jeśli saldo było pod wodą, zresetuj paper w Alpace."}
+
+
 class ManualTradeRequest(BaseModel):
     symbol: str
     side: Literal["BUY", "SELL"]

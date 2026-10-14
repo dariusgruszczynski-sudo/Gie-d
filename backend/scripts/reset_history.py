@@ -25,35 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.db import SessionLocal, init_db  # noqa: E402
-from app.models import Decision, PortfolioSnapshot, RiskEvent, SystemState, Trade  # noqa: E402
-
-# SystemState fields reset to a fresh install. session_secret is deliberately
-# preserved (so open dashboard logins survive). Both engines left STOPPED.
-RESET_STATE = {
-    "claude_budget_month_key": "", "claude_spend_usd_this_month": 0.0,
-    "claude_input_tokens_this_month": 0, "claude_output_tokens_this_month": 0,
-    "day_start_date": "", "day_start_value": 0.0,
-    "week_start_date": "", "week_start_value": 0.0,
-    "last_check_prices_json": "{}", "last_full_analysis_date": "", "last_analysis_at": "",
-    "stop_loss_cooldowns_json": "{}", "position_peaks_json": "{}",
-    "partial_tp_taken_json": "{}", "stop_loss_streak_json": "{}",
-    "seen_ticker_headlines_json": "{}",
-    "crypto_check_prices_json": "{}", "crypto_position_peaks_json": "{}",
-    "crypto_stop_loss_cooldowns_json": "{}", "crypto_seen_ticker_headlines_json": "{}",
-    "crypto_analysis_state_json": "{}", "crypto_partial_tp_taken_json": "{}",
-    "crypto_stop_loss_streak_json": "{}",
-    "benchmark_start_date": "", "benchmark_start_price": 0.0, "benchmark_start_value": 0.0,
-    "last_self_review_date": "",
-    "market_regime_json": "{}", "crypto_market_regime_json": "{}",
-    # Szczyt konta re-bazuje się od świeżego salda (po resecie paper ~100k), żeby
-    # drawdown/halt nie liczył od starego szczyka zdmuchniętego konta. 0 => następny
-    # cykl ustawi peak = bieżąca wartość (patrz risk_manager).
-    "peak_account_value": 0.0,
-    "is_paused": True, "crypto_paused": True, "is_halted": False, "halted_reason": None,
-}
-# UWAGA: lessons_json (nauczone lekcje) NIE są kasowane domyślnie — reset salda
-# paper nie powinien zdmuchiwać NAUKI (np. „force-trade/serial re-entry krwawi").
-# Pełne wyzerowanie także lekcji: uruchom z dodatkowym --wipe-lessons.
+from app.services.history_reset import reset_tracking  # noqa: E402
 
 
 def main() -> None:
@@ -62,28 +34,17 @@ def main() -> None:
         print("NIE rusza konta Alpaca — Twoje pozycje i gotówka zostają nietknięte.")
         print("Uruchom z --yes, aby potwierdzić:")
         print("    docker compose exec -T app python scripts/reset_history.py --yes")
+        print("    # dodaj --wipe-lessons, jeśli chcesz skasować też nauczone lekcje")
         return
 
     init_db()
     db = SessionLocal()
     try:
-        # Delete trades BEFORE decisions (trades FK-reference decisions).
-        n_tr = db.query(Trade).delete()
-        n_dec = db.query(Decision).delete()
-        n_snap = db.query(PortfolioSnapshot).delete()
-        n_re = db.query(RiskEvent).delete()
-        wipe_lessons = "--wipe-lessons" in sys.argv
-        state = db.get(SystemState, 1)
-        if state is not None:
-            for key, value in RESET_STATE.items():
-                setattr(state, key, value)
-            if wipe_lessons:
-                state.lessons_json = "[]"
-        db.commit()
-        lessons_note = "WYMAZANE" if wipe_lessons else "ZACHOWANE (nauka zostaje)"
+        r = reset_tracking(db, wipe_lessons="--wipe-lessons" in sys.argv)
+        lessons_note = "WYMAZANE" if r["lessons_wiped"] else "ZACHOWANE (nauka zostaje)"
         print("=" * 64)
-        print(f"Wyczyszczono: transakcje(log)={n_tr}, decyzje={n_dec}, "
-              f"snapshoty={n_snap}, zdarzenia_ryzyka={n_re}")
+        print(f"Wyczyszczono: transakcje(log)={r['trades']}, decyzje={r['decisions']}, "
+              f"snapshoty={r['snapshots']}, zdarzenia_ryzyka={r['risk_events']}")
         print(f"Zresetowano: licznik tokenów/budżetu, baseline benchmarku, szczyt konta, "
               f"HALT zdjęty, stan cykli. Lekcje: {lessons_note}.")
         print("Oba silniki są STOP — naciśnij START, gdy gotowy.")

@@ -46,11 +46,21 @@ function PanicSection({ onChanged }: { onChanged: () => void }) {
     if (!window.confirm("🛑 STOP WSZYSTKO?\n\nWstrzyma bota i SPRZEDA wszystkie pozycje po cenie rynkowej. Nieodwracalne. Kontynuować?")) return;
     await a.run("panic", async () => { const r = await api.panic(); window.alert(r.message || "Zrobione."); onChanged(); }, "Wstrzymano i sprzedano.");
   }
+  async function resetHistory() {
+    if (!window.confirm(
+      "♻️ RESET DO CZYSTA?\n\nWyczyści historię aplikacji (log, wykres, liczniki), ZDEJMIE halt i zostawi silniki w STOP. " +
+      "Nauczone lekcje ZOSTAJĄ. NIE resetuje konta Alpaca — ujemną gotówkę/pozycje cofa dopiero RESET PAPER w panelu Alpaca " +
+      "(zrób to NAJPIERW). Kontynuować?"
+    )) return;
+    await a.run("reset", async () => { const r = await api.resetHistory(false); window.alert(r.message || "Wyczyszczono."); onChanged(); }, "Historia wyczyszczona.");
+  }
   return (
     <div className="cr-sec">
       <h4>🛑 Awaryjny STOP</h4>
       <p className="hint">Wstrzymuje bota i zamyka wszystkie pozycje. Na wypadek paniki.</p>
       <button className="cr-panicbtn" disabled={a.busy === "panic"} onClick={panic}>{a.busy === "panic" ? "Zamykam wszystko…" : "🛑 Sprzedaj wszystko i wstrzymaj"}</button>
+      <p className="hint" style={{ marginTop: 14 }}>Reset do czysta: czyści log/wykres/liczniki i zdejmuje halt (lekcje zostają). Konto Alpaca resetujesz osobno w panelu Alpaca.</p>
+      <button className="cr-btn warn block" disabled={a.busy === "reset"} onClick={resetHistory}>{a.busy === "reset" ? "Czyszczę…" : "♻️ Reset do czysta"}</button>
       {a.msg && <div className={`cr-msg ${a.msg.ok ? "ok" : "err"}`}>{a.msg.t}</div>}
     </div>
   );
