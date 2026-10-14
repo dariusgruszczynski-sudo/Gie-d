@@ -254,6 +254,11 @@ class SystemState(Base):
     # HMAC key for signing login session cookies -- generated once on first
     # boot and persisted so restarting the app doesn't log everyone out.
     session_secret: Mapped[str] = mapped_column(String(64), default="")
+    # Klucze Alpaca ustawione RUNTIME z panelu („Podłącz konto") — nadpisują env,
+    # żeby przełączyć konto bez dostępu do serwera. Puste => używane są klucze z env.
+    # NIGDY nie serializowane (patrz serialization._SENSITIVE_COLUMNS).
+    alpaca_api_key_override: Mapped[str] = mapped_column(String(128), default="")
+    alpaca_api_secret_override: Mapped[str] = mapped_column(String(128), default="")
     # Last computed broad-market regime {regime, score, reasons} -- cached here
     # by the Alpaca cycle so /api/status can show it without recomputing on
     # every 15s poll.

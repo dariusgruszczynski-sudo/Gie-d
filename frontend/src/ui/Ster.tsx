@@ -66,6 +66,37 @@ function PanicSection({ onChanged }: { onChanged: () => void }) {
   );
 }
 
+function ConnectAlpacaSection({ onChanged }: { onChanged: () => void }) {
+  const a = useAction();
+  const [key, setKey] = useState("");
+  const [secret, setSecret] = useState("");
+  async function connect() {
+    if (!key.trim() || !secret.trim()) return;
+    await a.run("conn", async () => {
+      const r = await api.connectAlpaca(key.trim(), secret.trim());
+      window.alert(r.message || "Podłączono.");
+      setKey(""); setSecret("");  // nie trzymaj sekretu w polu po sukcesie
+      onChanged();
+    }, "Konto podłączone.");
+  }
+  return (
+    <div className="cr-sec">
+      <h4>🔑 Podłącz konto Alpaca (paper)</h4>
+      <p className="hint">Wklej klucze z Alpaki (paper). Zapiszą się na serwerze i przełączą bota na to konto — bez restartu. Sekret nie jest nigdzie pokazywany ani logowany.</p>
+      <div className="cr-field"><label>API Key</label>
+        <input type="text" autoComplete="off" spellCheck={false} value={key} onChange={(e) => setKey(e.target.value)} placeholder="PK..." />
+      </div>
+      <div className="cr-field"><label>API Secret</label>
+        <input type="password" autoComplete="off" spellCheck={false} value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="••••••••" />
+      </div>
+      <button className="cr-btn primary block" disabled={a.busy === "conn" || !key.trim() || !secret.trim()} onClick={connect}>
+        {a.busy === "conn" ? "Łączę i sprawdzam…" : "🔑 Podłącz konto"}
+      </button>
+      {a.msg && <div className={`cr-msg ${a.msg.ok ? "ok" : "err"}`}>{a.msg.t}</div>}
+    </div>
+  );
+}
+
 function ManualSection({ status, onChanged }: { status: StatusResponse; onChanged: () => void }) {
   const a = useAction();
   const crypto = !!status.crypto_enabled;
@@ -188,6 +219,7 @@ export function SterDrawer({ status, onChanged, onClose }: { status: StatusRespo
             teraz steruje <b style={{ color: dotCol }}>{halted ? "BEZPIECZNIK (HALT)" : paused ? "TY (wstrzymany)" : "BOT"}</b>
           </div>
           <EngineSection status={status} onChanged={onChanged} />
+          <ConnectAlpacaSection onChanged={onChanged} />
           <PanicSection onChanged={onChanged} />
           <ManualSection status={status} onChanged={onChanged} />
           <DrySection status={status} />

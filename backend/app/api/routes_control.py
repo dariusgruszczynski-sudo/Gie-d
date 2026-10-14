@@ -318,6 +318,55 @@ def reset_history_endpoint(
             "Konto Alpaca nietknięte — jeśli saldo było pod wodą, zresetuj paper w Alpace."}
 
 
+class ConnectAlpacaRequest(BaseModel):
+    api_key: str
+    api_secret: str
+
+
+@router.post("/connect-alpaca")
+def connect_alpaca(
+    req: ConnectAlpacaRequest,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    request: Request = None,
+):
+    """Podłącz konto Alpaca (PAPER) kluczami z panelu — bez dostępu do serwera/env.
+    Weryfikuje klucze u Alpaki, zapisuje je jako runtime-owy override (SystemState),
+    nakłada na współdzielony singleton Settings (działa od zaraz, bez restartu),
+    zdejmuje HALT i re-bazuje szczyt (nowe konto zasilone). Silniki zostają w STOP —
+    właściciel świadomie wciska START. Sekret NIGDY nie wraca w odpowiedzi/logu."""
+    key = (req.api_key or "").strip()
+    secret = (req.api_secret or "").strip()
+    if not key or not secret:
+        raise HTTPException(status_code=400, detail="Podaj klucz i sekret API Alpaca.")
+    # Weryfikacja na KOPII ustawień — nie psujemy singletonu, dopóki klucze nie
+    # potwierdzą się realnym odczytem konta.
+    probe = settings.model_copy(update={
+        "alpaca_api_key": key, "alpaca_api_secret": secret, "alpaca_paper": True,
+    })
+    try:
+        balances = AlpacaClient(probe).get_account_balances()
+    except Exception as exc:
+        audit.record(db, "connect-alpaca", detail="weryfikacja nieudana", request=request, outcome="error")
+        raise HTTPException(status_code=502, detail=f"Klucze odrzucone przez Alpaca: {exc}") from exc
+    cash = float(balances.get(settings.quote_currency, 0.0) or 0.0)
+
+    from app.services.broker_credentials import set_override
+
+    set_override(db, key, secret)  # zapis do DB + nałożenie na singleton
+    state = risk_manager.get_state(db)
+    state.is_halted = False
+    state.halted_reason = None
+    state.peak_account_value = 0.0
+    db.commit()
+    audit.record(db, "connect-alpaca", detail=f"cash={cash:.2f} (klucz/sekret NIE logowane)", request=request)
+    return {
+        "connected": True, "mode": "paper", "cash": round(cash, 2),
+        "message": f"Podłączono konto Alpaca (paper). Gotówka ${cash:,.2f}. "
+                   "HALT zdjęty, silniki w STOP — wciśnij START, gdy gotowy.",
+    }
+
+
 class ManualTradeRequest(BaseModel):
     symbol: str
     side: Literal["BUY", "SELL"]

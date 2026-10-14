@@ -37,6 +37,20 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Wpis — 2026-10-14 (Podłącz konto Alpaca z panelu — bez dostępu do serwera)
+Problem: reset lustra zadziałał (realized/budżet/peak=0, halt zdjęty), ale saldo
+dalej ujemne (cash −$85k, equity −$64k), bo apka patrzy na STARE zdmuchnięte konto,
+a Alpaca nie daje resetu konta właścicielowi. Podmiana kluczy w env wymaga serwera,
+do którego nie ma dostępu. Rozwiązanie wykonalne z apki: endpoint + sekcja „Podłącz
+konto Alpaca". Wklejasz klucze paper w panelu → serwer weryfikuje je u Alpaki
+(odczyt salda), zapisuje jako runtime-owy override w SystemState, nakłada na
+współdzielony singleton get_settings() (wszystkie AlpacaClient czytają ten obiekt →
+przełączenie konta bez restartu), zdejmuje HALT i re-bazuje szczyt. Silniki zostają
+w STOP (świadomy START). Override wczytywany też na starcie (przetrwa restart).
+Bezpieczeństwo: konto paper; klucze NIE w repo; `serialize()` dostał listę
+_SENSITIVE_COLUMNS i nie zwraca już ani override'ów, ani (naprawione) session_secret.
+Backend 403/403, ruff czysty, front build OK. sw v65.
+
 ### Wpis — 2026-10-14 (bezpiecznik rozjechanego konta — halt KONTA, nie blacklista monet)
 Dodany twardy guard w risk_manager.update_portfolio_value: gdy equity ≤ 0 (jak przy
 blowoutcie −$61k), automat sam się HALTuje z jawnym powodem „Konto pod wodą … NIE

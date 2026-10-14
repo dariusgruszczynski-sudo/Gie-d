@@ -28,6 +28,20 @@ FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "static")
 async def lifespan(app: FastAPI):
     init_db()
     init_session_secret()
+    # Alpaca: nałóż runtime-owe klucze z panelu (jeśli ustawione) NA START, żeby
+    # po restarcie dalej używać konta podłączonego z „Podłącz konto Alpaca",
+    # zamiast wracać do (starych) kluczy z env.
+    try:
+        from app.db import SessionLocal
+        from app.services.broker_credentials import apply_override
+
+        _cred_db = SessionLocal()
+        try:
+            apply_override(_cred_db, get_settings())
+        finally:
+            _cred_db.close()
+    except Exception:  # pragma: no cover - brak override nie może blokować startu
+        pass
     # OPUS KONTROLER (P1): env-seed włączenia (raz, dopóki właściciel nie przełączy).
     try:
         from app.db import SessionLocal
