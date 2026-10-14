@@ -152,6 +152,52 @@ def test_auto_deploy_respects_claude_sell_veto(db_session, settings, monkeypatch
     assert not any(o.side == "BUY" for o in broker.orders)
 
 
+class LaggingAlpaca(FakeAlpaca):
+    """Broker, którego RAPORTOWANE saldo nie nadąża za fillami (eventual
+    consistency Alpaki) — get_account_balances zwraca stan sprzed transakcji,
+    choć zlecenia realnie się wykonały. Odtwarza blowout z 2026-10-14: pętla
+    auto-deploy czytała „gotówkę-widmo" i kupowała ponad stan."""
+
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self._frozen = dict(self.balances)  # saldo zamrożone w czasie startu cyklu
+
+    def get_account_balances(self):
+        return dict(self._frozen)
+
+
+def test_auto_deploy_clamps_spend_when_broker_cash_lags(db_session, settings, monkeypatch):
+    """ANTY-LEWAR: gdy saldo brokera NIE nadąża (zawyżone), auto-deploy i tak nie
+    może wydać więcej niż realna gotówka startowa — lokalny licznik netto przycina
+    widok salda po każdym zleceniu. Bez tego konto schodziło na ujemną gotówkę."""
+    monkeypatch.setattr(trading_engine, "compute_technical_indicators", lambda closes: dict(BULL))
+    # 4 confluentne nazwy, każde wejście sięga ~pełnej gotówki (brak cap pozycji),
+    # więc bez klampa 4 zakupy = ~4× przepłacenie. Z klampem suma <= gotówka.
+    s = _auto(
+        settings,
+        trading_whitelist="SPY,QQQ,AAPL,NVDA",
+        max_concurrent_positions=8,
+        max_position_pct=90.0,
+        risk_per_trade_pct=0.0,
+        auto_deploy_max_position_pct=100.0,
+    )
+    start_cash = 1000.0
+    broker = LaggingAlpaca(
+        prices={"SPY": 500.0, "QQQ": 400.0, "AAPL": 200.0, "NVDA": 100.0},
+        balances={"USD": start_cash, "SPY": 0.0, "QQQ": 0.0, "AAPL": 0.0, "NVDA": 0.0},
+    )
+    advisor = FakeAdvisor(TradingDecision("HOLD", None, 0, 0.8, "czekam"))
+
+    trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor, FakeMarketContext())
+
+    buys = [o for o in broker.orders if o.side == "BUY"]
+    assert buys, "auto-deploy powinien kupić przynajmniej raz"
+    spent = sum(o.usdt_value for o in buys)
+    # Klamp: łączne kupno nie przekracza realnej gotówki startowej (+mały bufor na
+    # zaokrąglenia). Bez fixu byłoby wielokrotnie powyżej (gotówka-widmo).
+    assert spent <= start_cash * 1.02, f"przepłacono: wydano {spent:.0f} przy gotówce {start_cash:.0f}"
+
+
 class SeriesAlpaca(FakeAlpaca):
     """Broker z osobną serią świec per symbol — pozwala policzyć REALNE wskaźniki
     (rosnąca seria => mocny setup, płaska => słaby)."""

@@ -472,11 +472,13 @@ class Settings(BaseSettings):
     # multi-signal trends. Trade-off: more attempts also means more spread/
     # slippage cost and more chances to be wrong, not free money.
     entry_min_score: int = 1
-    # 2026-10-11: KRYPTO force-trade (wyraźny wybór właściciela „akceptuję churn,
-    # ma handlować 24/7"): próg konfluencji 0 = auto-deploy ZAWSZE rozmieszcza
-    # gotówkę w najlepiej-rankowany setup, nawet przy słabej konfluencji. Churn
-    # świadomy; ochrona ryzyka (stopy/trend-exit/cooldown/breaker/cap) dalej gra.
-    crypto_entry_min_score: int = 0
+    # 2026-10-14: KONIEC force-trade. 0 (force-trade) doprowadził do blowoutu —
+    # szybka rotacja 24/7 bez selekcji zlewarowała konto na ujemną gotówkę (−$117k)
+    # i zdusiła je bezpiecznikiem. Wracamy do 1 = wejście wymaga ≥1 realnego sygnału
+    # konfluencji (RSI/MACD/SMA), więc auto-deploy przestaje mielić wszystko jak leci.
+    # Razem z anty-lewarowym guardem w _run_auto_deploy (licznik netto wydanej
+    # gotówki) — wejścia selektywne i niezlewarowane. Wybór właściciela.
+    crypto_entry_min_score: int = 1
     # --- Ilościowa auto-degradacja setupów (Tier 1) -------------------------
     # Once a ticker has >= auto_demote_min_trades CLOSED trades on a venue with
     # negative realized P&L and a sub-par win rate, block opening fresh

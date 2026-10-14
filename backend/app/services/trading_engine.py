@@ -2279,6 +2279,34 @@ def _run_auto_deploy(
             venue=venue, symbols=symbols, edge_payoff=edge_payoff,
         )
 
+    # ANTY-LEWAR (blowout 2026-10-14): Alpaca potrafi zwrócić saldo gotówki, które
+    # NIE nadążyło zaksięgować świeżo wypełnionych zleceń (eventual consistency).
+    # Przy szybkiej rotacji 24/7 (force-trade, sub-sekundowe wejścia) pętla czytała
+    # tę „gotówkę-widmo" i kupowała ponad stan -> konto zjechało na UJEMNĄ gotówkę
+    # (−$117k) i bezpiecznik dzienny zdusił handel. Dlatego trzymamy LOKALNY licznik
+    # NETTO wydanej gotówki w tym cyklu i po każdym zleceniu przycinamy nim widok
+    # salda: cash = min(saldo_brokera, gotówka_startowa − netto_wydane). Bierzemy
+    # MINIMUM, więc zawsze wariant konserwatywny — opóźnione (zawyżone) saldo nigdy
+    # nie pozwoli przepłacić. Gdy broker raportuje na czas, min() nic nie zmienia.
+    cycle_free0 = pf.get("usdt_balance", 0.0)
+    net_committed = 0.0
+
+    def _refresh_clamped(dec: Decision | None, *, sell: bool = False) -> dict:
+        """Odśwież portfel po zleceniu i PRZYTNIJ widok gotówki lokalnym licznikiem,
+        żeby opóźnione saldo brokera nie pozwoliło kupić ponad realny stan."""
+        nonlocal net_committed
+        notional = 0.0
+        if dec is not None and getattr(dec, "id", None):
+            tr = db.execute(
+                select(Trade).where(Trade.decision_id == dec.id).order_by(Trade.id.desc())
+            ).scalars().first()
+            if tr is not None and tr.usdt_value:
+                notional = float(tr.usdt_value)
+        net_committed += -notional if sell else notional
+        fresh = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
+        fresh["usdt_balance"] = min(fresh.get("usdt_balance", 0.0), max(0.0, cycle_free0 - net_committed))
+        return fresh
+
     # (1) DEPLOY leżącej gotówki w najlepsze setupy.
     tried: set[str] = set()
     while venue_allocation_room(db, settings, pf, venue) >= settings.auto_deploy_min_cash_usd and (
@@ -2294,7 +2322,7 @@ def _run_auto_deploy(
         dec = run_one("BUY", best, f"Auto-deploy: rozmieszczam gotówkę w najlepszy setup {best} (konfluencja {score}/3)")
         if dec is not None and dec.executed:
             executed.append(dec)
-            pf = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
+            pf = _refresh_clamped(dec)
 
     # MECHANIZM 10 — PIRAMIDOWANIE: dokładaj do WYGRYWAJĄCEJ pozycji na kolejnym
     # wybiciu (nigdy nie uśredniaj strat). Dokłada, póki: zysk >= pyramid_min_gain_pct,
@@ -2325,7 +2353,7 @@ def _run_auto_deploy(
             pdec = run_one("BUY", sym, f"Piramida: dokładam do wygrywającego {sym} (+{gain:.1f}%) na wybiciu {dh:.2f}")
             if pdec is not None and pdec.executed:
                 executed.append(pdec)
-                pf = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
+                pf = _refresh_clamped(pdec)
                 acct_total = account_total_value(db, settings, pf, venue)
 
     # (2) ROTACJA: przy braku gotówki wymień najsłabszą trzymaną na wyraźnie lepszą.
@@ -2362,11 +2390,11 @@ def _run_auto_deploy(
         if sdec is None or not sdec.executed:
             break
         executed.append(sdec)
-        pf = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
+        pf = _refresh_clamped(sdec, sell=True)
         bdec = run_one("BUY", best_new, f"Auto-rotacja: wchodzę w {best_new} (konfluencja {new_score}/3) po sprzedaży {weakest}")
         if bdec is not None and bdec.executed:
             executed.append(bdec)
-            pf = compute_portfolio(db, settings, broker, venue=venue, whitelist=symbols)
+            pf = _refresh_clamped(bdec)
         rotations += 1
 
     return executed, pf

@@ -37,6 +37,28 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Wpis — 2026-10-14 (BLOWOUT + fix: konto na ujemnej gotówce, bezpiecznik zdusił)
+Co się stało: konto zjechało na **cash −$117 597 / equity −$61 506**, bezpiecznik
+dzienny strzelił (*„limit strat −174,6%"*) → `is_halted=true`, bot STANĄŁ. To NIE
+były nowe straty z handlu (realized bez zmian −$13 950, day_realized=0) — to
+**dźwigniowy blowout**: szybka rotacja 24/7 (force-trade, wejścia co 1-2 s;
+$179k kupna/$190k sprzedaży w 2 dni na koncie ~$83k) + saldo Alpaki, które nie
+nadążało księgować fillów → pętla auto-deploy czytała „gotówkę-widmo" i kupowała
+ponad stan.
+Fix (wybór właściciela: „napraw + wróć selekcję, potem halt"):
+1. **Anty-lewar guard** w `_run_auto_deploy`: lokalny licznik NETTO wydanej gotówki
+   w cyklu; po każdym zleceniu `cash = min(saldo_brokera, gotówka_startowa − netto)`.
+   MINIMUM = zawsze konserwatywnie, opóźnione saldo nie pozwoli przepłacić.
+   Regresja w `test_auto_deploy_clamps_spend_when_broker_cash_lags` (LaggingAlpaca).
+2. **Koniec force-trade:** `crypto_entry_min_score` 0→1 — wejście wymaga ≥1 sygnału
+   konfluencji, więc rotacja przestaje mielić wszystko (główny wzmacniacz blowoutu).
+Backend 396/396, ruff czysty. UCZCIWIE: guard łapie wyścig WEWNĄTRZ cyklu (udowodniony
+sub-sekundowymi wejściami); jeśli głębszą przyczyną jest margin/siła nabywcza paper-
+konta Alpaki (fille na dźwigni mimo cienkiej gotówki), potrzebny będzie dodatkowo twardy
+limit „tylko za realny cash" — do oceny, jeśli się powtórzy. Halt trzeba zdjąć ręcznie
+w apce (Sterowanie), a konto na ujemnym equity najpewniej wymaga RESETU paper, bo
+handel z −$61k equity nie ma sensu.
+
 ### Wpis — 2026-10-13 (mózg LLM ON na krypto — Claude co 8h czyta newsy+funding)
 Diagnoza: `crypto_full_analysis_every_minutes=0` → noga krypto NIGDY nie odpalała
 pełnej analizy Claude, więc krypto-newsy (CoinDesk/Cointelegraph/Decrypt…) i
