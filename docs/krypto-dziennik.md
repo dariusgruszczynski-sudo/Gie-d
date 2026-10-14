@@ -37,6 +37,16 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Wpis — 2026-10-14 (bezpiecznik rozjechanego konta — halt KONTA, nie blacklista monet)
+Dodany twardy guard w risk_manager.update_portfolio_value: gdy equity ≤ 0 (jak przy
+blowoutcie −$61k), automat sam się HALTuje z jawnym powodem „Konto pod wodą … NIE
+blacklista monet". To halt CAŁEGO konta — żadna moneta/indeks (BTC/ETH/alty) NIE jest
+piętnowana; po resecie/zasileniu i ręcznym Wznów handel wraca na pełnym uniwersum.
+Lepki (nie znika nowym dniem — to ubytek kapitału, nie okno kroczące). Cel: rozjechane
+konto już nigdy samo nie ruszy. Auto-degradacja i auto-blacklist pozostają WYŁĄCZONE
+dla krypto — uczymy się na wszystkim, nie obrażamy na żaden ticker. Test
+test_underwater_account_trips_halt. Backend 399/399, ruff czysty.
+
 ### Wpis — 2026-10-14 (BLOWOUT + fix: konto na ujemnej gotówce, bezpiecznik zdusił)
 Co się stało: konto zjechało na **cash −$117 597 / equity −$61 506**, bezpiecznik
 dzienny strzelił (*„limit strat −174,6%"*) → `is_halted=true`, bot STANĄŁ. To NIE

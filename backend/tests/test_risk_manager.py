@@ -14,6 +14,19 @@ def test_daily_loss_limit_trips_halt(db_session, settings):
     assert check.approved is False
 
 
+def test_underwater_account_trips_halt(db_session, settings):
+    """Bezpiecznik rozjechanego konta: equity <= 0 (blowout) wstrzymuje handel,
+    z powodem oznaczonym jako halt KONTA (nie blacklista monet). Lepki: nie znika
+    nowym dniem."""
+    risk_manager.update_portfolio_value(db_session, settings, 1000.0)
+    state = risk_manager.update_portfolio_value(db_session, settings, -61506.0)
+
+    assert state.is_halted is True
+    assert "pod wodą" in (state.halted_reason or "")
+    assert "NIE blacklista" in (state.halted_reason or "")  # to halt konta, nie monet
+    assert risk_manager.can_trade_automated(db_session, "crypto").approved is False
+
+
 def test_no_halt_within_limit(db_session, settings):
     risk_manager.update_portfolio_value(db_session, settings, 1000.0)
     state = risk_manager.update_portfolio_value(db_session, settings, 950.0)  # -5%, within 10% limit

@@ -230,7 +230,21 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
 
     newly_halted = False
     if not state.is_halted:
-        if day_loss_pct >= daily_limit:
+        # BEZPIECZNIK ROZJECHANEGO KONTA (nie per-moneta!): gdy equity spadnie do
+        # zera lub poniżej (ujemna gotówka/dźwignia — blowout 2026-10-14), NIE
+        # handlujemy strukturalnie zepsutym kontem. To halt CAŁEGO konta, a NIE
+        # blacklista tickerów — żadna moneta/indeks nie jest piętnowana; po
+        # zresetowaniu/zasileniu konta i ręcznym Wznów handel wraca na pełnym
+        # uniwersum. Lepki (nie resetuje się nowym dniem — to nie okno kroczące).
+        if total_value_usdt <= 0:
+            state.is_halted = True
+            state.halted_reason = (
+                f"Konto pod wodą: equity ${total_value_usdt:,.2f} ≤ 0 — handel wstrzymany "
+                "(bezpiecznik konta, NIE blacklista monet; zresetuj/zasil konto i Wznów)"
+            )
+            _log_event(db, "account_underwater_stop", state.halted_reason)
+            newly_halted = True
+        elif day_loss_pct >= daily_limit:
             state.is_halted = True
             state.halted_reason = (
                 f"Dzienny limit strat przekroczony: -{day_loss_pct:.1f}% "
