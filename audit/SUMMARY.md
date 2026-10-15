@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-10-15T16:33:28Z
+# Audyt GielDarek — 2026-10-15T17:43:20Z
 
-**Wdrożenie:** kod 678e050 (zbud. 2026-10-14T18:48Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 88f7e2c (zbud. 2026-10-15T16:36Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 0 zamknięć · trafność —% · zrealizowany $0.0
 **7 dni:** 0 zamknięć · —% · $0.0   |   **30 dni:** 0 · —% · $0.0
@@ -10,7 +10,7 @@
 ## Wnioski
 - (neu) Za mało zamkniętych transakcji (0) na mocne wnioski — bot dopiero zbiera próbkę.
 - (neu) Limit wejść bywa osiągany (2 dni) — podniesienie może dołożyć wejść.
-- (neu) Najczęstszy powód pominięcia wejścia: „Automat (alpaca) zapauzowany ręcznie” (8× z ostatnich 300 decyzji).
+- (neu) Najczęstszy powód pominięcia wejścia: „Automat (alpaca) zapauzowany ręcznie” (10× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
 
@@ -23,19 +23,22 @@
 - próg pewności — baza (env): 0.6 · progresja +0.03/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
-- ostatnie 108 decyzji · wykonanych: 11 · odrzuconych: 97
+- ostatnie 111 decyzji · wykonanych: 11 · odrzuconych: 100
 
 **Najczęstsze powody odrzucenia (top):**
-- 8× — Automat (alpaca) zapauzowany ręcznie
+- 10× — Automat (alpaca) zapauzowany ręcznie
 - 7× — Zlecenie niewykonane: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 250000 exceeds max notional per order 200000"}
 - 3× — Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 203954.416332306783 exceeds max notional per order 200000"}
+- 3× — brak powodu
 - 2× — Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 202773.538818389374 exceeds max notional per order 200000"}
 - 2× — Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 203644.406551216752 exceeds max notional per order 200000"}
-- 2× — brak powodu
 - 1× — Cooldown po stop-lossie: DOGE/USD zablokowany do odkupu jeszcze ~60 min
 - 1× — Cooldown po stop-lossie: ETH/USD zablokowany do odkupu jeszcze ~180 min
 
 **Ostatnie 20 decyzji:**
+- 2026-10-15T17:36:30.115670 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
+- 2026-10-15T17:06:30.058275 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
+- 2026-10-15T16:52:04.911480 — HOLD conf=0.6 trig=manual ⛔ ?
 - 2026-10-15T16:18:25.724901 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-15T15:48:25.817361 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-15T15:18:25.947860 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
@@ -53,6 +56,3 @@
 - 2026-10-15T13:03:23.934304 LTC/USD SELL conf=1.0 trig=price_move ⛔ Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 203644.406551216752 exceeds max notional per order 200000"}
 - 2026-10-15T13:03:23.653929 LINK/USD SELL conf=1.0 trig=price_move ⛔ Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 200745.80343020548026 exceeds max notional per order 200000"}
 - 2026-10-15T12:48:23.861973 LTC/USD SELL conf=1.0 trig=price_move ⛔ Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 204278.92261801992 exceeds max notional per order 200000"}
-- 2026-10-15T12:48:23.594991 LINK/USD SELL conf=1.0 trig=price_move ⛔ Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 201896.3155223364416 exceeds max notional per order 200000"}
-- 2026-10-15T12:33:23.926960 LTC/USD SELL conf=1.0 trig=price_move ⛔ Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 204102.66815501904 exceeds max notional per order 200000"}
-- 2026-10-15T12:33:23.677938 LINK/USD SELL conf=1.0 trig=price_move ⛔ Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 202773.538818389374 exceeds max notional per order 200000"}
