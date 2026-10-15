@@ -229,6 +229,27 @@ class AlpacaClient:
         limit_price: float | None = None,
         extended_hours: bool = False,
     ) -> dict:
+        # TWARDY SUFIT NOTIONAL/ZLECENIE (jedyny chokepoint wszystkich zleceń —
+        # notional i qty, każda ścieżka: auto-deploy, mechaniczne wyjścia, ręczne).
+        # Alpaca odrzuca zlecenia > $200k notional (403 code 40310000) W CAŁOŚCI —
+        # a odrzucone WYJŚCIE jest groźne (pozycja nie domyka się). Przycinamy tu,
+        # więc żadna droga nie obejdzie limitu; resztę dobije kolejny cykl, a Trade
+        # i tak zapisuje REALNY fill, więc księgowanie zostaje spójne.
+        cap = getattr(self._settings, "max_order_notional_usd", 0.0) or 0.0
+        if cap > 0:
+            if notional is not None and notional > cap:
+                logger.warning("Alpaca %s %s: notional $%.0f > limit $%.0f — przycinam zlecenie.",
+                               side, symbol, notional, cap)
+                notional = cap
+            elif qty is not None:
+                try:
+                    px = self.get_price(symbol)
+                except Exception:
+                    px = 0.0
+                if px > 0 and qty * px > cap:
+                    logger.warning("Alpaca %s %s: qty %.6f × $%.2f = $%.0f > limit $%.0f — przycinam zlecenie.",
+                                   side, symbol, qty, px, qty * px, cap)
+                    qty = cap / px
         # Crypto requires GTC (Alpaca rejects DAY for crypto); equities use DAY.
         tif = "gtc" if self._is_crypto(symbol) else "day"
         body: dict = {"symbol": symbol, "side": side.lower(), "type": order_type, "time_in_force": tif}
