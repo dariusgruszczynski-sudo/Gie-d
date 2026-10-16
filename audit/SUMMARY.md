@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-10-15T21:17:01Z
+# Audyt GielDarek — 2026-10-16T10:23:21Z
 
 **Wdrożenie:** kod 88f7e2c (zbud. 2026-10-15T16:36Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
@@ -9,13 +9,13 @@
 
 ## Wnioski
 - (neu) Za mało zamkniętych transakcji (0) na mocne wnioski — bot dopiero zbiera próbkę.
-- (neu) Limit wejść bywa osiągany (2 dni) — podniesienie może dołożyć wejść.
+- (neu) Limit wejść bywa osiągany (3 dni) — podniesienie może dołożyć wejść.
 - (neu) Najczęstszy powód pominięcia wejścia: „Automat (alpaca) zapauzowany ręcznie” (14× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
 
 ## Wejścia vs limit
-- cap 0/dzień · max w dniu 4 · dni z limitem 2 · hamuje: true
+- cap 0/dzień · max w dniu 4 · dni z limitem 3 · hamuje: true
 
 ## Opus-kontroler (co REALNIE zmienił)
 - włączony: false · ostatni przebieg: 2026-09-11 · baza wiedzy: 29 wpisów
@@ -23,12 +23,12 @@
 - próg pewności — baza (env): 0.6 · progresja +0.03/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
-- ostatnie 117 decyzji · wykonanych: 11 · odrzuconych: 106
+- ostatnie 119 decyzji · wykonanych: 12 · odrzuconych: 107
 
 **Najczęstsze powody odrzucenia (top):**
 - 14× — Automat (alpaca) zapauzowany ręcznie
 - 7× — Zlecenie niewykonane: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 250000 exceeds max notional per order 200000"}
-- 5× — brak powodu
+- 6× — brak powodu
 - 3× — Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 203954.416332306783 exceeds max notional per order 200000"}
 - 2× — Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 202773.538818389374 exceeds max notional per order 200000"}
 - 2× — Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 203644.406551216752 exceeds max notional per order 200000"}
@@ -36,6 +36,8 @@
 - 1× — Cooldown po stop-lossie: ETH/USD zablokowany do odkupu jeszcze ~180 min
 
 **Ostatnie 20 decyzji:**
+- 2026-10-16T10:06:28.800793 — HOLD conf=0.0 trig=scheduled_daily ⛔ ?
+- 2026-10-16T00:06:32.637506 AVAX/USD BUY conf=0.6 trig=scheduled_daily ✅WYKONANE
 - 2026-10-15T20:31:21.532744 — HOLD conf=0.6 trig=manual ⛔ ?
 - 2026-10-15T19:49:57.436737 — HOLD conf=0.6 trig=manual ⛔ ?
 - 2026-10-15T19:36:30.316834 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
@@ -54,5 +56,3 @@
 - 2026-10-15T14:18:23.758153 LINK/USD SELL conf=1.0 trig=price_move ⛔ Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 204123.11312000927 exceeds max notional per order 200000"}
 - 2026-10-15T14:03:23.716491 LINK/USD SELL conf=1.0 trig=price_move ⛔ Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 201255.267729066991 exceeds max notional per order 200000"}
 - 2026-10-15T13:48:26.111815 — HOLD conf=0.0 trig=price_move ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-10-15T13:48:23.756273 LINK/USD SELL conf=1.0 trig=price_move ⛔ Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 200580.480578257043 exceeds max notional per order 200000"}
-- 2026-10-15T13:33:24.557303 LTC/USD SELL conf=1.0 trig=price_move ⛔ Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 204917.66879193510912 exceeds max notional per order 200000"}
