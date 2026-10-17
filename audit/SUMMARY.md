@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-10-16T20:57:39Z
+# Audyt GielDarek — 2026-10-17T09:55:54Z
 
 **Wdrożenie:** kod 88f7e2c (zbud. 2026-10-15T16:36Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
@@ -26,8 +26,8 @@
 - ostatnie 120 decyzji · wykonanych: 8 · odrzuconych: 112
 
 **Najczęstsze powody odrzucenia (top):**
-- 27× — Automat (alpaca) zapauzowany ręcznie
-- 5× — brak powodu
+- 25× — Automat (alpaca) zapauzowany ręcznie
+- 7× — brak powodu
 - 3× — Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 203954.416332306783 exceeds max notional per order 200000"}
 - 2× — Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 202773.538818389374 exceeds max notional per order 200000"}
 - 2× — Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"code":40310000,"message":"order notional 203644.406551216752 exceeds max notional per order 200000"}
@@ -36,6 +36,8 @@
 - 1× — Cooldown po stop-lossie: SOL/USD zablokowany do odkupu jeszcze ~60 min
 
 **Ostatnie 20 decyzji:**
+- 2026-10-17T08:06:28.884125 — HOLD conf=0.0 trig=scheduled_daily ⛔ ?
+- 2026-10-17T01:51:29.157138 — HOLD conf=0.0 trig=scheduled_daily ⛔ ?
 - 2026-10-16T19:36:30.113985 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-16T19:06:30.177665 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-16T18:36:30.066228 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
@@ -54,5 +56,3 @@
 - 2026-10-16T00:06:32.637506 AVAX/USD BUY conf=0.6 trig=scheduled_daily ✅WYKONANE
 - 2026-10-15T20:31:21.532744 — HOLD conf=0.6 trig=manual ⛔ ?
 - 2026-10-15T19:49:57.436737 — HOLD conf=0.6 trig=manual ⛔ ?
-- 2026-10-15T19:36:30.316834 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-10-15T19:06:30.115880 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
