@@ -84,6 +84,7 @@ _CRYPTO_OVERRIDES = {
     "crypto_min_adx": "min_adx",
     "crypto_auto_demote_enabled": "auto_demote_enabled",
     "crypto_auto_blacklist_stop_count": "auto_blacklist_stop_count",
+    "crypto_auto_deploy_max_position_pct": "auto_deploy_max_position_pct",
     "crypto_pyramid_enabled": "pyramid_enabled",
     "crypto_pyramid_min_gain_pct": "pyramid_min_gain_pct",
     "crypto_pyramid_max_position_pct": "pyramid_max_position_pct",

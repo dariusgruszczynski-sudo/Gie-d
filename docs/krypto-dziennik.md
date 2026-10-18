@@ -37,6 +37,16 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Wpis — 2026-10-18 (mniejsze, liczniejsze pozycje — z dala od limitu $200k)
+Właściciel: „Rob" (zgoda na propozycję mniejszych pozycji). Przyczyna serii 403: na
+koncie $1M pozycje po ~25% = ~$250k ocierały się o limit $200k/zlecenie Alpaki.
+Zmiana (tylko krypto): `crypto_max_concurrent_positions` 4→7 (całe uniwersum — kapitał
+rozkłada się drobniej, nie obraża się na żadną monetę), `crypto_max_position_pct` 40→20
+(twardy sufit pary), nowy override `crypto_auto_deploy_max_position_pct=15` (cel
+pojedynczego wejścia). Na $1M: ~$150k/pozycja, pułap $200k → zlecenia z buforem pod
+limit; razem z pro-aktywnym clampem + reaktywnym retry (acc50be) 403 znikają u źródła.
+Skala-niezależne (%): na $100k to $15k/pozycja. Akcje nietknięte. Backend 410/410, ruff ok.
+
 ### Wpis — 2026-10-18 (reaktywny guard limitu notional — koniec z 403 na wyjściach)
 Mimo clampa z 88f7e2c wróciły 403 (wyjścia $203-204k > $200k). Przyczyna: pro-aktywny
 clamp liczy rozmiar z `get_price`, która bywa rozjechana z wyceną Alpaki — qty wychodzi

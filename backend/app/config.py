@@ -148,11 +148,20 @@ class Settings(BaseSettings):
     # obsunięcie ~37% vs BTC 77%). Wybór właściciela („agresywnie"). Agresywne —
     # większe pojedyncze straty; limit account-wide (30/40/55%) dalej chroni.
     crypto_risk_per_trade_pct: float = 3.0
-    crypto_max_concurrent_positions: int = 4
+    # 2026-10-18: 4 -> 7 (całe uniwersum). Mniejsze, liczniejsze pozycje: kapitał
+    # rozkłada się na wszystkie monety zamiast 4 grubych paczek. Na większym koncie
+    # grube paczki ocierały się o limit $200k/zlecenie Alpaki (seria 403); drobniejsze
+    # pozycje + niższy auto_deploy_max_position_pct trzymają zlecenia pod limitem.
+    crypto_max_concurrent_positions: int = 7
     crypto_min_buy_confidence: float = 0.60
     crypto_max_new_positions_per_day: int = 0        # 0 = bez limitu (24/7)
     crypto_min_hold_minutes: int = 60                 # krótsze trzymanie niż akcje (24/7)
-    crypto_max_position_pct: float = 40.0             # max udział jednej pary
+    # 40 -> 20: twardy sufit udziału JEDNEJ pary (anty-koncentracja + z dala od
+    # limitu $200k/zlecenie nawet przy piramidowaniu).
+    crypto_max_position_pct: float = 20.0            # max udział jednej pary
+    # Cel pojedynczego auto-deploy: mniejszy niż bazowe 25% (osobny override), żeby
+    # zlecenia nie ocierały się o limit Alpaki. 15% zostawia bufor pod $200k.
+    crypto_auto_deploy_max_position_pct: float = 15.0
     crypto_reward_risk_ratio: float = 2.0
     # TREND-FOLLOWING (dowody: time-series momentum to najmocniejsza, udokumentowana
     # przewaga w krypto — dekada walk-forward + 2020-25). Rdzeń: TNIJ STRATY szybko,
