@@ -135,6 +135,25 @@ i 180-min reentry po pełnym wyjściu (ich właściciel nie zdejmował). Weryfik
 baza (akcje) =3 nietknięte, krypto efektywnie =0. ruff + testy profili zielone.
 Reszta ochrony (stopy/cap/breaker/halt 30-40-55%) gra. Reversible: ustaw >0.
 
+### Tydzień 2 — 2026-10-18 (nowa era: konto paper $1M od 10-14, build e9952d4)
+Reset + nowe konto paper ($1M) 10-14; licznik od zera. Dane: trades.json, avg-cost walk.
+- **Zamknięcia: 9 | trafność 0% (0W/9L) | realized −7,9% konta (−$79k) | total −8,6%.**
+- Każde zamknięcie stratne, −1,7% do −6,7% (śr. ~−5%/trejd). vs BTC: BTC kupiony i
+  **trzymany** — jedyna nie-stratna pozycja; wszystko, czym bot obracał, straciło →
+  strategia głęboko PONIŻEJ „trzymania BTC".
+- **Koncentracja:** strata rozłożona równo na 6 altów (SOL ~−$19k najgorszy, dalej
+  ETH/DOGE/AVAX/LTC/LINK ~−$10-13k) — systematyczna, nie 1-2 pechowe trejdy.
+- **Drawdown −9,6%** od szczytu (próg 25/30/55% — jeszcze nie złamany, ale rośnie).
+- **Kontekst:** cały tydzień risk-off (S&P −1,95%, regime „neutral", krypto szeroko
+  w dół) — więc część to rynek, nie sama strategia.
+- **GO-LIVE:** złamane — poniżej BTC ✗, expectancy<0 ✗, trafność 0% ✗; drawdown 9,6%<25% ✓
+  (jeszcze), próbka 9<50 i <3 tyg ✗. **Werdykt: pogarsza się.**
+- **Wzorzec do obserwacji (nie dostrajam — próbka za mała):** kupno altu → stop niżej →
+  odkupienie TEGO SAMEGO altu. Jeśli po ~50 trejdach trafność zostanie przy ~0, to
+  twardy sygnał, by wrócić selekcję/auto-degradację z wyższym progiem. Techniczne
+  bramki bezpieczeństwa działają (403 limitu Alpaki rozwiązane: clamp + retry + mniejsze
+  pozycje; anty-lewar; bezpiecznik konta). Nauka: pętla zbiera dane, LLM czyta newsy co 8h.
+
 ### Tydzień 1 — 2026-10-12 (start paper 2026-10-04, snapshot build 800d3ce)
 Dane: branch `audit-snapshots`, trades.json (filtr krypto), average-cost walk.
 - **Zamknięcia:** 61 | **trafność 28% (17W/44L)** | **realized −$9 382** | **expectancy −$154/trejd**.
