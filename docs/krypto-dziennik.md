@@ -37,6 +37,14 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Wpis — 2026-10-18 (reaktywny guard limitu notional — koniec z 403 na wyjściach)
+Mimo clampa z 88f7e2c wróciły 403 (wyjścia $203-204k > $200k). Przyczyna: pro-aktywny
+clamp liczy rozmiar z `get_price`, która bywa rozjechana z wyceną Alpaki — qty wychodzi
+odrobinę za duże. Fix: w `_submit_order` łapię dokładnie ten błąd (40310000), wyłuskuję
+WŁASNY notional Alpaki z komunikatu i ponawiam RAZ, skalując rozmiar do min(limit, nasz
+cap)×0.98. Bulletproof, bo opiera się na liczbie policzonej przez Alpakę, nie na naszej
+cenie. Testy test_alpaca_notional_retry (+ nie ponawia innych 403). Backend 410/410, ruff ok.
+
 ### Wpis — 2026-10-14 (limit notional/zlecenie — Alpaca odrzuca > $200k)
 Na nowym (większym) koncie % sizingu wygenerował zlecenie **$250k**, a Alpaca ma
 twardy limit **$200k notional na pojedyncze zlecenie** (403 code 40310000) → zlecenie

@@ -14,6 +14,7 @@ window and order type (handled by the trading engine / order helpers), not a
 separate asset class here."""
 
 import logging
+import re
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -263,7 +264,32 @@ class AlpacaClient:
             body["limit_price"] = f"{limit_price:.2f}"
         if extended_hours:
             body["extended_hours"] = True
-        return self._request(self._trading, "POST", "/v2/orders", json=body)
+        try:
+            return self._request(self._trading, "POST", "/v2/orders", json=body)
+        except AlpacaAPIError as exc:
+            # REAKTYWNY GUARD limitu notional: pro-aktywny clamp wyżej liczy rozmiar
+            # z get_price, która BYWA rozjechana z wyceną Alpaki — wtedy mimo clampa
+            # wraca 403 (40310000). Wyłuskujemy WŁASNE liczby Alpaki z komunikatu
+            # ("order notional X exceeds max notional per order Y") i ponawiamy RAZ,
+            # skalując rozmiar do min(Y, nasz cap)×0.98. Bulletproof: opiera się na
+            # notionalu policzonym przez Alpakę, nie na naszej cenie.
+            m = re.search(r"notional\s+([0-9.]+)\s+exceeds max notional per order\s+([0-9.]+)", str(exc))
+            if m is None or (notional is None and qty is None):
+                raise
+            actual, hard = float(m.group(1)), float(m.group(2))
+            if actual <= 0:
+                raise
+            target = (min(hard, cap) if cap > 0 else hard) * 0.98
+            scale = target / actual
+            if notional is not None:
+                notional *= scale
+                body["notional"] = f"{notional:.2f}"
+            else:
+                qty *= scale
+                body["qty"] = f"{qty:.9f}"
+            logger.warning("Alpaca %s %s: 403 notional $%.0f > limit $%.0f — ponawiam w skali %.3f (~$%.0f).",
+                           side, symbol, actual, hard, scale, target)
+            return self._request(self._trading, "POST", "/v2/orders", json=body)
 
     def _resolve_fill(self, order: dict, fallback_price: float, symbol: str) -> OrderResult:
         """`symbol` is the plain equity ticker passed in by the caller (used
