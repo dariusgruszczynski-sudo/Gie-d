@@ -1,4 +1,4 @@
-# Backtest KRYPTO — 2026-10-07T16:52:04Z
+# Backtest KRYPTO — 2026-10-19T19:41:02Z
 
 Dane: Yahoo, 8 lat, dzienne. Benchmark: trzymanie BTC. Mechaniczny rdzeń, bez Claude.
 
@@ -6,167 +6,167 @@ Dane: Yahoo, 8 lat, dzienne. Benchmark: trzymanie BTC. Mechaniczny rdzeń, bez C
 
 | Metryka | Bez (baseline) | Z mechanizmami |
 |---|---|---|
-| Zamknięć | 6930 | 212 |
-| Trafność % | 49.2 | 42.5 |
-| Expectancy (R) | 0.035 | 0.825 |
-| Zwrot % | 1455.74 | 866.44 |
-| Benchmark BTC % | 1351.57 | 1351.43 |
-| Alpha % | 104.16 | -484.99 |
-| Max drawdown % | 46.26 | 27.86 |
-| Wejść | 6754 | 331 |
+| Zamknięć | 5553 | 194 |
+| Trafność % | 48.3 | 43.8 |
+| Expectancy (R) | 0.046 | 0.725 |
+| Zwrot % | 1456.39 | 1026.8 |
+| Benchmark BTC % | 1026.09 | 1025.97 |
+| Alpha % | 430.29 | 0.83 |
+| Max drawdown % | 46.75 | 28.17 |
+| Wejść | 5347 | 281 |
 
 ## Pełny wynik — BEZ mechanizmów
 ```
 Pobieram do 8 lat świec dziennych dla 7 symboli (Yahoo)...
-  AVAX/USD: 2209 świec (2020-07-13 → 2026-10-07)
-  BTC/USD: 2922 świec (2018-10-08 → 2026-10-07)
-  DOGE/USD: 2922 świec (2018-10-08 → 2026-10-07)
-  ETH/USD: 2922 świec (2018-10-08 → 2026-10-07)
-  LINK/USD: 2922 świec (2018-10-08 → 2026-10-07)
-  LTC/USD: 2922 świec (2018-10-08 → 2026-10-07)
-  SOL/USD: 2372 świec (2020-04-10 → 2026-10-07)
-  (pobieranie zajęło 3s)
+  AVAX/USD: 2221 świec (2020-07-13 → 2026-10-19)
+  BTC/USD: 2922 świec (2018-10-20 → 2026-10-19)
+  DOGE/USD: 2922 świec (2018-10-20 → 2026-10-19)
+  ETH/USD: 2922 świec (2018-10-20 → 2026-10-19)
+  LINK/USD: 2922 świec (2018-10-20 → 2026-10-19)
+  LTC/USD: 2922 świec (2018-10-20 → 2026-10-19)
+  SOL/USD: 2384 świec (2020-04-10 → 2026-10-19)
+  (pobieranie zajęło 4s)
 
 === WYNIK BACKTESTU (yahoo, mechaniczny rdzeń, bez Claude) ===
   steps                       : 2922
-  entries                     : 6754
-  closed_trades               : 6930
-  wins                        : 3408
-  losses                      : 3522
-  win_rate_pct                : 49.2
-  avg_R                       : 0.035
-  expectancy_R                : 0.035
-  realized_pnl_usd            : 14276.69
-  total_return_pct            : 1455.74
-  benchmark_return_pct        : 1351.57
-  alpha_pct                   : 104.16
-  max_drawdown_pct            : 46.26
+  entries                     : 5347
+  closed_trades               : 5553
+  wins                        : 2681
+  losses                      : 2872
+  win_rate_pct                : 48.3
+  avg_R                       : 0.046
+  expectancy_R                : 0.046
+  realized_pnl_usd            : 14633.71
+  total_return_pct            : 1456.39
+  benchmark_return_pct        : 1026.09
+  alpha_pct                   : 430.29
+  max_drawdown_pct            : 46.75
   benchmark_max_drawdown_pct  : 76.63
-  cagr_pct                    : 40.94
-  benchmark_cagr_pct          : 39.73
-  calmar                      : 0.89
-  benchmark_calmar            : 0.52
-  final_equity                : 15557.37
+  cagr_pct                    : 40.95
+  benchmark_cagr_pct          : 35.36
+  calmar                      : 0.88
+  benchmark_calmar            : 0.46
+  final_equity                : 15563.86
   years_beating_benchmark     : 3/8
 
 === ROK PO ROKU: strategia vs BTC/USD (analiza zachowań w różnych reżimach) ===
      rok   strategia   benchmark     alpha
     2018       +0.0%           —         —
-    2019       +5.6%      +25.2%    -19.6%
-    2020     +183.3%     +303.2%   -119.8%
-    2021     +206.4%      +59.7%   +146.7%
-    2022      -30.9%      -64.3%    +33.3%  <- broni kapitału w spadku
-    2023      +76.9%     +155.4%    -78.5%
-    2024      +58.5%     +121.0%    -62.5%
-    2025      -11.6%       -6.3%     -5.3%
-    2026       -0.8%       -4.7%     +3.9%
+    2019       -2.8%       -1.1%     -1.7%
+    2020     +160.1%     +303.2%   -143.1%
+    2021     +379.5%      +59.7%   +319.8%
+    2022      -39.3%      -64.3%    +25.0%  <- broni kapitału w spadku
+    2023      +87.5%     +155.4%    -67.9%
+    2024      +49.0%     +121.0%    -72.1%
+    2025      -30.4%       -6.3%    -24.1%
+    2026       +8.7%       -6.4%    +15.2%
 
 Interpretacja:
-  Trafność 49.2% vs próg ~44% -> POWYŻEJ (jest edge)
-  Expectancy 0.035R/transakcję -> dodatnia
-  Alpha (cały okres) vs BTC/USD: +104.16% -> BIJE indeks
+  Trafność 48.3% vs próg ~44% -> POWYŻEJ (jest edge)
+  Expectancy 0.046R/transakcję -> dodatnia
+  Alpha (cały okres) vs BTC/USD: +430.29% -> BIJE indeks
   Lat z dodatnią alphą: 3/8
-  Max obsunięcie: strategia 46.26% vs BTC/USD 76.63% -> strategia broni kapitału lepiej
-  CAGR (roczny zwrot składany): strategia 40.94% vs BTC/USD 39.73%
-  Calmar (zwrot na jednostkę bólu): strategia 0.89 vs BTC/USD 0.52 -> strategia zarabia SPOKOJNIEJ (lepszy stosunek zysk/obsunięcie)
+  Max obsunięcie: strategia 46.75% vs BTC/USD 76.63% -> strategia broni kapitału lepiej
+  CAGR (roczny zwrot składany): strategia 40.95% vs BTC/USD 35.36%
+  Calmar (zwrot na jednostkę bólu): strategia 0.88 vs BTC/USD 0.46 -> strategia zarabia SPOKOJNIEJ (lepszy stosunek zysk/obsunięcie)
   Uruchom --sweep, by zobaczyć, ile zwrotu odblokowuje większa ekspozycja i jakim kosztem obsunięcia.
 ```
 ## Pełny wynik — Z mechanizmami
 ```
 Pobieram do 8 lat świec dziennych dla 7 symboli (Yahoo)...
-  AVAX/USD: 2209 świec (2020-07-13 → 2026-10-07)
-  BTC/USD: 2922 świec (2018-10-08 → 2026-10-07)
-  DOGE/USD: 2922 świec (2018-10-08 → 2026-10-07)
-  ETH/USD: 2922 świec (2018-10-08 → 2026-10-07)
-  LINK/USD: 2922 świec (2018-10-08 → 2026-10-07)
-  LTC/USD: 2922 świec (2018-10-08 → 2026-10-07)
-  SOL/USD: 2372 świec (2020-04-10 → 2026-10-07)
+  AVAX/USD: 2221 świec (2020-07-13 → 2026-10-19)
+  BTC/USD: 2922 świec (2018-10-20 → 2026-10-19)
+  DOGE/USD: 2922 świec (2018-10-20 → 2026-10-19)
+  ETH/USD: 2922 świec (2018-10-20 → 2026-10-19)
+  LINK/USD: 2922 świec (2018-10-20 → 2026-10-19)
+  LTC/USD: 2922 świec (2018-10-20 → 2026-10-19)
+  SOL/USD: 2384 świec (2020-04-10 → 2026-10-19)
   (pobieranie zajęło 4s)
 
 === WYNIK BACKTESTU (yahoo, mechaniczny rdzeń, bez Claude) ===
   steps                       : 2922
-  entries                     : 331
-  closed_trades               : 212
-  wins                        : 90
-  losses                      : 122
-  win_rate_pct                : 42.5
-  avg_R                       : 0.825
-  expectancy_R                : 0.825
-  realized_pnl_usd            : 8180.02
-  total_return_pct            : 866.44
-  benchmark_return_pct        : 1351.43
-  alpha_pct                   : -484.99
-  max_drawdown_pct            : 27.86
+  entries                     : 281
+  closed_trades               : 194
+  wins                        : 85
+  losses                      : 109
+  win_rate_pct                : 43.8
+  avg_R                       : 0.725
+  expectancy_R                : 0.725
+  realized_pnl_usd            : 10152.12
+  total_return_pct            : 1026.8
+  benchmark_return_pct        : 1025.97
+  alpha_pct                   : 0.83
+  max_drawdown_pct            : 28.17
   benchmark_max_drawdown_pct  : 76.63
-  cagr_pct                    : 32.8
-  benchmark_cagr_pct          : 39.73
-  calmar                      : 1.18
-  benchmark_calmar            : 0.52
-  final_equity                : 9664.42
-  years_beating_benchmark     : 3/8
+  cagr_pct                    : 35.37
+  benchmark_cagr_pct          : 35.36
+  calmar                      : 1.26
+  benchmark_calmar            : 0.46
+  final_equity                : 11268.03
+  years_beating_benchmark     : 4/8
 
 === ROK PO ROKU: strategia vs BTC/USD (analiza zachowań w różnych reżimach) ===
      rok   strategia   benchmark     alpha
     2018       +0.0%           —         —
-    2019      +20.7%      +25.2%     -4.5%
-    2020     +122.2%     +303.2%   -181.0%
-    2021     +140.9%      +59.7%    +81.2%
-    2022       +0.0%      -64.3%    +64.3%  <- broni kapitału w spadku
-    2023      +46.8%     +155.4%   -108.6%
-    2024      +12.7%     +121.0%   -108.3%
-    2025      -14.3%       -6.3%     -8.0%
-    2026       +5.5%       -4.7%    +10.2%
+    2019      +10.3%       -1.1%    +11.4%
+    2020     +171.7%     +303.2%   -131.4%
+    2021     +171.5%      +59.7%   +111.9%
+    2022      -15.3%      -64.3%    +48.9%  <- broni kapitału w spadku
+    2023      +52.7%     +155.4%   -102.7%
+    2024      +21.8%     +121.0%    -99.2%
+    2025       -8.8%       -6.3%     -2.5%
+    2026       -3.6%       -6.4%     +2.9%
 
 Interpretacja:
-  Trafność 42.5% vs próg ~44% -> PONIŻEJ (brak edge)
-  Expectancy 0.825R/transakcję -> dodatnia
-  Alpha (cały okres) vs BTC/USD: -484.99% -> przegrywa z indeksem
-  Lat z dodatnią alphą: 3/8
-  Max obsunięcie: strategia 27.86% vs BTC/USD 76.63% -> strategia broni kapitału lepiej
-  CAGR (roczny zwrot składany): strategia 32.8% vs BTC/USD 39.73%
-  Calmar (zwrot na jednostkę bólu): strategia 1.18 vs BTC/USD 0.52 -> strategia zarabia SPOKOJNIEJ (lepszy stosunek zysk/obsunięcie)
+  Trafność 43.8% vs próg ~44% -> PONIŻEJ (brak edge)
+  Expectancy 0.725R/transakcję -> dodatnia
+  Alpha (cały okres) vs BTC/USD: +0.83% -> BIJE indeks
+  Lat z dodatnią alphą: 4/8
+  Max obsunięcie: strategia 28.17% vs BTC/USD 76.63% -> strategia broni kapitału lepiej
+  CAGR (roczny zwrot składany): strategia 35.37% vs BTC/USD 35.36%
+  Calmar (zwrot na jednostkę bólu): strategia 1.26 vs BTC/USD 0.46 -> strategia zarabia SPOKOJNIEJ (lepszy stosunek zysk/obsunięcie)
   Uruchom --sweep, by zobaczyć, ile zwrotu odblokowuje większa ekspozycja i jakim kosztem obsunięcia.
 ```
 ## Sweep — frontiera ryzyko/trade × równoczesne pozycje (z mechanizmami)
 ```
 Pobieram do 8 lat świec dziennych dla 7 symboli (Yahoo)...
-  AVAX/USD: 2209 świec (2020-07-13 → 2026-10-07)
-  BTC/USD: 2922 świec (2018-10-08 → 2026-10-07)
-  DOGE/USD: 2922 świec (2018-10-08 → 2026-10-07)
-  ETH/USD: 2922 świec (2018-10-08 → 2026-10-07)
-  LINK/USD: 2922 świec (2018-10-08 → 2026-10-07)
-  LTC/USD: 2922 świec (2018-10-08 → 2026-10-07)
-  SOL/USD: 2372 świec (2020-04-10 → 2026-10-07)
-  (pobieranie zajęło 3s)
+  AVAX/USD: 2221 świec (2020-07-13 → 2026-10-19)
+  BTC/USD: 2922 świec (2018-10-20 → 2026-10-19)
+  DOGE/USD: 2922 świec (2018-10-20 → 2026-10-19)
+  ETH/USD: 2922 świec (2018-10-20 → 2026-10-19)
+  LINK/USD: 2922 świec (2018-10-20 → 2026-10-19)
+  LTC/USD: 2922 świec (2018-10-20 → 2026-10-19)
+  SOL/USD: 2384 świec (2020-04-10 → 2026-10-19)
+  (pobieranie zajęło 4s)
 
 === PRZEMIATANIE EKSPOZYCJI (ryzyko/transakcję × liczba pozycji), 20 lat ===
   Strategia jest niedoinwestowana — ten test pokazuje granicę zysk↔obsunięcie.
    ryzyko%  pozycje     zwrot%    CAGR%   maxDD%   Calmar  trafność%    alpha%
   ----------------------------------------------------------------------------
-       0.5        4     +206.1    +15.0    +10.5     +1.4      +42.1   -1144.8
-       0.5        6     +253.1    +17.1    +19.4     +0.9      +35.3   -1097.8
-       0.5        8     +247.3    +16.9    +21.9     +0.8      +31.9   -1103.5
-       1.0        4     +382.6    +21.8    +19.6     +1.1      +42.4    -968.3
-       1.0        6     +421.5    +22.9    +25.7     +0.9      +37.4    -929.3
-       1.0        8     +421.5    +22.9    +25.7     +0.9      +37.4    -929.3
-       1.5        4     +485.3    +24.7    +32.9     +0.8      +40.5    -865.5
-       1.5        6     +622.1    +28.1    +27.9     +1.0      +39.7    -728.7
-       1.5        8     +622.1    +28.1    +27.9     +1.0      +39.7    -728.7
-       2.0        4     +931.7    +33.9    +30.5     +1.1      +46.5    -419.1
-       2.0        6    +1299.7    +39.1    +29.2     +1.3      +46.3     -51.2
-       2.0        8    +1299.7    +39.1    +29.2     +1.3      +46.3     -51.2
-       2.5        4    +1508.5    +41.5    +37.7     +1.1      +45.6    +157.7
-       2.5        6    +1289.9    +39.0    +35.4     +1.1      +44.2     -61.0
-       2.5        8    +1289.9    +39.0    +35.4     +1.1      +44.2     -61.0
-       3.0        4    +2713.4    +51.8    +36.6     +1.4      +49.2   +1362.6
-       3.0        6    +2293.7    +48.8    +36.6     +1.3      +48.9    +942.9
-       3.0        8    +2293.7    +48.8    +36.6     +1.3      +48.9    +942.9
+       0.5        4     +183.6    +13.9    +12.2     +1.1      +41.6    -842.1
+       0.5        6     +225.9    +15.9    +22.3     +0.7      +33.3    -799.8
+       0.5        8     +243.6    +16.7    +24.8     +0.7      +32.3    -782.1
+       1.0        4     +379.7    +21.7    +22.1     +1.0      +41.9    -646.0
+       1.0        6     +328.9    +20.0    +28.5     +0.7      +34.1    -696.8
+       1.0        8     +250.1    +17.0    +29.7     +0.6      +32.5    -775.6
+       1.5        4     +382.0    +21.7    +27.9     +0.8      +41.7    -643.7
+       1.5        6     +488.9    +24.8    +30.1     +0.8      +39.3    -536.8
+       1.5        8     +488.9    +24.8    +30.1     +0.8      +39.3    -536.8
+       2.0        4     +565.9    +26.8    +29.1     +0.9      +40.7    -459.8
+       2.0        6     +483.2    +24.7    +30.4     +0.8      +39.2    -542.5
+       2.0        8     +483.2    +24.7    +30.4     +0.8      +39.2    -542.5
+       2.5        4     +483.2    +24.7    +31.1     +0.8      +42.1    -542.5
+       2.5        6     +453.3    +23.9    +31.1     +0.8      +39.4    -572.4
+       2.5        8     +453.3    +23.9    +31.1     +0.8      +39.4    -572.4
+       3.0        4    +1061.9    +35.9    +28.3     +1.3      +46.1     +36.2
+       3.0        6    +1026.7    +35.4    +28.2     +1.3      +43.8      +1.0
+       3.0        8    +1026.7    +35.4    +28.2     +1.3      +43.8      +1.0
 
-  Benchmark (BTC/USD): zwrot 1350.83%, CAGR 39.72%, maxDD 76.63%, Calmar 0.52
+  Benchmark (BTC/USD): zwrot 1025.69%, CAGR 35.35%, maxDD 76.63%, Calmar 0.46
 
 Rekomendacja (na danych, nie na wyczucie):
-  • Najlepszy Calmar (zysk/ból): ryzyko 0.5% × 4 pozycji → Calmar 1.43, zwrot 206.08%, maxDD 10.5%
-  • Najwyższy zwrot: ryzyko 3.0% × 4 pozycji → zwrot 2713.43%, maxDD 36.58%, Calmar 1.42
+  • Najlepszy Calmar (zysk/ból): ryzyko 3.0% × 4 pozycji → Calmar 1.27, zwrot 1061.92%, maxDD 28.28%
+  • Najwyższy zwrot: ryzyko 3.0% × 4 pozycji → zwrot 1061.92%, maxDD 28.28%, Calmar 1.27
   Wybierz swój punkt: wyższy Calmar = spokojniejsza jazda, wyższy zwrot = większe obsunięcia.
   Ustaw wybrane na serwerze przez RISK_PER_TRADE_PCT i MAX_CONCURRENT_POSITIONS w .env, potem restart.
 ```
