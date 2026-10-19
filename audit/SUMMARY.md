@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-10-19T19:15:02Z
+# Audyt GielDarek — 2026-10-19T20:47:15Z
 
-**Wdrożenie:** kod ed5abbb (zbud. 2026-10-18T20:49Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 792ffc6 (zbud. 2026-10-19T19:36Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 0 zamknięć · trafność —% · zrealizowany $0.0
 **7 dni:** 0 zamknięć · —% · $0.0   |   **30 dni:** 0 · —% · $0.0
@@ -10,7 +10,7 @@
 ## Wnioski
 - (neu) Za mało zamkniętych transakcji (0) na mocne wnioski — bot dopiero zbiera próbkę.
 - (neu) Limit wejść bywa osiągany (6 dni) — podniesienie może dołożyć wejść.
-- (neu) Najczęstszy powód pominięcia wejścia: „Automat (alpaca) zapauzowany ręcznie” (38× z ostatnich 300 decyzji).
+- (neu) Najczęstszy powód pominięcia wejścia: „Automat (alpaca) zapauzowany ręcznie” (39× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
 
@@ -23,10 +23,10 @@
 - próg pewności — baza (env): 0.6 · progresja +0.03/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
-- ostatnie 120 decyzji · wykonanych: 20 · odrzuconych: 100
+- ostatnie 120 decyzji · wykonanych: 21 · odrzuconych: 99
 
 **Najczęstsze powody odrzucenia (top):**
-- 36× — Automat (alpaca) zapauzowany ręcznie
+- 37× — Automat (alpaca) zapauzowany ręcznie
 - 11× — brak powodu
 - 1× — Cooldown po stop-lossie: ETH/USD zablokowany do odkupu jeszcze ~120 min
 - 1× — Cooldown po stop-lossie: ETH/USD zablokowany do odkupu jeszcze ~135 min
@@ -36,6 +36,8 @@
 - 1× — Cooldown po stop-lossie: LTC/USD zablokowany do odkupu jeszcze ~121 min
 
 **Ostatnie 20 decyzji:**
+- 2026-10-19T20:06:31.127994 AVAX/USD SELL conf=1.0 trig=price_move ✅WYKONANE
+- 2026-10-19T19:19:29.842864 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-19T18:49:30.186189 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-19T18:19:30.282264 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-19T17:49:30.122182 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
@@ -54,5 +56,3 @@
 - 2026-10-19T00:04:43.832887 DOGE/USD BUY conf=0.6 trig=scheduled_daily ✅WYKONANE
 - 2026-10-19T00:04:42.138533 SOL/USD BUY conf=0.6 trig=scheduled_daily ✅WYKONANE
 - 2026-10-19T00:04:38.002610 LTC/USD BUY conf=0.6 trig=scheduled_daily ✅WYKONANE
-- 2026-10-19T00:04:31.298498 LINK/USD BUY conf=0.6 trig=scheduled_daily ✅WYKONANE
-- 2026-10-18T21:04:36.179808 DOGE/USD SELL conf=1.0 trig=price_move ✅WYKONANE
