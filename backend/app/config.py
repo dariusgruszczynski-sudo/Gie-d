@@ -216,7 +216,7 @@ class Settings(BaseSettings):
     #     żeby zablokować więcej zysku z silnego trendu.
     ratchet_trigger_pct: float = 0.0
     ratchet_trail_mult: float = 0.5
-    crypto_ratchet_trigger_pct: float = 15.0
+    crypto_ratchet_trigger_pct: float = 8.0  # 2026-10-19: 15→8 (wniosek #3) — wcześniejszy lock zysku: wygrany od +8% zaciska trailing, żeby nie zawrócił do straty (asymetria payoffu).
     crypto_ratchet_trail_mult: float = 0.5
     # (3) Trend-invalidation exit: zamknij, gdy cena spadnie pod swoją średnią
     #     trendu (SMA okresu) -- trend się złamał, nie czekaj na szeroki stop.
@@ -260,14 +260,14 @@ class Settings(BaseSettings):
     regime_filter_symbol: str = "BTC/USD"
     regime_filter_timeframe: str = "1d"
     regime_filter_ma_period: int = 200
-    crypto_regime_filter_enabled: bool = False  # 2026-10-11: OFF — reżim HTF był twardą ścianą (kapitał stał dniami na 24/7 rynku). Priorytet: handlować i zbierać dane.
+    crypto_regime_filter_enabled: bool = True  # 2026-10-19: ON (wniosek #1 z Tyg.2) — longowanie altów w risk-off było przyczyną nr 1 strat (0W/9L). Gdy BTC < MA, NIE otwieramy nowych longów.
     crypto_regime_filter_symbol: str = "BTC/USD"
     crypto_regime_filter_timeframe: str = "1d"
     crypto_regime_filter_ma_period: int = 100  # 2026-10-08: 200→100, żeby risk-on łapał szybciej (bot ma handlować i uczyć się, nie wisieć w gotówce)
     # #2 Re-entry cooldown: po KAŻDYM pełnym wyjściu z symbolu blokuj ponowne
     #    wejście przez N minut (anty-churn). Dotąd cooldown był tylko po stop-lossie.
     reentry_cooldown_min: int = 0
-    crypto_reentry_cooldown_min: int = 180
+    crypto_reentry_cooldown_min: int = 1440  # 2026-10-19: 180→1440 (24h, wniosek #2) — koniec pętli kup→stop→odkup TEN SAM alt w ciągu godzin (whipsaw zżerał kapitał).
     # #3 Trailing skalowany zmiennością: efektywny trailing = max(bazowy,
     #    vol_trail_mult × zmienność%). Luźniej w zdrowym trendzie, ciaśniej gdy
     #    robi się nerwowo -> mniej przypadkowych wyrzutów niż stały %.
@@ -277,7 +277,7 @@ class Settings(BaseSettings):
     #    zainwestowane >= cap% konta (krypto jest silnie skorelowane -> 5 altów to
     #    jeden zakład; to chroni przed "wszystko czerwone naraz").
     max_total_exposure_pct: float = 0.0
-    crypto_max_total_exposure_pct: float = 60.0
+    crypto_max_total_exposure_pct: float = 50.0  # 2026-10-19: 60→50 (wniosek #4) — 6 altów to jeden skorelowany zakład; niższy cap zostawia gotówkę i ogranicza „all-in w korelację".
     # #5 Circuit-breaker na serię strat: po N stratnych zamknięciach z rzędu
     #    (venue, licznik z historii) pauza NOWYCH wejść do rolki doby UTC.
     loss_streak_pause: int = 0
@@ -292,12 +292,12 @@ class Settings(BaseSettings):
     #    szczyt z poprzednich N świec (nowe maksimum okna = potwierdzona siła).
     breakout_entry_enabled: bool = False
     breakout_lookback: int = 20
-    crypto_breakout_entry_enabled: bool = False  # 2026-10-11: OFF — wymóg nowego maksimum rzadko trafiał; wejścia napędza teraz konfluencja (RSI/MACD/SMA)
-    crypto_breakout_lookback: int = 10  # 2026-10-08: 20→10, więcej wybić się kwalifikuje (więcej wejść = więcej danych do nauki)
+    crypto_breakout_entry_enabled: bool = True  # 2026-10-19: ON (wniosek #5) — wejście tylko na realnym wybiciu (nowe maksimum okna), nie na dowolnym dołku w zjeździe.
+    crypto_breakout_lookback: int = 20  # 2026-10-19: 10→20, realne wybicie (nie mikro-szum).
     # #9 Filtr siły trendu (ADX): wchodź tylko gdy ADX(14) >= progu — pomija
     #    martwe, boczne rynki (gdzie trend-following krwawi). 0 = off.
     min_adx: float = 0.0
-    crypto_min_adx: float = 0.0  # 2026-10-11: OFF — ADX blokował w płaskim rynku; zostaje sama konfluencja. Ochrona ryzyka (stopy/trend-exit/cooldown/breaker/cap) dalej działa.
+    crypto_min_adx: float = 20.0  # 2026-10-19: 0→20 (wniosek #5) — wchodzimy tylko przy realnej sile trendu (ADX≥20), nie w płaskim/szumie.
     # #10 Piramidowanie w trendzie: dokładaj do WYGRYWAJĄCEJ pozycji na kolejnych
     #    wybiciach (nigdy nie uśredniaj strat). Dokłada, póki zysk >= min_gain,
     #    cena robi nowe wybicie, a łączna pozycja < pyramid_max_position_pct konta.
@@ -493,7 +493,7 @@ class Settings(BaseSettings):
     # konfluencji (RSI/MACD/SMA), więc auto-deploy przestaje mielić wszystko jak leci.
     # Razem z anty-lewarowym guardem w _run_auto_deploy (licznik netto wydanej
     # gotówki) — wejścia selektywne i niezlewarowane. Wybór właściciela.
-    crypto_entry_min_score: int = 1
+    crypto_entry_min_score: int = 2  # 2026-10-19: 1→2 (wniosek #5) — wymagamy ≥2/3 konfluencji (RSI/MACD/SMA), koniec handlu szumem.
     # --- Ilościowa auto-degradacja setupów (Tier 1) -------------------------
     # Once a ticker has >= auto_demote_min_trades CLOSED trades on a venue with
     # negative realized P&L and a sub-par win rate, block opening fresh

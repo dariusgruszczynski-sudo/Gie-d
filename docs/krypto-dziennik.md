@@ -135,6 +135,25 @@ i 180-min reentry po pełnym wyjściu (ich właściciel nie zdejmował). Weryfik
 baza (akcje) =3 nietknięte, krypto efektywnie =0. ruff + testy profili zielone.
 Reszta ochrony (stopy/cap/breaker/halt 30-40-55%) gra. Reversible: ustaw >0.
 
+### Wpis — 2026-10-19 (5 wniosków z Tyg.2 WDROŻONE — powrót do jakości)
+Właściciel: „wdrażaj wszystko" (po 5-punktowej analizie 0W/9L). Zmiany (tylko krypto,
+akcje nietknięte):
+- **#1 Filtr reżimu ON** (`crypto_regime_filter_enabled=True`, BTC vs MA100/1d) — brak
+  nowych longów, gdy BTC pod średnią. To była przyczyna nr 1 strat (longi w risk-off).
+- **#2 Anty-whipsaw** (`crypto_reentry_cooldown_min` 180→1440 = 24h) — koniec pętli
+  kup→stop→odkup ten sam alt w godziny.
+- **#3 Lock zysku wcześniej** (`crypto_ratchet_trigger_pct` 15→8) — wygrany od +8%
+  zaciska trailing, żeby nie zawrócił do straty (asymetria payoffu).
+- **#4 Cap korelacji** (`crypto_max_total_exposure_pct` 60→50) — mniej „all-in" w 6
+  skorelowanych altów, więcej gotówki.
+- **#5 Selektywność** (`crypto_entry_min_score` 1→2, `breakout_entry_enabled` ON,
+  `breakout_lookback` 10→20, `min_adx` 0→20) — wejście tylko na ≥2/3 konfluencji +
+  realnym wybiciu + sile trendu; koniec handlu szumem. (Weto „down-tape" realizuje #1.)
+Efekt: to świadome odwrócenie force-trade na JAKOŚĆ. Mniej, lepszych wejść; sits-out
+w zjeździe. Reversible. Backend 410/410, ruff ok. Walidacja: backtest krypto na realnych
+danych (dispatch crypto-backtest.yml) — wynik dopiszę. UWAGA: to zmiana na próbce <50,
+ale wyraźny wybór właściciela po jednoznacznym wzorcu 0W/9L i pod konkretne przyczyny.
+
 ### Tydzień 2 — 2026-10-18 (nowa era: konto paper $1M od 10-14, build e9952d4)
 Reset + nowe konto paper ($1M) 10-14; licznik od zera. Dane: trades.json, avg-cost walk.
 - **Zamknięcia: 9 | trafność 0% (0W/9L) | realized −7,9% konta (−$79k) | total −8,6%.**
