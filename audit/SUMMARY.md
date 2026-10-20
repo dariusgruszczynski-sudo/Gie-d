@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-10-20T17:55:52Z
+# Audyt GielDarek — 2026-10-20T20:46:47Z
 
 **Wdrożenie:** kod 792ffc6 (zbud. 2026-10-19T19:36Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
@@ -10,7 +10,7 @@
 ## Wnioski
 - (neu) Za mało zamkniętych transakcji (0) na mocne wnioski — bot dopiero zbiera próbkę.
 - (neu) Limit wejść bywa osiągany (6 dni) — podniesienie może dołożyć wejść.
-- (neu) Najczęstszy powód pominięcia wejścia: „Automat (alpaca) zapauzowany ręcznie” (48× z ostatnich 300 decyzji).
+- (neu) Najczęstszy powód pominięcia wejścia: „Automat (alpaca) zapauzowany ręcznie” (52× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
 
@@ -26,8 +26,8 @@
 - ostatnie 120 decyzji · wykonanych: 21 · odrzuconych: 99
 
 **Najczęstsze powody odrzucenia (top):**
-- 46× — Automat (alpaca) zapauzowany ręcznie
-- 11× — brak powodu
+- 50× — Automat (alpaca) zapauzowany ręcznie
+- 12× — brak powodu
 - 1× — Cooldown po stop-lossie: ETH/USD zablokowany do odkupu jeszcze ~120 min
 - 1× — Cooldown po stop-lossie: ETH/USD zablokowany do odkupu jeszcze ~135 min
 - 1× — Cooldown po stop-lossie: ETH/USD zablokowany do odkupu jeszcze ~150 min
@@ -36,6 +36,11 @@
 - 1× — Cooldown po stop-lossie: LTC/USD zablokowany do odkupu jeszcze ~121 min
 
 **Ostatnie 20 decyzji:**
+- 2026-10-20T19:36:31.782633 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
+- 2026-10-20T19:33:59.921011 — HOLD conf=0.6 trig=manual ⛔ ?
+- 2026-10-20T19:06:31.650384 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
+- 2026-10-20T18:36:31.636326 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
+- 2026-10-20T18:06:32.228494 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-20T17:36:31.858031 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-20T17:06:31.734790 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-20T16:36:31.688457 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
@@ -51,8 +56,3 @@
 - 2026-10-19T18:19:30.282264 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-19T17:49:30.122182 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-19T17:19:30.175248 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-10-19T16:49:30.058704 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-10-19T16:19:33.001682 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-10-19T15:49:30.319886 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-10-19T15:19:30.113026 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-10-19T14:49:30.097901 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
