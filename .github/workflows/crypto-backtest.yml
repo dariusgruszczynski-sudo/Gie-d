@@ -16,6 +16,10 @@ on:
         description: "Dołóż sweep (frontiera ryzyko/trade × pozycje): true/false"
         default: "true"
         required: false
+      walk_forward:
+        description: "Walidacja walk-forward: liczba okien OOS (0 = pomiń)"
+        default: "4"
+        required: false
 
 concurrency:
   group: crypto-backtest
@@ -73,6 +77,15 @@ jobs:
           set -o pipefail
           python scripts/run_backtest.py --venue crypto --years "${YEARS}" --sweep 2>&1 | tee ../sweep.txt
 
+      - name: Walk-forward — walidacja out-of-sample (gdy K>0)
+        if: ${{ (inputs.walk_forward || '4') != '0' }}
+        working-directory: backend
+        env:
+          WF: ${{ inputs.walk_forward || '4' }}
+        run: |
+          set -o pipefail
+          python scripts/run_backtest.py --venue crypto --years "${YEARS}" --walk-forward "${WF}" 2>&1 | tee ../walkforward.txt
+
       - name: Zbuduj porównanie (Markdown)
         run: |
           set -euo pipefail
@@ -107,6 +120,10 @@ jobs:
             echo '```'; cat baseline.txt; echo '```'
             echo "## Pełny wynik — Z mechanizmami"
             echo '```'; cat mechanisms.txt; echo '```'
+            if [ -f walkforward.txt ]; then
+              echo "## Walk-forward — out-of-sample (czy przewaga trzyma się w czasie)"
+              echo '```'; cat walkforward.txt; echo '```'
+            fi
             if [ -f sweep.txt ]; then
               echo "## Sweep — frontiera ryzyko/trade × równoczesne pozycje (z mechanizmami)"
               echo '```'; cat sweep.txt; echo '```'
