@@ -901,6 +901,127 @@ def test_trend_exit_requires_confirmation_bars(settings):
     assert trading_engine._decide_mechanical_exit(s, "ETH", 100.0, 100.0, 108.0, stop_pct=20.0, trend_ma=105.0, trend_bars_below=2)[2] == "trend_exit"
 
 
+# ============================================================================
+# Partia 2 — wyjścia (#9 stopy ATR/vol, #10 drabinka TP, #11 wyjście czasowe)
+# ============================================================================
+def _ladder_settings(settings):
+    """Bazowe nastawy z WŁĄCZONĄ drabinką TP; bez trend/breakeven/ratchet/hard-TP,
+    żeby testować sam mechanizm szczebli. Stop 10% -> szczebel 1 przy +15% (1.5R),
+    szczebel 2 przy +30% (3R); trailing uzbraja się dopiero przy +20% (2R)."""
+    return settings.model_copy(update={
+        "partial_take_profit_enabled": True, "partial_take_profit_frac": 0.33,
+        "partial_take_profit_r": 1.5, "partial_take_profit_r_2": 3.0,
+        "partial_take_profit_frac_2": 0.5, "reward_risk_ratio": 2.0,
+        "trailing_stop_enabled": True, "trend_exit_ma_period": 0,
+        "breakeven_trigger_pct": 0.0, "ratchet_trigger_pct": 0.0, "hard_take_profit_pct": 0.0,
+    })
+
+
+def test_tp_ladder_first_rung_sells_frac1(settings):
+    """#10: pierwszy szczebel przy +partial_r sprzedaje frac1 (33%), reszta jedzie."""
+    s = _ladder_settings(settings)
+    # basis 100, cena 116 (+16% >= 15), szczyt = cena (brak cofnięcia -> trailing nie tnie).
+    reason, pct, kind = trading_engine._decide_mechanical_exit(s, "BTC", 100.0, 116.0, 116.0, stop_pct=10.0)
+    assert kind == "partial" and pct == pytest.approx(33.0)
+    assert "1/2" in reason
+
+
+def test_tp_ladder_second_rung_sells_frac2_of_remainder(settings):
+    """#10: po 1. szczeblu (partial_level=1) i powyżej +partial_r_2 bierzemy
+    frac2 (50%) z RESZTY; runner jedzie dalej. Szczebel odpala tylko raz."""
+    s = _ladder_settings(settings)
+    # +31% >= 30 (3R); partial_level=1 -> szczebel 2.
+    reason, pct, kind = trading_engine._decide_mechanical_exit(s, "BTC", 100.0, 131.0, 131.0, stop_pct=10.0, partial_level=1)
+    assert kind == "partial" and pct == pytest.approx(50.0)
+    assert "2/2" in reason
+    # Po obu szczeblach (partial_level=2) drabinka milczy — reszta to runner.
+    assert trading_engine._decide_mechanical_exit(s, "BTC", 100.0, 131.0, 131.0, stop_pct=10.0, partial_level=2)[2] is None
+
+
+def test_tp_ladder_second_rung_off_on_base_settings(settings):
+    """Na nastawach bazowych (akcje: frac2=0) drugi szczebel jest wyłączony —
+    jeden partial, bez drabinki (brak regresji dla nogi akcji)."""
+    s = settings.model_copy(update={
+        "partial_take_profit_enabled": True, "partial_take_profit_frac": 0.33,
+        "partial_take_profit_r": 1.5, "trailing_stop_enabled": True,
+        "trend_exit_ma_period": 0, "breakeven_trigger_pct": 0.0, "hard_take_profit_pct": 0.0,
+    })  # partial_take_profit_r_2/frac_2 = 0 (domyślne)
+    assert trading_engine._decide_mechanical_exit(s, "BTC", 100.0, 131.0, 131.0, stop_pct=10.0, partial_level=1)[2] is None
+
+
+def test_tp_ladder_both_rungs_through_check_take_profit(db_session, settings):
+    """Integracja: drabinka przez pełny check_take_profit_stop_loss — szczebel 1
+    tnie 50%, szczebel 2 (kolejny poll, wyżej) tnie 50% reszty, znacznik poziomu
+    zapamiętany między pollami, trzeci poll już nie tnie."""
+    s = settings.model_copy(update={
+        "partial_take_profit_enabled": True, "partial_take_profit_frac": 0.5,
+        "partial_take_profit_r": 1.0, "partial_take_profit_r_2": 2.0,
+        "partial_take_profit_frac_2": 0.5, "trend_exit_ma_period": 0,
+        "breakeven_trigger_pct": 0.0, "hard_take_profit_pct": 0.0,
+    })  # stop 2% (vol nieznane) -> szczebel 1 przy +2%, szczebel 2 przy +4%
+    broker = FakeAlpaca(prices={"SPY": 100.0}, balances={"USD": 1000.0, "SPY": 0.0})
+    trading_engine.execute_manual_trade(db_session, s, broker, symbol="SPY", side="BUY", usdt_amount=100.0)
+
+    broker.prices["SPY"] = 102.5  # +2.5% -> szczebel 1
+    portfolio = trading_engine.compute_portfolio(db_session, s, broker)
+    exits = trading_engine.check_take_profit_stop_loss(db_session, s, broker, portfolio)
+    assert len(exits) == 1 and "1/2" in exits[0].decision.reasoning
+    assert broker.balances["SPY"] == pytest.approx(0.5)
+
+    broker.prices["SPY"] = 104.5  # +4.5% -> szczebel 2 (50% z 0.5 = 0.25)
+    portfolio = trading_engine.compute_portfolio(db_session, s, broker)
+    exits = trading_engine.check_take_profit_stop_loss(db_session, s, broker, portfolio)
+    assert len(exits) == 1 and "2/2" in exits[0].decision.reasoning
+    assert broker.balances["SPY"] == pytest.approx(0.25)
+
+    # Trzeci poll przy tej samej cenie -> oba szczeble wzięte, runner trzyma.
+    portfolio = trading_engine.compute_portfolio(db_session, s, broker)
+    assert trading_engine.check_take_profit_stop_loss(db_session, s, broker, portfolio) == []
+
+
+def test_time_exit_cuts_old_dead_position(settings):
+    """#11: pozycja trzymana > time_exit_hours, która nigdzie nie dotarła (zysk <
+    time_exit_min_gain_pct) jest cięta — martwy kapitał."""
+    s = settings.model_copy(update={
+        "time_exit_hours": 72.0, "time_exit_min_gain_pct": 1.0,
+        "trend_exit_ma_period": 0, "breakeven_trigger_pct": 0.0,
+    })
+    reason, pct, kind = trading_engine._decide_mechanical_exit(s, "BTC", 100.0, 100.5, 100.5, stop_pct=10.0, held_hours=100.0)
+    assert kind == "time_exit" and pct == 100.0
+
+
+def test_time_exit_spares_young_or_winning(settings):
+    """#11: nie tnie pozycji zbyt młodej (< time_exit_hours) ani realnie zyskownej
+    (zysk >= progu), nawet gdy stara."""
+    s = settings.model_copy(update={
+        "time_exit_hours": 72.0, "time_exit_min_gain_pct": 1.0,
+        "trend_exit_ma_period": 0, "breakeven_trigger_pct": 0.0,
+    })
+    # młoda (10h) i płaska -> trzymamy.
+    assert trading_engine._decide_mechanical_exit(s, "BTC", 100.0, 100.5, 100.5, stop_pct=10.0, held_hours=10.0)[2] is None
+    # stara (100h) ale na realnym plusie +5% (>= próg 1%) -> trzymamy, nie martwy kapitał.
+    assert trading_engine._decide_mechanical_exit(s, "BTC", 100.0, 105.0, 105.0, stop_pct=10.0, held_hours=100.0)[2] is None
+
+
+def test_time_exit_off_on_base_settings(settings):
+    """#11 wyłączone na bazie (time_exit_hours=0) — noga akcji bez zmian."""
+    assert trading_engine._decide_mechanical_exit(settings, "BTC", 100.0, 100.5, 100.5, stop_pct=10.0, held_hours=1000.0)[2] != "time_exit"
+
+
+def test_vol_scaled_stop_is_atr_style_for_crypto(settings):
+    """#9: stop krypto jest skalowany zmiennością (ATR-style): rośnie z vol%,
+    przycina się do min/max, a przy nieznanej zmienności spada do stałego stopu."""
+    from app.services.strategy_profiles import effective_settings
+    cs = effective_settings(settings, "crypto")  # mult 4, min 4%, max 18%
+    low = trading_engine.dynamic_stop_loss_pct(cs, 0.5)   # 4*0.5=2 -> clamp do min
+    mid = trading_engine.dynamic_stop_loss_pct(cs, 3.0)   # 4*3=12
+    high = trading_engine.dynamic_stop_loss_pct(cs, 100.0)  # clamp do max
+    assert low == pytest.approx(cs.stop_loss_min_pct)
+    assert high == pytest.approx(cs.stop_loss_max_pct)
+    assert low < mid < high                                # monotoniczne rozszerzanie
+    assert trading_engine.dynamic_stop_loss_pct(cs, None) == pytest.approx(cs.stop_loss_pct)  # brak vol -> stały
+
+
 def test_tpsl_does_not_fire_while_stopped(db_session, settings):
     broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
     trading_engine.execute_manual_trade(db_session, settings, broker, symbol="SPY", side="BUY", usdt_amount=100.0)

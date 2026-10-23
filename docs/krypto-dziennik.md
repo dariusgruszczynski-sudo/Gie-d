@@ -135,6 +135,30 @@ i 180-min reentry po pełnym wyjściu (ich właściciel nie zdejmował). Weryfik
 baza (akcje) =3 nietknięte, krypto efektywnie =0. ruff + testy profili zielone.
 Reszta ochrony (stopy/cap/breaker/halt 30-40-55%) gra. Reversible: ustaw >0.
 
+### Wpis — 2026-10-23 (Partia 2/5: WYJŚCIA — stopy ATR, drabinka TP, wyjście czasowe)
+Partia 2 (warstwa wyjść), wnioski #9/#10/#11. Tylko noga krypto (przez
+`_CRYPTO_OVERRIDES`), akcje nietknięte.
+- **#9 Stopy ATR / vol-skalowane** — POTWIERDZONE, że już działają: `dynamic_stop_loss_pct`
+  skaluje twardy stop zmiennością instrumentu (`stop_loss_vol_mult × vol%`, przycięte do
+  min/max), więc stop siedzi POZA normalnym szumem (krypto: mult 4, 4–18%). To był wniosek
+  „stopy ATR" — zrealizowany już wcześniej, teraz sformalizowany i otestowany jako intencja
+  (zamiast przepisywać na true-range High/Low, co nic by nie dało przy samych closes). Brak
+  vol (mało historii) → spada do stałego stopu. Test: vol rośnie → stop rośnie, clampy grają.
+- **#10 Drabinka TP + runner** (`crypto_partial_take_profit_r_2=3.0`, `_frac_2=0.33`): drugi
+  szczebel realizacji. Szczebel 1 przy 1.5R bierze 1/3; szczebel 2 przy 3R bierze kolejną 1/3
+  z RESZTY; runner (~45% startowej) jedzie dalej pod trailingiem/ratchetem. Lockuje więcej
+  zysku z mocnego trendu, zanim trailing odda część przy cofnięciu od szczytu. Każdy szczebel
+  odpala RAZ (znacznik poziomu w stanie, wstecznie zgodny ze starym bool). Baza (akcje):
+  frac_2=0 → jeden partial jak dotąd, zero regresji.
+- **#11 Wyjście czasowe** (`crypto_time_exit_hours=72`, `_min_gain_pct=1.0`): pozycja trzymana
+  > 72h, która nigdzie nie dotarła (zysk < +1%) to MARTWY KAPITAŁ — tnę, zwalniam gotówkę na
+  coś, co realnie się rusza (sedno przewagi 24/7). Liczone na końcu, po wszystkich mocniejszych
+  wyjściach (stop/trend/breakeven/TP/trailing/partial mają priorytet) i po min-hold. Wiek od
+  początku CIĄGŁEGO trzymania (`position_opened_at`), więc dolewki nie resetują zegara. Baza:
+  0h = wyłączone.
+Testy: 8 nowych (drabinka jedn.+integracja, czasowe, ATR/vol dla krypto), backend 423/423,
+ruff ok. Następne: 3=wejścia (multi-TF / weto funding+F&G / weto+teza LLM).
+
 ### Wpis — 2026-10-23 (Partia 1/5: SKANER rynku 24/7 — koniec sztywnej 7-tki)
 Właściciel po pełnej analizie: „rdzeń BTC — nie rób (ogranicza naukę), resztę wdrażaj".
 Wdrożona Partia 1 (warstwa uniwersum), wnioski #1/#2/#3/#4:

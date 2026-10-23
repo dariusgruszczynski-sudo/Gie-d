@@ -1105,6 +1105,8 @@ def _decide_mechanical_exit(
     stop_pct: float | None = None,
     *,
     partial_taken: bool = False,
+    partial_level: int = 0,
+    held_hours: float | None = None,
     trend_ma: float | None = None,
     trend_bars_below: int = 0,
     vol_pct: float | None = None,
@@ -1121,6 +1123,9 @@ def _decide_mechanical_exit(
     peak_gain_pct = (peak - basis) / basis * 100 if basis > 0 else 0.0
     stop = settings.stop_loss_pct if stop_pct is None else stop_pct
     tp_arm, trailing, partial_r = _reward_levels(settings, stop)
+    # Ile szczebli drabinki TP już wzięto (int). Wstecznie zgodne ze starym
+    # znacznikiem bool (True -> 1), więc istniejące pozycje się nie gubią.
+    taken_level = max(int(partial_level), 1 if partial_taken else 0)
 
     if stop > 0 and change_pct <= -stop:
         return (
@@ -1154,7 +1159,7 @@ def _decide_mechanical_exit(
     # (szczyt >= breakeven_trigger%) ALBO wzięliśmy już partial, zwycięzca NIE może
     # zejść poniżej wejścia -> zamykamy na ~zero zamiast oddać cały zysk w stratę.
     be_trigger = getattr(settings, "breakeven_trigger_pct", 0.0)
-    if (partial_taken or (be_trigger > 0 and peak_gain_pct >= be_trigger)) and change_pct <= 0:
+    if (taken_level > 0 or (be_trigger > 0 and peak_gain_pct >= be_trigger)) and change_pct <= 0:
         return (
             f"Breakeven: {base} cofnął się do wejścia po szczycie +{peak_gain_pct:.1f}% — "
             f"chronię kapitał (wynik {change_pct:+.1f}%)",
@@ -1203,21 +1208,51 @@ def _decide_mechanical_exit(
             "take_profit",
         )
 
-    # One-shot partial profit-taking: sell part of the position the first time
-    # it clears +partial_r, then let the rest run under the trailing stop above.
+    # DRABINKA TP (#10) — laddered partial profit-taking. Każdy szczebel odpala
+    # RAZ i tylko kolejny względem już wziętego (caller zapamiętuje poziom), więc
+    # nawet gdy cena przeskoczy oba progi naraz, bierzemy je po kolei (poll po
+    # pollu), nie podwójnie w jednym cyklu. Reszta po ostatnim szczeblu = runner
+    # pod trailingiem/ratchetem powyżej.
+    if settings.partial_take_profit_enabled and settings.partial_take_profit_frac > 0:
+        # Szczebel 1: pierwszy raz powyżej +partial_r.
+        if taken_level < 1 and partial_r > 0 and change_pct >= partial_r:
+            pct = settings.partial_take_profit_frac * 100
+            return (
+                f"Częściowa realizacja (1/2): {base} +{change_pct:.1f}% — sprzedaż {pct:.0f}% przy "
+                f"+{partial_r:.1f}%, reszta biegnie z trailingiem (wejście {basis:.2f} → {price:.2f})",
+                pct,
+                "partial",
+            )
+        # Szczebel 2 (opcjonalny): po 1. szczeblu, powyżej +partial_r_2 — zabierz
+        # kolejny ułamek z TEGO, co zostało; runner jedzie dalej.
+        r2 = getattr(settings, "partial_take_profit_r_2", 0.0)
+        frac2 = getattr(settings, "partial_take_profit_frac_2", 0.0)
+        partial_r_2 = stop * r2 if stop > 0 else settings.take_profit_pct
+        if taken_level == 1 and frac2 > 0 and r2 > 0 and partial_r_2 > 0 and change_pct >= partial_r_2:
+            pct = frac2 * 100
+            return (
+                f"Częściowa realizacja (2/2): {base} +{change_pct:.1f}% — sprzedaż {pct:.0f}% reszty przy "
+                f"+{partial_r_2:.1f}%, runner jedzie dalej (wejście {basis:.2f} → {price:.2f})",
+                pct,
+                "partial",
+            )
+
+    # WYJŚCIE CZASOWE (#11) — ostatnia furtka: nic mocniejszego nie zadziałało,
+    # a pozycja trzymana > time_exit_hours nigdzie nie dotarła (zysk <
+    # time_exit_min_gain_pct). To martwy kapitał — tnij, zwolnij gotówkę. Liczone
+    # na samym końcu, więc stop/trend/breakeven/TP/trailing/partial mają priorytet.
+    te_hours = getattr(settings, "time_exit_hours", 0.0)
     if (
-        settings.partial_take_profit_enabled
-        and not partial_taken
-        and settings.partial_take_profit_frac > 0
-        and partial_r > 0
-        and change_pct >= partial_r
+        te_hours > 0
+        and held_hours is not None
+        and held_hours >= te_hours
+        and change_pct < getattr(settings, "time_exit_min_gain_pct", 0.0)
     ):
-        pct = settings.partial_take_profit_frac * 100
         return (
-            f"Częściowa realizacja: {base} +{change_pct:.1f}% — sprzedaż {pct:.0f}% przy +{partial_r:.1f}%, "
-            f"reszta biegnie z trailingiem (wejście {basis:.2f} → {price:.2f})",
-            pct,
-            "partial",
+            f"Wyjście czasowe: {base} trzymany {held_hours:.0f}h, wynik {change_pct:+.1f}% "
+            f"(< +{getattr(settings, 'time_exit_min_gain_pct', 0.0):.1f}%) — martwy kapitał, zwalniam gotówkę",
+            100.0,
+            "time_exit",
         )
 
     return None, 0.0, None
@@ -1302,6 +1337,9 @@ def check_take_profit_stop_loss(
         anchor = peaks.get(symbol, price) if adopted else basis
         peak = max(peaks.get(symbol, anchor), price)
         already_partial = bool(partials.get(symbol))
+        # Ile szczebli drabinki TP już wzięto (int). Wstecznie zgodne ze starym
+        # znacznikiem bool: True -> 1, False/brak -> 0, int zachowany.
+        partial_level = int(partials.get(symbol) or 0)
 
         if symbol not in configured:
             # No longer a name we want exposure to -- close the WHOLE position
@@ -1353,6 +1391,17 @@ def check_take_profit_stop_loss(
                 logger.warning("Volatility/MA fetch failed for %s, using fixed stop", symbol, exc_info=True)
             stop_pct = dynamic_stop_loss_pct(settings, vol_pct)
 
+            # Wiek pozycji (#11 wyjście czasowe): liczony od początku CIĄGŁEGO
+            # trzymania, więc dolewki/ponowne wejścia nie resetują zegara w pół
+            # trendu. None (brak historii) = wyjście czasowe się nie odpala.
+            held_hours = None
+            if getattr(settings, "time_exit_hours", 0.0) > 0:
+                opened = position_opened_at(db, symbol, venue=venue)
+                if opened is not None:
+                    if opened.tzinfo is None:
+                        opened = opened.replace(tzinfo=UTC)
+                    held_hours = (datetime.now(UTC) - opened).total_seconds() / 3600.0
+
             # Ręczny plan wyjścia (jeśli ustawiony dla tego symbolu): DODATKOWY,
             # zacieśniający próg — zamyka całość, gdy strata/zysk osiągnie ręczny
             # poziom, ZANIM zadziała automat. Nigdy nie luzuje ochrony automatu
@@ -1364,13 +1413,14 @@ def check_take_profit_stop_loss(
             else:
                 reason, sell_pct, kind = _decide_mechanical_exit(
                     settings, base, basis, price, peak, stop_pct=stop_pct,
-                    partial_taken=already_partial, trend_ma=trend_ma, trend_bars_below=trend_bars_below,
+                    partial_taken=already_partial, partial_level=partial_level,
+                    held_hours=held_hours, trend_ma=trend_ma, trend_bars_below=trend_bars_below,
                     vol_pct=vol_pct,
                 )
                 if kind is None:
                     new_peaks[symbol] = peak  # still holding, remember the peak
-                    if already_partial:
-                        new_partials[symbol] = True
+                    if partial_level:
+                        new_partials[symbol] = partial_level
                     continue
 
         # Minimum holding period: a just-opened position may only be exited by
@@ -1393,8 +1443,8 @@ def check_take_profit_stop_loss(
             and _within_min_hold(db, symbol, settings, venue=venue)
         ):
             new_peaks[symbol] = peak
-            if already_partial:
-                new_partials[symbol] = True
+            if partial_level:
+                new_partials[symbol] = partial_level
             continue
 
         # A partial slice below the broker minimum is pointless -- skip it this
@@ -1452,8 +1502,8 @@ def check_take_profit_stop_loss(
             decision.rejection_reason = f"Wyjście niewykonalne: {exc}"
             db.commit()
             new_peaks[symbol] = peak
-            if already_partial:
-                new_partials[symbol] = True
+            if partial_level:
+                new_partials[symbol] = partial_level
             continue
 
         executed.append(trade)
@@ -1462,10 +1512,10 @@ def check_take_profit_stop_loss(
             _record_stop_loss_streak_and_cooldown(db, symbol, settings, venue=venue)
             # full exit -> peak & partial mark intentionally dropped
         elif kind == "partial":
-            # position stays open on the remainder: keep the peak and remember
-            # the partial is already booked so it fires only once.
+            # position stays open on the remainder: keep the peak and ADVANCE the
+            # ladder level so this rung never re-fires and the next one can arm.
             new_peaks[symbol] = peak
-            new_partials[symbol] = True
+            new_partials[symbol] = partial_level + 1
         else:
             # MECHANIZM 2 — RE-ENTRY COOLDOWN: po KAŻDYM pełnym wyjściu (trailing /
             # trend-exit / breakeven / take-profit) blokuj ponowny zakup przez N

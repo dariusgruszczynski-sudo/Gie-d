@@ -182,6 +182,15 @@ class Settings(BaseSettings):
     crypto_trailing_stop_frac: float = 0.6          # szerszy trail = dłuższa jazda trendem
     crypto_partial_take_profit_frac: float = 0.33   # zabierz 1/3 przy 1.5R (de-risk), reszta jedzie
     crypto_partial_take_profit_r: float = 1.5
+    # DRABINKA TP (#10): drugi szczebel przy 3R — zabierz kolejną 1/3 z RESZTY,
+    # runner (≈45% startowej) biegnie dalej z trailingiem. Lockuje więcej zysku
+    # z mocnego trendu, zanim trailing odda część przy cofnięciu od szczytu.
+    crypto_partial_take_profit_r_2: float = 3.0
+    crypto_partial_take_profit_frac_2: float = 0.33
+    # WYJŚCIE CZASOWE (#11): po 72h bez ruchu (zysk < +1%) tnij — kapitał ma
+    # pracować, a nie leżeć w pozycji, która nie potwierdziła tezy momentum.
+    crypto_time_exit_hours: float = 72.0
+    crypto_time_exit_min_gain_pct: float = 1.0
     crypto_hard_take_profit_pct: float = 40.0       # tylko blow-off; zwykłe trendy jadą na trailingu
     crypto_stop_loss_vol_mult: float = 4.0
     crypto_stop_loss_min_pct: float = 4.0            # krypto rusza się 3-5%+ dziennie
@@ -407,6 +416,20 @@ class Settings(BaseSettings):
     partial_take_profit_enabled: bool = True
     partial_take_profit_frac: float = 0.33
     partial_take_profit_r: float = 1.5
+    # DRABINKA TP (Partia 2 / #10): opcjonalny DRUGI szczebel realizacji. Gdy
+    # pozycja po pierwszym partialu dobije do +partial_take_profit_r_2 * stop,
+    # zabierz jeszcze partial_take_profit_frac_2 z TEGO, co zostało (reszta =
+    # runner, biegnie dalej pod trailingiem/ratchetem). 0 = drugi szczebel
+    # WYŁĄCZONY (baza/akcje zachowują jeden partial). Wartości dla krypto niżej.
+    partial_take_profit_r_2: float = 0.0
+    partial_take_profit_frac_2: float = 0.0
+    # WYJŚCIE CZASOWE (Partia 2 / #11): pozycja trzymana dłużej niż
+    # time_exit_hours, która NIGDZIE nie dotarła (zysk < time_exit_min_gain_pct)
+    # to martwy kapitał — tnij ją i zwolnij gotówkę na coś, co realnie się
+    # rusza. Odpala tylko, gdy żadne mocniejsze wyjście (stop/trailing/TP/
+    # partial) nie zadziałało i po minęciu min-hold. 0h = WYŁĄCZONE (baza/akcje).
+    time_exit_hours: float = 0.0
+    time_exit_min_gain_pct: float = 0.0
     # --- Anty-churn (Pakiet 2) ----------------------------------------------
     # Hard conviction floor: an automated BUY below this confidence is rejected
     # outright -- cash is a valid position, don't trade a weak edge. 0 disables.
