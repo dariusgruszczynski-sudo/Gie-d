@@ -2115,6 +2115,60 @@ def _htf_regime_ok(broker, settings: Settings) -> tuple[bool, str]:
     return False, f"{sym} {price:.0f} < SMA{period} {ma:.0f}"
 
 
+def _htf_trend_ok(broker, settings: Settings, symbol: str) -> bool:
+    """#6 POTWIERDZENIE WYŻSZEJ RAMY: True gdy `symbol` jest w trendzie wzrostowym
+    na ramie `mtf_timeframe` (cena > SMA(mtf_ma_period)). Blokuje wejścia 1h wbrew
+    trendowi nadrzędnemu (łapanie spadającego noża). FAIL-OPEN: brak danych /
+    za mało historii / błąd -> True (nie zamraża bota). Wyłączony -> True."""
+    if not getattr(settings, "mtf_confirm_enabled", False):
+        return True
+    tf = getattr(settings, "mtf_timeframe", "4h")
+    period = getattr(settings, "mtf_ma_period", 50) or 50
+    try:
+        closes = [float(r[4]) for r in broker.get_klines(symbol, tf, period + 5)]
+    except Exception:
+        logger.warning("MTF fetch failed (%s %s) — fail-open", symbol, tf, exc_info=True)
+        return True
+    if len(closes) < period:
+        return True  # za mało historii -> nie blokuj
+    ma = sum(closes[-period:]) / period
+    return closes[-1] > ma
+
+
+def _entry_thesis(settings: Settings, symbol: str, md: dict | None, regime: dict | None,
+                  global_context: dict | None) -> str:
+    """#8 TEZA WEJŚCIA (1 linia, bez kosztu LLM): czytelny powód, DLACZEGO silnik
+    otwiera tę pozycję — konfluencja + rama wyższa + reżim + kontekst rynku
+    (Fear&Greed / funding). Ląduje w decision.reasoning, więc każdy trejd w logu/
+    dzienniku ma uzasadnienie, nie tylko gołe 'auto-deploy'. Gdy LLM krypto jest
+    włączony, Claude i tak nakłada swoje weto (SELL -> veto_sell pomija wejście)."""
+    md = md or {}
+    tech = md.get("technical", {}) or {}
+    sig = signals.entry_confluence(settings, tech)
+    parts: list[str] = [f"konfluencja {sig.score}/3"]
+    if sig.reasons:
+        parts.append(", ".join(sig.reasons))
+    mom = md.get("change_period_pct")
+    if mom is not None:
+        parts.append(f"momentum {mom:+.1f}%")
+    adx = md.get("adx")
+    if adx is not None:
+        parts.append(f"ADX {adx:.0f}")
+    if getattr(settings, "mtf_confirm_enabled", False):
+        tf = getattr(settings, "mtf_timeframe", "4h")
+        parts.append(f"trend {tf} potwierdzony")
+    if regime and regime.get("regime"):
+        parts.append(f"reżim {regime.get('regime')}")
+    ctx = global_context or {}
+    fng = ctx.get("fear_greed")
+    funding = ctx.get("btc_funding_rate_pct")
+    if fng is not None:
+        parts.append(f"F&G {fng}")
+    if funding is not None:
+        parts.append(f"funding {funding}%")
+    return f"Teza {symbol}: " + " · ".join(parts)
+
+
 def _crypto_loss_streak_today(db: Session, venue: str) -> int:
     """MECHANIZM 5 — liczba STRATNYCH zamknięć z rzędu DZIŚ (UTC), najnowsze
     pierwsze. Liczymy tylko dzisiejsze, więc breaker sam schodzi na przełomie doby."""
@@ -2255,6 +2309,10 @@ def _run_auto_deploy(
             return False
         md = market_data.get(sym) or {}
         price = pf["prices"].get(sym) or md.get("price") or 0.0
+        # #6 POTWIERDZENIE WYŻSZEJ RAMY: wejście tylko, gdy rama nadrzędna też w
+        # trendzie wzrostowym. None/True (wyłączone lub brak danych) -> nie blokuj.
+        if getattr(settings, "mtf_confirm_enabled", False) and md.get("htf_trend_ok") is False:
+            return False
         # MECHANIZM 8 — WYBICIE (Donchian): wejście tylko gdy cena bije szczyt
         # poprzednich N świec. None (za mało danych) -> nie blokuj (fail-open).
         if getattr(settings, "breakout_entry_enabled", False):
@@ -2368,8 +2426,8 @@ def _run_auto_deploy(
             break
         best = max(cands, key=rank_key)
         tried.add(best)
-        score = _candidate_score(settings, market_data.get(best))[0]
-        dec = run_one("BUY", best, f"Auto-deploy: rozmieszczam gotówkę w najlepszy setup {best} (konfluencja {score}/3)")
+        thesis = _entry_thesis(settings, best, market_data.get(best), regime, global_context)
+        dec = run_one("BUY", best, f"Auto-deploy: {thesis}")
         if dec is not None and dec.executed:
             executed.append(dec)
             pf = _refresh_clamped(dec)
@@ -2692,6 +2750,9 @@ def run_cycle(
             "technical": compute_technical_indicators(indicator_closes),
             "donchian_high": donchian_high(indicator_highs, lookback) if lookback > 0 else None,
             "adx": compute_adx(indicator_highs, indicator_lows, indicator_closes),
+            # #6 potwierdzenie wyższej ramy — policzone raz na cykl per symbol
+            # (osobny fetch tylko gdy włączone); gate'owane w eligible_new.
+            "htf_trend_ok": _htf_trend_ok(broker, settings, symbol),
         }
     # Only offer Claude symbols it actually has data for this cycle -- a symbol
     # missing from market_data (Alpaca failure above) must not be a choosable

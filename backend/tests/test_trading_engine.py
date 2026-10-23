@@ -1022,6 +1022,71 @@ def test_vol_scaled_stop_is_atr_style_for_crypto(settings):
     assert trading_engine.dynamic_stop_loss_pct(cs, None) == pytest.approx(cs.stop_loss_pct)  # brak vol -> stały
 
 
+# ============================================================================
+# Partia 3 — wejścia (#6 multi-TF, #7 weto funding/F&G, #8 teza + weto LLM)
+# ============================================================================
+class _TFBroker:
+    """Broker zwracający serię close zależną od interwału (do testu ramy HTF)."""
+    def __init__(self, series_by_tf):
+        self._s = series_by_tf  # tf -> list[close]
+
+    def get_klines(self, symbol, interval="1h", limit=24):
+        closes = self._s.get(interval, [])
+        return [[0, c, c, c, c, "1"] for c in closes]
+
+
+def test_mtf_confirm_blocks_when_higher_tf_below_ma(settings):
+    """#6: rama 4h POD SMA -> wejście zablokowane; NAD SMA -> dozwolone; brak
+    danych / wyłączone -> fail-open (True)."""
+    s = settings.model_copy(update={"mtf_confirm_enabled": True, "mtf_timeframe": "4h", "mtf_ma_period": 3})
+    below = _TFBroker({"4h": [10, 10, 10, 8]})   # 8 < SMA ~9.33 -> trend w dół
+    above = _TFBroker({"4h": [8, 8, 8, 10]})      # 10 > SMA ~8.67 -> trend w górę
+    thin = _TFBroker({"4h": [10, 10]})            # za mało historii
+    assert trading_engine._htf_trend_ok(below, s, "ETH/USD") is False
+    assert trading_engine._htf_trend_ok(above, s, "ETH/USD") is True
+    assert trading_engine._htf_trend_ok(thin, s, "ETH/USD") is True   # fail-open
+    off = settings.model_copy(update={"mtf_confirm_enabled": False})
+    assert trading_engine._htf_trend_ok(below, off, "ETH/USD") is True  # wyłączone -> ok
+
+
+def test_entry_thesis_is_one_line_with_context(settings):
+    """#8: teza wejścia to jedna czytelna linia z konfluencją, momentum, reżimem
+    i kontekstem rynku (F&G/funding) — ląduje w reasoning każdego trejdu."""
+    md = {
+        "technical": {"sma50_vs_sma200_1h": "above", "macd_signal": "bullish", "rsi_14": 55},
+        "change_period_pct": 6.2, "adx": 28.0,
+    }
+    thesis = trading_engine._entry_thesis(
+        settings.model_copy(update={"mtf_confirm_enabled": True}),
+        "SOL/USD", md, {"regime": "risk_on"}, {"fear_greed": 60, "btc_funding_rate_pct": 0.01},
+    )
+    assert thesis.startswith("Teza SOL/USD:")
+    assert "konfluencja 3/3" in thesis and "momentum +6.2%" in thesis
+    assert "ADX 28" in thesis and "reżim risk_on" in thesis
+    assert "F&G 60" in thesis and "funding 0.01%" in thesis
+    assert "\n" not in thesis  # jedna linia
+
+
+def test_contrarian_pause_blocks_new_entries_at_extreme_greed(db_session, settings):
+    """#7: twarde weto kontrariańskie — przy ekstremalnej chciwości (F&G ≥ próg
+    krypto) LUB mocno dodatnim fundingu nowe longi są wstrzymane; neutralnie
+    przepuszcza. Progi z profilu krypto (93 / 0.15%)."""
+    from app.services.strategy_profiles import effective_settings
+    cs = effective_settings(settings, "crypto")
+    broker = FakeAlpaca(prices={"BTC/USD": 60000.0}, balances={"USD": 1000.0})
+    pf = {"prices": {}, "usdt_balance": 1000.0, "total_value_usdt": 1000.0}
+    # Ekstremalna chciwość i zatłoczony funding zwracają wcześnie (db/broker nieużywane).
+    greedy = trading_engine._new_entries_blocked(db_session, cs, broker, pf, {"fear_greed": 95}, "crypto")
+    assert greedy is not None and "Przegrzanie" in greedy
+    crowded = trading_engine._new_entries_blocked(db_session, cs, broker, pf, {"btc_funding_rate_pct": 0.2}, "crypto")
+    assert crowded is not None and "funding" in crowded
+    # Neutralnie (F&G 55, funding 0.01%) przechodzi całą bramkę do None.
+    calm = trading_engine._new_entries_blocked(
+        db_session, cs, broker, pf, {"fear_greed": 55, "btc_funding_rate_pct": 0.01}, "crypto"
+    )
+    assert calm is None
+
+
 def test_tpsl_does_not_fire_while_stopped(db_session, settings):
     broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
     trading_engine.execute_manual_trade(db_session, settings, broker, symbol="SPY", side="BUY", usdt_amount=100.0)

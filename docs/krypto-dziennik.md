@@ -135,6 +135,26 @@ i 180-min reentry po pełnym wyjściu (ich właściciel nie zdejmował). Weryfik
 baza (akcje) =3 nietknięte, krypto efektywnie =0. ruff + testy profili zielone.
 Reszta ochrony (stopy/cap/breaker/halt 30-40-55%) gra. Reversible: ustaw >0.
 
+### Wpis — 2026-10-23 (Partia 3/5: WEJŚCIA — multi-TF, weto funding/F&G, teza na trejd)
+Partia 3 (warstwa wejść), wnioski #6/#7/#8. Tylko noga krypto, akcje nietknięte.
+- **#6 Potwierdzenie wyższej ramy czasowej** (`crypto_mtf_confirm_enabled`, 4h/SMA50):
+  nowe wejście wymaga, by RAMA NADRZĘDNA (4h) też była w trendzie wzrostowym (cena >
+  SMA50_4h), nie tylko sygnał 1h. Odfiltrowuje łapanie spadającego noża — odbicia 1h
+  wbrew trendowi 4h. Policzone raz/cykl per symbol (`_htf_trend_ok`), gate w
+  `eligible_new`. Fail-open przy braku danych (nie zamraża bota).
+- **#7 Twarde weto kontrariańskie funding/F&G** — POTWIERDZONE jako już obecne i
+  sformalizowane: `_new_entries_blocked` przy ekstremalnej chciwości (F&G ≥ 93) LUB
+  zatłoczonych longach (funding BTC ≥ 0.15%) WSTRZYMUJE nowe longi (twardziej niż
+  soft de-risk ×0.5 przy 85/0.08%, który też zostaje). To kontrarianizm: nie gonimy
+  euforii. Dodany test krypto (blokuje przy 95/0.2%, przepuszcza przy 55/0.01%).
+- **#8 Teza na każdy trejd + weto LLM** (`_entry_thesis`): każde wejście auto-deploy
+  dostaje 1-linijkowe UZASADNIENIE w reasoning (konfluencja + reasons + momentum +
+  ADX + potwierdzenie 4h + reżim + F&G/funding) — ZERO kosztu LLM, log/dziennik ma
+  „dlaczego", nie gołe „auto-deploy". Weto LLM i tak działa osobno: gdy
+  `crypto_llm_enabled` ON, SELL Claude'a → `veto_sell` pomija wejście w ten symbol.
+Testy: +3 (multi-TF gate, teza, weto kontrariańskie), backend 426/426, ruff ok.
+Następne: 4=ryzyko (korelacja/vol-target/cool-off), 5=proces (walk-forward/shadow).
+
 ### Wpis — 2026-10-23 (Partia 2/5: WYJŚCIA — stopy ATR, drabinka TP, wyjście czasowe)
 Partia 2 (warstwa wyjść), wnioski #9/#10/#11. Tylko noga krypto (przez
 `_CRYPTO_OVERRIDES`), akcje nietknięte.

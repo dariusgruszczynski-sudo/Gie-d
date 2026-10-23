@@ -94,6 +94,10 @@ _CRYPTO_OVERRIDES = {
     "crypto_pyramid_enabled": "pyramid_enabled",
     "crypto_pyramid_min_gain_pct": "pyramid_min_gain_pct",
     "crypto_pyramid_max_position_pct": "pyramid_max_position_pct",
+    # Partia 3 (#6 potwierdzenie wyższej ramy czasowej) — tylko noga krypto.
+    "crypto_mtf_confirm_enabled": "mtf_confirm_enabled",
+    "crypto_mtf_timeframe": "mtf_timeframe",
+    "crypto_mtf_ma_period": "mtf_ma_period",
     "crypto_stop_loss_vol_mult": "stop_loss_vol_mult",
     "crypto_stop_loss_min_pct": "stop_loss_min_pct",
     "crypto_stop_loss_max_pct": "stop_loss_max_pct",

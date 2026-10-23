@@ -328,6 +328,17 @@ class Settings(BaseSettings):
     crypto_pyramid_enabled: bool = True
     crypto_pyramid_min_gain_pct: float = 8.0
     crypto_pyramid_max_position_pct: float = 25.0
+    # #6 POTWIERDZENIE WIELU RAM CZASOWYCH (Partia 3): sam sygnał 1h to za mało —
+    #    nowe wejście wymaga, by WYŻSZA rama (mtf_timeframe) też była w trendzie
+    #    wzrostowym (cena > SMA(mtf_ma_period)). Odfiltrowuje odbicia 1h wbrew
+    #    trendowi nadrzędnemu (knife-catching). Fail-open przy braku danych (nie
+    #    zamraża bota). 0/off = wyłączone (akcje bez zmian).
+    mtf_confirm_enabled: bool = False
+    mtf_timeframe: str = "4h"
+    mtf_ma_period: int = 50
+    crypto_mtf_confirm_enabled: bool = True
+    crypto_mtf_timeframe: str = "4h"
+    crypto_mtf_ma_period: int = 50
 
     daily_loss_limit_pct: float = 20.0
     # Zacieśnione z 70% -> 25%: tygodniowy 70% to praktycznie brak ochrony małego
