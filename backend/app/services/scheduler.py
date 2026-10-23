@@ -106,9 +106,15 @@ def _crypto_job() -> None:
         news = NewsClient(settings)
         advisor = ClaudeAdvisor(settings)
         market_ctx = MarketContextClient()
+        # Dynamiczne uniwersum ze SKANERA 24/7 (TOP-K najsilniejszych płynnych par
+        # ∪ trzymane ∪ BTC); fallback na statyczne crypto_symbols przy problemie.
+        from app.services.market_scanner import scan_universe
+
+        whitelist = scan_universe(broker, settings)
+        logger.info("Krypto uniwersum (skaner): %s", ", ".join(whitelist))
         decision = run_cycle(
             db, effective_settings(settings, "crypto"), broker, news, advisor, market_ctx,
-            venue="crypto", whitelist=settings.crypto_symbols, always_open=True,
+            venue="crypto", whitelist=whitelist, always_open=True,
         )
         if decision is not None:
             logger.info("Crypto cycle produced decision: %s %s", decision.action, decision.symbol)

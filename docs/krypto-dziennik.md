@@ -135,6 +135,25 @@ i 180-min reentry po pełnym wyjściu (ich właściciel nie zdejmował). Weryfik
 baza (akcje) =3 nietknięte, krypto efektywnie =0. ruff + testy profili zielone.
 Reszta ochrony (stopy/cap/breaker/halt 30-40-55%) gra. Reversible: ustaw >0.
 
+### Wpis — 2026-10-23 (Partia 1/5: SKANER rynku 24/7 — koniec sztywnej 7-tki)
+Właściciel po pełnej analizie: „rdzeń BTC — nie rób (ogranicza naukę), resztę wdrażaj".
+Wdrożona Partia 1 (warstwa uniwersum), wnioski #1/#2/#3/#4:
+- **#1 Skaner 24/7** (`market_scanner.py` + `crypto_scanner_enabled`): co cykl skanuje
+  CAŁĄ handlowalną listę par USD Alpaki (`list_crypto_symbols`), rankinguje po sile i
+  oddaje TOP-K (domyślnie 8) jako DYNAMICZNE uniwersum silnika — zamiast obracać te same
+  7 altów. To przewaga „ręka na pulsie 24/7": bot sam podstawia to, co realnie rośnie.
+- **#2 Siła względem BTC** (`crypto_scanner_rs_vs_btc`): ranking po momentum MINUS momentum
+  BTC (altseason-gate), nie po gołym zwrocie.
+- **#3 Filtr płynności** (`crypto_scanner_min_dollar_vol_usd=5M`): odrzuca cienkie mikro-alty.
+- **#4 Auto-degradacja WRACA z wysokim progiem** (`crypto_auto_demote_*`: enabled, 20 zamknięć)
+  — paruj chronicznego przegranego po realnej próbce, nie po szumie z 5.
+Separacja: skaner wybiera KANDYDATÓW; o wejściu dalej decydują bramki (reżim/konfluencja≥2/
+wybicie/ADX) + cała ochrona ryzyka. Trzymane pozycje zawsze zostają w uniwersum (można wyjść).
+Fail-safe: błąd/pusta lista → fallback na statyczne crypto_symbols. Akcje nietknięte.
+Testy test_market_scanner (5), backend 415/415, ruff ok. Kolejne partie: 2=wyjścia (ATR/
+drabinka/czasowe), 3=wejścia (multi-TF/weto funding/weto+teza LLM), 4=ryzyko (korelacja/
+vol-target/cool-off), 5=proces (walk-forward/shadow).
+
 ### Wpis — 2026-10-19 (5 wniosków z Tyg.2 WDROŻONE — powrót do jakości)
 Właściciel: „wdrażaj wszystko" (po 5-punktowej analizie 0W/9L). Zmiany (tylko krypto,
 akcje nietknięte):

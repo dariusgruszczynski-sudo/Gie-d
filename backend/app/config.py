@@ -138,6 +138,17 @@ class Settings(BaseSettings):
     # > egzotyka. Format par Alpaca: "BTC/USD".
     crypto_universe: str = "BTC/USD,ETH/USD,SOL/USD,LINK/USD,AVAX/USD,LTC/USD,DOGE/USD"
     crypto_allocation_pct: float = 100.0
+    # --- SKANER RYNKU 24/7 (2026-10-23, wniosek #1/#2/#3) ---------------------
+    # Zamiast sztywnej 7-tki: co cykl skanuj CAŁĄ handlowalną listę par USD Alpaki,
+    # rankinguj po sile (momentum + siła względem BTC + wybicie), odfiltruj niską
+    # płynność i handluj TOP-K. To jest przewaga „ręka na pulsie 24/7": bot sam
+    # podstawia to, co realnie rośnie, zamiast obracać tych samych przegranych altów.
+    crypto_scanner_enabled: bool = True
+    crypto_scanner_top_k: int = 8                 # ile najsilniejszych par trzymać w uniwersum handlowym
+    crypto_scanner_max_scan: int = 40             # górny limit par do skanu/cykl (throttling API)
+    crypto_scanner_momentum_days: int = 30        # okno momentum rankingu
+    crypto_scanner_min_dollar_vol_usd: float = 5_000_000.0  # #3 filtr płynności (śr. dzienny obrót $)
+    crypto_scanner_rs_vs_btc: bool = True         # #2 ranking po SILE WZGLĘDEM BTC (altseason), nie gołym zwrocie
     # Profil krypto (nadpisuje bazowe TYLKO dla venue "crypto" -- patrz
     # strategy_profiles._CRYPTO_OVERRIDES). Krypto jest DUŻO bardziej zmienne niż
     # akcje, więc stopy są szersze, a ryzyko/transakcję mniejsze (głębsze swingi).
@@ -508,9 +519,11 @@ class Settings(BaseSettings):
     # od bazy. Na żywym stanie banowała 6/7 uniwersum (LTC 0W/5L, DOGE/AVAX/LINK/
     # ETH/SOL) po ~5 trejdach z churnu -- czyli wyrok z „małej próbki" zamrażał
     # cały rynek i głodził naukę, której właściciel chce. Wybór właściciela:
-    # „force-trade wszystko" ma wracać też do przegranych alt-ów (reszta ochrony
-    # ryzyka dalej działa). Noga akcji nietknięta (osobny override). Reversible.
-    crypto_auto_demote_enabled: bool = False
+    # 2026-10-23 (wniosek #4): WRACA, ale z WYSOKIM progiem — paruj chronicznego
+    # przegranego po ~20 zamknięciach (crypto_auto_demote_min_trades), nie po 5
+    # (poprzedni błąd: wyrok z szumu). Noga akcji nietknięta (osobny override).
+    crypto_auto_demote_enabled: bool = True
+    crypto_auto_demote_min_trades: int = 20
     # --- Ochrona przewagi: koszty / churn / koncentracja (Tier 2) -----------
     # Cap on concurrently-held positions per venue. The whitelist is heavily
     # correlated (tech beta), so many open names are really ONE bet -- this

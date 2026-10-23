@@ -127,6 +127,26 @@ class AlpacaClient:
             return False
         return bool(a.get("tradable")) and a.get("status") == "active"
 
+    def list_crypto_symbols(self) -> list[str]:
+        """Wszystkie HANDLOWALNE pary krypto z kwotą USD, jakie daje Alpaca
+        (np. ['BTC/USD', 'ETH/USD', ...]). Baza dla skanera rynku 24/7 — zamiast
+        sztywnej 7-tki. Każdy błąd -> [], a wołający robi fallback na statyczną
+        listę, żeby cykl nigdy nie został bez uniwersum."""
+        try:
+            assets = self._request(
+                self._trading, "GET", "/v2/assets",
+                params={"asset_class": "crypto", "status": "active"},
+            )
+        except Exception:
+            logger.warning("list_crypto_symbols: nie udało się pobrać listy aktywów", exc_info=True)
+            return []
+        out: list[str] = []
+        for a in assets if isinstance(assets, list) else []:
+            sym = a.get("symbol") or ""
+            if a.get("tradable") and sym.endswith("/USD"):
+                out.append(sym)
+        return out
+
     def get_calendar(self, start: str, end: str) -> list[dict]:
         """Trading days with their actual regular-session open/close for
         that date (accounts for holidays and early closes), used by
