@@ -721,6 +721,24 @@ class Settings(BaseSettings):
     # Never let vol-scaling shrink a position below this fraction of what
     # Claude asked for -- otherwise a very volatile name gets sized to dust.
     volatility_min_scale: float = 0.35
+    # #12 SIZING WG KORELACJI (Partia 4): alty krypto są mocno skorelowane z BTC —
+    #     N otwartych longów alt to w praktyce JEDEN lewarowany zakład na BTC.
+    #     Dlatego KAŻDA kolejna otwarta pozycja zmniejsza rozmiar NASTĘPNEGO wejścia
+    #     (×mult^liczba_otwartych): 1. pełna, 2. ×0.85, 3. ×0.72... To tłumi „all-in
+    #     w jedną korelację". 1.0 = wyłączone (akcje bez zmian). Podłoga jak przy vol.
+    correlation_sizing_enabled: bool = False
+    correlation_size_mult: float = 1.0
+    crypto_correlation_sizing_enabled: bool = True
+    crypto_correlation_size_mult: float = 0.85
+    # #14 COOL-OFF PO STRATNYM DNIU (Partia 4): gdy WCZORAJ (UTC) zrealizowany wynik
+    #     krypto był ≤ −cooloff_after_loss_day_pct% konta, DZIŚ nowe wejścia idą
+    #     mniejsze (×cooloff_size_mult) — chłodzimy się po złym dniu zamiast
+    #     odgrywać. Łagodniejsze od twardej pauzy (dane nadal płyną = nauka).
+    #     0% = wyłączone (akcje bez zmian).
+    cooloff_after_loss_day_pct: float = 0.0
+    cooloff_size_mult: float = 0.5
+    crypto_cooloff_after_loss_day_pct: float = 5.0
+    crypto_cooloff_size_mult: float = 0.5
 
     # Timeframe świec, z których liczone są sygnały wejścia (trend SMA50/200,
     # MACD, RSI) i skala zmienności stopa. Był "1d" (dowiedziona backtestem

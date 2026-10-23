@@ -2189,6 +2189,47 @@ def _crypto_loss_streak_today(db: Session, venue: str) -> int:
     return streak
 
 
+def _yesterday_realized_usd(db: Session, venue: str) -> float:
+    """#14 — suma zrealizowanego P&L (USD) z WCZORAJSZYCH (UTC) zamknięć na tej
+    nodze. Best-effort: błąd/brak danych -> 0.0 (brak cool-offu)."""
+    from app.services import scorecard
+    try:
+        hist = scorecard.realized_history(db, venue=venue, limit=300)
+    except Exception:
+        return 0.0
+    yday = (datetime.now(UTC).date() - timedelta(days=1)).isoformat()
+    return sum(float(h.get("pnl_usd") or 0.0) for h in hist if str(h.get("sold_at") or "").startswith(yday))
+
+
+def _correlation_size_mult(settings: Settings, open_count: int) -> float:
+    """#12 — mnożnik rozmiaru NOWEGO wejścia wg liczby już otwartych (skorelowanych)
+    pozycji: mult^open_count, przycięty podłogą volatility_min_scale, żeby kolejne
+    wejście nie spadło do zera. Wyłączone / mult=1 -> 1.0 (bez zmian)."""
+    if not getattr(settings, "correlation_sizing_enabled", False):
+        return 1.0
+    mult = getattr(settings, "correlation_size_mult", 1.0) or 1.0
+    if mult >= 1.0 or open_count <= 0:
+        return 1.0
+    floor = getattr(settings, "volatility_min_scale", 0.0) or 0.0
+    return max(floor, mult ** open_count)
+
+
+def _cooloff_size_mult(db: Session, settings: Settings, portfolio: dict, venue: str) -> float:
+    """#14 — mnożnik rozmiaru na DZIŚ: gdy wczorajszy zrealizowany wynik ≤
+    −cooloff_after_loss_day_pct% konta, zwróć cooloff_size_mult (<1); inaczej 1.0.
+    Wyłączone (próg 0) -> 1.0."""
+    thr = getattr(settings, "cooloff_after_loss_day_pct", 0.0) or 0.0
+    if thr <= 0:
+        return 1.0
+    total = account_total_value(db, settings, portfolio, venue)
+    if total <= 0:
+        return 1.0
+    pnl = _yesterday_realized_usd(db, venue)
+    if pnl < 0 and (-pnl / total * 100.0) >= thr:
+        return getattr(settings, "cooloff_size_mult", 1.0) or 1.0
+    return 1.0
+
+
 def _new_entries_blocked(db: Session, settings: Settings, broker, pf: dict, global_context: dict | None, venue: str) -> str | None:
     """Zbiorcza bramka NOWYCH wejść (mechanizmy #1 reżim / #4 ekspozycja / #5 seria
     strat / #7 przegrzanie). NIE dotyka wyjść ani pozycji już trzymanych — tylko
@@ -2358,6 +2399,12 @@ def _run_auto_deploy(
         )
         if crowded:
             base_pct *= getattr(settings, "derisk_size_mult", 1.0)
+        # #12 SIZING WG KORELACJI: każda już otwarta (skorelowana) pozycja zmniejsza
+        # rozmiar tego wejścia — N longów alt to w praktyce jeden zakład na BTC.
+        base_pct *= _correlation_size_mult(settings, count_open_positions(pf, settings, symbols))
+        # #14 COOL-OFF PO STRATNYM DNIU: po złym wczoraj wchodzimy mniejsi (nie
+        # odgrywamy). Mnożnik 1.0, gdy wyłączone lub wczoraj nie było dużej straty.
+        base_pct *= _cooloff_size_mult(db, settings, pf, venue)
         return round(base_pct, 4)
 
     def run_one(action: str, sym: str, reason: str) -> Decision | None:

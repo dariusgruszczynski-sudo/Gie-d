@@ -1087,6 +1087,85 @@ def test_contrarian_pause_blocks_new_entries_at_extreme_greed(db_session, settin
     assert calm is None
 
 
+# ============================================================================
+# Partia 4 — ryzyko (#12 sizing wg korelacji, #13 vol-targeting, #14 cool-off)
+# ============================================================================
+def test_correlation_size_mult_shrinks_with_open_positions(settings):
+    """#12: każda kolejna otwarta pozycja zmniejsza rozmiar następnego wejścia
+    (mult^open_count), z podłogą; wyłączone / mult=1 -> 1.0."""
+    s = settings.model_copy(update={
+        "correlation_sizing_enabled": True, "correlation_size_mult": 0.85, "volatility_min_scale": 0.3,
+    })
+    assert trading_engine._correlation_size_mult(s, 0) == pytest.approx(1.0)       # pierwsza pełna
+    assert trading_engine._correlation_size_mult(s, 1) == pytest.approx(0.85)      # druga ×0.85
+    assert trading_engine._correlation_size_mult(s, 2) == pytest.approx(0.7225)    # trzecia ×0.85²
+    assert trading_engine._correlation_size_mult(s, 20) == pytest.approx(0.3)      # przycięte podłogą
+    off = settings.model_copy(update={"correlation_sizing_enabled": False})
+    assert trading_engine._correlation_size_mult(off, 5) == pytest.approx(1.0)     # wyłączone
+
+
+def test_cooloff_size_mult_after_losing_day(db_session, settings):
+    """#14: po stratnym WCZORAJ (≤ −próg% konta) dzisiejsze wejścia ×cooloff_mult;
+    po dobrym/neutralnym dniu i przy wyłączonym — 1.0."""
+    from datetime import timedelta
+    s = settings.model_copy(update={"cooloff_after_loss_day_pct": 5.0, "cooloff_size_mult": 0.5})
+    pf = {"prices": {}, "usdt_balance": 1000.0, "total_value_usdt": 1000.0}
+    yday = (datetime.now(UTC).date() - timedelta(days=1)).isoformat()
+
+    import app.services.trading_engine as te
+    # duża strata wczoraj (−8% z 1000$) -> cool-off ×0.5
+    monkey = lambda db, venue: -80.0  # noqa: E731
+    orig = te._yesterday_realized_usd
+    te._yesterday_realized_usd = monkey
+    try:
+        assert te._cooloff_size_mult(db_session, s, pf, "crypto") == pytest.approx(0.5)
+        # mała strata (−2%) nie wyzwala
+        te._yesterday_realized_usd = lambda db, venue: -20.0
+        assert te._cooloff_size_mult(db_session, s, pf, "crypto") == pytest.approx(1.0)
+        # zysk wczoraj nie wyzwala
+        te._yesterday_realized_usd = lambda db, venue: 50.0
+        assert te._cooloff_size_mult(db_session, s, pf, "crypto") == pytest.approx(1.0)
+        # wyłączone (próg 0) -> 1.0
+        off = settings.model_copy(update={"cooloff_after_loss_day_pct": 0.0})
+        te._yesterday_realized_usd = lambda db, venue: -500.0
+        assert te._cooloff_size_mult(db_session, off, pf, "crypto") == pytest.approx(1.0)
+    finally:
+        te._yesterday_realized_usd = orig
+    assert yday  # sanity: data wczoraj policzona
+
+
+def test_yesterday_realized_sums_only_yesterday(db_session, settings):
+    """#14: _yesterday_realized_usd liczy TYLKO wczorajsze (UTC) zamknięcia."""
+    from datetime import timedelta
+
+    import app.services.scorecard as scorecard
+    yday = (datetime.now(UTC).date() - timedelta(days=1)).isoformat()
+    today = datetime.now(UTC).date().isoformat()
+    rows = [
+        {"sold_at": f"{yday}T10:00:00+00:00", "pnl_usd": -30.0},
+        {"sold_at": f"{yday}T12:00:00+00:00", "pnl_usd": -10.0},
+        {"sold_at": f"{today}T09:00:00+00:00", "pnl_usd": -999.0},  # dziś — pomijane
+    ]
+    orig = scorecard.realized_history
+    scorecard.realized_history = lambda db, venue=None, limit=300: rows
+    try:
+        assert trading_engine._yesterday_realized_usd(db_session, "crypto") == pytest.approx(-40.0)
+    finally:
+        scorecard.realized_history = orig
+
+
+def test_vol_targeting_shrinks_high_vol_name(settings):
+    """#13 vol-targeting: nazwa zmienniejsza niż referencja dostaje mniejszy rozmiar
+    (×ref/vol), z podłogą; nazwa spokojniejsza/przy referencji bez zmian."""
+    cs = settings.model_copy(update={"volatility_reference_pct": 3.0, "volatility_min_scale": 0.35})
+    # vol 6% = 2× referencji -> ×0.5
+    assert trading_engine.volatility_adjusted_size(cs, 20.0, 6.0) == pytest.approx(10.0)
+    # vol przy/ poniżej referencji -> bez zmian
+    assert trading_engine.volatility_adjusted_size(cs, 20.0, 2.0) == pytest.approx(20.0)
+    # ekstremalna vol przycięta podłogą (0.35)
+    assert trading_engine.volatility_adjusted_size(cs, 20.0, 100.0) == pytest.approx(7.0)
+
+
 def test_tpsl_does_not_fire_while_stopped(db_session, settings):
     broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})
     trading_engine.execute_manual_trade(db_session, settings, broker, symbol="SPY", side="BUY", usdt_amount=100.0)

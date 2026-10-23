@@ -98,6 +98,11 @@ _CRYPTO_OVERRIDES = {
     "crypto_mtf_confirm_enabled": "mtf_confirm_enabled",
     "crypto_mtf_timeframe": "mtf_timeframe",
     "crypto_mtf_ma_period": "mtf_ma_period",
+    # Partia 4 (#12 sizing wg korelacji, #14 cool-off po stratnym dniu) — krypto.
+    "crypto_correlation_sizing_enabled": "correlation_sizing_enabled",
+    "crypto_correlation_size_mult": "correlation_size_mult",
+    "crypto_cooloff_after_loss_day_pct": "cooloff_after_loss_day_pct",
+    "crypto_cooloff_size_mult": "cooloff_size_mult",
     "crypto_stop_loss_vol_mult": "stop_loss_vol_mult",
     "crypto_stop_loss_min_pct": "stop_loss_min_pct",
     "crypto_stop_loss_max_pct": "stop_loss_max_pct",

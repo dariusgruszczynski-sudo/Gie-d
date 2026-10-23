@@ -135,6 +135,28 @@ i 180-min reentry po pełnym wyjściu (ich właściciel nie zdejmował). Weryfik
 baza (akcje) =3 nietknięte, krypto efektywnie =0. ruff + testy profili zielone.
 Reszta ochrony (stopy/cap/breaker/halt 30-40-55%) gra. Reversible: ustaw >0.
 
+### Wpis — 2026-10-23 (Partia 4/5: RYZYKO — korelacja, vol-targeting, cool-off)
+Partia 4 (warstwa sizingu/ryzyka), wnioski #12/#13/#14. Tylko noga krypto.
+- **#12 Sizing wg korelacji** (`crypto_correlation_sizing_enabled`, mult 0.85): alty
+  są mocno skorelowane z BTC — N longów alt to w praktyce JEDEN lewarowany zakład na
+  BTC. Każda już otwarta pozycja zmniejsza rozmiar następnego wejścia (×0.85^N):
+  1. pełna, 2. ×0.85, 3. ×0.72… Przycięte podłogą `volatility_min_scale`. Tłumi
+  „all-in w jedną korelację" bez blokowania dywersyfikacji. Helper
+  `_correlation_size_mult`, wpięty w `_buy_size_pct`.
+- **#13 Volatility targeting** — POTWIERDZONE jako już obecne i otestowane:
+  `volatility_adjusted_size` skaluje rozmiar ×(referencja/vol) dla nazw zmienniejszych
+  od referencji (krypto ref 3%), z podłogą 0.35 — każda pozycja wnosi zbliżone ryzyko.
+  To był wniosek „vol-targeting"; działa w torze sizingu BUY.
+- **#14 Cool-off po stratnym dniu** (`crypto_cooloff_after_loss_day_pct=5`, mult 0.5):
+  gdy WCZORAJ (UTC) zrealizowany wynik ≤ −5% konta, DZIŚ nowe wejścia idą ×0.5 —
+  chłodzimy się po złym dniu zamiast odgrywać. Łagodniejsze od twardej pauzy: dane
+  nadal płyną (nauka). Helpery `_yesterday_realized_usd` + `_cooloff_size_mult`,
+  wpięte w `_buy_size_pct`.
+Oba mnożniki (#12,#14) mnożą się z istniejącym de-riskiem zatłoczenia (#4/#5), więc
+w euforii + po stratnym dniu + przy pełnym portfelu wejście jest naturalnie malutkie.
+Testy: +4 (korelacja, cool-off, suma wczoraj, vol-targeting), backend 430/430, ruff ok.
+Następne: 5=proces (walk-forward / shadow-validation).
+
 ### Wpis — 2026-10-23 (Partia 3/5: WEJŚCIA — multi-TF, weto funding/F&G, teza na trejd)
 Partia 3 (warstwa wejść), wnioski #6/#7/#8. Tylko noga krypto, akcje nietknięte.
 - **#6 Potwierdzenie wyższej ramy czasowej** (`crypto_mtf_confirm_enabled`, 4h/SMA50):
