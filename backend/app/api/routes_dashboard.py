@@ -197,7 +197,7 @@ def _engine_profile_view(settings: Settings, venue: str) -> dict:
         "price_move_trigger_pct": s.price_move_trigger_pct,
         "full_analysis_every_minutes": s.full_analysis_every_minutes,
         "volatility_reference_pct": s.volatility_reference_pct,
-        "allocation_pct": s.extended_allocation_pct if venue == "extended" else s.alpaca_allocation_pct,
+        "allocation_pct": {"extended": s.extended_allocation_pct, "crypto": s.crypto_allocation_pct}.get(venue, s.alpaca_allocation_pct),
         # Sizing ważony przekonaniem (Scenariusz A) — transparentnie widoczny.
         "conviction_sizing_enabled": s.conviction_sizing_enabled,
         "conviction_size_max_mult": s.conviction_size_max_mult,

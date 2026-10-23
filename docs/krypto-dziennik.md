@@ -135,6 +135,30 @@ i 180-min reentry po pełnym wyjściu (ich właściciel nie zdejmował). Weryfik
 baza (akcje) =3 nietknięte, krypto efektywnie =0. ruff + testy profili zielone.
 Reszta ochrony (stopy/cap/breaker/halt 30-40-55%) gra. Reversible: ustaw >0.
 
+### Wpis — 2026-10-23 (AUDYT kodu po planie — sprzątanie + efektywność)
+Pełny audyt pod kątem „czy każda część służy nauce i zarabianiu". Wszystkie nowe
+mechanizmy Partii 1–5 POTWIERDZONE jako podłączone do żywej nogi krypto (scheduler
+`_crypto_job` → `run_cycle(effective_settings(...,'crypto'))` → skaner/wyjścia/
+wejścia/sizing). Znalezione i NAPRAWIONE:
+1. **Martwy knob `crypto_allocation_pct`** — `venue_allocation_room` czytał dla krypto
+   stockowy `alpaca_allocation_pct` (ukryty coupling: zmiana dla akcji ruszałaby
+   krypto). Dodany `_alloc_pct_for(settings, venue)` — każda noga ma SWÓJ udział.
+   Oba 100% → zero zmiany zachowania dziś, usuwa pułapkę. (+ ten sam fix w dashboardzie.)
+2. **Martwa funkcja `_other_venue`** (relikt 2-nogowej logiki, 0 wywołań) — usunięta.
+3. **Sprzeczne komentarze „force-trade (entry_min_score=0)"** w 3 miejscach, gdy realnie
+   `crypto_entry_min_score=2` (tryb jakości od wniosku #5). Zły log myli przyszłe
+   decyzje = szkodzi nauce. Komentarze doprowadzone do stanu faktycznego.
+4. **Skaner bez cache** — pobierał ~40 dziennych świec KAŻDY cykl (~96×/dobę) mimo że
+   momentum 30-dniowe prawie się nie zmienia w 15 min. Dodany cache rankingu per
+   sygnatura wejścia na `crypto_scanner_cache_min=60` min; trzymane/BTC domykane
+   zawsze świeżo. Oszczędza grubo ~95% fetchy skanera i ryzyko limitów API.
+5. **Stackowanie de-risku mogło zbić setup do pyłu** — mnożniki #4/5 (×0.5) × #12
+   (×0.85^N) × #14 (×0.5) MNOŻĄ się; w pesymistycznym zbiegu ~6% docelowego rozmiaru
+   = pozycja-śmieć (działa PRZECIW zarabianiu). Dodana PODŁOGA łącznego de-risku
+   `crypto_entry_size_floor_frac=0.25` — potwierdzony setup nie schodzi poniżej 1/4 celu.
+Testy: +1 (cache skanera), backend 436/436, ruff (app+tests) ok. Szczegóły i wnioski
+strategiczne — w podsumowaniu sesji.
+
 ### Wpis — 2026-10-23 (Partia 5/5: PROCES — walidacja walk-forward / OOS)
 Partia 5 (warstwa procesu/pomiaru), wniosek #15 — KONIEC planu 14 ulepszeń.
 - **#15 Walk-forward / out-of-sample** (`app/services/walk_forward.py` +

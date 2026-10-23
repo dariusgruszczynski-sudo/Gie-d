@@ -13,10 +13,23 @@ Fail-safe: każdy błąd (brak listy, brak danych) -> fallback na statyczną
 settings.crypto_symbols, żeby cykl nigdy nie został bez uniwersum."""
 
 import logging
+import time
 
 from app.config import Settings
 
 logger = logging.getLogger(__name__)
+
+# Cache rankingu (audyt Partia 5 — efektywność): momentum 30-dniowe to WOLNY
+# sygnał, a cykl krypto biega co ~15 min. Bez cache skaner pobierał dzienne świece
+# dla ~40 par KAŻDY cykl (~96×/dobę) — marnotrawstwo API i ryzyko limitów. Trzymamy
+# ostatni ranking per SYGNATURA wejścia (pula+parametry) na crypto_scanner_cache_min
+# minut; trzymane pozycje i BTC domykamy ZAWSZE świeżo (one zmieniają się szybko).
+_RANK_CACHE: dict[tuple, tuple[float, list[str]]] = {}
+
+
+def _reset_cache() -> None:
+    """Czyści cache rankingu (dla testów / ręcznego wymuszenia świeżego skanu)."""
+    _RANK_CACHE.clear()
 
 
 def _daily_closes_vols(broker, symbol: str, bars: int) -> tuple[list[float], list[float]]:
@@ -79,6 +92,21 @@ def scan_universe(broker, settings: Settings) -> list[str]:
         pool = list(fallback)
     pool = pool[: max(1, settings.crypto_scanner_max_scan)]
 
+    # CACHE: w obrębie crypto_scanner_cache_min minut nie przeliczamy rankingu od
+    # nowa (oszczędza ~40 fetchy/cykl). Trzymane i BTC i tak domykamy świeżo niżej.
+    cache_min = float(getattr(settings, "crypto_scanner_cache_min", 0.0) or 0.0)
+    sig = (
+        tuple(sorted(pool)), settings.crypto_scanner_top_k, settings.crypto_scanner_momentum_days,
+        float(getattr(settings, "crypto_scanner_min_dollar_vol_usd", 0.0)),
+        bool(getattr(settings, "crypto_scanner_rs_vs_btc", True)),
+    )
+    now = time.monotonic()
+    if cache_min > 0:
+        hit = _RANK_CACHE.get(sig)
+        if hit is not None and now < hit[0]:
+            anchor = ["BTC/USD"] if "BTC/USD" in pool else []
+            return list(dict.fromkeys(hit[1] + sorted(held) + anchor)) or fallback
+
     mom_days = max(2, settings.crypto_scanner_momentum_days)
     bars = mom_days + 5
     btc_closes, _ = _daily_closes_vols(broker, "BTC/USD", bars)
@@ -105,6 +133,8 @@ def scan_universe(broker, settings: Settings) -> list[str]:
 
     scored.sort(key=lambda x: x[0], reverse=True)
     top = [s for _, s in scored[: max(1, settings.crypto_scanner_top_k)]]
+    if cache_min > 0:
+        _RANK_CACHE[sig] = (now + cache_min * 60.0, top)
 
     # Zawsze: TOP-K + trzymane (zarządzanie/wyjścia) + BTC jako kotwica. Dedup, kolejność stabilna.
     anchor = ["BTC/USD"] if "BTC/USD" in pool else []

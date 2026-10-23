@@ -37,7 +37,7 @@ def _settings(**over):
     base = dict(
         crypto_scanner_enabled=True, crypto_scanner_top_k=2, crypto_scanner_max_scan=40,
         crypto_scanner_momentum_days=30, crypto_scanner_min_dollar_vol_usd=5_000_000.0,
-        crypto_scanner_rs_vs_btc=True,
+        crypto_scanner_rs_vs_btc=True, crypto_scanner_cache_min=0.0,  # logika: bez cache
         crypto_universe="BTC/USD,ETH/USD",
     )
     base.update(over)
@@ -92,3 +92,39 @@ def test_empty_pool_falls_back():
     broker = EmptyBroker({"BTC/USD": (100, 120, 100_000)})
     uni = scan_universe(broker, _settings())
     assert uni  # nie pusto — fallback/zawartość
+
+
+def test_cache_reuses_ranking_but_refreshes_held():
+    """Audyt (efektywność): w obrębie cache_min ranking nie jest przeliczany
+    (mniej fetchy), ale TRZYMANE pozycje domykane są świeżo w każdym wywołaniu."""
+    from app.services import market_scanner
+    market_scanner._reset_cache()
+
+    class CountingBroker(FakeScanBroker):
+        def __init__(self, series, held=None):
+            super().__init__(series, held)
+            self.kline_calls = 0
+
+        def get_klines(self, symbol, interval="1h", limit=24):
+            self.kline_calls += 1
+            return super().get_klines(symbol, interval, limit)
+
+    s = _settings(crypto_scanner_cache_min=60.0)
+    broker = CountingBroker({
+        "BTC/USD": (100, 100, 100_000), "STRONG/USD": (100, 150, 100_000), "MID/USD": (100, 110, 100_000),
+    })
+    uni1 = scan_universe(broker, s)
+    after_first = broker.kline_calls
+    assert after_first > 0 and "STRONG/USD" in uni1
+
+    # Drugie wywołanie w oknie cache: ranking z cache -> ZERO nowych fetchy klines.
+    uni2 = scan_universe(broker, s)
+    assert broker.kline_calls == after_first          # nie pobrał świec ponownie
+    assert uni2 == uni1
+
+    # Nowo trzymana pozycja MUSI wejść do uniwersum mimo cache (świeży held).
+    broker._held = {"MID/USD": 5.0}
+    uni3 = scan_universe(broker, s)
+    assert "MID/USD" in uni3
+    assert broker.kline_calls == after_first          # wciąż bez nowych fetchy
+    market_scanner._reset_cache()

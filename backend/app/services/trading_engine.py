@@ -817,10 +817,6 @@ def compute_and_cache_regime(db: Session, settings: Settings, broker, market_ctx
     return regime
 
 
-def _other_venue(venue: str) -> str:
-    return "alpaca" if venue == "extended" else "extended"
-
-
 def _active_venues(settings: Settings) -> list[str]:
     """Nogi, które realnie trzymają pozycje na WSPÓLNYM koncie Alpaca: akcje
     (zawsze -- baza konta + gotówka), POZA SESJĄ i KRYPTO gdy włączone. Każda,
@@ -860,6 +856,16 @@ def account_total_value(db: Session, settings: Settings, portfolio: dict, venue:
     return cash + this_pos + other_pos
 
 
+def _alloc_pct_for(settings: Settings, venue: str) -> float:
+    """Udział konta dla danej nogi. KAŻDA noga ma własny knob — bez tego krypto
+    jechało po cichu na stockowym alpaca_allocation_pct (ukryty coupling: zmiana
+    dla akcji ruszałaby krypto). Nieznana noga -> baza (alpaca)."""
+    return {
+        "extended": settings.extended_allocation_pct,
+        "crypto": settings.crypto_allocation_pct,
+    }.get(venue, settings.alpaca_allocation_pct)
+
+
 def venue_allocation_room(db: Session, settings: Settings, portfolio: dict, venue: str) -> float:
     """USD this engine may still deploy into NEW positions without exceeding its
     share of the whole account. Both engines share ONE Alpaca cash pool; without
@@ -868,7 +874,7 @@ def venue_allocation_room(db: Session, settings: Settings, portfolio: dict, venu
     allocation_pct, minus what it already holds. Returns min(free cash,
     remaining room). An allocation of 0 blocks new buys; 100 effectively
     disables the cap (room ~= free cash)."""
-    alloc_pct = settings.extended_allocation_pct if venue == "extended" else settings.alpaca_allocation_pct
+    alloc_pct = _alloc_pct_for(settings, venue)
     if alloc_pct <= 0:
         return 0.0
     cash = portfolio["usdt_balance"]
@@ -1854,7 +1860,7 @@ def _process_decision(
         # (b) cap the order notional to it (see _execute_trade, via the dict).
         alloc_room = venue_allocation_room(db, settings, portfolio, venue)
         portfolio["allocation_room"] = alloc_room
-        alloc_pct = settings.extended_allocation_pct if venue == "extended" else settings.alpaca_allocation_pct
+        alloc_pct = _alloc_pct_for(settings, venue)
         if alloc_room < MIN_SELL_NOTIONAL_USD:
             decision.rejection_reason = (
                 f"Silnik osiągnął swój przydział kapitału ({alloc_pct:.0f}% konta) — "
@@ -2397,15 +2403,21 @@ def _run_auto_deploy(
         crowded = (fng_thr > 0 and fng is not None and fng >= fng_thr) or (
             fund_thr > 0 and funding is not None and funding >= fund_thr
         )
+        # Skumulowany de-risk (zatłoczenie #4/5 × korelacja #12 × cool-off #14).
+        # WAŻNE (audyt): te mnożniki się MNOŻĄ, więc w pesymistycznym zbiegu
+        # (euforia + pełny portfel + stratne wczoraj) potrafiłyby zbić POTWIERDZONY
+        # setup do pyłu — a to działa PRZECIW zarabianiu. Dlatego łączny de-risk ma
+        # PODŁOGĘ (entry_size_floor_frac): nigdy nie schodzimy poniżej tej frakcji
+        # docelowego rozmiaru. 0 = bez podłogi (akcje bez zmian).
+        derisk = 1.0
         if crowded:
-            base_pct *= getattr(settings, "derisk_size_mult", 1.0)
-        # #12 SIZING WG KORELACJI: każda już otwarta (skorelowana) pozycja zmniejsza
-        # rozmiar tego wejścia — N longów alt to w praktyce jeden zakład na BTC.
-        base_pct *= _correlation_size_mult(settings, count_open_positions(pf, settings, symbols))
-        # #14 COOL-OFF PO STRATNYM DNIU: po złym wczoraj wchodzimy mniejsi (nie
-        # odgrywamy). Mnożnik 1.0, gdy wyłączone lub wczoraj nie było dużej straty.
-        base_pct *= _cooloff_size_mult(db, settings, pf, venue)
-        return round(base_pct, 4)
+            derisk *= getattr(settings, "derisk_size_mult", 1.0)
+        derisk *= _correlation_size_mult(settings, count_open_positions(pf, settings, symbols))
+        derisk *= _cooloff_size_mult(db, settings, pf, venue)
+        floor = getattr(settings, "entry_size_floor_frac", 0.0) or 0.0
+        if floor > 0:
+            derisk = max(derisk, floor)
+        return round(base_pct * derisk, 4)
 
     def run_one(action: str, sym: str, reason: str) -> Decision | None:
         # BUY: rozmiar celuje w udział KONTA (anty-koncentracja), z pewnością na

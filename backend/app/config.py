@@ -149,6 +149,10 @@ class Settings(BaseSettings):
     crypto_scanner_momentum_days: int = 30        # okno momentum rankingu
     crypto_scanner_min_dollar_vol_usd: float = 5_000_000.0  # #3 filtr płynności (śr. dzienny obrót $)
     crypto_scanner_rs_vs_btc: bool = True         # #2 ranking po SILE WZGLĘDEM BTC (altseason), nie gołym zwrocie
+    # Cache rankingu (audyt: efektywność). Momentum 30-dniowe prawie nie zmienia się
+    # w 15 min, a bez cache skaner pobierał ~40 dziennych świec KAŻDY cykl. Trzymamy
+    # ranking przez tyle minut; trzymane/BTC domykane zawsze świeżo. 0 = bez cache.
+    crypto_scanner_cache_min: float = 60.0
     # Profil krypto (nadpisuje bazowe TYLKO dla venue "crypto" -- patrz
     # strategy_profiles._CRYPTO_OVERRIDES). Krypto jest DUŻO bardziej zmienne niż
     # akcje, więc stopy są szersze, a ryzyko/transakcję mniejsze (głębsze swingi).
@@ -202,8 +206,9 @@ class Settings(BaseSettings):
     # F&G i decyduje wejścia (dotąd te dane tylko się zapisywały — silnik był
     # czysto mechaniczny). Mechaniczny auto-deploy + stopy biegną dalej 24/7 między
     # wywołaniami. ~3 wywołania/dzień ≈ ~$5-6/mies (sonnet-5) — mieści się w budżecie
-    # $9. Wybór właściciela: force-trade (entry_min_score=0) ZOSTAJE — Claude dokłada
-    # warstwę strategiczną, nie zastępuje mechaniki. Reversible: ustaw 0, by wyłączyć.
+    # $9. Claude dokłada warstwę strategiczną, nie zastępuje mechaniki. Reversible:
+    # ustaw 0, by wyłączyć heartbeat. (UWAGA: NIE jest to już force-trade — wejścia
+    # przechodzą próg konfluencji crypto_entry_min_score=2, patrz niżej.)
     crypto_full_analysis_every_minutes: int = 480
     crypto_poll_interval_minutes: int = 15
     crypto_signal_timeframe: str = "1h"
@@ -549,13 +554,12 @@ class Settings(BaseSettings):
     auto_demote_enabled: bool = False
     auto_demote_min_trades: int = 5
     auto_demote_win_rate_floor: float = 40.0
-    # Krypto (force-trade, zbieranie danych): auto-degradacja WYŁĄCZONA niezależnie
-    # od bazy. Na żywym stanie banowała 6/7 uniwersum (LTC 0W/5L, DOGE/AVAX/LINK/
-    # ETH/SOL) po ~5 trejdach z churnu -- czyli wyrok z „małej próbki" zamrażał
-    # cały rynek i głodził naukę, której właściciel chce. Wybór właściciela:
-    # 2026-10-23 (wniosek #4): WRACA, ale z WYSOKIM progiem — paruj chronicznego
-    # przegranego po ~20 zamknięciach (crypto_auto_demote_min_trades), nie po 5
-    # (poprzedni błąd: wyrok z szumu). Noga akcji nietknięta (osobny override).
+    # Krypto — auto-degradacja: HISTORIA → była WYŁĄCZONA, bo na żywym stanie
+    # banowała 6/7 uniwersum (LTC 0W/5L, DOGE/AVAX/LINK/ETH/SOL) po ~5 trejdach z
+    # churnu — wyrok z „małej próbki" zamrażał cały rynek i głodził naukę. STAN
+    # OBECNY (2026-10-23, wniosek #4): WŁĄCZONA, ale z WYSOKIM progiem — paruj
+    # chronicznego przegranego dopiero po ~20 zamknięciach (nie po 5). Noga akcji
+    # nietknięta (osobny override).
     crypto_auto_demote_enabled: bool = True
     crypto_auto_demote_min_trades: int = 20
     # --- Ochrona przewagi: koszty / churn / koncentracja (Tier 2) -----------
@@ -635,11 +639,10 @@ class Settings(BaseSettings):
     auto_blacklist_stop_count: int = 3
     auto_blacklist_window_hours: int = 24
     auto_blacklist_hours: int = 48
-    # Krypto (force-trade, zbieranie danych): auto-blacklist WYŁĄCZONY (0). Przy
-    # force-trade churnie alt łatwo zbiera 3 stopy/24h i wypadałby na 48h — to
-    # parkowało kapitał, czego właściciel nie chce w fazie zbierania danych.
-    # Zostaje 60-min cooldown po stopie i 180-min reentry (hamulce anty-whipsaw).
-    # Noga akcji nietknięta (osobny override). Reversible: ustaw >0, by wrócić.
+    # Krypto — auto-blacklist WYŁĄCZONY (0): w fazie zbierania próbki churn łatwo
+    # zbija altowi 3 stopy/24h i wypychałby go na 48h, parkując kapitał i głodząc
+    # naukę. Zostaje 60-min cooldown po stopie i 180-min reentry (hamulce anty-
+    # whipsaw). Noga akcji nietknięta (osobny override). Reversible: ustaw >0.
     crypto_auto_blacklist_stop_count: int = 0
     # Send an email the moment any trade executes (BUY/SELL, incl. TP/SL exits).
     # Uses the same SMTP config as the daily report; silently skipped if SMTP
@@ -739,6 +742,12 @@ class Settings(BaseSettings):
     cooloff_size_mult: float = 0.5
     crypto_cooloff_after_loss_day_pct: float = 5.0
     crypto_cooloff_size_mult: float = 0.5
+    # PODŁOGA SKUMULOWANEGO DE-RISKU (audyt Partia 5): mnożniki #4/5/#12/#14 się
+    # MNOŻĄ, więc w pesymistycznym zbiegu zbiłyby potwierdzony setup do pyłu
+    # (działa przeciw zarabianiu). Łączny de-risk nie schodzi poniżej tej frakcji
+    # docelowego rozmiaru. 0 = bez podłogi (akcje bez zmian).
+    entry_size_floor_frac: float = 0.0
+    crypto_entry_size_floor_frac: float = 0.25
 
     # Timeframe świec, z których liczone są sygnały wejścia (trend SMA50/200,
     # MACD, RSI) i skala zmienności stopa. Był "1d" (dowiedziona backtestem

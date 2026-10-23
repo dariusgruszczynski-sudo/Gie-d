@@ -103,6 +103,7 @@ _CRYPTO_OVERRIDES = {
     "crypto_correlation_size_mult": "correlation_size_mult",
     "crypto_cooloff_after_loss_day_pct": "cooloff_after_loss_day_pct",
     "crypto_cooloff_size_mult": "cooloff_size_mult",
+    "crypto_entry_size_floor_frac": "entry_size_floor_frac",
     "crypto_stop_loss_vol_mult": "stop_loss_vol_mult",
     "crypto_stop_loss_min_pct": "stop_loss_min_pct",
     "crypto_stop_loss_max_pct": "stop_loss_max_pct",
