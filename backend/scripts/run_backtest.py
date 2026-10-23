@@ -37,7 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import get_settings  # noqa: E402
-from app.services import backtest, historical_data  # noqa: E402
+from app.services import backtest, historical_data, walk_forward  # noqa: E402
 from app.services.alpaca_client import AlpacaClient  # noqa: E402
 from app.services.strategy_profiles import effective_settings  # noqa: E402
 
@@ -157,6 +157,8 @@ def main() -> None:
     parser.add_argument("--cash", type=float, default=1000.0, help="startowy kapitał (domyślnie 1000)")
     parser.add_argument("--sweep", action="store_true",
                          help="Przemiataj siatkę ekspozycji (ryzyko/transakcję × liczba pozycji) i pokaż granicę zysk↔obsunięcie + Calmar.")
+    parser.add_argument("--walk-forward", dest="walk_forward", type=int, default=0, metavar="K",
+                         help="Walidacja walk-forward: podziel historię na K rozłącznych okien OOS i pokaż, czy przewaga vs benchmark trzyma się w KAŻDYM oknie (wniosek #15). Np. 4.")
     parser.add_argument("--venue", choices=["alpaca", "crypto"], default="alpaca",
                          help="alpaca (akcje US, benchmark SPY) lub crypto (24/7, benchmark BTCUSD). crypto wymusza Yahoo (głębsza historia niż Alpaca crypto).")
     args = parser.parse_args()
@@ -196,6 +198,21 @@ def main() -> None:
 
     if args.sweep:
         _run_sweep(bars_by_symbol, eff, benchmark, args.cash)
+        return
+
+    if args.walk_forward:
+        result = walk_forward.walk_forward(
+            bars_by_symbol, eff, benchmark_symbol=benchmark,
+            folds=args.walk_forward, starting_cash=args.cash,
+        )
+        print(f"\n=== WALK-FORWARD ({source}, {args.walk_forward} okien OOS, mechaniczny rdzeń) ===")
+        print(walk_forward.format_report(result))
+        if "summary" in result:
+            print("\nInterpretacja:")
+            if result["summary"]["edge_consistent"]:
+                print("  ✅ Przewaga vs benchmark trzyma się w WIĘKSZOŚCI okien — nie wygląda na 1–2 szczęśliwe strzały.")
+            else:
+                print("  ⚠ Przewaga NIE jest spójna między oknami — wynik może pochodzić z jednego okna. Czerwona flaga GO-LIVE.")
         return
 
     report = backtest.run_backtest(

@@ -135,6 +135,32 @@ i 180-min reentry po pełnym wyjściu (ich właściciel nie zdejmował). Weryfik
 baza (akcje) =3 nietknięte, krypto efektywnie =0. ruff + testy profili zielone.
 Reszta ochrony (stopy/cap/breaker/halt 30-40-55%) gra. Reversible: ustaw >0.
 
+### Wpis — 2026-10-23 (Partia 5/5: PROCES — walidacja walk-forward / OOS)
+Partia 5 (warstwa procesu/pomiaru), wniosek #15 — KONIEC planu 14 ulepszeń.
+- **#15 Walk-forward / out-of-sample** (`app/services/walk_forward.py` +
+  `run_backtest.py --walk-forward K`): tnie historię na K ROZŁĄCZNYCH okien OOS i
+  puszcza przez każde TEN SAM mechaniczny silnik (te same, niestrojone pod okno
+  knoby), każdy symbol z własnym rozbiegiem (warmup) przed oknem. Agreguje: w ilu
+  oknach pobiliśmy BTC, mediana/min alfy, najgorsze obsunięcie, i werdykt
+  `edge_consistent` (przewaga trzyma się, gdy bijemy benchmark w ≥60% okien i
+  mediana alfy > 0). To bezpośrednio adresuje czerwoną flagę GO-LIVE „nie z 1–2
+  szczęśliwych strzałów" i pytanie „bijemy BTC KONSEKWENTNIE, czy raz".
+  Narzędzie POMIARU — nie zmienia żadnego knoba na żywo.
+- Uruchomienie: `python scripts/run_backtest.py --venue crypto --years 10 --walk-forward 4`.
+- UCZCIWIE: na gładkim syntetycznym teście trend-follower ze stopami ZARABIA, ale
+  przegrywa z kupić-i-trzymać w monotonicznym wzroście (spodziewane — stopy tną w
+  każdym cofnięciu). Realny werdykt policzymy na danych Yahoo (10 lat) w CI.
+Testy: +5 (podział na okna, werdykt, odrzucenie <2 okien, za mało historii,
+format raportu), backend 435/435, ruff (app+tests) ok.
+
+**PLAN UKOŃCZONY**: 14/15 ulepszeń wdrożonych w 5 partiach (pominięte świadomie #5
+„rdzeń BTC" — decyzja właściciela). Każda partia: osobny commit + testy + wpis.
+Partie: 1=skaner 24/7 · 2=wyjścia (ATR/drabinka/czasowe) · 3=wejścia (multi-TF/weto
+funding-F&G/teza) · 4=ryzyko (korelacja/vol-target/cool-off) · 5=proces (walk-forward).
+Wszystko TYLKO noga krypto (przez `_CRYPTO_OVERRIDES`), akcje nietknięte. Następny krok
+nadzoru: po deployu potwierdzić zrzutem, że skaner podstawia dynamiczne uniwersum, a
+nowe wejścia niosą tezę; potem zebrać próbkę ≥50 zamknięć i policzyć kryteria GO-LIVE.
+
 ### Wpis — 2026-10-23 (Partia 4/5: RYZYKO — korelacja, vol-targeting, cool-off)
 Partia 4 (warstwa sizingu/ryzyka), wnioski #12/#13/#14. Tylko noga krypto.
 - **#12 Sizing wg korelacji** (`crypto_correlation_sizing_enabled`, mult 0.85): alty
