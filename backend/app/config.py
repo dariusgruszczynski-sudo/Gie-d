@@ -178,7 +178,7 @@ class Settings(BaseSettings):
     # rozkłada się na wszystkie monety zamiast 4 grubych paczek. Na większym koncie
     # grube paczki ocierały się o limit $200k/zlecenie Alpaki (seria 403); drobniejsze
     # pozycje + niższy auto_deploy_max_position_pct trzymają zlecenia pod limitem.
-    crypto_max_concurrent_positions: int = 7
+    crypto_max_concurrent_positions: int = 20  # 2026-10-24 (wyraźna zgoda właściciela): 7 -> 20. Cap ekspozycji 50% i tak wiąże pierwszy — więcej slotów = te same ~50% rozłożone na więcej MNIEJSZYCH, bardziej zdywersyfikowanych pozycji, nie większa ekspozycja.
     crypto_min_buy_confidence: float = 0.60
     crypto_max_new_positions_per_day: int = 0        # 0 = bez limitu (24/7)
     crypto_min_hold_minutes: int = 60                 # krótsze trzymanie niż akcje (24/7)
