@@ -135,6 +135,26 @@ i 180-min reentry po pełnym wyjściu (ich właściciel nie zdejmował). Weryfik
 baza (akcje) =3 nietknięte, krypto efektywnie =0. ruff + testy profili zielone.
 Reszta ochrony (stopy/cap/breaker/halt 30-40-55%) gra. Reversible: ustaw >0.
 
+### Wpis — 2026-10-24 (SKANER BYŁ MARTWY W PRODUKCJI — zdiagnozowane i naprawione)
+Właściciel: „czemu nic nie kupuje przy większym scope?". Instynkt trafny — skaner
+24/7 (sztandarowa funkcja Partii 1) był w PRODUKCJI efektywnie martwy, a nikt tego
+nie widział, bo dashboard pokazywał statyczną listę zamiast wyniku skanera.
+Ścieżka (wszystko na danych z żywego prod przez snapshoty):
+1. Dołożona OBSERWOWALNOŚĆ skanera (universe/pool_size/scored/skips/liquidity w
+   /status + stanie). Wcześniej zero wglądu.
+2. Sygnał: **36 par z Alpaki, 0 zrankowanych** → handel tylko BTC.
+3. Przyczyna (liczniki skips): **illiquid 36/36** — nie dane, nie chop, tylko filtr.
+4. Dane: Alpaca to MIKRO-giełda — BTC ~$247k/d na JEJ księgach (nie globalne
+   miliardy), mediana par ~$6k, a 3 topowe „obroty" to stablecoiny. Próg płynności
+   **$5M był 20× ponad BTC** → kosił wszystko.
+5. Fix z danych: próg **$5M → $5k** + **wykluczenie stablecoinów** (USDC/USDT/...).
+POTWIERDZENIE PO WDROŻENIU: scored **0 → 15**, uniwersum = BTC, PAXG, AAVE, ETH,
+DOT, AVAX, LINK, SOL — w tym AAVE/DOT/PAXG spoza statycznej 7-tki. Skaner realnie
+poszerza scope i rankinguje po sile vs BTC. UCZCIWIE: to odblokowuje MOŻLIWOŚĆ
+handlu 24/7 na szerszym rynku, nie zmusza do zakupów — wejścia dalej zależą od
+bramek jakości i rynku (w chopie bot słusznie czeka w gotówce). Lekcja: funkcję
+trzeba było ZMIERZYĆ na żywo, nie zakładać, że „skoro testy zielone, to działa".
+
 ### Wpis — 2026-10-24 (WALK-FORWARD na realnych 10 latach — TWARDY WERDYKT)
 Puszczony na runnerze (Yahoo, 10 lat, 7 par, 4 okna OOS). Dane dociągnięte (bez 403).
 
