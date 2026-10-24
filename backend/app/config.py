@@ -144,7 +144,13 @@ class Settings(BaseSettings):
     # płynność i handluj TOP-K. To jest przewaga „ręka na pulsie 24/7": bot sam
     # podstawia to, co realnie rośnie, zamiast obracać tych samych przegranych altów.
     crypto_scanner_enabled: bool = True
-    crypto_scanner_top_k: int = 8                 # ile najsilniejszych par trzymać w uniwersum handlowym
+    # Ile najsilniejszych par w uniwersum handlowym. 2026-10-24: 8 -> 20. top_k to
+    # tylko PULA KANDYDATÓW do rankingu — faktyczne pozycje i tak ogranicza
+    # crypto_max_concurrent_positions (7) + cap ekspozycji + sizing korelacyjny.
+    # top_k=8 na 7 slotów to prawie brak wyboru (7 z 8); przy ~15 punktowanych
+    # parach Alpaki podbicie do 20 = „rankinguj cały dostępny rynek, trzymaj
+    # najlepsze 7". Nie zwiększa ryzyka/koncentracji, poszerza wybór. Cap max_scan=40.
+    crypto_scanner_top_k: int = 20
     crypto_scanner_max_scan: int = 40             # górny limit par do skanu/cykl (throttling API)
     crypto_scanner_momentum_days: int = 30        # okno momentum rankingu
     # #3 filtr płynności (śr. dzienny obrót $). 2026-10-24: 5_000_000 -> 5_000 na
