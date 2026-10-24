@@ -135,6 +135,21 @@ i 180-min reentry po pełnym wyjściu (ich właściciel nie zdejmował). Weryfik
 baza (akcje) =3 nietknięte, krypto efektywnie =0. ruff + testy profili zielone.
 Reszta ochrony (stopy/cap/breaker/halt 30-40-55%) gra. Reversible: ustaw >0.
 
+### Wpis — 2026-10-24 (TOR 2: altseason-gate ODRZUCONY — negatywny wynik)
+Hipoteza z walk-forward: „edge jest tylko w altseasonie, więc bramkuj alty do
+altseasonu, inaczej trzymaj BTC". Zmierzone na 10 latach (walk-forward 4 okna,
+bramka tylko w BACKTEŚCIE, żywy silnik nietknięty):
+- BEZ gate: pobiło BTC 1/4, mediana alfy −20.9%, 4/4 dodatni zwrot.
+- Z gate: pobiło BTC 1/4, mediana alfy **−57.9%** (GORZEJ), tylko 2/4 dodatni zwrot.
+Gate zepsuł nawet okno altseasonu (alfa +226% → +17%) i wepchnął okna 3-4 na minus.
+Powód: proxy „mediana zwrotu altów > BTC" to sygnał SPÓŹNIONY — wchodzi za późno w
+dobrym oknie, piłuje w chopie. **WERDYKT: hipoteza odrzucona, NIE wpinam do żywego.**
+Kod bramki zostaje (domyślnie OFF, backtest-only) jako udokumentowany negatywny
+wynik. Lekcja: prosty timing altseasonu tej strategii nie ratuje. Stały wniosek bez
+zmian: system jest OBRONNY (lepszy Calmar/mniejszy DD niż BTC), nie bije BTC na
+zwrocie i nie ma powtarzalnej przewagi. GO-LIVE dalej NIE. Koniec dorzucania
+mechanizmów na ślepo — następny krok to ZBIERAĆ żywą próbkę na naprawionym skanerze.
+
 ### Wpis — 2026-10-24 (SKANER BYŁ MARTWY W PRODUKCJI — zdiagnozowane i naprawione)
 Właściciel: „czemu nic nie kupuje przy większym scope?". Instynkt trafny — skaner
 24/7 (sztandarowa funkcja Partii 1) był w PRODUKCJI efektywnie martwy, a nikt tego
