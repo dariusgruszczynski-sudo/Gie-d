@@ -135,6 +135,35 @@ i 180-min reentry po pełnym wyjściu (ich właściciel nie zdejmował). Weryfik
 baza (akcje) =3 nietknięte, krypto efektywnie =0. ruff + testy profili zielone.
 Reszta ochrony (stopy/cap/breaker/halt 30-40-55%) gra. Reversible: ustaw >0.
 
+### Wpis — 2026-10-24 (WALK-FORWARD na realnych 10 latach — TWARDY WERDYKT)
+Puszczony na runnerze (Yahoo, 10 lat, 7 par, 4 okna OOS). Dane dociągnięte (bez 403).
+
+**Zbiorczo (z 14 mechanizmami, bez Claude):** zwrot +2486% vs BTC +3640% → **alfa
+−1154%**, maxDD **28.6%** (BTC 83.4%), CAGR 38.5% vs BTC 43.7%, Calmar **1.35** vs BTC
+0.52, lat bijących BTC **4/10**, trafność 46.7%, expectancy **0.745R**, 244 zamknięcia.
+**Baseline (mechanizmy OFF):** zwrot +4066% (alfa +426%), ale maxDD 46.8%, 6374
+zamknięć, expectancy 0.049R (≈0 — czysty churn/hazard).
+
+**Walk-forward OOS (sedno #15):** pobiło BTC **1/4 okien**, mediana alfy **−21%**
+(min −134%, max +226%), `edge_consistent=NIE`.
+| okno | zwrot% | BTC% | alfa% | trafność% | Calmar |
+|---|---|---|---|---|---|
+| 2017-05→2019-09 | 145 | 279 | −134 | 55 | 1.26 |
+| 2019-09→2022-02 | 638 | 412 | **+226** | 54 | 5.32 |
+| 2022-02→2024-06 | 37 | 61 | −24 | 47 | 0.60 |
+| 2024-06→2026-10 | 4 | 23 | −19 | **24** | 0.05 |
+
+**WERDYKT (bez lukru):** cała przewaga zbiorcza wisi na JEDNYM oknie (altseason
+2020-21, +226% alfy). W 3 z 4 okien — w tym w 2 NAJŚWIEŻSZYCH — lepiej było trzymać
+BTC. Ostatnie 2.3 roku: trafność spadła do 24%, Calmar 0.05 (prawie martwy). To
+DOKŁADNIE czerwona flaga GO-LIVE „nie z 1–2 strzałów" — zapalona wprost.
+Co mechanizmy ROBIĄ dobrze: tną maxDD prawie o połowę (47%→29%) i podnoszą
+expectancy 15× przy 26× mniej trejdów — czyli bronią kapitału i są spokojniejsze
+(Calmar 1.35 > 0.52 BTC). Czego NIE robią: nie biją trzymania BTC na zwrocie i nie
+robią tego spójnie. GO-LIVE = NIE. Uczciwa lekcja: mamy system OBRONNY (lepszy Calmar,
+mniejsze obsunięcie), nie system z powtarzalną przewagą zwrotu nad samym BTC.
+Sweep: najlepszy Calmar 1.35 @ ryzyko 3% × 6 pozycji (bez zmian — to już ustawienia).
+
 ### Wpis — 2026-10-23 (AUDYT kodu po planie — sprzątanie + efektywność)
 Pełny audyt pod kątem „czy każda część służy nauce i zarabianiu". Wszystkie nowe
 mechanizmy Partii 1–5 POTWIERDZONE jako podłączone do żywej nogi krypto (scheduler
