@@ -2617,6 +2617,64 @@ def _maybe_crypto_heartbeat(db: Session, settings: Settings, portfolio: dict, sy
     return decision
 
 
+def _build_risk_context(settings: Settings, state, account_total: float, trade_check,
+                        earnings_context: dict, regime: dict, defensive_list: list[str]) -> dict:
+    """Kontekst ryzyka podawany Claude'owi: ile budżetu straty dziennej zostało,
+    limity, geometria auto-wyjść, nadchodzące earnings, reżim + próg pewności.
+    Czysty montaż z już policzonych wartości (bez efektów ubocznych), wydzielony z
+    run_cycle. day_start_value jest baselinowane na SUMIE konta (patrz
+    account_total_value), więc porównujemy do tej samej sumy, nie total_value nogi."""
+    day_loss_budget_left_pct = max(
+        0.0,
+        settings.daily_loss_limit_pct
+        - ((state.day_start_value - account_total) / state.day_start_value * 100
+           if state.day_start_value > 0 else 0),
+    )
+    return {
+        "daily_loss_limit_pct": settings.daily_loss_limit_pct,
+        "day_loss_budget_remaining_pct": day_loss_budget_left_pct,
+        "max_position_pct": settings.max_position_pct,
+        "automated_trading_currently_allowed": trade_check.approved,
+        "auto_take_profit_arm_pct": settings.take_profit_pct,
+        "auto_stop_loss_pct": settings.stop_loss_pct,
+        "auto_trailing_stop_pct": settings.trailing_stop_pct if settings.trailing_stop_enabled else None,
+        "exit_note": (
+            "Wyjścia z pozycji są w pełni automatyczne: twardy stop-loss -auto_stop_loss_pct od "
+            "wejścia, a po zysku +auto_take_profit_arm_pct uzbraja się trailing-stop (sprzedaż gdy "
+            "cena spadnie auto_trailing_stop_pct od szczytu) — zyski mogą rosnąć. Skup się WYŁĄCZNIE "
+            "na trafnym WEJŚCIU; nie planuj wyjścia."
+        ),
+        # Forward-looking event risk: mechanical stop-loss can't protect
+        # against an earnings gap, so Claude should avoid opening a fresh
+        # position right before a report (the engine also hard-blocks new BUYs
+        # inside earnings_blackout_days as a backstop).
+        "upcoming_earnings": earnings_context,
+        "earnings_note": (
+            "upcoming_earnings podaje ile dni do najbliższego raportu wyników danego tickera. "
+            "Stop-loss NIE chroni przed luką po earnings (cena przeskakuje stopa). Nie otwieraj "
+            f"nowej pozycji na tickerze raportującym w ciągu {settings.earnings_blackout_days} dni "
+            "— takie BUY i tak zostanie odrzucone przez silnik."
+        ),
+        # Broad-market regime read. In "risk_off" the engine only lets defensive
+        # / inverse names be bought (the rest is forced HOLD), so lean that way.
+        "market_regime": regime,
+        "regime_note": (
+            "market_regime.regime to reżim rynku (risk_on / neutral / risk_off) — dla akcji z trendu "
+            "SPY/VIX/sesji, dla krypto z trendu BTC i szerokości rynku krypto. W risk_off bądź "
+            f"defensywny: silnik pozwoli KUPIĆ tylko {', '.join(defensive_list) or '— nic (tylko gotówka)'}, "
+            "resztę wymusi na HOLD. W risk_on/neutral NIE zostawiaj gotówki bezczynnie: to jest tryb "
+            "AKTYWNY — otwieraj potwierdzone technicznie setupy (mechanika napędza wejście, Ty potwierdzasz "
+            "kierunek). Bądź wybiórczy co do JAKOŚCI setupu, nie co do samego faktu wejścia; siedzenie w "
+            "gotówce przy zdrowym trendzie to też decyzja — i zwykle gorsza niż wejście w solidny setup."
+        ),
+        "min_buy_confidence": settings.min_buy_confidence,
+        "conviction_note": (
+            f"Automatyczne BUY z confidence poniżej {settings.min_buy_confidence} jest ODRZUCANE — "
+            "gotówka to też pozycja. Podawaj realną pewność; nie zawyżaj, żeby wymusić wejście."
+        ),
+    }
+
+
 def _reconcile_account_total(broker, account_total: float) -> float:
     """GROUND TRUTH anty-widmo: equity brokera to autorytatywna wartość CAŁEGO
     konta (jedno konto Alpaca na wszystkie nogi). Gdy nasza zrekonstruowana suma
@@ -2926,58 +2984,7 @@ def run_cycle(
         sym: {"days_until_earnings": days} for sym, days in earnings_days.items()
     }
 
-    # state.day_start_value is now baselined on the COMBINED account total (see
-    # account_total_value above) -- compare against that same combined figure,
-    # not this venue's own total_value_usdt, or the two would be apples/oranges.
-    day_loss_budget_left_pct = max(
-        0.0,
-        settings.daily_loss_limit_pct
-        - ((state.day_start_value - account_total) / state.day_start_value * 100
-           if state.day_start_value > 0 else 0),
-    )
-    risk_context = {
-        "daily_loss_limit_pct": settings.daily_loss_limit_pct,
-        "day_loss_budget_remaining_pct": day_loss_budget_left_pct,
-        "max_position_pct": settings.max_position_pct,
-        "automated_trading_currently_allowed": trade_check.approved,
-        "auto_take_profit_arm_pct": settings.take_profit_pct,
-        "auto_stop_loss_pct": settings.stop_loss_pct,
-        "auto_trailing_stop_pct": settings.trailing_stop_pct if settings.trailing_stop_enabled else None,
-        "exit_note": (
-            "Wyjścia z pozycji są w pełni automatyczne: twardy stop-loss -auto_stop_loss_pct od "
-            "wejścia, a po zysku +auto_take_profit_arm_pct uzbraja się trailing-stop (sprzedaż gdy "
-            "cena spadnie auto_trailing_stop_pct od szczytu) — zyski mogą rosnąć. Skup się WYŁĄCZNIE "
-            "na trafnym WEJŚCIU; nie planuj wyjścia."
-        ),
-        # Forward-looking event risk: mechanical stop-loss can't protect
-        # against an earnings gap, so Claude should avoid opening a fresh
-        # position right before a report (the engine also hard-blocks new BUYs
-        # inside earnings_blackout_days as a backstop).
-        "upcoming_earnings": earnings_context,
-        "earnings_note": (
-            "upcoming_earnings podaje ile dni do najbliższego raportu wyników danego tickera. "
-            "Stop-loss NIE chroni przed luką po earnings (cena przeskakuje stopa). Nie otwieraj "
-            f"nowej pozycji na tickerze raportującym w ciągu {settings.earnings_blackout_days} dni "
-            "— takie BUY i tak zostanie odrzucone przez silnik."
-        ),
-        # Broad-market regime read. In "risk_off" the engine only lets defensive
-        # / inverse names be bought (the rest is forced HOLD), so lean that way.
-        "market_regime": regime,
-        "regime_note": (
-            "market_regime.regime to reżim rynku (risk_on / neutral / risk_off) — dla akcji z trendu "
-            "SPY/VIX/sesji, dla krypto z trendu BTC i szerokości rynku krypto. W risk_off bądź "
-            f"defensywny: silnik pozwoli KUPIĆ tylko {', '.join(defensive_list) or '— nic (tylko gotówka)'}, "
-            "resztę wymusi na HOLD. W risk_on/neutral NIE zostawiaj gotówki bezczynnie: to jest tryb "
-            "AKTYWNY — otwieraj potwierdzone technicznie setupy (mechanika napędza wejście, Ty potwierdzasz "
-            "kierunek). Bądź wybiórczy co do JAKOŚCI setupu, nie co do samego faktu wejścia; siedzenie w "
-            "gotówce przy zdrowym trendzie to też decyzja — i zwykle gorsza niż wejście w solidny setup."
-        ),
-        "min_buy_confidence": settings.min_buy_confidence,
-        "conviction_note": (
-            f"Automatyczne BUY z confidence poniżej {settings.min_buy_confidence} jest ODRZUCANE — "
-            "gotówka to też pozycja. Podawaj realną pewność; nie zawyżaj, żeby wymusić wejście."
-        ),
-    }
+    risk_context = _build_risk_context(settings, state, account_total, trade_check, earnings_context, regime, defensive_list)
 
     # Portfolio-manager mode: ONE Claude call returns a SET of actions across
     # the whole whitelist (open several, trim, rotate, or sit tight) -- the
