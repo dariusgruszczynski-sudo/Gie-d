@@ -147,7 +147,12 @@ class Settings(BaseSettings):
     crypto_scanner_top_k: int = 8                 # ile najsilniejszych par trzymać w uniwersum handlowym
     crypto_scanner_max_scan: int = 40             # górny limit par do skanu/cykl (throttling API)
     crypto_scanner_momentum_days: int = 30        # okno momentum rankingu
-    crypto_scanner_min_dollar_vol_usd: float = 5_000_000.0  # #3 filtr płynności (śr. dzienny obrót $)
+    # #3 filtr płynności (śr. dzienny obrót $). 2026-10-24: 5_000_000 -> 5_000 na
+    # podstawie DANYCH z Alpaki (audyt): Alpaca to mikro-giełda — nawet BTC to
+    # ~$247k/d na JEJ księgach (nie globalne miliardy), mediana par ~$6k. Próg $5M
+    # był 20× ponad BTC i kosił 36/36 par -> handel tylko BTC. $5k wpuszcza majorsy
+    # + średnie alty, odcina dolny ogon pyłu. (Obrót z wolumenu venue Alpaki.)
+    crypto_scanner_min_dollar_vol_usd: float = 5_000.0
     crypto_scanner_rs_vs_btc: bool = True         # #2 ranking po SILE WZGLĘDEM BTC (altseason), nie gołym zwrocie
     # Cache rankingu (audyt: efektywność). Momentum 30-dniowe prawie nie zmienia się
     # w 15 min, a bez cache skaner pobierał ~40 dziennych świec KAŻDY cykl. Trzymamy

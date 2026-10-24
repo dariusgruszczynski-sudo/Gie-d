@@ -125,6 +125,19 @@ def test_report_flags_effective_static_when_ranking_empty():
     assert rep["liquidity"]["max_usd"] >= rep["liquidity"]["min_usd"]
 
 
+def test_stablecoins_excluded_from_ranking():
+    """Stablecoiny (peg ~$1) są wykluczone — momentum peg-a to szum, a na obrót
+    venue potrafią wejść na szczyt listy i zaśmiecać ranking."""
+    from app.services.market_scanner import scan_universe_report
+    broker = FakeScanBroker({
+        "BTC/USD": (100, 100, 100_000), "USDC/USD": (1, 1, 10_000_000), "SOL/USD": (100, 150, 100_000),
+    })
+    rep = scan_universe_report(broker, _settings())
+    assert rep["skips"]["stablecoin"] == 1
+    assert "USDC/USD" not in rep["universe"] and "USDC/USD" not in rep["top"]
+    assert "SOL/USD" in rep["universe"]
+
+
 def test_report_flags_broker_exception_fallback():
     from app.services.market_scanner import scan_universe_report
 

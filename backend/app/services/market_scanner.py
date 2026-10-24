@@ -19,6 +19,11 @@ from app.config import Settings
 
 logger = logging.getLogger(__name__)
 
+# Stablecoiny / pegi USD — WYKLUCZONE ze skanera: momentum peg-a ~$1 to szum, a na
+# obrót venue potrafią wyjść na szczyt listy (USDC/USDT/USDG) i zaśmiecać ranking.
+# Tokeny towarowe (PAXG/XAUT — złoto) ZOSTAJĄ: realnie trendują.
+_STABLES = {"USDC", "USDT", "USDG", "DAI", "PYUSD", "USDP", "TUSD", "GUSD", "USDD", "FDUSD"}
+
 # Cache rankingu (audyt Partia 5 — efektywność): momentum 30-dniowe to WOLNY
 # sygnał, a cykl krypto biega co ~15 min. Bez cache skaner pobierał dzienne świece
 # dla ~40 par KAŻDY cykl (~96×/dobę) — marnotrawstwo API i ryzyko limitów. Trzymamy
@@ -165,10 +170,13 @@ def scan_universe_report(broker, settings: Settings) -> dict:
 
     # Liczniki powodów odrzucenia (audyt: żeby wiedzieć, CO dławi ranking —
     # za mało świec / brak momentum / za cienka płynność).
-    skips = {"too_few_bars": 0, "no_momentum": 0, "illiquid": 0}
+    skips = {"stablecoin": 0, "too_few_bars": 0, "no_momentum": 0, "illiquid": 0}
     liq: dict[str, float] = {}   # sym -> śr. dzienny obrót $ (dla WSZYSTKICH z danymi)
     scored: list[tuple[float, str]] = []
     for sym in pool:
+        if str(sym).split("/")[0].upper() in _STABLES:
+            skips["stablecoin"] += 1
+            continue
         closes, vols = _daily_closes_vols(broker, sym, bars)
         if len(closes) < mom_days // 2:
             skips["too_few_bars"] += 1
