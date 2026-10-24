@@ -2182,6 +2182,7 @@ def _crypto_loss_streak_today(db: Session, venue: str) -> int:
     try:
         hist = scorecard.realized_history(db, venue=venue, limit=50)
     except Exception:
+        logger.warning("Loss-streak: odczyt historii (%s) nie powiódł się — zakładam 0", venue, exc_info=True)
         return 0
     today = datetime.now(UTC).date().isoformat()
     streak = 0
@@ -2202,6 +2203,7 @@ def _yesterday_realized_usd(db: Session, venue: str) -> float:
     try:
         hist = scorecard.realized_history(db, venue=venue, limit=300)
     except Exception:
+        logger.warning("Cool-off: odczyt wczorajszego P&L (%s) nie powiódł się — zakładam 0", venue, exc_info=True)
         return 0.0
     yday = (datetime.now(UTC).date() - timedelta(days=1)).isoformat()
     return sum(float(h.get("pnl_usd") or 0.0) for h in hist if str(h.get("sold_at") or "").startswith(yday))
@@ -2615,6 +2617,49 @@ def _maybe_crypto_heartbeat(db: Session, settings: Settings, portfolio: dict, sy
     return decision
 
 
+def _build_market_data(broker, settings: Settings, portfolio: dict, symbols: list[str]) -> dict:
+    """Per-symbol dane wejściowe na cykl: cena, zmiana okresu, ostatnie świece,
+    wskaźniki techniczne, Donchian/ADX (#8/#9) i potwierdzenie wyższej ramy (#6).
+    Symbol, którego broker nie wyceni / nie da świec, jest POMIJANY (nie wywala
+    cyklu). Wydzielone z run_cycle — czysta granica (broker/portfolio/symbols →
+    market_data), łatwiejsze do testu i do przyszłej deduplikacji fetchy.
+
+    Dieta tokenów: wskaźniki liczone LOKALNIE z pełnej 200-świecowej historii;
+    Claude dostaje tylko ostatnią taśmę + skrót okresu, nie całą surową serię."""
+    market_data: dict = {}
+    for symbol in symbols:
+        if symbol not in portfolio["prices"]:
+            continue  # broker couldn't price this symbol this cycle -- see compute_portfolio
+        tf = settings.signal_timeframe
+        try:
+            recent_bars = broker.get_klines(symbol, tf, 24)
+            full_bars = broker.get_klines(symbol, tf, 200)
+            indicator_closes = [float(row[4]) for row in full_bars]
+            indicator_highs = [float(row[2]) for row in full_bars]
+            indicator_lows = [float(row[3]) for row in full_bars]
+        except Exception:
+            logger.warning("Failed to fetch klines for %s, excluding it from this cycle", symbol, exc_info=True)
+            continue
+        recent_closes = [float(row[4]) for row in recent_bars if row]
+        change_period_pct = (
+            round((recent_closes[-1] - recent_closes[0]) / recent_closes[0] * 100, 2)
+            if len(recent_closes) >= 2 and recent_closes[0] > 0
+            else None
+        )
+        lookback = getattr(settings, "breakout_lookback", 0) or 0
+        market_data[symbol] = {
+            "price": portfolio["prices"][symbol],
+            "timeframe": tf,
+            "change_period_pct": change_period_pct,
+            "recent_bars": recent_bars[-8:],
+            "technical": compute_technical_indicators(indicator_closes),
+            "donchian_high": donchian_high(indicator_highs, lookback) if lookback > 0 else None,
+            "adx": compute_adx(indicator_highs, indicator_lows, indicator_closes),
+            "htf_trend_ok": _htf_trend_ok(broker, settings, symbol),
+        }
+    return market_data
+
+
 def run_cycle(
     db: Session,
     settings: Settings,
@@ -2774,45 +2819,7 @@ def run_cycle(
         db.refresh(decision)
         return decision
 
-    market_data = {}
-    for symbol in symbols:
-        if symbol not in portfolio["prices"]:
-            continue  # broker couldn't price this symbol this cycle -- see compute_portfolio
-        tf = settings.signal_timeframe
-        try:
-            recent_bars = broker.get_klines(symbol, tf, 24)
-            full_bars = broker.get_klines(symbol, tf, 200)
-            indicator_closes = [float(row[4]) for row in full_bars]
-            indicator_highs = [float(row[2]) for row in full_bars]
-            indicator_lows = [float(row[3]) for row in full_bars]
-        except Exception:
-            logger.warning("Failed to fetch klines for %s, excluding it from this cycle", symbol, exc_info=True)
-            continue
-        # Token diet: the indicators are computed locally from the full 200-bar
-        # history; Claude only needs the recent tape plus a period summary, not
-        # the whole raw series. On the default daily timeframe SMA50/200 are the
-        # classic 50/200-DAY moving averages -- the signal the backtest validated.
-        recent_closes = [float(row[4]) for row in recent_bars if row]
-        change_period_pct = (
-            round((recent_closes[-1] - recent_closes[0]) / recent_closes[0] * 100, 2)
-            if len(recent_closes) >= 2 and recent_closes[0] > 0
-            else None
-        )
-        # Mechanizmy #8 (Donchian breakout) i #9 (ADX): liczone z H/L 200-świecowej
-        # historii (dotąd używaliśmy tylko closes). Gate'owane knobami w eligible_new.
-        lookback = getattr(settings, "breakout_lookback", 0) or 0
-        market_data[symbol] = {
-            "price": portfolio["prices"][symbol],
-            "timeframe": tf,
-            "change_period_pct": change_period_pct,
-            "recent_bars": recent_bars[-8:],
-            "technical": compute_technical_indicators(indicator_closes),
-            "donchian_high": donchian_high(indicator_highs, lookback) if lookback > 0 else None,
-            "adx": compute_adx(indicator_highs, indicator_lows, indicator_closes),
-            # #6 potwierdzenie wyższej ramy — policzone raz na cykl per symbol
-            # (osobny fetch tylko gdy włączone); gate'owane w eligible_new.
-            "htf_trend_ok": _htf_trend_ok(broker, settings, symbol),
-        }
+    market_data = _build_market_data(broker, settings, portfolio, symbols)
     # Only offer Claude symbols it actually has data for this cycle -- a symbol
     # missing from market_data (Alpaca failure above) must not be a choosable
     # BUY/SELL target.

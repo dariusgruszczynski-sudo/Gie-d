@@ -1008,6 +1008,17 @@ def test_time_exit_off_on_base_settings(settings):
     assert trading_engine._decide_mechanical_exit(settings, "BTC", 100.0, 100.5, 100.5, stop_pct=10.0, held_hours=1000.0)[2] != "time_exit"
 
 
+def test_build_market_data_skips_unpriced_and_shapes(settings):
+    """Audyt (refaktor): _build_market_data zwraca dane tylko dla WYCENIONYCH
+    symboli (niewyceniony pomijany, nie wywala cyklu) i nadaje spodziewany kształt."""
+    broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0})
+    portfolio = {"prices": {"SPY": 100.0}}  # QQQ świadomie bez ceny w tym cyklu
+    md = trading_engine._build_market_data(broker, settings, portfolio, ["SPY", "QQQ"])
+    assert set(md.keys()) == {"SPY"}                  # QQQ pominięty (brak ceny)
+    assert md["SPY"]["price"] == 100.0
+    assert "technical" in md["SPY"] and "adx" in md["SPY"] and "htf_trend_ok" in md["SPY"]
+
+
 def test_vol_scaled_stop_is_atr_style_for_crypto(settings):
     """#9: stop krypto jest skalowany zmiennością (ATR-style): rośnie z vol%,
     przycina się do min/max, a przy nieznanej zmienności spada do stałego stopu."""
