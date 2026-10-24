@@ -282,11 +282,27 @@ export function Verdict({ status, portfolio }: { status: StatusResponse; portfol
   const payoff = avgWin != null && avgLoss != null && avgLoss !== 0 ? avgWin / Math.abs(avgLoss) : null;
   const alphaPct = sc?.alpha_pct ?? null;
 
-  // Werdykt GO / NO / WAIT — uczciwie wg próbki i alfy vs trzymanie BTC.
+  // OBRONA (live): największe obsunięcie konta w oknie historii (deposit-proof na
+  // paper — bez dopłat). Druga oś werdyktu: ten system w backteście 10-letnim nie
+  // bił BTC zwrotem, ale bronił kapitału DUŻO lepiej (mniejszy drawdown, wyższy
+  // Calmar — patrz dziennik). Live liczymy to, co mamy: obsunięcie bota.
+  const hist2 = portfolio?.history ?? [];
+  let botMaxDd: number | null = null;
+  if (hist2.length >= 3) {
+    let peak = -Infinity, mdd = 0;
+    for (const h of hist2) {
+      const v = h.total_value_usdt;
+      if (v > peak) peak = v;
+      if (peak > 0) mdd = Math.max(mdd, (peak - v) / peak * 100);
+    }
+    botMaxDd = Math.round(mdd * 10) / 10;
+  }
+
+  // Werdykt ZWROTU (GO / NO / WAIT) — uczciwie wg próbki i alfy vs trzymanie BTC.
   let vcls = "wait", vbig = "Jeszcze nie wiadomo", vexpl = "";
   if (n < TARGET) {
     vcls = "wait"; vbig = "Jeszcze nie wiadomo";
-    vexpl = `Za mało zamkniętych transakcji na werdykt — ${n} z ${TARGET}. Nie oceniamy strategii na małej próbce (ani nie stroimy pod nią). Zbieramy dalej.`;
+    vexpl = `Za mało zamkniętych transakcji na werdykt zwrotu — ${n} z ${TARGET}. Nie oceniamy strategii na małej próbce (ani nie stroimy pod nią). Zbieramy dalej.`;
   } else if (alphaPct == null) {
     vcls = "wait"; vbig = "Brak porównania";
     vexpl = "Próbka jest, ale brakuje benchmarku do porównania z trzymaniem BTC.";
@@ -294,13 +310,13 @@ export function Verdict({ status, portfolio }: { status: StatusResponse; portfol
     vcls = "go"; vbig = "Bije trzymanie BTC";
     vexpl = `Na ${n} zamknięciach aktywny handel wyprzedza zwykłe trzymanie ${sc?.benchmark_symbol} o ${alphaPct.toFixed(1)}pp, przy dodatniej wartości oczekiwanej. Ma sens.`;
   } else {
-    vcls = "no"; vbig = "Przegrywa z BTC";
-    vexpl = `Na ${n} zamknięciach aktywny handel ${alphaPct < 0 ? `jest ${Math.abs(alphaPct).toFixed(1)}pp za trzymaniem ${sc?.benchmark_symbol}` : "nie ma dodatniej wartości oczekiwanej"}. Na paper to sygnał „nie włączać realnych środków".`;
+    vcls = "no"; vbig = "Za BTC na zwrocie";
+    vexpl = `Na ${n} zamknięciach aktywny handel ${alphaPct < 0 ? `jest ${Math.abs(alphaPct).toFixed(1)}pp za trzymaniem ${sc?.benchmark_symbol}` : "nie ma dodatniej wartości oczekiwanej"} — na ZWROCIE. To nie jest cała ocena: patrz „Obrona kapitału" niżej (backtest 10 lat: system broni kapitału lepiej niż BTC).`;
   }
 
   return (
     <div className="cr-screen">
-      <div className="cr-screen-head"><h2>Werdykt</h2><span className="sub">czy aktywny handel w ogóle bije zwykłe trzymanie BTC?</span></div>
+      <div className="cr-screen-head"><h2>Werdykt</h2><span className="sub">dwie osie: ZWROT vs trzymanie BTC + OBRONA kapitału (drawdown)</span></div>
       {err && <div className="cr-halt-banner">{err}</div>}
 
       <div className={`cr-verdict ${vcls}`}>
@@ -320,6 +336,25 @@ export function Verdict({ status, portfolio }: { status: StatusResponse; portfol
           <div className="side"><div className="k">Trzymanie {sc.benchmark_symbol}</div><div className="v">{sc.benchmark_value != null ? money0(sc.benchmark_value) : "—"}</div><div className="s">kup i trzymaj</div></div>
         </div>
       )}
+
+      <div className="cr-panel">
+        <div className="cr-ph"><h3>Obrona kapitału</h3><span className="note">druga oś oceny — nie tylko zwrot</span></div>
+        <div className="cr-grid c2" style={{ marginTop: 2 }}>
+          <div className="cr-metric">
+            <span className="k">Największe obsunięcie (live)</span>
+            <span className={`v ${botMaxDd == null ? "" : botMaxDd <= 30 ? "up" : "down"}`}>{botMaxDd == null ? "—" : `−${botMaxDd.toFixed(1)}%`}</span>
+            <span className="s">{botMaxDd == null ? "za mało historii konta" : "od szczytu konta w oknie"}</span>
+          </div>
+          <div className="cr-metric">
+            <span className="k">Backtest 10 lat vs BTC</span>
+            <span className="v up">broni lepiej</span>
+            <span className="s">mniejszy drawdown, wyższy Calmar — patrz dziennik</span>
+          </div>
+        </div>
+        <p className="cr-foot-note" style={{ padding: "8px 2px 0" }}>
+          Uczciwie: na papierze ten system NIE bije BTC zwrotem, ale w 10-letnim backteście obsuwał się ~2× płycej niż samo trzymanie BTC i miał lepszy stosunek zysk/ból (Calmar). Oceniaj go jako warstwę OBRONNĄ, nie maszynkę do wyższego zwrotu.
+        </p>
+      </div>
 
       <div className="cr-panel flush">
         <div style={{ padding: "12px 14px" }} className="cr-ph"><h3>Zysk bota w czasie</h3><span className="note">bez Twoich wpłat — czysty wynik handlu</span></div>
