@@ -34,6 +34,38 @@ def test_account_view_none_when_no_snapshots(db_session):
     assert _account_view(db_session) is None
 
 
+def test_coins_tab_aggregates_pnl_per_symbol(db_session):
+    """Zakładka MONETY: bilans historyczny per moneta (zarobił/stracił i ile),
+    plus monety z uniwersum skanera oznaczone jako obserwowane (bilans 0)."""
+    from app.api.routes_dashboard import get_coins
+    from app.models import Trade, TradeMode
+    from app.services import risk_manager
+
+    now = datetime.now(UTC)
+    # SOL: kupione 100, sprzedane 130 -> +30 (wygrana). ETH: 100 -> 80 -> -20 (strata).
+    db_session.add(Trade(timestamp=now - timedelta(days=3), symbol="SOL/USD", side="BUY", quantity=1.0, price=100.0, usdt_value=100.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.add(Trade(timestamp=now - timedelta(days=2), symbol="SOL/USD", side="SELL", quantity=1.0, price=130.0, usdt_value=130.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.add(Trade(timestamp=now - timedelta(days=3), symbol="ETH/USD", side="BUY", quantity=1.0, price=100.0, usdt_value=100.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.add(Trade(timestamp=now - timedelta(days=1), symbol="ETH/USD", side="SELL", quantity=1.0, price=80.0, usdt_value=80.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.commit()
+    # Uniwersum skanera: SOL + AVAX (AVAX nietknięte -> ma być "watch").
+    st = risk_manager.get_state(db_session)
+    st.crypto_scanner_universe_json = json.dumps({"universe": ["SOL/USD", "AVAX/USD"], "pool_size": 36})
+    db_session.commit()
+
+    body = get_coins(db=db_session)
+    by = {c["symbol"]: c for c in body["coins"]}
+    assert by["SOL/USD"]["realized_usd"] == 30.0 and by["SOL/USD"]["status"] == "won"
+    assert by["ETH/USD"]["realized_usd"] == -20.0 and by["ETH/USD"]["status"] == "lost"
+    assert by["AVAX/USD"]["status"] == "watch" and by["AVAX/USD"]["closes"] == 0
+    assert by["SOL/USD"]["in_universe"] is True and by["ETH/USD"]["in_universe"] is False
+    # Najlepszy zarabiacz przed stratnym; obserwowane na końcu.
+    assert body["coins"][0]["symbol"] == "SOL/USD"
+    assert body["coins"][-1]["symbol"] == "AVAX/USD"
+    assert body["summary"]["total_realized_usd"] == 10.0
+    assert body["summary"]["won_count"] == 1 and body["summary"]["lost_count"] == 1
+
+
 def test_portfolio_cost_basis_covers_non_whitelist_held(db_session, settings):
     """+/- na pozycji: cena wejścia musi się policzyć dla KAŻDEJ trzymanej nazwy,
     także spoza statycznej whitelisty (np. z dynamicznego uniwersum). Wcześniej

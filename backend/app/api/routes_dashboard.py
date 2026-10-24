@@ -1012,6 +1012,84 @@ def get_history(limit: int = Query(300, le=1000), venue: str | None = None, db: 
     }
 
 
+@router.get("/coins")
+def get_coins(db: Session = Depends(get_db)):
+    """Zakładka MONETY: dla KAŻDEJ monety krypto, którą bot widzi lub handlował —
+    historyczny bilans (zarobił/stracił i ile), liczba zamknięć i trafność. Łączy
+    zrealizowany P&L (scorecard, metoda średniego kosztu) z aktualnym uniwersum
+    skanera (monety „widziane" teraz, nawet jeśli jeszcze nietknięte)."""
+    items = scorecard.realized_history(db, venue="crypto", limit=1000)
+    agg: dict[str, dict] = {}
+    for h in items:
+        sym = h["symbol"]
+        a = agg.setdefault(sym, {
+            "symbol": sym, "realized_usd": 0.0, "closes": 0, "wins": 0, "losses": 0,
+            "best_usd": None, "worst_usd": None, "last_at": None,
+        })
+        pnl = h["pnl_usd"] or 0.0
+        a["realized_usd"] += pnl
+        a["closes"] += 1
+        if pnl >= 0:
+            a["wins"] += 1
+        else:
+            a["losses"] += 1
+        a["best_usd"] = pnl if a["best_usd"] is None else max(a["best_usd"], pnl)
+        a["worst_usd"] = pnl if a["worst_usd"] is None else min(a["worst_usd"], pnl)
+        if h.get("sold_at") and (a["last_at"] is None or h["sold_at"] > a["last_at"]):
+            a["last_at"] = h["sold_at"]
+
+    # Aktualne uniwersum skanera (monety, które bot „widzi" teraz) — żeby pokazać
+    # też te jeszcze nietknięte, oznaczone jako obserwowane (bilans 0).
+    state = risk_manager.get_state(db)
+    try:
+        scanner = json.loads(getattr(state, "crypto_scanner_universe_json", "") or "{}")
+    except (TypeError, ValueError):
+        scanner = {}
+    universe = set(scanner.get("universe") or [])
+    for sym in universe:
+        agg.setdefault(sym, {
+            "symbol": sym, "realized_usd": 0.0, "closes": 0, "wins": 0, "losses": 0,
+            "best_usd": None, "worst_usd": None, "last_at": None,
+        })
+
+    coins = []
+    for sym, a in agg.items():
+        realized = round(a["realized_usd"], 2)
+        if a["closes"] == 0:
+            status = "watch"          # widziana, jeszcze nietknięta
+        elif realized > 0:
+            status = "won"
+        elif realized < 0:
+            status = "lost"
+        else:
+            status = "flat"
+        coins.append({
+            **a,
+            "realized_usd": realized,
+            "best_usd": round(a["best_usd"], 2) if a["best_usd"] is not None else None,
+            "worst_usd": round(a["worst_usd"], 2) if a["worst_usd"] is not None else None,
+            "win_rate": round(a["wins"] / a["closes"] * 100, 1) if a["closes"] else None,
+            "in_universe": sym in universe,
+            "status": status,
+        })
+    # Najpierw najlepsi zarabiacze, potem obserwowane/płaskie, na końcu najwięksi stratni.
+    coins.sort(key=lambda c: (c["closes"] == 0, -c["realized_usd"]))
+    total = round(sum(c["realized_usd"] for c in coins), 2)
+    traded = [c for c in coins if c["closes"] > 0]
+    return {
+        "coins": coins,
+        "summary": {
+            "total_realized_usd": total,
+            "traded_count": len(traded),
+            "won_count": sum(1 for c in traded if c["realized_usd"] > 0),
+            "lost_count": sum(1 for c in traded if c["realized_usd"] < 0),
+            "universe_count": len(universe),
+            "scanner_pool_size": scanner.get("pool_size"),
+            "scanner_at": scanner.get("at"),
+        },
+    }
+
+
 def _realized_since(trades, cutoff, alpaca_only: bool = False) -> tuple[float, int, int]:
     """Zrealizowany P&L + trafność liczone TYLKO dla sprzedaży po `cutoff`, ale
     ze średnią ceną walkowaną od początku historii (oddziela wynik nowej

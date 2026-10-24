@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  api, Decision, HistoryResponse, HistoryTrade, KnowledgeResponse,
+  api, CoinsResponse, Decision, HistoryResponse, HistoryTrade, KnowledgeResponse,
   PortfolioResponse, PositionPlan, StatusResponse,
 } from "../api/client";
 import { ago, money, money0, pct, PnlBand } from "./kit";
@@ -16,7 +16,7 @@ import { DecRow, extract, Leg, PositionCard } from "./Console";
    - Brain: pamięć bota (playbook/lekcje) + puls rynku, który bot widzi.
    ============================================================================= */
 
-export type CrView = "kokpit" | "flow" | "verdict" | "brain";
+export type CrView = "kokpit" | "flow" | "verdict" | "coins" | "brain";
 type PrimaryVenue = "alpaca" | "crypto";
 
 function primaryVenueOf(status: StatusResponse): PrimaryVenue {
@@ -381,6 +381,84 @@ function groupByDomain(rules: string[]): Array<{ domain: string; items: string[]
     by.get(domain)!.push(text);
   }
   return order.map((domain) => ({ domain, items: by.get(domain)! }));
+}
+
+export function Coins() {
+  const [data, setData] = useState<CoinsResponse | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let dead = false;
+    const load = async () => { try { const r = await api.coins(); if (!dead) { setData(r); setErr(null); } } catch (e) { if (!dead) setErr(String(e)); } };
+    load();
+    const t = setInterval(load, 30000);
+    return () => { dead = true; clearInterval(t); };
+  }, []);
+
+  const CHIP: Record<string, { ico: string; label: string; cls: string }> = {
+    won: { ico: "✅", label: "zysk", cls: "up" },
+    lost: { ico: "🔻", label: "strata", cls: "down" },
+    flat: { ico: "⚪", label: "na zero", cls: "" },
+    watch: { ico: "👁", label: "obserwowana", cls: "" },
+  };
+  const s = data?.summary;
+
+  return (
+    <div className="cr-screen">
+      <div className="cr-screen-head"><h2>Monety</h2><span className="sub">co bot widzi i czy na tym zarobił — bilans historyczny (zrealizowany)</span></div>
+      {err && <div className="cr-halt-banner">{err}</div>}
+      {!data ? (
+        <p className="cr-empty">Liczę bilans per moneta…</p>
+      ) : (
+        <>
+          <div className="cr-grid c4">
+            <div className="cr-metric"><span className="k">Bilans łączny</span><span className={`v ${s!.total_realized_usd >= 0 ? "up" : "down"}`}>{s!.total_realized_usd >= 0 ? "+" : "−"}{money0(Math.abs(s!.total_realized_usd))}</span><span className="s">zaksięgowane</span></div>
+            <div className="cr-metric"><span className="k">Na plus / minus</span><span className="v">{s!.won_count} / {s!.lost_count}</span><span className="s">z {s!.traded_count} handlowanych</span></div>
+            <div className="cr-metric"><span className="k">W uniwersum</span><span className="v">{s!.universe_count}</span><span className="s">widziane teraz</span></div>
+            <div className="cr-metric"><span className="k">Par z Alpaki</span><span className="v">{s!.scanner_pool_size ?? "—"}</span><span className="s">cały dostępny rynek</span></div>
+          </div>
+
+          {data.coins.length === 0 ? (
+            <p className="cr-empty">Brak monet do pokazania — skaner jeszcze nie przebiegł i nic nie zamknięto.</p>
+          ) : (
+            <div className="cr-panel flush" style={{ marginTop: 12 }}>
+              <div className="cr-coinlist">
+                {data.coins.map((c) => {
+                  const chip = CHIP[c.status] ?? CHIP.flat;
+                  const signed = (v: number) => `${v >= 0 ? "+" : "−"}${money(Math.abs(v))}`;
+                  return (
+                    <div key={c.symbol} className="cr-coin">
+                      <div className="cr-coin-main">
+                        <span className="cr-coin-sym">{c.symbol.replace("/USD", "")}</span>
+                        <span className={`cr-coin-chip ${chip.cls}`}>{chip.ico} {chip.label}</span>
+                        {c.in_universe && <span className="cr-coin-chip">w uniwersum</span>}
+                      </div>
+                      <div className={`cr-coin-pnl ${c.realized_usd > 0 ? "up" : c.realized_usd < 0 ? "down" : ""}`}>
+                        {c.closes > 0 ? signed(c.realized_usd) : "—"}
+                      </div>
+                      <div className="cr-coin-meta">
+                        {c.closes > 0 ? (
+                          <>
+                            <span>{c.closes} zamknięć · {c.wins}W/{c.losses}L{c.win_rate != null ? ` · ${c.win_rate.toFixed(0)}%` : ""}</span>
+                            {c.best_usd != null && c.worst_usd != null && (
+                              <span className="dim">najlepsze {signed(c.best_usd)} · najgorsze {signed(c.worst_usd)}{c.last_at ? ` · ${ago(c.last_at)}` : ""}</span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="dim">jeszcze nietknięta — bot ją widzi, czeka na setup</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <p className="cr-foot-note">Bilans = zrealizowany P&amp;L metodą średniego kosztu (zamknięte pozycje). Nie obejmuje wyceny otwartych pozycji. „Obserwowana" = moneta w uniwersum skanera, jeszcze niehandlowana.</p>
+        </>
+      )}
+    </div>
+  );
 }
 
 export function Brain({ status, decisions }: { status: StatusResponse; decisions: Decision[] }) {

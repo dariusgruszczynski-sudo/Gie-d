@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, Decision, isReadOnly, PortfolioResponse, StatusResponse, withShare } from "./api/client";
-import { Brain, Cockpit, CrView, Flow, StatusBar, Verdict } from "./ui/ControlRoom";
+import { Brain, Coins, Cockpit, CrView, Flow, StatusBar, Verdict } from "./ui/ControlRoom";
 import { SterDrawer } from "./ui/Ster";
 import { extract } from "./ui/Console";
 import { isSoundMuted, playTradeSound, setSoundMuted } from "./tradeSound";
@@ -15,6 +15,7 @@ const NAV: Array<{ key: CrView; label: string }> = [
   { key: "kokpit", label: "Kokpit" },
   { key: "flow", label: "Pozycje & decyzje" },
   { key: "verdict", label: "Werdykt" },
+  { key: "coins", label: "Monety" },
   { key: "brain", label: "Mózg" },
 ];
 
@@ -181,6 +182,8 @@ export default function App() {
                 <Flow status={status} alpaca={portfolio} extended={extendedPortfolio} decisions={decisions} onChanged={refresh} />
               ) : view === "verdict" ? (
                 <Verdict status={status} portfolio={portfolio} />
+              ) : view === "coins" ? (
+                <Coins />
               ) : (
                 <Brain status={status} decisions={decisions} />
               )}

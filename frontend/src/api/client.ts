@@ -404,6 +404,7 @@ export const api = {
   positionPlans: (venue: string = "alpaca") =>
     apiFetch<PositionPlansResponse>(withShare(`/api/position-plans?venue=${venue}`)),
   history: () => apiFetch<HistoryResponse>(withShare("/api/history")),
+  coins: () => apiFetch<CoinsResponse>(withShare("/api/coins")),
   audit: () => apiFetch<AuditResponse>(withShare("/api/audit")),
   health: () => apiFetch<HealthReport>("/api/health"),
   healthReset: (action: string) =>
@@ -450,6 +451,32 @@ export interface HistoryResponse {
     total_pnl_usd: number;
     best: HistoryTrade | null;
     worst: HistoryTrade | null;
+  };
+}
+
+export interface CoinRow {
+  symbol: string;
+  realized_usd: number;
+  closes: number;
+  wins: number;
+  losses: number;
+  best_usd: number | null;
+  worst_usd: number | null;
+  win_rate: number | null;
+  last_at: string | null;
+  in_universe: boolean;
+  status: "won" | "lost" | "flat" | "watch";
+}
+export interface CoinsResponse {
+  coins: CoinRow[];
+  summary: {
+    total_realized_usd: number;
+    traded_count: number;
+    won_count: number;
+    lost_count: number;
+    universe_count: number;
+    scanner_pool_size: number | null;
+    scanner_at: string | null;
   };
 }
 
