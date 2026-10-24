@@ -145,6 +145,8 @@ def run_backtest(
     pyramid_max = getattr(settings, "pyramid_max_position_pct", 0.0) or 0.0
     exit_ma = getattr(settings, "trend_exit_ma_period", 0) or 0
     exit_confirm = getattr(settings, "trend_exit_confirm_bars", 0) or 0
+    altseason_gate = getattr(settings, "altseason_gate_enabled", False)
+    altseason_lb = getattr(settings, "altseason_lookback", 30) or 30
 
     cash = starting_cash
     positions: dict[str, _Pos] = {}
@@ -223,6 +225,25 @@ def run_backtest(
             bc = closes[bench][: idx[bench]]
             if len(bc) >= regime_ma:
                 regime_ok = bc[-1] >= sum(bc[-regime_ma:]) / regime_ma
+        # ALTSEASON-GATE (Tor 2): czy koszyk altów bije BTC na trailingu? Jeśli nie,
+        # nowe wejścia w alty (nie-BTC) zablokowane — zostaje tylko BTC. Liczone raz
+        # na krok: mediana L-barowego zwrotu altów vs L-barowy zwrot BTC.
+        altseason_ok = True
+        if altseason_gate and bench and idx.get(bench, 0) > altseason_lb:
+            bc = closes[bench][: idx[bench]]
+            if len(bc) > altseason_lb and bc[-1 - altseason_lb] > 0:
+                btc_ret = bc[-1] / bc[-1 - altseason_lb] - 1
+                alt_rets = []
+                for x in symbols:
+                    if x == bench:
+                        continue
+                    xc = closes[x][: idx[x]]
+                    if idx[x] > altseason_lb and len(xc) > altseason_lb and xc[-1 - altseason_lb] > 0:
+                        alt_rets.append(xc[-1] / xc[-1 - altseason_lb] - 1)
+                if alt_rets:
+                    alt_rets.sort()
+                    median = alt_rets[len(alt_rets) // 2]
+                    altseason_ok = median > btc_ret
         for s in symbols:
             if idx[s] <= warmup:
                 continue
@@ -264,6 +285,9 @@ def run_backtest(
             if settings.entry_filter_enabled and not signals.entry_confluence(settings, technical).ok:
                 continue
             if not regime_ok:
+                continue
+            # Altseason-gate: poza altseasonem alty (nie-BTC) są zablokowane; BTC OK.
+            if altseason_gate and not altseason_ok and s != bench:
                 continue
             # MECHANIZM 8 — WYBICIE (Donchian): kup tylko na nowym maksimum okna.
             if breakout_on and breakout_lb > 0:

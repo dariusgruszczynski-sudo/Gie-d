@@ -98,6 +98,10 @@ _CRYPTO_OVERRIDES = {
     "crypto_mtf_confirm_enabled": "mtf_confirm_enabled",
     "crypto_mtf_timeframe": "mtf_timeframe",
     "crypto_mtf_ma_period": "mtf_ma_period",
+    # Tor 2 (altseason-gate) — na razie czytany przez backtest; wpięcie do żywego
+    # silnika dopiero po potwierdzeniu walk-forward.
+    "crypto_altseason_gate_enabled": "altseason_gate_enabled",
+    "crypto_altseason_lookback": "altseason_lookback",
     # Partia 4 (#12 sizing wg korelacji, #14 cool-off po stratnym dniu) — krypto.
     "crypto_correlation_sizing_enabled": "correlation_sizing_enabled",
     "crypto_correlation_size_mult": "correlation_size_mult",

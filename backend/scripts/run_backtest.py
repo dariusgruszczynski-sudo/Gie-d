@@ -159,6 +159,8 @@ def main() -> None:
                          help="Przemiataj siatkę ekspozycji (ryzyko/transakcję × liczba pozycji) i pokaż granicę zysk↔obsunięcie + Calmar.")
     parser.add_argument("--walk-forward", dest="walk_forward", type=int, default=0, metavar="K",
                          help="Walidacja walk-forward: podziel historię na K rozłącznych okien OOS i pokaż, czy przewaga vs benchmark trzyma się w KAŻDYM oknie (wniosek #15). Np. 4.")
+    parser.add_argument("--altseason", type=int, default=0, metavar="K",
+                         help="Tor 2: walk-forward na K oknach dla WARIANTU BEZ i Z altseason-gate (alty tylko gdy koszyk bije BTC), vs trzymanie BTC. Sprawdza hipotezę 'edge tylko w altseasonie'.")
     parser.add_argument("--venue", choices=["alpaca", "crypto"], default="alpaca",
                          help="alpaca (akcje US, benchmark SPY) lub crypto (24/7, benchmark BTCUSD). crypto wymusza Yahoo (głębsza historia niż Alpaca crypto).")
     args = parser.parse_args()
@@ -213,6 +215,33 @@ def main() -> None:
                 print("  ✅ Przewaga vs benchmark trzyma się w WIĘKSZOŚCI okien — nie wygląda na 1–2 szczęśliwe strzały.")
             else:
                 print("  ⚠ Przewaga NIE jest spójna między oknami — wynik może pochodzić z jednego okna. Czerwona flaga GO-LIVE.")
+        return
+
+    if args.altseason:
+        k = args.altseason
+        base = eff
+        gated = eff.model_copy(update={"altseason_gate_enabled": True})
+        r_off = walk_forward.walk_forward(bars_by_symbol, base, benchmark_symbol=benchmark, folds=k, starting_cash=args.cash)
+        r_on = walk_forward.walk_forward(bars_by_symbol, gated, benchmark_symbol=benchmark, folds=k, starting_cash=args.cash)
+        print(f"\n=== TOR 2: ALTSEASON-GATE vs BEZ (walk-forward {k} okien, benchmark=trzymanie {benchmark}) ===")
+        print("\n## WARIANT A — obecne mechanizmy (BEZ altseason-gate)")
+        print(walk_forward.format_report(r_off))
+        print("\n## WARIANT B — Z altseason-gate (alty tylko gdy koszyk bije BTC)")
+        print(walk_forward.format_report(r_on))
+        so, sn = r_off.get("summary"), r_on.get("summary")
+        if so and sn:
+            print("\n## WERDYKT (bez lukru)")
+            print(f"  Pobiło BTC: BEZ {so['folds_beating_benchmark']} · Z {sn['folds_beating_benchmark']}")
+            print(f"  Mediana alfy: BEZ {so['median_alpha_pct']}% · Z {sn['median_alpha_pct']}%")
+            print(f"  Najgorsze obsunięcie: BEZ {so['worst_fold_drawdown_pct']}% · Z {sn['worst_fold_drawdown_pct']}%")
+            mo = so["median_alpha_pct"] or 0.0
+            mn = sn["median_alpha_pct"] or 0.0
+            if mn > mo and mn > 0:
+                print("  ✅ Altseason-gate POMAGA (wyższa mediana alfy, dodatnia) — hipoteza potwierdzona, warto wpiąć do żywego silnika.")
+            elif mn > mo:
+                print("  ◻ Altseason-gate poprawia alfę, ale wciąż < 0 — pomaga bronić kapitału, nie bije BTC. Rozważyć jako nakładkę defensywną.")
+            else:
+                print("  ⚠ Altseason-gate NIE pomaga (nie podnosi mediany alfy). Hipoteza 'edge tylko w altseasonie' niepotwierdzona — nie wpinać.")
         return
 
     report = backtest.run_backtest(

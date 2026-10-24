@@ -156,3 +156,25 @@ def test_backtest_handles_millisecond_timestamps_without_crashing(settings):
     years = [row["year"] for row in report["yearly_breakdown"]]
     assert all(2006 <= y <= 2011 for y in years)  # sane calendar years, not 38551
     assert len(years) >= 2
+
+
+def test_altseason_gate_blocks_alts_when_btc_leads(settings):
+    """Tor 2: z altseason-gate, gdy BTC prowadzi a alty spadają, NOWE wejścia w
+    alty są zablokowane (zostaje BTC) -> mniej wejść niż bez bramki."""
+    base = settings.model_copy(update={
+        "entry_filter_enabled": False, "risk_per_trade_pct": 1.0,
+        "max_concurrent_positions": 5, "min_hold_minutes": 0, "max_position_pct": 40.0,
+        "regime_filter_enabled": False, "breakout_entry_enabled": False, "min_adx": 0.0,
+        "altseason_gate_enabled": False, "altseason_lookback": 20,
+    })
+    gated = base.model_copy(update={"altseason_gate_enabled": True})
+    data = {
+        "BTC/USD": _uptrend(slope=0.003),      # BTC mocno w górę
+        "ALT1/USD": _uptrend(slope=-0.001),    # alty w dół
+        "ALT2/USD": _uptrend(slope=-0.0012, phase=1.0),
+    }
+    r_off = backtest.run_backtest(data, base, benchmark_symbol="BTC/USD")
+    r_on = backtest.run_backtest(data, gated, benchmark_symbol="BTC/USD")
+    assert "error" not in r_off and "error" not in r_on
+    assert r_on["entries"] > 0            # BTC nadal wchodzi
+    assert r_on["entries"] < r_off["entries"]  # bramka zablokowała część wejść w alty

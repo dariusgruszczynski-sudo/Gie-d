@@ -349,6 +349,17 @@ class Settings(BaseSettings):
     crypto_mtf_confirm_enabled: bool = True
     crypto_mtf_timeframe: str = "4h"
     crypto_mtf_ma_period: int = 50
+    # ALTSEASON-GATE (Tor 2 / walk-forward): hipoteza z walk-forward — przewaga
+    # strategii pojawia się TYLKO w altseasonie, poza nim lepiej trzymać BTC. Gdy
+    # włączone, NOWE wejścia w alty (nie-BTC) dozwolone tylko, gdy koszyk altów
+    # bije BTC na trailingu altseason_lookback barów (mediana zwrotu altów > zwrot
+    # BTC); BTC zawsze dozwolone. Na razie czytane PRZEZ BACKTEST (pomiar, czy
+    # pomaga); do żywego silnika wpięte dopiero, jeśli walk-forward to potwierdzi.
+    # 0/off = wyłączone (bez zmian).
+    altseason_gate_enabled: bool = False
+    altseason_lookback: int = 30
+    crypto_altseason_gate_enabled: bool = False
+    crypto_altseason_lookback: int = 30
 
     daily_loss_limit_pct: float = 20.0
     # Zacieśnione z 70% -> 25%: tygodniowy 70% to praktycznie brak ochrony małego

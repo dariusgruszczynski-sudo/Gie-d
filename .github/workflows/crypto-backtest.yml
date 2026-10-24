@@ -20,6 +20,10 @@ on:
         description: "Walidacja walk-forward: liczba okien OOS (0 = pomiń)"
         default: "4"
         required: false
+      altseason:
+        description: "Tor 2: altseason-gate vs bez (liczba okien OOS; 0 = pomiń)"
+        default: "4"
+        required: false
 
 concurrency:
   group: crypto-backtest
@@ -86,6 +90,15 @@ jobs:
           set -o pipefail
           python scripts/run_backtest.py --venue crypto --years "${YEARS}" --walk-forward "${WF}" 2>&1 | tee ../walkforward.txt
 
+      - name: Altseason-gate — Tor 2 (gdy K>0)
+        if: ${{ (inputs.altseason || '4') != '0' }}
+        working-directory: backend
+        env:
+          AS: ${{ inputs.altseason || '4' }}
+        run: |
+          set -o pipefail
+          python scripts/run_backtest.py --venue crypto --years "${YEARS}" --altseason "${AS}" 2>&1 | tee ../altseason.txt
+
       - name: Zbuduj porównanie (Markdown)
         run: |
           set -euo pipefail
@@ -123,6 +136,10 @@ jobs:
             if [ -f walkforward.txt ]; then
               echo "## Walk-forward — out-of-sample (czy przewaga trzyma się w czasie)"
               echo '```'; cat walkforward.txt; echo '```'
+            fi
+            if [ -f altseason.txt ]; then
+              echo "## Tor 2 — altseason-gate vs bez (czy edge jest tylko w altseasonie)"
+              echo '```'; cat altseason.txt; echo '```'
             fi
             if [ -f sweep.txt ]; then
               echo "## Sweep — frontiera ryzyko/trade × równoczesne pozycje (z mechanizmami)"
