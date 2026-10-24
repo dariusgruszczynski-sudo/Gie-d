@@ -101,6 +101,10 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         "crypto_enabled": settings.crypto_enabled,
         "crypto_paused": state.crypto_paused,
         "crypto_universe": settings.crypto_symbols,
+        # Obserwowalność skanera 24/7 (audyt): REALNE ostatnie uniwersum skanera +
+        # diagnostyka (ile par dał broker, ile zrankowano, czy fallback). Puste =
+        # skaner jeszcze nie przebiegł. To, co faktycznie handlujemy, a nie statyczna lista.
+        "crypto_scanner": _load_regime(getattr(state, "crypto_scanner_universe_json", "") or "{}"),
         "quote_currency": settings.quote_currency,
         "is_paused": state.is_paused,
         "extended_paused": state.extended_paused,

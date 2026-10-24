@@ -209,6 +209,10 @@ class SystemState(Base):
     crypto_stop_loss_streak_json: Mapped[str] = mapped_column(Text, default="{}")
     crypto_analysis_state_json: Mapped[str] = mapped_column(Text, default="{}")
     crypto_market_regime_json: Mapped[str] = mapped_column(Text, default="{}")
+    # Obserwowalność skanera 24/7 (audyt): ostatni wynik + diagnostyka (ile par
+    # dał broker, ile weszło do rankingu, czy fallback), żeby z zewnątrz było
+    # WIDAĆ, czy skaner realnie poszerza uniwersum, czy siedzi na statycznej liście.
+    crypto_scanner_universe_json: Mapped[str] = mapped_column(Text, default="{}")
     claude_budget_month_key: Mapped[str] = mapped_column(String(7), default="")
     claude_spend_usd_this_month: Mapped[float] = mapped_column(Float, default=0.0)
     # Ręczne nadpisanie miesięcznego budżetu tokenów, ustawiane z UI (0 = użyj

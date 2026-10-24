@@ -78,19 +78,40 @@ def scan_universe(broker, settings: Settings) -> list[str]:
     """Zwraca dynamiczne uniwersum handlowe krypto: TOP-K najsilniejszych płynnych
     par (ranking po momentum / sile vs BTC) ∪ aktualnie trzymane ∪ BTC. Fallback na
     settings.crypto_symbols przy jakimkolwiek problemie."""
+    return scan_universe_report(broker, settings)["universe"]
+
+
+def scan_universe_report(broker, settings: Settings) -> dict:
+    """Jak scan_universe, ale zwraca też DIAGNOSTYKĘ (obserwowalność — audyt): ile
+    par realnie daje broker, ile przeszło ranking, czy zadziałał fallback i dlaczego.
+    Bez tego nie dało się z zewnątrz stwierdzić, czy skaner naprawdę poszerza
+    uniwersum, czy po cichu siedzi na statycznej 7-tce. Zwraca:
+      {universe, pool_size, scanned, scored, top, fell_back, reason, cached}."""
     fallback = list(settings.crypto_symbols)
+
+    def _report(universe, *, pool_size=0, scanned=0, scored=0, top=None,
+                fell_back=False, reason="", cached=False) -> dict:
+        return {
+            "universe": universe or fallback, "pool_size": pool_size, "scanned": scanned,
+            "scored": scored, "top": top or [], "fell_back": fell_back, "reason": reason,
+            "cached": cached,
+        }
+
     if not getattr(settings, "crypto_scanner_enabled", False):
-        return fallback
+        return _report(fallback, fell_back=True, reason="skaner wyłączony")
 
     held = _held_crypto(broker)
     try:
-        pool = broker.list_crypto_symbols()
+        pool_raw = broker.list_crypto_symbols()
     except Exception:
-        pool = []
-    if not pool:
+        logger.warning("Skaner: list_crypto_symbols rzucił wyjątek — fallback", exc_info=True)
+        return _report(fallback, fell_back=True, reason="broker.list_crypto_symbols błąd")
+    pool_size = len(pool_raw or [])
+    fell_back = not pool_raw
+    if not pool_raw:
         logger.info("Skaner: pusta lista par z brokera — fallback na statyczne uniwersum")
-        pool = list(fallback)
-    pool = pool[: max(1, settings.crypto_scanner_max_scan)]
+        pool_raw = list(fallback)
+    pool = pool_raw[: max(1, settings.crypto_scanner_max_scan)]
 
     # CACHE: w obrębie crypto_scanner_cache_min minut nie przeliczamy rankingu od
     # nowa (oszczędza ~40 fetchy/cykl). Trzymane i BTC i tak domykamy świeżo niżej.
@@ -105,7 +126,9 @@ def scan_universe(broker, settings: Settings) -> list[str]:
         hit = _RANK_CACHE.get(sig)
         if hit is not None and now < hit[0]:
             anchor = ["BTC/USD"] if "BTC/USD" in pool else []
-            return list(dict.fromkeys(hit[1] + sorted(held) + anchor)) or fallback
+            uni = list(dict.fromkeys(hit[1] + sorted(held) + anchor))
+            return _report(uni, pool_size=pool_size, scanned=len(pool), scored=len(hit[1]),
+                           top=hit[1], fell_back=fell_back, reason="cache", cached=True)
 
     mom_days = max(2, settings.crypto_scanner_momentum_days)
     bars = mom_days + 5
@@ -139,4 +162,11 @@ def scan_universe(broker, settings: Settings) -> list[str]:
     # Zawsze: TOP-K + trzymane (zarządzanie/wyjścia) + BTC jako kotwica. Dedup, kolejność stabilna.
     anchor = ["BTC/USD"] if "BTC/USD" in pool else []
     result = list(dict.fromkeys(top + sorted(held) + anchor))
-    return result or fallback
+    # Sygnał „efektywnie statyczne": ranking nic nowego nie dołożył ponad trzymane+BTC.
+    if not top and not fell_back:
+        reason = "ranking pusty (brak par z danymi/płynnością) — tylko trzymane+BTC"
+        fell_back = True
+    else:
+        reason = "ok"
+    return _report(result, pool_size=pool_size, scanned=len(pool), scored=len(scored),
+                   top=top, fell_back=fell_back, reason=reason)

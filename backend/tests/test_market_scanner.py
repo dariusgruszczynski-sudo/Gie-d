@@ -94,6 +94,41 @@ def test_empty_pool_falls_back():
     assert uni  # nie pusto — fallback/zawartość
 
 
+def test_report_exposes_diagnostics():
+    """Obserwowalność (audyt): report pokazuje ile par dał broker, ile zrankowano
+    i czy to realne poszerzenie, czy fallback na statyczną listę."""
+    from app.services.market_scanner import scan_universe_report
+    broker = FakeScanBroker({
+        "BTC/USD": (100, 100, 100_000), "STRONG/USD": (100, 150, 100_000), "MID/USD": (100, 110, 100_000),
+    })
+    rep = scan_universe_report(broker, _settings())
+    assert rep["pool_size"] == 3 and rep["scored"] >= 2
+    assert rep["fell_back"] is False and rep["reason"] == "ok"
+    assert "STRONG/USD" in rep["universe"]
+
+
+def test_report_flags_effective_static_when_ranking_empty():
+    """Gdy ranking nic nie dołożył ponad trzymane+BTC (brak płynnych par z danymi),
+    report oznacza to jako fallback — sygnał „skaner efektywnie na statycznej 7-tce"."""
+    from app.services.market_scanner import scan_universe_report
+    # Wszystkie poza BTC za cienkie (wolumen 1 -> obrót poniżej progu 5M) i nie trzymane.
+    broker = FakeScanBroker({"BTC/USD": (100, 100, 1), "THIN/USD": (100, 300, 1)})
+    rep = scan_universe_report(broker, _settings())
+    assert rep["top"] == []
+    assert rep["fell_back"] is True and "ranking pusty" in rep["reason"]
+
+
+def test_report_flags_broker_exception_fallback():
+    from app.services.market_scanner import scan_universe_report
+
+    class BoomBroker(FakeScanBroker):
+        def list_crypto_symbols(self):
+            raise RuntimeError("API down")
+    rep = scan_universe_report(BoomBroker({"BTC/USD": (100, 120, 100_000)}), _settings())
+    assert rep["fell_back"] is True and "błąd" in rep["reason"]
+    assert rep["universe"] == ["BTC/USD", "ETH/USD"]  # statyczny fallback
+
+
 def test_cache_reuses_ranking_but_refreshes_held():
     """Audyt (efektywność): w obrębie cache_min ranking nie jest przeliczany
     (mniej fetchy), ale TRZYMANE pozycje domykane są świeżo w każdym wywołaniu."""

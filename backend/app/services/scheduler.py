@@ -108,10 +108,26 @@ def _crypto_job() -> None:
         market_ctx = MarketContextClient()
         # Dynamiczne uniwersum ze SKANERA 24/7 (TOP-K najsilniejszych płynnych par
         # ∪ trzymane ∪ BTC); fallback na statyczne crypto_symbols przy problemie.
-        from app.services.market_scanner import scan_universe
+        from app.services.market_scanner import scan_universe_report
 
-        whitelist = scan_universe(broker, settings)
-        logger.info("Krypto uniwersum (skaner): %s", ", ".join(whitelist))
+        report = scan_universe_report(broker, settings)
+        whitelist = report["universe"]
+        logger.info(
+            "Krypto uniwersum (skaner): %s | par z brokera=%d, zrankowanych=%d, fallback=%s (%s)",
+            ", ".join(whitelist), report["pool_size"], report["scored"], report["fell_back"], report["reason"],
+        )
+        # Zapisz diagnostykę skanera do stanu -> widoczna w /status i zrzucie audytu
+        # (inaczej z zewnątrz nie wiadomo, czy skaner realnie poszerza uniwersum).
+        try:
+            from app.services import risk_manager
+            st = risk_manager.get_state(db)
+            st.crypto_scanner_universe_json = json.dumps({
+                **{k: report[k] for k in ("universe", "pool_size", "scanned", "scored", "fell_back", "reason")},
+                "at": datetime.now(UTC).isoformat(),
+            })
+            db.commit()
+        except Exception:
+            logger.warning("Nie udało się zapisać diagnostyki skanera", exc_info=True)
         decision = run_cycle(
             db, effective_settings(settings, "crypto"), broker, news, advisor, market_ctx,
             venue="crypto", whitelist=whitelist, always_open=True,
