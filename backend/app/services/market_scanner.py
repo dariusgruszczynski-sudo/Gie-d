@@ -57,6 +57,32 @@ def _momentum_pct(closes: list[float], days: int) -> float | None:
     return (last - ref) / ref * 100.0
 
 
+def _liquidity_summary(liq: dict[str, float]) -> dict:
+    """Rozkład średniego dziennego obrotu $ po parach (audyt: do dobrania progu
+    płynności z DANYCH, nie na oko). Zwraca min/p25/mediana/p75/max + top-12 par."""
+    vals = sorted(liq.values())
+    if not vals:
+        return {}
+    n = len(vals)
+
+    def q(p: float) -> float:
+        if n == 1:
+            return vals[0]
+        i = min(n - 1, max(0, int(round(p * (n - 1)))))
+        return vals[i]
+
+    top = sorted(liq.items(), key=lambda kv: kv[1], reverse=True)[:12]
+    return {
+        "count": n,
+        "min_usd": round(vals[0]),
+        "p25_usd": round(q(0.25)),
+        "median_usd": round(q(0.50)),
+        "p75_usd": round(q(0.75)),
+        "max_usd": round(vals[-1]),
+        "top": [[s, round(v)] for s, v in top],
+    }
+
+
 def _held_crypto(broker) -> set[str]:
     """Symbole krypto aktualnie trzymane (z salda brokera) — zawsze zostają w
     uniwersum, żeby silnik mógł nimi zarządzać / je zamknąć, nawet gdy wypadły z TOP-K."""
@@ -90,11 +116,11 @@ def scan_universe_report(broker, settings: Settings) -> dict:
     fallback = list(settings.crypto_symbols)
 
     def _report(universe, *, pool_size=0, scanned=0, scored=0, top=None,
-                fell_back=False, reason="", cached=False, skips=None) -> dict:
+                fell_back=False, reason="", cached=False, skips=None, liquidity=None) -> dict:
         return {
             "universe": universe or fallback, "pool_size": pool_size, "scanned": scanned,
             "scored": scored, "top": top or [], "fell_back": fell_back, "reason": reason,
-            "cached": cached, "skips": skips or {},
+            "cached": cached, "skips": skips or {}, "liquidity": liquidity or {},
         }
 
     if not getattr(settings, "crypto_scanner_enabled", False):
@@ -140,6 +166,7 @@ def scan_universe_report(broker, settings: Settings) -> dict:
     # Liczniki powodów odrzucenia (audyt: żeby wiedzieć, CO dławi ranking —
     # za mało świec / brak momentum / za cienka płynność).
     skips = {"too_few_bars": 0, "no_momentum": 0, "illiquid": 0}
+    liq: dict[str, float] = {}   # sym -> śr. dzienny obrót $ (dla WSZYSTKICH z danymi)
     scored: list[tuple[float, str]] = []
     for sym in pool:
         closes, vols = _daily_closes_vols(broker, sym, bars)
@@ -150,13 +177,14 @@ def scan_universe_report(broker, settings: Settings) -> dict:
         if mom is None:
             skips["no_momentum"] += 1
             continue
-        # Płynność: średni dzienny obrót $ (close × wolumen). Trzymane zwolnione z
-        # filtra (musimy móc je domknąć), reszta pod progiem odpada.
-        if vols and min_dollar_vol > 0 and sym not in held:
-            avg_dollar_vol = sum(c * v for c, v in zip(closes, vols)) / len(closes)
-            if avg_dollar_vol < min_dollar_vol:
-                skips["illiquid"] += 1
-                continue
+        # Płynność: średni dzienny obrót $ (close × wolumen). Liczona dla KAŻDEJ pary
+        # z danymi (żeby dało się dobrać próg z rozkładu), potem używana jako filtr.
+        dv = sum(c * v for c, v in zip(closes, vols)) / len(closes) if vols else 0.0
+        liq[sym] = dv
+        # Trzymane zwolnione z filtra (musimy móc je domknąć), reszta pod progiem odpada.
+        if min_dollar_vol > 0 and sym not in held and dv < min_dollar_vol:
+            skips["illiquid"] += 1
+            continue
         score = mom - (btc_mom if rs_vs_btc else 0.0)  # #2: siła WZGLĘDEM BTC
         scored.append((score, sym))
 
@@ -175,4 +203,5 @@ def scan_universe_report(broker, settings: Settings) -> dict:
     else:
         reason = "ok"
     return _report(result, pool_size=pool_size, scanned=len(pool), scored=len(scored),
-                   top=top, fell_back=fell_back, reason=reason, skips=skips)
+                   top=top, fell_back=fell_back, reason=reason, skips=skips,
+                   liquidity=_liquidity_summary(liq))

@@ -119,6 +119,10 @@ def test_report_flags_effective_static_when_ranking_empty():
     # Diagnostyka wskazuje PRZYCZYNĘ: obie pary odpadły na płynności (obrót ~$100/d < 5M).
     assert rep["skips"]["illiquid"] == 2
     assert rep["skips"]["too_few_bars"] == 0
+    # Rozkład obrotów policzony dla WSZYSTKICH par z danymi (do dobrania progu).
+    assert rep["liquidity"]["count"] == 2
+    assert {s for s, _ in rep["liquidity"]["top"]} == {"BTC/USD", "THIN/USD"}
+    assert rep["liquidity"]["max_usd"] >= rep["liquidity"]["min_usd"]
 
 
 def test_report_flags_broker_exception_fallback():

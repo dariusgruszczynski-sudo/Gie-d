@@ -122,7 +122,7 @@ def _crypto_job() -> None:
             from app.services import risk_manager
             st = risk_manager.get_state(db)
             st.crypto_scanner_universe_json = json.dumps({
-                **{k: report[k] for k in ("universe", "pool_size", "scanned", "scored", "fell_back", "reason", "skips")},
+                **{k: report[k] for k in ("universe", "pool_size", "scanned", "scored", "fell_back", "reason", "skips", "liquidity")},
                 "at": datetime.now(UTC).isoformat(),
             })
             db.commit()
