@@ -652,7 +652,6 @@ class Settings(BaseSettings):
     # longs; cash is the defensive position. Set extended_regime_gate_enabled=
     # False to keep the signal as context but drop the hard block.
     extended_regime_gate_enabled: bool = True
-    extended_regime_benchmark: str = "SPY"
     extended_defensive_symbols: str = ""
     # --- Auto-blacklist po serii stop-lossów (Pakiet 4) ---------------------
     # If a ticker stop-losses auto_blacklist_stop_count times within
