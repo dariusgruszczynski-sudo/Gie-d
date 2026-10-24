@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-10-23T21:19:00Z
+# Audyt GielDarek — 2026-10-24T07:21:20Z
 
 **Wdrożenie:** kod b76dd26 (zbud. 2026-10-23T20:38Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
@@ -27,7 +27,7 @@
 
 **Najczęstsze powody odrzucenia (top):**
 - 64× — Automat (alpaca) zapauzowany ręcznie
-- 6× — brak powodu
+- 7× — brak powodu
 - 1× — Cooldown po stop-lossie: DOGE/USD zablokowany do odkupu jeszcze ~495 min
 - 1× — Cooldown po stop-lossie: DOGE/USD zablokowany do odkupu jeszcze ~510 min
 - 1× — Cooldown po stop-lossie: DOGE/USD zablokowany do odkupu jeszcze ~525 min
@@ -36,6 +36,7 @@
 - 1× — Cooldown po stop-lossie: ETH/USD zablokowany do odkupu jeszcze ~150 min
 
 **Ostatnie 20 decyzji:**
+- 2026-10-24T07:20:45.661334 — HOLD conf=0.0 trig=manual ⛔ ?
 - 2026-10-23T21:09:08.653126 BTC/USD SELL conf=1.0 trig=price_move ✅WYKONANE
 - 2026-10-23T20:54:14.847824 SOL/USD SELL conf=1.0 trig=price_move ✅WYKONANE
 - 2026-10-23T20:54:13.547954 BTC/USD SELL conf=1.0 trig=price_move ✅WYKONANE
@@ -55,4 +56,3 @@
 - 2026-10-23T13:36:31.831764 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-23T13:21:29.546456 AVAX/USD SELL conf=1.0 trig=price_move ✅WYKONANE
 - 2026-10-23T08:51:33.853299 DOGE/USD BUY conf=0.6 trig=scheduled_daily ⛔ Cooldown po stop-lossie: DOGE/USD zablokowany do odkupu jeszcze ~495 min
-- 2026-10-23T08:36:33.587128 DOGE/USD BUY conf=0.6 trig=scheduled_daily ⛔ Cooldown po stop-lossie: DOGE/USD zablokowany do odkupu jeszcze ~510 min
