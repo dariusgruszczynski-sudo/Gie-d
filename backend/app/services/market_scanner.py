@@ -90,11 +90,11 @@ def scan_universe_report(broker, settings: Settings) -> dict:
     fallback = list(settings.crypto_symbols)
 
     def _report(universe, *, pool_size=0, scanned=0, scored=0, top=None,
-                fell_back=False, reason="", cached=False) -> dict:
+                fell_back=False, reason="", cached=False, skips=None) -> dict:
         return {
             "universe": universe or fallback, "pool_size": pool_size, "scanned": scanned,
             "scored": scored, "top": top or [], "fell_back": fell_back, "reason": reason,
-            "cached": cached,
+            "cached": cached, "skips": skips or {},
         }
 
     if not getattr(settings, "crypto_scanner_enabled", False):
@@ -137,19 +137,25 @@ def scan_universe_report(broker, settings: Settings) -> dict:
     rs_vs_btc = bool(getattr(settings, "crypto_scanner_rs_vs_btc", True))
     min_dollar_vol = float(getattr(settings, "crypto_scanner_min_dollar_vol_usd", 0.0))
 
+    # Liczniki powodów odrzucenia (audyt: żeby wiedzieć, CO dławi ranking —
+    # za mało świec / brak momentum / za cienka płynność).
+    skips = {"too_few_bars": 0, "no_momentum": 0, "illiquid": 0}
     scored: list[tuple[float, str]] = []
     for sym in pool:
         closes, vols = _daily_closes_vols(broker, sym, bars)
         if len(closes) < mom_days // 2:
+            skips["too_few_bars"] += 1
             continue
         mom = _momentum_pct(closes, mom_days)
         if mom is None:
+            skips["no_momentum"] += 1
             continue
         # Płynność: średni dzienny obrót $ (close × wolumen). Trzymane zwolnione z
         # filtra (musimy móc je domknąć), reszta pod progiem odpada.
         if vols and min_dollar_vol > 0 and sym not in held:
             avg_dollar_vol = sum(c * v for c, v in zip(closes, vols)) / len(closes)
             if avg_dollar_vol < min_dollar_vol:
+                skips["illiquid"] += 1
                 continue
         score = mom - (btc_mom if rs_vs_btc else 0.0)  # #2: siła WZGLĘDEM BTC
         scored.append((score, sym))
@@ -169,4 +175,4 @@ def scan_universe_report(broker, settings: Settings) -> dict:
     else:
         reason = "ok"
     return _report(result, pool_size=pool_size, scanned=len(pool), scored=len(scored),
-                   top=top, fell_back=fell_back, reason=reason)
+                   top=top, fell_back=fell_back, reason=reason, skips=skips)

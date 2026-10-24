@@ -116,6 +116,9 @@ def test_report_flags_effective_static_when_ranking_empty():
     rep = scan_universe_report(broker, _settings())
     assert rep["top"] == []
     assert rep["fell_back"] is True and "ranking pusty" in rep["reason"]
+    # Diagnostyka wskazuje PRZYCZYNĘ: obie pary odpadły na płynności (obrót ~$100/d < 5M).
+    assert rep["skips"]["illiquid"] == 2
+    assert rep["skips"]["too_few_bars"] == 0
 
 
 def test_report_flags_broker_exception_fallback():
