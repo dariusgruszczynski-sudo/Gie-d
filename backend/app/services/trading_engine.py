@@ -2617,6 +2617,40 @@ def _maybe_crypto_heartbeat(db: Session, settings: Settings, portfolio: dict, sy
     return decision
 
 
+def _reconcile_account_total(broker, account_total: float) -> float:
+    """GROUND TRUTH anty-widmo: equity brokera to autorytatywna wartość CAŁEGO
+    konta (jedno konto Alpaca na wszystkie nogi). Gdy nasza zrekonstruowana suma
+    drastycznie zaniża względem equity brokera (np. jakaś noga chwilowo nie
+    wyceniona), karmienie managera ryzyka tą liczbą dałoby FAŁSZYWY halt — bierzemy
+    wtedy equity brokera (fakt). Best-effort: błąd nigdy nie wywala cyklu."""
+    try:
+        if hasattr(broker, "get_account_summary"):
+            equity = float(broker.get_account_summary().get("equity") or 0.0)
+            if equity > 0 and account_total < equity * 0.8:
+                logger.warning(
+                    "Suma konta z rekonstrukcji (%.2f) << equity brokera (%.2f) — "
+                    "używam equity brokera (ground truth) dla ryzyka", account_total, equity,
+                )
+                return equity
+    except Exception:  # pragma: no cover - rekoncyliacja best-effort, nigdy nie wywala cyklu
+        logger.warning("Rekoncyliacja z equity brokera nie powiodła się (kontynuuję)", exc_info=True)
+    return account_total
+
+
+def _assemble_headlines(news: NewsClient, settings: Settings, symbols: list[str],
+                        venue: str, fresh_headlines: list[dict]) -> list[dict]:
+    """Nagłówki na cykl: tło (get_headlines) + ŚWIEŻE (które wyzwoliły cykl:
+    earnings/breaking) oznaczone `just_published` i wysunięte na początek, żeby
+    Claude odróżnił, na co reaguje, od rutynowego szumu. Dedup po tytule."""
+    headlines = news.get_headlines([_base_asset(s, settings.quote_currency) for s in symbols], venue=venue)
+    if fresh_headlines:
+        for h in fresh_headlines:
+            h["just_published"] = True
+        seen_titles = {h["title"] for h in fresh_headlines}
+        headlines = fresh_headlines + [h for h in headlines if h["title"] not in seen_titles]
+    return headlines
+
+
 def _build_market_data(broker, settings: Settings, portfolio: dict, symbols: list[str]) -> dict:
     """Per-symbol dane wejściowe na cykl: cena, zmiana okresu, ostatnie świece,
     wskaźniki techniczne, Donchian/ADX (#8/#9) i potwierdzenie wyższej ramy (#6).
@@ -2703,17 +2737,7 @@ def run_cycle(
     # suma drastycznie zaniża względem equity brokera (np. jakaś noga chwilowo
     # nie wyceniona), karmienie managera ryzyka tą liczbą dałoby FAŁSZYWY halt.
     # Bierzemy wtedy equity brokera (fakt), zamiast magnitudowych heurystyk.
-    try:
-        if hasattr(broker, "get_account_summary"):
-            equity = float(broker.get_account_summary().get("equity") or 0.0)
-            if equity > 0 and account_total < equity * 0.8:
-                logger.warning(
-                    "Suma konta z rekonstrukcji (%.2f) << equity brokera (%.2f) — "
-                    "używam equity brokera (ground truth) dla ryzyka", account_total, equity,
-                )
-                account_total = equity
-    except Exception:  # pragma: no cover - rekoncyliacja best-effort, nigdy nie wywala cyklu
-        logger.warning("Rekoncyliacja z equity brokera nie powiodła się (kontynuuję)", exc_info=True)
+    account_total = _reconcile_account_total(broker, account_total)
     state = risk_manager.update_portfolio_value(db, settings, account_total)
     if venue == "alpaca":
         scorecard.update_benchmark_baseline(db, settings, portfolio)
@@ -2824,15 +2848,7 @@ def run_cycle(
     # missing from market_data (Alpaca failure above) must not be a choosable
     # BUY/SELL target.
     tradable_symbols = list(market_data.keys())
-    headlines = news.get_headlines([_base_asset(s, settings.quote_currency) for s in symbols], venue=venue)
-    # The headlines that actually TRIGGERED this cycle (fresh earnings print,
-    # breaking single-stock news) must stand out from routine background news,
-    # or Claude can't tell what it's reacting to. Flag and front-load them.
-    if fresh_headlines:
-        for h in fresh_headlines:
-            h["just_published"] = True
-        seen_titles = {h["title"] for h in fresh_headlines}
-        headlines = fresh_headlines + [h for h in headlines if h["title"] not in seen_titles]
+    headlines = _assemble_headlines(news, settings, symbols, venue, fresh_headlines)
 
     # News blackout: Claude jest narzędziem AI karmionym newsami. Jeśli feedy
     # padły (za mało nagłówków), NIE otwieramy nowych pozycji na ślepo -- alarm

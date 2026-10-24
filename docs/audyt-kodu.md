@@ -6,14 +6,27 @@ ryzyka, złożoność) — nie literalne „linijka po linijce" (dla 14.8k linii
 dałoby wartości; grepy trzeba *czytać* — o mały włos nie skasowałem żywego
 `defensive_symbols`, które działa przez property `defensive_symbol_list`).
 
-## Zrobione w tej rundzie
+## Zrobione
 - ✅ Usunięte martwe pole configu `extended_regime_benchmark` (0 odwołań).
-- ✅ Wydzielony `_build_market_data()` z molocha `run_cycle` (zero zmiany
-  zachowania, +test; `run_cycle` 458 → ~420 linii, czysty seam do testu i do
-  przyszłej deduplikacji fetchy).
+- ✅ Wydzielone z molocha `run_cycle` (zero zmiany zachowania, +testy):
+  `_build_market_data()`, `_assemble_headlines()`, `_reconcile_account_total()`.
+  Ciało `run_cycle` ~50 linii mniej; czyste, testowalne seamy.
 - ✅ Logowanie dla cichych `except` w ścieżce ryzyka (`_crypto_loss_streak_today`,
   `_yesterday_realized_usd`) — cichy błąd odczytu P&L maskował breaker #5 i
   cool-off #14.
+
+## Przeanalizowane i ŚWIADOMIE NIEzrobione (z uzasadnieniem)
+- **Deduplikacja fetchy (#2 niżej) — NIE opłaca się jako prosty refaktor.** Żeby
+  wyjścia współdzieliły serię z `_build_market_data`, trzeba zbudować market_data
+  PRZED wyjściami. Ale wyjścia (i cały cykl) zwracają wcześnie przy halcie/zamkniętym
+  rynku — więc przesunięcie budowy market_data w górę pobierałoby ~20 serii świec
+  na KAŻDYM pollu w halcie/poza sesją (teraz: 0). To zamiana oszczędności na
+  aktywnej ścieżce za MARNOTRAWSTWO na częstej ścieżce halt/zamknięte. Net ujemny
+  na paper. Zostawić, chyba że cykl przestanie wcześnie wychodzić.
+- **Cięcie warstwy LLM (#3) — decyzja KIERUNKOWA, nie mechaniczna.** ~1035 linii
+  jest ŻYWYCH dla nogi akcji (`crypto_llm_enabled=False` dotyczy tylko krypto) i
+  dla heartbeatu krypto. Usunięcie to utrata zdolności, nie sprzątanie — wymaga
+  decyzji „czy akcje/krypto zostają z LLM, czy nie". Nie ruszać bez tej decyzji.
 
 ## 🧹 Do czyszczenia (pozostałe)
 - **~29 cichych połknięć wyjątków** (`except Exception → pass/continue/return`
