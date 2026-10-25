@@ -220,12 +220,17 @@ def total_realized_pnl(db: Session) -> float:
     return round(realized, 2)
 
 
-def _crypto_benchmark_baseline(db: Session, benchmark_symbol: str) -> tuple[float, float, str]:
+def _crypto_benchmark_baseline(db: Session, benchmark_symbol: str, since=None) -> tuple[float, float, str]:
     """Krypto nie ma osobnej kolumny baseline w SystemState (to jedno konto na
     akcje). Wyliczamy punkt odniesienia „trzymaj BTC" z NAJSTARSZEGO snapshotu
     krypto, który umiał wycenić BTC: (cena_BTC_wtedy, wartość_konta_wtedy, data).
     Dzięki temu alfa vs BTC liczy się bez migracji i bez kolizji z baseline akcji.
-    Zwraca (0,0,"") gdy nie ma jeszcze takiego snapshotu."""
+
+    `since` (epoka obecnej strategii) RE-ANCHORuje punkt odniesienia: bierzemy
+    pierwszy snapshot NIE WCZEŚNIEJSZY niż epoka, żeby alfa vs BTC liczyła się od
+    startu obecnej strategii (po blowoutcie), a nie od zatrutego początku. Gdy nie
+    ma jeszcze snapshotu >= epoka, fallback na najstarszy (lepsze to niż brak).
+    Zwraca (0,0,"") gdy w ogóle brak snapshotu z wyceną BTC."""
     from app.models import PortfolioSnapshot
 
     rows = db.execute(
@@ -233,15 +238,33 @@ def _crypto_benchmark_baseline(db: Session, benchmark_symbol: str) -> tuple[floa
         .where(PortfolioSnapshot.venue == "crypto", PortfolioSnapshot.total_value_usdt > 0)
         .order_by(PortfolioSnapshot.id.asc())
     ).scalars().all()
-    for snap in rows:
+
+    def _priced(snap):
         try:
             price = json.loads(snap.prices_json or "{}").get(benchmark_symbol)
         except (TypeError, ValueError):
             price = None
-        if price and price > 0:
-            when = snap.timestamp.date().isoformat() if snap.timestamp else ""
-            return float(price), float(snap.total_value_usdt), when
-    return 0.0, 0.0, ""
+        return float(price) if price and price > 0 else None
+
+    def _ts_aware(snap):
+        ts = snap.timestamp
+        if ts is None:
+            return None
+        return ts if ts.tzinfo else ts.replace(tzinfo=UTC)
+
+    fallback = None
+    for snap in rows:
+        price = _priced(snap)
+        if price is None:
+            continue
+        if fallback is None:
+            fallback = (price, float(snap.total_value_usdt), snap.timestamp.date().isoformat() if snap.timestamp else "")
+        ts = _ts_aware(snap)
+        if since is not None and ts is not None and ts < since:
+            continue  # sprzed epoki — pomiń, szukaj pierwszego PO re-anchorze
+        when = snap.timestamp.date().isoformat() if snap.timestamp else ""
+        return price, float(snap.total_value_usdt), when
+    return fallback or (0.0, 0.0, "")
 
 
 def compute_scorecard(db: Session, settings: Settings, portfolio: dict, *, venue: str = "alpaca") -> dict:
@@ -257,8 +280,14 @@ def compute_scorecard(db: Session, settings: Settings, portfolio: dict, *, venue
     benchmark_symbol = "BTC/USD" if venue == "crypto" else settings.benchmark_symbol
     benchmark_price_now = portfolio["prices"].get(benchmark_symbol)
 
+    # Epoka obecnej strategii (krypto: po blowoutcie). Steruje i baselinem BTC
+    # (re-anchor alfy), i oknem trafności — jedno źródło prawdy dla „od kiedy".
+    epoch, epoch_raw = effective_epoch(state, settings, venue=venue)
+
     if venue == "crypto":
-        bench_start_price, bench_start_value, bench_start_date = _crypto_benchmark_baseline(db, benchmark_symbol)
+        bench_start_price, bench_start_value, bench_start_date = _crypto_benchmark_baseline(
+            db, benchmark_symbol, since=epoch
+        )
     else:
         bench_start_price = state.benchmark_start_price
         bench_start_value = state.benchmark_start_value
@@ -277,7 +306,6 @@ def compute_scorecard(db: Session, settings: Settings, portfolio: dict, *, venue
     # domyślny start strategii). Dla akcji bierzemy nogę sesji (alpaca_only);
     # dla krypto — transakcje nogi krypto. realized_pnl_usd zostaje ŻYCIOWE
     # (zasila „wynik netto"), bo to inny wskaźnik.
-    epoch, epoch_raw = effective_epoch(state, settings, venue=venue)
     realized, _wl, _ll = _walk_realized(db)
     if venue == "crypto":
         _r2, wins, losses = _walk_realized(db, since=epoch, venue="crypto")

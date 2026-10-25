@@ -151,9 +151,12 @@ konta dalej pokazuje realne −12,7% od szczytu (to się stało), ale OCENA stra
 nie obwinia jej za bug. Wynik netto (życiowy realized) zostaje osobno. Nietknięte:
 noga akcji (własny stats_epoch_default), dane (0 skasowanych). Backend 444/444,
 front tsc/eslint/vitest/build ok, sw v68.
-NIEZROBIONE świadomie: re-anchor benchmarku BTC (alpha dalej liczona od startu
-krypto, więc lekko skażona blowoutem w portfolio_value) — to osobny ruch,
-wymaga decyzji (przesunąć punkt odniesienia BTC). Flaga do następnego kroku.
+DOKOŃCZONE (prośba właściciela „rób"): RE-ANCHOR benchmarku BTC. `_crypto_benchmark_
+baseline(..., since=epoch)` bierze teraz pierwszy snapshot OD epoki krypto (16.10),
+nie najstarszy — więc alpha vs BTC liczy wzrost konta vs trzymanie BTC OD punktu po
+blowoutcie, nie od zatrutego początku. Czysty odczyt: zero mutacji stanu, zero
+utraty danych, fallback na najstarszy gdy brak snapshotu po epoce. Test re-anchoru
+dodany. Alpha jest teraz w 100% czysta. Backend 445/445.
 
 ### Wpis — 2026-10-24 (TOR 2: altseason-gate ODRZUCONY — negatywny wynik)
 Hipoteza z walk-forward: „edge jest tylko w altseasonie, więc bramkuj alty do

@@ -112,3 +112,32 @@ def test_scorecard_degrades_without_baseline(db_session, settings):
     assert card["benchmark_value"] is None
     assert card["alpha_pct"] is None
     assert card["win_rate_pct"] is None
+
+
+def test_crypto_benchmark_reanchored_to_epoch(db_session):
+    """Re-anchor: baseline BTC bierze pierwszy snapshot OD epoki (po blowoutcie),
+    nie najstarszy — żeby alfa vs BTC nie nosiła straty z blowoutu w portfolio_value."""
+    import json
+    from datetime import UTC, datetime
+
+    from app.models import PortfolioSnapshot
+
+    # Snapshot sprzed epoki (blowout): konto $1,000,000, BTC $60k.
+    db_session.add(PortfolioSnapshot(
+        timestamp=datetime(2026, 10, 14, tzinfo=UTC), total_value_usdt=1_000_000.0, usdt_balance=0.0,
+        balances_json="{}", prices_json=json.dumps({"BTC/USD": 60000.0}), venue="crypto",
+    ))
+    # Snapshot po epoce (obecna strategia): konto $890k, BTC $65k.
+    db_session.add(PortfolioSnapshot(
+        timestamp=datetime(2026, 10, 20, tzinfo=UTC), total_value_usdt=890_000.0, usdt_balance=0.0,
+        balances_json="{}", prices_json=json.dumps({"BTC/USD": 65000.0}), venue="crypto",
+    ))
+    db_session.commit()
+
+    epoch = datetime(2026, 10, 16, tzinfo=UTC)
+    # Bez re-anchoru: najstarszy (blowout) — $60k / $1M / 10-14.
+    p0, v0, d0 = scorecard._crypto_benchmark_baseline(db_session, "BTC/USD")
+    assert (p0, v0, d0) == (60000.0, 1_000_000.0, "2026-10-14")
+    # Z re-anchorem: pierwszy OD epoki — $65k / $890k / 10-20.
+    p1, v1, d1 = scorecard._crypto_benchmark_baseline(db_session, "BTC/USD", since=epoch)
+    assert (p1, v1, d1) == (65000.0, 890_000.0, "2026-10-20")
