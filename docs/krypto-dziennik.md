@@ -376,6 +376,30 @@ w zjeździe. Reversible. Backend 410/410, ruff ok. Walidacja: backtest krypto na
 danych (dispatch crypto-backtest.yml) — wynik dopiszę. UWAGA: to zmiana na próbce <50,
 ale wyraźny wybór właściciela po jednoznacznym wzorcu 0W/9L i pod konkretne przyczyny.
 
+### Tydzień 3 — 2026-10-25 (silnik rozmieszcza kapitał; pomiar wciąż zatruty blowoutem)
+Silnik ŻYJE (crypto_paused=False, paper), build ee09e34 (czyste epoki + re-anchor
+BTC + zakładka Monety wdrożone). Konto **$869 348 — −13% od szczytu $1M, tydzień
+−4,2%**. ZMIANA: bot zaczął rozmieszczać kapitał — **~27% zainwestowane** ($236k
+krypto / $633k gotówki), wcześniej 100% gotówka. Skaner zdrowy: **20 par** (było 8).
+- **Trafność / realized / vs-BTC: wciąż NIEMIERZALNE czysto.** Log transakcji do
+  25.10 jest zdominowany odwijaniem blowoutu z 14-15.10: pozycje otwarte pod
+  dźwignią/ujemną gotówką, domykane później, niosą SKAŻONĄ bazę kosztową → avg-cost
+  walk pokazuje ~same straty (17 „zamknięć" od 16.10, najgorsza AVAX −$21k). Odcięcie
+  po DACIE SPRZEDAŻY tego nie czyści — pozycja straddlująca epokę wciąż ma zły koszt.
+- Koncentracja: AVAX dominuje straty — sygnatura blowoutu, nie obecnej strategii.
+- **GO-LIVE: NIE — i nieoceniany, póki książka nie oczyści się z pozycji blowoutowych.**
+  Czysty pomiar zacznie się dopiero od pierwszego w PEŁNI czystego wejścia (świeża
+  gotówka, brak dźwigni) albo po reset-historii na prodzie (destrukcyjny, decyzja
+  właściciela). To jest ten sam „brak czystego baseline'u", który wskazałem w
+  świeżej analizie architektury jako gap #1 pętli uczenia.
+- Flaga infrastrukturalna: audit-snapshot NIE publikuje epoch-aware scorecardu appki
+  (tylko status/trades/decisions), więc nadzór git-first nie widzi już policzonej,
+  czystej liczby — liczy z surowego logu i dziedziczy skażenie. Do rozważenia:
+  dołożyć scorecard krypto do zrzutu.
+Werdykt: **bez istotnej zmiany wyniku** (tydzień −4,2% = ogon blowoutu + chop);
+infrastruktura wyraźnie zdrowsza (skaner, obserwowalność, czyste epoki), ale realny
+pomiar strategii nie ruszy, póki nie będzie czystej książki.
+
 ### Tydzień 2 — 2026-10-18 (nowa era: konto paper $1M od 10-14, build e9952d4)
 Reset + nowe konto paper ($1M) 10-14; licznik od zera. Dane: trades.json, avg-cost walk.
 - **Zamknięcia: 9 | trafność 0% (0W/9L) | realized −7,9% konta (−$79k) | total −8,6%.**
