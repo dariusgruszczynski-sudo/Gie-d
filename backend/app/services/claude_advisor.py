@@ -313,6 +313,39 @@ class ClaudeAdvisor:
                 return block.input, cost, response.usage.input_tokens, response.usage.output_tokens
         raise RuntimeError("Claude response did not contain the expected tool_use block")
 
+    def review_learning(self, summary: dict) -> tuple[dict, float, int, int]:
+        """#11 META-UCZEŃ: dostaje zwięzły obraz nauki (krzywa + atrybucja cech →
+        wynik) i zwraca STRUKTURALNY wniosek: co działa, co krwawi, JEDNA proponowana
+        zmiana + uzasadnienie + pewność. PROPONUJE, nie wdraża (żadnej mutacji knobów).
+        Realny call na prodzie (klucz z env); w testach wstrzykujemy fake."""
+        import json as _json
+
+        tool = {
+            "name": "report_learning_insights",
+            "description": "Zwróć wnioski z analizy track-rekordu bota (po polsku, konkretnie).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "working": {"type": "string", "description": "Co REALNIE działa (setupy/cechy z dodatnim edge, oparte na danych)."},
+                    "bleeding": {"type": "string", "description": "Co krwawi (cechy/setupy z ujemnym edge)."},
+                    "proposed_change": {"type": "string", "description": "JEDNA konkretna, odwracalna zmiana do rozważenia (nie wdrażasz jej)."},
+                    "rationale": {"type": "string", "description": "Dlaczego — oparte na liczbach z danych, nie na wyczuciu."},
+                    "confidence": {"type": "number", "description": "0-1: jak pewny przy tej wielkości próbki (mała próbka => niska pewność)."},
+                },
+                "required": ["working", "bleeding", "proposed_change", "rationale", "confidence"],
+            },
+        }
+        system = (
+            "Jesteś analitykiem tradingowym krypto. Masz track-rekord bota: krzywą uczenia "
+            "(expectancy/trafność per kohorta) i atrybucję (cecha wejścia → trafność i średni %). "
+            "Zadanie: uczciwie, na DANYCH, wskaż co działa, co krwawi i JEDNĄ odwracalną zmianę. "
+            "NIE wdrażasz niczego — tylko proponujesz. Przy małej próbce bądź OSTROŻNY (niska pewność); "
+            "nie goń szumu. Bez lukru."
+        )
+        user_content = "Track-rekord bota (JSON):\n" + _json.dumps(summary, ensure_ascii=False, default=str)
+        model = self._settings.claude_model
+        return self._call_model(model, tool, user_content, system, max_tokens=900)
+
     def decide(
         self,
         *,

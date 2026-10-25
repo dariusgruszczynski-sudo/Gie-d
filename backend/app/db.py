@@ -131,6 +131,7 @@ def init_db() -> None:
     _add_column_if_missing("system_state", "crypto_analysis_state_json", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "crypto_market_regime_json", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "crypto_scanner_universe_json", "TEXT", "'{}'")
+    _add_column_if_missing("system_state", "llm_meta_insight_json", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "peak_account_value", "FLOAT", "0.0")
     _add_column_if_missing("system_state", "pending_peak_value", "FLOAT", "0.0")
     _add_column_if_missing("system_state", "pending_peak_confirmations", "INTEGER", "0")

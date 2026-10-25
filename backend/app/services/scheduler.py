@@ -274,6 +274,16 @@ def _opus_controller_job() -> None:
         run_opus_controller(db, settings)
     except Exception:
         logger.exception("Opus controller job failed")
+    # #11 Meta-uczeń LLM: raz dziennie analizuj track-rekord krypto (co działa / co
+    # krwawi / propozycja). Best-effort, PROPONUJE — nie zmienia knobów. Guardy
+    # (próbka/budżet) w samym serwisie; przy wyłączonym LLM krypto i tak pomija.
+    try:
+        if settings.crypto_enabled:
+            from app.services import llm_meta
+            from app.services.claude_advisor import ClaudeAdvisor
+            llm_meta.run_meta_review(db, settings, ClaudeAdvisor(settings), venue="crypto")
+    except Exception:
+        logger.exception("Meta-uczeń LLM job failed")
     finally:
         db.close()
 

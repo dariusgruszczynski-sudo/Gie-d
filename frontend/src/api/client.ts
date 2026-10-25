@@ -408,6 +408,7 @@ export const api = {
     apiFetch<PositionPlansResponse>(withShare(`/api/position-plans?venue=${venue}`)),
   history: () => apiFetch<HistoryResponse>(withShare("/api/history")),
   coins: () => apiFetch<CoinsResponse>(withShare("/api/coins")),
+  learning: () => apiFetch<LearningResponse>(withShare("/api/learning")),
   audit: () => apiFetch<AuditResponse>(withShare("/api/audit")),
   health: () => apiFetch<HealthReport>("/api/health"),
   healthReset: (action: string) =>
@@ -469,6 +470,18 @@ export interface CoinRow {
   last_at: string | null;
   in_universe: boolean;
   status: "won" | "lost" | "flat" | "watch";
+}
+export interface LearningResponse {
+  cohorts: Array<{ from: string | null; to: string | null; n: number; expectancy_pct: number; win_rate: number }>;
+  trend: "improving" | "flat" | "degrading" | null;
+  total_closes: number;
+  since: string | null;
+  cohort_size: number;
+  attribution: Array<{ feature: string; value: string; n: number; win_rate: number; avg_pct: number }>;
+  meta_insight: {
+    working?: string; bleeding?: string; proposed_change?: string; rationale?: string;
+    confidence?: number; based_on_closes?: number; trend?: string | null; at?: string;
+  } | null;
 }
 export interface CoinsResponse {
   coins: CoinRow[];

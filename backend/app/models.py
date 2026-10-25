@@ -213,6 +213,9 @@ class SystemState(Base):
     # dał broker, ile weszło do rankingu, czy fallback), żeby z zewnątrz było
     # WIDAĆ, czy skaner realnie poszerza uniwersum, czy siedzi na statycznej liście.
     crypto_scanner_universe_json: Mapped[str] = mapped_column(Text, default="{}")
+    # #11 Meta-uczeń LLM: ostatni wniosek z analizy track-rekordu (co działa / co
+    # krwawi / proponowana zmiana). PROPOZYCJA do wglądu — nie zmienia knobów sama.
+    llm_meta_insight_json: Mapped[str] = mapped_column(Text, default="{}")
     claude_budget_month_key: Mapped[str] = mapped_column(String(7), default="")
     claude_spend_usd_this_month: Mapped[float] = mapped_column(Float, default=0.0)
     # Ręczne nadpisanie miesięcznego budżetu tokenów, ustawiane z UI (0 = użyj

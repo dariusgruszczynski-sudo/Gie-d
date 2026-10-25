@@ -104,6 +104,57 @@ def labeled_closes(db: Session, *, venue: str | None = "crypto", open_since=None
     return out
 
 
+def feature_attribution(closes: list[dict]) -> list[dict]:
+    """ATRYBUCJA EDGE (#3): dla każdej cechy wejścia i jej wartości — ile trejdów,
+    trafność i średni wynik %. Pokazuje, KTÓRE sygnały realnie przewidują wygrane,
+    a które dodają szum. Proste zliczanie (nie model), ale uczciwe i czytelne.
+    Cechy ciągłe (rsi/adx/vol/change) binujemy na proste przedziały."""
+    def _bucket(key, val):
+        if val is None:
+            return None
+        if key in ("trend", "macd", "htf_trend_ok"):
+            return str(val)
+        try:
+            v = float(val)
+        except (TypeError, ValueError):
+            return str(val)
+        if key == "rsi":
+            return "rsi<35" if v < 35 else ("rsi35-50" if v < 50 else ("rsi50-70" if v < 70 else "rsi>=70"))
+        if key == "adx":
+            return "adx<20" if v < 20 else ("adx20-30" if v < 30 else "adx>=30")
+        if key == "vol_pct":
+            return "vol<3" if v < 3 else ("vol3-6" if v < 6 else "vol>=6")
+        if key == "change_period_pct":
+            return "chg<0" if v < 0 else ("chg0-5" if v < 5 else "chg>=5")
+        return str(val)
+
+    agg: dict[tuple, dict] = {}
+    for c in closes:
+        pnl = c.get("pnl_pct")
+        if pnl is None:
+            continue
+        for key, val in (c.get("features") or {}).items():
+            b = _bucket(key, val)
+            if b is None:
+                continue
+            a = agg.setdefault((key, b), {"feature": key, "value": b, "n": 0, "wins": 0, "sum_pct": 0.0})
+            a["n"] += 1
+            a["wins"] += 1 if c.get("win") else 0
+            a["sum_pct"] += pnl
+    out = []
+    for a in agg.values():
+        if a["n"] < 1:
+            continue
+        out.append({
+            "feature": a["feature"], "value": a["value"], "n": a["n"],
+            "win_rate": round(a["wins"] / a["n"] * 100, 1),
+            "avg_pct": round(a["sum_pct"] / a["n"], 2),
+        })
+    # Najpierw najmocniejszy edge (po avg_pct), tylko sensowne próbki na górze.
+    out.sort(key=lambda r: (r["avg_pct"]), reverse=True)
+    return out
+
+
 def learning_curve(db: Session, settings, *, venue: str = "crypto", cohort_size: int = 10) -> dict:
     """KRZYWA UCZENIA (#15): dzieli zamknięcia (od epoki) na kohorty po
     cohort_size trejdów i liczy per-kohorta expectancy (śr. %/trejd) + trafność.
@@ -141,4 +192,5 @@ def learning_curve(db: Session, settings, *, venue: str = "crypto", cohort_size:
         "total_closes": len(closes),
         "since": epoch_raw or None,
         "cohort_size": cohort_size,
+        "attribution": feature_attribution(closes),
     }

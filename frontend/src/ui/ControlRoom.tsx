@@ -504,6 +504,63 @@ export function Coins() {
   );
 }
 
+function LearningPanel() {
+  const [d, setD] = useState<import("../api/client").LearningResponse | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api.learning().then((r) => alive && setD(r)).catch(() => { /* best-effort */ });
+    return () => { alive = false; };
+  }, []);
+  if (!d) return null;
+  const trendChip = d.trend === "improving" ? { cls: "on", t: "📈 poprawia się" }
+    : d.trend === "degrading" ? { cls: "off", t: "📉 pogarsza się" }
+    : d.trend === "flat" ? { cls: "neu", t: "➖ płasko" }
+    : { cls: "neu", t: "za mało danych" };
+  const mi = d.meta_insight;
+  const attrTop = [...d.attribution].slice(0, 3);
+  const attrBot = [...d.attribution].reverse().slice(0, 3);
+  return (
+    <div className="cr-panel">
+      <div className="cr-ph"><h3>Krzywa uczenia — czy bot się poprawia?</h3><span className={`cr-chip ${trendChip.cls}`}>{trendChip.t}</span></div>
+      {d.total_closes < 10 ? (
+        <p className="cr-foot-note" style={{ padding: "6px 2px 0" }}>Za mało zamkniętych trejdów od startu obecnej strategii ({d.total_closes}) na wiarygodny trend — zbieramy dalej.</p>
+      ) : (
+        <>
+          <div className="cr-learncohorts">
+            {d.cohorts.map((c, i) => (
+              <div key={i} className={`cr-cohort ${c.expectancy_pct >= 0 ? "up" : "down"}`} title={`${c.from ?? ""} → ${c.to ?? ""} · ${c.n} trejdów`}>
+                <span className="v">{c.expectancy_pct >= 0 ? "+" : ""}{c.expectancy_pct}%</span>
+                <span className="s">{c.win_rate.toFixed(0)}% traf · {c.n}</span>
+              </div>
+            ))}
+          </div>
+          {d.attribution.length > 0 && (
+            <div className="cr-grid c2" style={{ marginTop: 10 }}>
+              <div className="cr-metric" style={{ alignItems: "flex-start" }}>
+                <span className="k">Najlepszy edge (cecha → śr.%)</span>
+                {attrTop.map((a, i) => <span key={i} className="s" style={{ color: a.avg_pct >= 0 ? "var(--cr-up)" : "var(--cr-down)" }}>{a.feature}={a.value}: {a.avg_pct >= 0 ? "+" : ""}{a.avg_pct}% ({a.win_rate.toFixed(0)}%/{a.n})</span>)}
+              </div>
+              <div className="cr-metric" style={{ alignItems: "flex-start" }}>
+                <span className="k">Najgorszy (krwawi)</span>
+                {attrBot.map((a, i) => <span key={i} className="s" style={{ color: a.avg_pct >= 0 ? "var(--cr-up)" : "var(--cr-down)" }}>{a.feature}={a.value}: {a.avg_pct >= 0 ? "+" : ""}{a.avg_pct}% ({a.win_rate.toFixed(0)}%/{a.n})</span>)}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+      {mi && mi.proposed_change && (
+        <div className="cr-insight">
+          <div className="cr-insight-h">🤖 Meta-uczeń LLM <span className="dim">(propozycja — nie wdrożona)</span>{mi.confidence != null && <span className="dim"> · pewność {Math.round((mi.confidence) * 100)}%</span>}</div>
+          {mi.working && <div><b>Działa:</b> {mi.working}</div>}
+          {mi.bleeding && <div><b>Krwawi:</b> {mi.bleeding}</div>}
+          <div><b>Proponuje:</b> {mi.proposed_change}</div>
+          {mi.rationale && <div className="dim">{mi.rationale}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Brain({ status, decisions }: { status: StatusResponse; decisions: Decision[] }) {
   const [k, setK] = useState<KnowledgeResponse | null>(null);
   const [err, setErr] = useState(false);
@@ -526,7 +583,9 @@ export function Brain({ status, decisions }: { status: StatusResponse; decisions
 
   return (
     <div className="cr-screen">
-      <div className="cr-screen-head"><h2>Mózg</h2><span className="sub">co bot wie i co widzi na rynku — pełna transparentność</span></div>
+      <div className="cr-screen-head"><h2>Mózg</h2><span className="sub">co bot wie, widzi i czego się uczy — pełna transparentność</span></div>
+
+      <LearningPanel />
 
       <div className="cr-panel">
         <div className="cr-ph"><h3>Puls rynku — to samo, co widzi bot</h3><span className={`cr-chip ${regimeChip.cls}`}>reżim: {regimeChip.t}</span></div>

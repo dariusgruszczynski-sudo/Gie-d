@@ -547,3 +547,16 @@
 .cr-coin-meta { grid-area: meta; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.72rem; color: var(--cr-dim); }
 .cr-coin-meta .dim { color: var(--cr-dim-2); }
 .cr-foot-note { font-size: 0.7rem; color: var(--cr-dim-2); padding: 12px 4px 0; line-height: 1.45; }
+
+/* === Panel „Krzywa uczenia" (Mózg) ====================================== */
+.cr-learncohorts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.cr-cohort {
+  display: flex; flex-direction: column; min-width: 78px; padding: 7px 10px;
+  border: 1px solid var(--cr-line); border-radius: 9px; background: var(--cr-panel-2);
+}
+.cr-cohort .v { font-family: var(--cr-mono); font-weight: 700; font-variant-numeric: tabular-nums; }
+.cr-cohort.up .v { color: var(--cr-up); } .cr-cohort.down .v { color: var(--cr-down); }
+.cr-cohort .s { font-size: 0.64rem; color: var(--cr-dim); }
+.cr-insight { margin-top: 12px; padding: 11px 13px; border-radius: 10px; border: 1px solid var(--cr-line-2); background: color-mix(in srgb, var(--cr-accent) 7%, transparent); font-size: 0.82rem; line-height: 1.5; }
+.cr-insight-h { font-weight: 700; margin-bottom: 4px; }
+.cr-insight .dim { color: var(--cr-dim-2); font-weight: 400; }

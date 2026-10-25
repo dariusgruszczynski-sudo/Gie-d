@@ -44,6 +44,17 @@ def resume(venue: str = "alpaca", db: Session = Depends(get_db), request: Reques
     return serialize(state)
 
 
+@router.post("/meta-review")
+def meta_review(db: Session = Depends(get_db), settings: Settings = Depends(get_settings), request: Request = None):
+    """#11: uruchom meta-ucznia LLM na żądanie — analiza track-rekordu, zwraca
+    wniosek (co działa / co krwawi / proponowana zmiana). PROPONUJE, nie wdraża."""
+    from app.services import llm_meta
+    advisor = ClaudeAdvisor(settings)
+    result = llm_meta.run_meta_review(db, settings, advisor, venue="crypto")
+    audit.record(db, "meta_review", detail=str(result.get("proposed_change") or result.get("skipped")), request=request)
+    return result
+
+
 @router.get("/audit-log")
 def audit_log(db: Session = Depends(get_db)):
     """Dziennik operacji wrażliwych (najnowsze pierwsze). Pod /api/control, więc

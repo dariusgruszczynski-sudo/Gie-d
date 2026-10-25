@@ -1103,8 +1103,10 @@ def get_coins(db: Session = Depends(get_db), settings: Settings = Depends(get_se
 def get_learning(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     """KRZYWA UCZENIA (#15): czy bot poprawia się w czasie — expectancy/trafność
     per kohorta trejdów (od epoki obecnej strategii) + trend. Substrat #1/#2."""
-    from app.services import learning
-    return learning.learning_curve(db, settings, venue="crypto")
+    from app.services import learning, llm_meta
+    out = learning.learning_curve(db, settings, venue="crypto")
+    out["meta_insight"] = llm_meta.latest_insight(db)  # ostatni wniosek meta-ucznia (#11)
+    return out
 
 
 def _realized_since(trades, cutoff, alpaca_only: bool = False) -> tuple[float, int, int]:
