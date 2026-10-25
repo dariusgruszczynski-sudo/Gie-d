@@ -1099,6 +1099,14 @@ def get_coins(db: Session = Depends(get_db), settings: Settings = Depends(get_se
     }
 
 
+@router.get("/learning")
+def get_learning(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """KRZYWA UCZENIA (#15): czy bot poprawia się w czasie — expectancy/trafność
+    per kohorta trejdów (od epoki obecnej strategii) + trend. Substrat #1/#2."""
+    from app.services import learning
+    return learning.learning_curve(db, settings, venue="crypto")
+
+
 def _realized_since(trades, cutoff, alpaca_only: bool = False) -> tuple[float, int, int]:
     """Zrealizowany P&L + trafność liczone TYLKO dla sprzedaży po `cutoff`, ale
     ze średnią ceną walkowaną od początku historii (oddziela wynik nowej
