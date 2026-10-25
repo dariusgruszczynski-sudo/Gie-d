@@ -1025,7 +1025,9 @@ def get_coins(db: Session = Depends(get_db), settings: Settings = Depends(get_se
     state = risk_manager.get_state(db)
     _epoch, epoch_raw = scorecard.effective_epoch(state, settings, venue="crypto")
     if epoch_raw:
-        items = [h for h in items if not h.get("sold_at") or h["sold_at"] >= epoch_raw]
+        # Czysty baseline: po dacie OTWARCIA pozycji (nie sprzedaży) — pozycje z
+        # blowoutu (otwarte pod dźwignią) mają skażoną bazę i są w całości wycięte.
+        items = [h for h in items if not h.get("opened_at") or h["opened_at"] >= epoch_raw]
     agg: dict[str, dict] = {}
     for h in items:
         sym = h["symbol"]

@@ -141,3 +141,28 @@ def test_crypto_benchmark_reanchored_to_epoch(db_session):
     # Z re-anchorem: pierwszy OD epoki — $65k / $890k / 10-20.
     p1, v1, d1 = scorecard._crypto_benchmark_baseline(db_session, "BTC/USD", since=epoch)
     assert (p1, v1, d1) == (65000.0, 890_000.0, "2026-10-20")
+
+
+def test_walk_realized_open_since_excludes_straddling_blowout(db_session, settings):
+    """Czysty baseline: pozycja OTWARTA przed epoką a domknięta PO niej (straddle
+    blowoutu) NIE liczy się przy open_since — stary filtr `since` (po sprzedaży)
+    by ją policzył ze skażoną bazą."""
+    from datetime import UTC, datetime
+
+    from app.models import Trade, TradeMode
+
+    epoch = datetime(2026, 10, 16, tzinfo=UTC)
+    # Pozycja otwarta 10-14 (blowout), domknięta 10-20 — strata na skażonej bazie.
+    db_session.add(Trade(timestamp=datetime(2026, 10, 14, tzinfo=UTC), symbol="AVAX/USD", side="BUY", quantity=1.0, price=1000.0, usdt_value=1000.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.add(Trade(timestamp=datetime(2026, 10, 20, tzinfo=UTC), symbol="AVAX/USD", side="SELL", quantity=1.0, price=100.0, usdt_value=100.0, mode=TradeMode.LIVE, venue="crypto"))
+    # Pozycja czysta: otwarta 10-18, domknięta 10-21 — +$20.
+    db_session.add(Trade(timestamp=datetime(2026, 10, 18, tzinfo=UTC), symbol="SOL/USD", side="BUY", quantity=1.0, price=100.0, usdt_value=100.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.add(Trade(timestamp=datetime(2026, 10, 21, tzinfo=UTC), symbol="SOL/USD", side="SELL", quantity=1.0, price=120.0, usdt_value=120.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.commit()
+
+    # open_since: tylko SOL (otwarta po epoce) — czysty obraz.
+    r, w, l = scorecard._walk_realized(db_session, open_since=epoch, venue="crypto")
+    assert (w, l) == (1, 0) and round(r, 2) == 20.0
+    # stary `since` (po sprzedaży) policzyłby OBIE (AVAX 10-20 i SOL 10-21) -> 1W/1L.
+    r2, w2, l2 = scorecard._walk_realized(db_session, since=epoch, venue="crypto")
+    assert (w2, l2) == (1, 1)

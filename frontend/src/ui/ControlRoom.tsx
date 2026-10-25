@@ -273,8 +273,10 @@ export function Verdict({ status, portfolio }: { status: StatusResponse; portfol
   // blowoutcie 14-15.10), żeby werdykt/trafność/próbka nie liczyły błędu
   // operacyjnego. Pełna historia zostaje — tu tylko odcinamy ją do pomiaru.
   const epoch = sc?.stats_since ?? null;
+  // Czysty baseline: filtr po dacie OTWARCIA pozycji (nie sprzedaży), spójnie z
+  // backendem — pozycje z blowoutu (otwarte pod dźwignią) w całości wycięte.
   const closed = (hist?.trades ?? []).filter(
-    (t) => (t.venue ?? "alpaca") === primary && (!epoch || !t.sold_at || t.sold_at >= epoch),
+    (t) => (t.venue ?? "alpaca") === primary && (!epoch || !t.opened_at || t.opened_at >= epoch),
   );
   const n = closed.length || (sc?.closed_trades ?? 0);
   const TARGET = 50;

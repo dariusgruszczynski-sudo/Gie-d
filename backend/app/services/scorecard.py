@@ -16,28 +16,38 @@ from app.models import SystemState, Trade
 from app.services import risk_manager
 
 
-def _walk_realized(db: Session, since=None, alpaca_only: bool = False, venue: str | None = None) -> tuple[float, int, int]:
+def _walk_realized(db: Session, since=None, alpaca_only: bool = False, venue: str | None = None,
+                   open_since=None) -> tuple[float, int, int]:
     """Walks the full trade history per ticker, tracking a running average
     cost, and books realized P&L on each SELL. Returns
     (total_realized_usd, winning_sells, losing_sells).
 
     `since` (aware datetime) counts ONLY sells at/after that moment toward the
     result -- but the average cost is still walked from the very beginning, so
-    the P&L per sale is correct. `alpaca_only` pomija w liczeniu nogę POZA SESJĄ
-    (venue!=alpaca) -- czyli krypto i inne zaszłości. Oba filtry pozwalają
-    pokazać „staty od ostatniej zmiany, bez krypto" bez kasowania transakcji.
-    `venue` (opcjonalne) liczy TYLKO sprzedaże danej nogi (np. 'crypto') — tak
-    liczymy trafność/wynik dla pulpitu krypto (zamiast alpaca_only)."""
+    the P&L per sale is correct. `open_since` (aware datetime) jest MOCNIEJSZY:
+    liczy sprzedaż tylko, gdy BIEŻĄCY LOT został OTWARTY po tej dacie — tak czysto
+    odcinamy pozycje z blowoutu (otwarte pod dźwignią/ujemną gotówką, więc ich
+    baza kosztowa jest skażona), nawet jeśli domknięto je później. `alpaca_only`
+    pomija nogę POZA SESJĄ; `venue` liczy TYLKO sprzedaże danej nogi."""
 
     trades = db.execute(select(Trade).order_by(Trade.timestamp.asc())).scalars().all()
     qty_by: dict[str, float] = defaultdict(float)
     cost_by: dict[str, float] = defaultdict(float)  # total cost of held qty
+    lot_open: dict[str, object] = {}                # kiedy otwarto BIEŻĄCY lot (od zera)
     realized = 0.0
     wins = 0
     losses = 0
+
+    def _aware(ts):
+        if ts is None:
+            return None
+        return ts if ts.tzinfo else ts.replace(tzinfo=UTC)
+
     for t in trades:
         sym = t.symbol
         if t.side.upper() == "BUY":
+            if qty_by[sym] <= 1e-12:
+                lot_open[sym] = _aware(t.timestamp)   # lot rusza od zera
             qty_by[sym] += t.quantity
             cost_by[sym] += t.usdt_value
         else:  # SELL
@@ -49,8 +59,10 @@ def _walk_realized(db: Session, since=None, alpaca_only: bool = False, venue: st
             pnl = (t.price - avg_cost) * sell_qty
             in_window = True
             if since is not None and t.timestamp is not None:
-                ts = t.timestamp if t.timestamp.tzinfo else t.timestamp.replace(tzinfo=UTC)
-                in_window = ts >= since
+                in_window = _aware(t.timestamp) >= since
+            if open_since is not None:
+                lo = lot_open.get(sym)
+                in_window = in_window and lo is not None and lo >= open_since
             if alpaca_only and getattr(t, "venue", "alpaca") != "alpaca":
                 in_window = False
             if venue is not None and getattr(t, "venue", "alpaca") != venue:
@@ -71,6 +83,7 @@ def _walk_realized(db: Session, since=None, alpaca_only: bool = False, venue: st
             if qty_by[sym] <= 1e-12:
                 qty_by[sym] = 0.0
                 cost_by[sym] = 0.0
+                lot_open.pop(sym, None)
     return realized, wins, losses
 
 
@@ -308,7 +321,9 @@ def compute_scorecard(db: Session, settings: Settings, portfolio: dict, *, venue
     # (zasila „wynik netto"), bo to inny wskaźnik.
     realized, _wl, _ll = _walk_realized(db)
     if venue == "crypto":
-        _r2, wins, losses = _walk_realized(db, since=epoch, venue="crypto")
+        # Czysty baseline: licz tylko pozycje OTWARTE po epoce (open_since), żeby
+        # pozycje z blowoutu (skażona baza) nie zatruwały trafności/wyniku.
+        _r2, wins, losses = _walk_realized(db, open_since=epoch, venue="crypto")
     else:
         _r2, wins, losses = _walk_realized(db, since=epoch, alpaca_only=True)
     closed = wins + losses
