@@ -382,6 +382,10 @@ class Settings(BaseSettings):
     # halt 20% ucinałby handel w KAŻDYM normalnym zjeździe i zamrażał stratę
     # zanim rynek zdążył odbić. 45% = bezpiecznik tylko na prawdziwą
     # katastrofę (gorzej niż cokolwiek w 20-letniej historii).
+    # KILL-SWITCH DŹWIGNI (#25): halt CAŁEGO konta, gdy gotówka spadnie poniżej
+    # −tej kwoty (handel ponad stan / rozjazd z brokerem — sygnatura blowoutu
+    # 14-15.10). Mała tolerancja na zaokrąglenia/fee. 0 = wyłączone.
+    leverage_halt_cash_usd: float = 1000.0
     max_drawdown_halt_pct: float = 45.0
     # 45 -> 90 (2026-07-22, "zdjąć kaganiec"): Claude może wrzucić dużą część
     # kapitału w jeden setup. Realnym ogranicznikiem rozmiaru zostaje ryzyko

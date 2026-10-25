@@ -27,6 +27,30 @@ def test_underwater_account_trips_halt(db_session, settings):
     assert risk_manager.can_trade_automated(db_session, "crypto").approved is False
 
 
+def test_leverage_killswitch_trips_on_negative_cash(db_session, settings):
+    """Kill-switch dźwigni (#25): ujemna gotówka poniżej tolerancji wstrzymuje
+    handel ZANIM equity zejdzie pod wodę (sygnatura blowoutu). Pozytywna/zerowa
+    gotówka nie wyzwala; brak cash_usdt = tripwire pominięty (zgodność wsteczna)."""
+    s = settings.model_copy(update={"leverage_halt_cash_usd": 1000.0})
+    risk_manager.update_portfolio_value(db_session, s, 1000.0, cash_usdt=500.0)
+    # equity nadal DODATNIE, ale gotówka mocno ujemna -> kill-switch.
+    state = risk_manager.update_portfolio_value(db_session, s, 900_000.0, cash_usdt=-117_000.0)
+    assert state.is_halted is True
+    assert "Kill-switch dźwigni" in (state.halted_reason or "")
+    assert "NIE blacklista" in (state.halted_reason or "")
+    assert risk_manager.can_trade_automated(db_session, "crypto").approved is False
+
+
+def test_leverage_killswitch_tolerates_small_and_missing_cash(db_session, settings):
+    s = settings.model_copy(update={"leverage_halt_cash_usd": 1000.0})
+    # Drobny minus (zaokrąglenia) w tolerancji -> brak haltu.
+    st = risk_manager.update_portfolio_value(db_session, s, 1000.0, cash_usdt=-50.0)
+    assert st.is_halted is False
+    # Brak cash_usdt (starzy wołający) -> tripwier pominięty.
+    st2 = risk_manager.update_portfolio_value(db_session, s, 1000.0)
+    assert st2.is_halted is False
+
+
 def test_no_halt_within_limit(db_session, settings):
     risk_manager.update_portfolio_value(db_session, settings, 1000.0)
     state = risk_manager.update_portfolio_value(db_session, settings, 950.0)  # -5%, within 10% limit

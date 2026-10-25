@@ -120,9 +120,14 @@ def record_deposit(db: Session, settings: Settings, amount_usd: float) -> dict:
     return {"deposits_usd_lifetime": round(state.deposits_usd_lifetime, 2)}
 
 
-def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: float) -> SystemState:
+def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: float,
+                           cash_usdt: float | None = None) -> SystemState:
     """Call this every time we compute a fresh portfolio value. Rolls the
-    day/week windows forward and trips the halt if a loss limit is breached."""
+    day/week windows forward and trips the halt if a loss limit is breached.
+
+    `cash_usdt` (opcjonalnie): aktualna gotówka konta. Włącza KILL-SWITCH dźwigni
+    (#25) — ujemna gotówka poniżej tolerancji = handel pod dźwignią / rozjazd z
+    brokerem (sygnatura blowoutu 14-15.10), łapany ZANIM equity zejdzie pod wodę."""
     state = get_state(db)
     today = _today_utc()
     today_str = today.isoformat()
@@ -236,7 +241,20 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
         # blacklista tickerów — żadna moneta/indeks nie jest piętnowana; po
         # zresetowaniu/zasileniu konta i ręcznym Wznów handel wraca na pełnym
         # uniwersum. Lepki (nie resetuje się nowym dniem — to nie okno kroczące).
-        if total_value_usdt <= 0:
+        lev_tol = getattr(settings, "leverage_halt_cash_usd", 0.0) or 0.0
+        if cash_usdt is not None and lev_tol > 0 and cash_usdt < -abs(lev_tol):
+            # KILL-SWITCH DŹWIGNI (#25): ujemna gotówka = handel ponad stan /
+            # rozjazd z brokerem (blowout 14-15.10 zaczął się od −$117k gotówki,
+            # gdy equity jeszcze było dodatnie). Łapiemy to WCZEŚNIEJ niż underwater.
+            state.is_halted = True
+            state.halted_reason = (
+                f"Kill-switch dźwigni: gotówka ${cash_usdt:,.2f} < −${abs(lev_tol):,.0f} — "
+                "handel wstrzymany (rozjazd/dźwignia; bezpiecznik konta, NIE blacklista monet; "
+                "sprawdź pozycje, zasil/zresetuj i Wznów)"
+            )
+            _log_event(db, "leverage_killswitch", state.halted_reason)
+            newly_halted = True
+        elif total_value_usdt <= 0:
             state.is_halted = True
             state.halted_reason = (
                 f"Konto pod wodą: equity ${total_value_usdt:,.2f} ≤ 0 — handel wstrzymany "

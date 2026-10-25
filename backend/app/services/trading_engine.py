@@ -2796,7 +2796,9 @@ def run_cycle(
     # nie wyceniona), karmienie managera ryzyka tą liczbą dałoby FAŁSZYWY halt.
     # Bierzemy wtedy equity brokera (fakt), zamiast magnitudowych heurystyk.
     account_total = _reconcile_account_total(broker, account_total)
-    state = risk_manager.update_portfolio_value(db, settings, account_total)
+    state = risk_manager.update_portfolio_value(
+        db, settings, account_total, cash_usdt=portfolio.get("usdt_balance"),
+    )
     if venue == "alpaca":
         scorecard.update_benchmark_baseline(db, settings, portfolio)
 
