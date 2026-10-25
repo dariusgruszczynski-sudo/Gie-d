@@ -1013,12 +1013,19 @@ def get_history(limit: int = Query(300, le=1000), venue: str | None = None, db: 
 
 
 @router.get("/coins")
-def get_coins(db: Session = Depends(get_db)):
+def get_coins(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     """Zakładka MONETY: dla KAŻDEJ monety krypto, którą bot widzi lub handlował —
     historyczny bilans (zarobił/stracił i ile), liczba zamknięć i trafność. Łączy
     zrealizowany P&L (scorecard, metoda średniego kosztu) z aktualnym uniwersum
     skanera (monety „widziane" teraz, nawet jeśli jeszcze nietknięte)."""
     items = scorecard.realized_history(db, venue="crypto", limit=1000)
+    # Bilans liczymy OD STARTU OBECNEJ STRATEGII (po blowoutcie 14-15.10) — pełna
+    # historia zostaje w logu, ale werdykt/bilans nie są zatruwane błędem
+    # operacyjnym. Zamknięcia sprzed epoki są pomijane w agregacji.
+    state = risk_manager.get_state(db)
+    _epoch, epoch_raw = scorecard.effective_epoch(state, settings, venue="crypto")
+    if epoch_raw:
+        items = [h for h in items if not h.get("sold_at") or h["sold_at"] >= epoch_raw]
     agg: dict[str, dict] = {}
     for h in items:
         sym = h["symbol"]
@@ -1040,7 +1047,6 @@ def get_coins(db: Session = Depends(get_db)):
 
     # Aktualne uniwersum skanera (monety, które bot „widzi" teraz) — żeby pokazać
     # też te jeszcze nietknięte, oznaczone jako obserwowane (bilans 0).
-    state = risk_manager.get_state(db)
     try:
         scanner = json.loads(getattr(state, "crypto_scanner_universe_json", "") or "{}")
     except (TypeError, ValueError):
@@ -1086,6 +1092,7 @@ def get_coins(db: Session = Depends(get_db)):
             "universe_count": len(universe),
             "scanner_pool_size": scanner.get("pool_size"),
             "scanner_at": scanner.get("at"),
+            "since_epoch": epoch_raw or None,
         },
     }
 

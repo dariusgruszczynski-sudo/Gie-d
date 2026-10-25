@@ -176,6 +176,9 @@ export interface PortfolioSnapshot {
 
 export interface Scorecard {
   portfolio_value: number;
+  // Start pomiaru obecnej strategii (ISO) — dla krypto po blowoutcie 14-15.10,
+  // żeby werdykt nie liczył błędu operacyjnego. Null = od początku.
+  stats_since?: string | null;
   benchmark_symbol: string;
   benchmark_start_price: number | null;
   benchmark_start_value: number | null;

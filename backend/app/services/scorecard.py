@@ -74,10 +74,18 @@ def _walk_realized(db: Session, since=None, alpaca_only: bool = False, venue: st
     return realized, wins, losses
 
 
-def effective_epoch(state, settings) -> "object | None":
+def effective_epoch(state, settings, venue: str | None = None) -> "object | None":
     """Data „od kiedy liczymy staty": ręczny Świeży start (SystemState.stats_epoch)
-    ma pierwszeństwo, inaczej domyślny start obecnej strategii z configu."""
-    raw = (getattr(state, "stats_epoch", "") or "") or getattr(settings, "stats_epoch_default", "")
+    ma pierwszeństwo GLOBALNIE; inaczej dla krypto bierzemy crypto_stats_epoch_default
+    (start obecnej strategii PO blowoutcie), a dla reszty domyślny stats_epoch_default."""
+    manual = getattr(state, "stats_epoch", "") or ""
+    if manual:
+        return _parse_epoch(manual), manual
+    if venue == "crypto":
+        craw = getattr(settings, "crypto_stats_epoch_default", "") or ""
+        if craw:
+            return _parse_epoch(craw), craw
+    raw = getattr(settings, "stats_epoch_default", "") or ""
     return _parse_epoch(raw), raw
 
 
@@ -269,7 +277,7 @@ def compute_scorecard(db: Session, settings: Settings, portfolio: dict, *, venue
     # domyślny start strategii). Dla akcji bierzemy nogę sesji (alpaca_only);
     # dla krypto — transakcje nogi krypto. realized_pnl_usd zostaje ŻYCIOWE
     # (zasila „wynik netto"), bo to inny wskaźnik.
-    epoch, epoch_raw = effective_epoch(state, settings)
+    epoch, epoch_raw = effective_epoch(state, settings, venue=venue)
     realized, _wl, _ll = _walk_realized(db)
     if venue == "crypto":
         _r2, wins, losses = _walk_realized(db, since=epoch, venue="crypto")

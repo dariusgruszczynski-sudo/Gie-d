@@ -269,7 +269,13 @@ export function Verdict({ status, portfolio }: { status: StatusResponse; portfol
   }, []);
 
   const sc = portfolio?.scorecard ?? null;
-  const closed = (hist?.trades ?? []).filter((t) => (t.venue ?? "alpaca") === primary);
+  // Mierzymy OD STARTU OBECNEJ STRATEGII (sc.stats_since — dla krypto po
+  // blowoutcie 14-15.10), żeby werdykt/trafność/próbka nie liczyły błędu
+  // operacyjnego. Pełna historia zostaje — tu tylko odcinamy ją do pomiaru.
+  const epoch = sc?.stats_since ?? null;
+  const closed = (hist?.trades ?? []).filter(
+    (t) => (t.venue ?? "alpaca") === primary && (!epoch || !t.sold_at || t.sold_at >= epoch),
+  );
   const n = closed.length || (sc?.closed_trades ?? 0);
   const TARGET = 50;
   const sumP = (arr: HistoryTrade[]) => arr.reduce((s, t) => s + t.pnl_usd, 0);

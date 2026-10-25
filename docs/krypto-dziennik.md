@@ -135,6 +135,26 @@ i 180-min reentry po pełnym wyjściu (ich właściciel nie zdejmował). Weryfik
 baza (akcje) =3 nietknięte, krypto efektywnie =0. ruff + testy profili zielone.
 Reszta ochrony (stopy/cap/breaker/halt 30-40-55%) gra. Reversible: ustaw >0.
 
+### Wpis — 2026-10-25 (Czysty pomiar: odcięcie blowoutu od werdyktu, bez niszczenia danych)
+Nadzór ujawnił, że scorecard/werdykt krypto był ZATRUTY blowoutem dźwigniowym z
+14-15.10 (−$113k, błąd operacyjny już naprawiony): trafność „0%", bilans monet
+−$113k, fantomowe pozycje — bo walk szedł po całej historii. „Żeby było dobrze"
+(prośba właściciela): dodany CUTOFF krypto bez kasowania danych.
+- `crypto_stats_epoch_default = 2026-10-16` — osobny start pomiaru obecnej
+  strategii (po blowoutcie). Pełna historia ZOSTAJE w logu.
+- `effective_epoch(state, settings, venue)` — dla krypto bierze crypto epokę;
+  ręczny „Świeży start" (SystemState.stats_epoch) nadal ma pierwszeństwo globalnie.
+- Scorecard (trafność/zamknięcia) liczy od epoki krypto; zakładka Monety i
+  Werdykt (próbka/win-rate/expectancy/asymetria) odfiltrowane do `stats_since`.
+Efekt: werdykt mierzy NOWĄ strategię, nie błąd operacyjny. UCZCIWIE: wartość
+konta dalej pokazuje realne −12,7% od szczytu (to się stało), ale OCENA strategii
+nie obwinia jej za bug. Wynik netto (życiowy realized) zostaje osobno. Nietknięte:
+noga akcji (własny stats_epoch_default), dane (0 skasowanych). Backend 444/444,
+front tsc/eslint/vitest/build ok, sw v68.
+NIEZROBIONE świadomie: re-anchor benchmarku BTC (alpha dalej liczona od startu
+krypto, więc lekko skażona blowoutem w portfolio_value) — to osobny ruch,
+wymaga decyzji (przesunąć punkt odniesienia BTC). Flaga do następnego kroku.
+
 ### Wpis — 2026-10-24 (TOR 2: altseason-gate ODRZUCONY — negatywny wynik)
 Hipoteza z walk-forward: „edge jest tylko w altseasonie, więc bramkuj alty do
 altseasonu, inaczej trzymaj BTC". Zmierzone na 10 latach (walk-forward 4 okna,

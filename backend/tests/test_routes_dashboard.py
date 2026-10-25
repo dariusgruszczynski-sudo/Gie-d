@@ -66,6 +66,32 @@ def test_coins_tab_aggregates_pnl_per_symbol(db_session):
     assert body["summary"]["won_count"] == 1 and body["summary"]["lost_count"] == 1
 
 
+def test_coins_tab_excludes_pre_epoch_blowout(db_session, settings):
+    """„Żeby było dobrze": zamknięcia SPRZED startu obecnej strategii krypto
+    (crypto_stats_epoch_default — po blowoutcie) są wykluczone z bilansu, żeby
+    błąd operacyjny nie zatruwał werdyktu. Pełna historia zostaje w logu."""
+    from app.api.routes_dashboard import get_coins
+    from app.models import Trade, TradeMode
+
+    s = settings.model_copy(update={"crypto_stats_epoch_default": "2026-10-16T00:00:00+00:00"})
+    before = datetime(2026, 10, 14, tzinfo=UTC)   # blowout — przed epoką
+    after = datetime(2026, 10, 20, tzinfo=UTC)     # obecna strategia — po epoce
+    # BLOW/USD: duża strata w blowoutcie (ma zniknąć z bilansu).
+    db_session.add(Trade(timestamp=before, symbol="BLOW/USD", side="BUY", quantity=1.0, price=1000.0, usdt_value=1000.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.add(Trade(timestamp=before, symbol="BLOW/USD", side="SELL", quantity=1.0, price=100.0, usdt_value=100.0, mode=TradeMode.LIVE, venue="crypto"))
+    # SOL/USD: realny trejd po epoce (ma się liczyć).
+    db_session.add(Trade(timestamp=after, symbol="SOL/USD", side="BUY", quantity=1.0, price=100.0, usdt_value=100.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.add(Trade(timestamp=after, symbol="SOL/USD", side="SELL", quantity=1.0, price=120.0, usdt_value=120.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.commit()
+
+    body = get_coins(db=db_session, settings=s)
+    by = {c["symbol"]: c for c in body["coins"]}
+    assert "BLOW/USD" not in by                       # blowout wykluczony z bilansu
+    assert by["SOL/USD"]["realized_usd"] == 20.0       # trejd po epoce się liczy
+    assert body["summary"]["total_realized_usd"] == 20.0  # NIE −880 z blowoutu
+    assert body["summary"]["since_epoch"] == "2026-10-16T00:00:00+00:00"
+
+
 def test_portfolio_cost_basis_covers_non_whitelist_held(db_session, settings):
     """+/- na pozycji: cena wejścia musi się policzyć dla KAŻDEJ trzymanej nazwy,
     także spoza statycznej whitelisty (np. z dynamicznego uniwersum). Wcześniej

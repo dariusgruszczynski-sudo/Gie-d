@@ -920,6 +920,13 @@ class Settings(BaseSettings):
     # Krypto i noga POZA SESJĄ (venue!=alpaca) są dodatkowo odfiltrowane w kodzie.
     # SystemState.stats_epoch (ręczny reset) nadpisuje tę datę, gdy ustawione.
     stats_epoch_default: str = "2026-08-10T20:11:29+00:00"
+    # KRYPTO — osobny start pomiaru OBECNEJ strategii. Blowout dźwigniowy z
+    # 14-15.10.2026 (błąd operacyjny, już naprawiony: anty-lewar + sufit notional)
+    # zrobił ~−$113k i zatruwał scorecard/werdykt krypto. Mierzymy nową,
+    # mechaniczno-jakościową strategię OD 16.10 — pełna historia ZOSTAJE w logu,
+    # tylko trafność/werdykt/bilans monet liczą się od tej daty (nie niszczymy
+    # danych). Ręczny stats_epoch (Świeży start) nadal ma pierwszeństwo globalnie.
+    crypto_stats_epoch_default: str = "2026-10-16T00:00:00+00:00"
 
     # SIZING WAŻONY PRZEKONANIEM (Scenariusz A, 2026-08-18, na odpowiedzialność
     # właściciela): mocny sygnał (wysoka pewność) dostaje większą pozycję — do
