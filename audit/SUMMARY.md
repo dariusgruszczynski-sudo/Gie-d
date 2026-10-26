@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-10-25T20:46:32Z
+# Audyt GielDarek — 2026-10-26T11:57:20Z
 
-**Wdrożenie:** kod ee09e34 (zbud. 2026-10-25T19:16Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 35d45e0 (zbud. 2026-10-25T21:37Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 0 zamknięć · trafność —% · zrealizowany $0.0
 **7 dni:** 0 zamknięć · —% · $0.0   |   **30 dni:** 0 · —% · $0.0
@@ -36,6 +36,8 @@
 - 1× — Cooldown po stop-lossie: ETH/USD zablokowany do odkupu jeszcze ~150 min
 
 **Ostatnie 20 decyzji:**
+- 2026-10-26T03:52:37.264074 UNI/USD SELL conf=1.0 trig=price_move ✅WYKONANE
+- 2026-10-25T22:37:47.154518 UNI/USD BUY conf=0.6 trig=news_event ✅WYKONANE
 - 2026-10-25T17:33:19.071209 PAXG/USD BUY conf=0.6 trig=news_event ✅WYKONANE
 - 2026-10-25T12:20:57.658967 — HOLD conf=0.0 trig=manual ⛔ ?
 - 2026-10-25T00:48:22.852814 XRP/USD BUY conf=0.6 trig=news_event ✅WYKONANE
@@ -54,5 +56,3 @@
 - 2026-10-23T18:59:40.331921 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-23T18:29:39.994023 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-23T17:59:40.295923 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-10-23T17:29:40.315517 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-10-23T16:36:33.670157 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
