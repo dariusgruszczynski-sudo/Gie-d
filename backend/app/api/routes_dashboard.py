@@ -1093,6 +1093,8 @@ def get_coins(db: Session = Depends(get_db), settings: Settings = Depends(get_se
             "lost_count": sum(1 for c in traded if c["realized_usd"] < 0),
             "universe_count": len(universe),
             "scanner_pool_size": scanner.get("pool_size"),
+            "scanner_scored": scanner.get("scored"),
+            "scanner_skips": scanner.get("skips") or {},   # #31: czemu reszta par odpadła
             "scanner_at": scanner.get("at"),
             "since_epoch": epoch_raw or None,
         },

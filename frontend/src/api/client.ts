@@ -500,7 +500,10 @@ export interface CoinsResponse {
     lost_count: number;
     universe_count: number;
     scanner_pool_size: number | null;
+    scanner_scored?: number | null;
+    scanner_skips?: Record<string, number>;
     scanner_at: string | null;
+    since_epoch?: string | null;
   };
 }
 

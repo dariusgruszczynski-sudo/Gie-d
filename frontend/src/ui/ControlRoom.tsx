@@ -180,6 +180,10 @@ export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }:
               Limity: dzień −{status.daily_loss_limit_pct}% · tydzień −{status.weekly_loss_limit_pct}% · obsunięcie −{status.max_drawdown_halt_pct}%.
               {status.is_halted ? " Automat ZATRZYMANY." : fuel.used < 0.33 ? " Daleko do stopów — spokojnie." : fuel.used < 0.66 ? " Jest zapas, ale bez luzu." : " Blisko bezpiecznika — ostrożnie."}
             </div>
+            <div className="cr-fuel-note" style={{ marginTop: 4 }}>
+              Najbliżej: <b>{fuel.which.name}</b> · od szczytu −{fuel.ddPct.toFixed(1)}% ·
+              gotówka {acc ? money0(acc.cash) : "—"} <small>(kill-switch dźwigni przy −$1000)</small>
+            </div>
           </div>
         </div>
         <div className="cr-grid c2">
@@ -484,6 +488,19 @@ export function Coins() {
             <div className="cr-metric"><span className="k">W uniwersum</span><span className="v">{s!.universe_count}</span><span className="s">widziane teraz</span></div>
             <div className="cr-metric"><span className="k">Par z Alpaki</span><span className="v">{s!.scanner_pool_size ?? "—"}</span><span className="s">cały dostępny rynek</span></div>
           </div>
+
+          {s!.scanner_skips && Object.keys(s!.scanner_skips).length > 0 && (
+            <p className="cr-foot-note" style={{ padding: "8px 2px 0" }}>
+              Skaner: z {s!.scanner_pool_size ?? "?"} par zrankowano {s!.scanner_scored ?? "?"}. Reszta odpadła: {
+                [
+                  s!.scanner_skips.stablecoin ? `${s!.scanner_skips.stablecoin} stablecoin` : "",
+                  s!.scanner_skips.illiquid ? `${s!.scanner_skips.illiquid} za cienkie (płynność)` : "",
+                  s!.scanner_skips.too_few_bars ? `${s!.scanner_skips.too_few_bars} za mało historii` : "",
+                  s!.scanner_skips.no_momentum ? `${s!.scanner_skips.no_momentum} bez momentum` : "",
+                ].filter(Boolean).join(" · ") || "—"
+              }.
+            </p>
+          )}
 
           {data.coins.length === 0 ? (
             <p className="cr-empty">Brak monet do pokazania — skaner jeszcze nie przebiegł i nic nie zamknięto.</p>
