@@ -2097,6 +2097,30 @@ def test_budget_hard_stop_skips_cycle_without_calling_claude(db_session, setting
     assert "Budżet Claude wyczerpany" in (decision.rejection_reason or "")
 
 
+def test_crypto_budget_fallback_goes_mechanical_not_halt(db_session, settings):
+    """Włączony LLM krypto + wyczerpany budżet = NIE zatrzymuj: zejdź do MECHANIKI
+    (auto-deploy $0), a nie zwracaj skip budżetowy. Claude nie jest wołany (oszczędność),
+    ale cykl biegnie dalej mechanicznie."""
+    from app.services import budget_tracker, risk_manager
+    from app.services.strategy_profiles import effective_settings
+
+    s = settings.model_copy(update={
+        "crypto_enabled": True, "crypto_llm_enabled": True, "crypto_auto_deploy_enabled": True,
+        "claude_pause_trading_at_budget": True, "claude_monthly_budget_usd": 1.0,
+    })
+    budget_tracker.record_usage_cost(db_session, 2.0, 100, 50)  # ponad budżet $1
+    risk_manager.resume(db_session, venue="crypto")
+    broker = FakeAlpaca(prices={"BTC/USD": 60000.0}, balances={"USD": 1000.0, "BTC/USD": 0.0})
+    advisor = FakeAdvisor(TradingDecision("HOLD", None, 0, 0.8, "x"))
+    decision = trading_engine.run_cycle(
+        db_session, effective_settings(s, "crypto"), broker, FakeNews(), advisor,
+        venue="crypto", whitelist=["BTC/USD"], always_open=True,
+    )
+    assert advisor.last_kwargs is None  # Claude NIE wołany (budżet)
+    txt = ((decision.reasoning or "") + (decision.rejection_reason or "")) if decision else ""
+    assert "Budżet Claude wyczerpany" not in txt  # NIE skip budżetowy — zeszło do mechaniki
+
+
 def test_force_run_ignores_budget_stop(db_session, settings):
     """A manual "Wymuś analizę" (force) still runs even over budget -- the user
     explicitly accepts the cost."""

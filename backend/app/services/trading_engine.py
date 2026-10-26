@@ -2882,7 +2882,16 @@ def run_cycle(
     # decision could only ever be rejected (or shouldn't burn more budget), so
     # calling Claude would waste money. A manual "Wymuś analizę" (force=True)
     # still runs so the user can see Claude's read on demand.
-    skip_reason = trade_check.reason if not trade_check.approved else budget_over_reason
+    #
+    # KRYPTO + wyczerpany budżet = NIE zatrzymuj: zejdź do MECHANIKI ($0,
+    # auto-deploy wg konfluencji) zamiast stać bezczynnie. Dzięki temu włączenie
+    # LLM dla krypto jest ADDYTYWNE (Claude wetuje/synteza, póki budżet jest; gdy
+    # się skończy, mechanika jedzie dalej), a nie kruche. Halt/pauza nadal
+    # zatrzymują (wtedy i tak nie handlujemy niczym).
+    crypto_budget_fallback = budget_over_reason is not None and venue == "crypto"
+    skip_reason = trade_check.reason if not trade_check.approved else (
+        None if crypto_budget_fallback else budget_over_reason
+    )
     if not force and skip_reason is not None:
         decision = Decision(
             symbol=None,
@@ -2918,8 +2927,14 @@ def run_cycle(
     # konfluencja techniczna, NIE newsy. Blackout newsowy blokowałby wtedy
     # auto-deploy bez powodu (decyzja i tak nie zależy od nagłówków), więc go
     # pomijamy — stopy/cele dalej chronią otwarte pozycje jak wyżej.
-    cheap_crypto_cycle = venue == "crypto" and not settings.crypto_llm_enabled and not force and not dry_run
-    if not force and not cheap_crypto_cycle and _news_blackout_active(db, settings, headlines, venue):
+    # Mechaniczny cykl krypto: LLM wyłączony LUB budżet wyczerpany (fallback) —
+    # wejścia napędza konfluencja, nie płatny Claude i nie newsy.
+    mechanical_crypto = (
+        venue == "crypto"
+        and (not settings.crypto_llm_enabled or crypto_budget_fallback)
+        and not force and not dry_run
+    )
+    if not force and not mechanical_crypto and _news_blackout_active(db, settings, headlines, venue):
         decision = Decision(
             symbol=None,
             action=TradeAction.HOLD,
@@ -2998,7 +3013,7 @@ def run_cycle(
     # LLM jest dla krypto wyłączony -- wejścia napędza mechaniczny auto-deploy
     # (najlepsze setupy wg konfluencji), a wyjścia stopy/cele. Koszt = $0. Ręczne
     # „Wymuś analizę" (force) i podgląd (dry_run) nadal pytają Claude na życzenie.
-    if venue == "crypto" and not settings.crypto_llm_enabled and not force and not dry_run:
+    if mechanical_crypto:
         decisions_data = []
     else:
         decisions_data = _advise_portfolio(

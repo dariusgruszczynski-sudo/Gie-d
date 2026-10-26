@@ -224,12 +224,13 @@ class Settings(BaseSettings):
     crypto_full_analysis_every_minutes: int = 480
     crypto_poll_interval_minutes: int = 15
     crypto_signal_timeframe: str = "1h"
-    # TANI SILNIK (lekcja z akcji: LLM zjadł ~$196). Dla krypto decyzje napędza
-    # MECHANIKA: wyjścia po stopach/celach (zawsze), a wejścia przez auto-deploy w
-    # najlepsze technicznie setupy (entry_confluence). LLM jest DOMYŚLNIE WYŁĄCZONY
-    # dla krypto -> ~$0 kosztu. Włącz crypto_llm_enabled=True tylko, gdy świadomie
-    # chcesz dołożyć ocenę Claude (drożej).
-    crypto_llm_enabled: bool = False
+    # SILNIK HYBRYDOWY: mechanika (wyjścia stopy/cele + wejścia auto-deploy wg
+    # konfluencji) ZAWSZE jedzie; LLM (Claude) dokłada warstwę strategiczną —
+    # wetuje/synteza na wejściach. 2026-10-26 (decyzja właściciela: „klucz jest,
+    # Sonnet już chodzi"): WŁĄCZONY. Kluczowe: jest ADDYTYWNY, nie kruchy — gdy
+    # budżet się wyczerpie, krypto SCHODZI DO MECHANIKI ($0, auto-deploy), a NIE
+    # staje (patrz crypto_budget_fallback w run_cycle). Model: claude_model (Sonnet).
+    crypto_llm_enabled: bool = True
     crypto_auto_deploy_enabled: bool = True
     # Limity ryzyka DEDYKOWANE krypto (24/7, dużo wyższa zmienność niż akcje).
     # Gdy CRYPTO_ENABLED, to ONE są autorytatywne dla account-wide haltu (patrz
