@@ -161,6 +161,10 @@ def main() -> None:
                          help="Walidacja walk-forward: podziel historię na K rozłącznych okien OOS i pokaż, czy przewaga vs benchmark trzyma się w KAŻDYM oknie (wniosek #15). Np. 4.")
     parser.add_argument("--altseason", type=int, default=0, metavar="K",
                          help="Tor 2: walk-forward na K oknach dla WARIANTU BEZ i Z altseason-gate (alty tylko gdy koszyk bije BTC), vs trzymanie BTC. Sprawdza hipotezę 'edge tylko w altseasonie'.")
+    parser.add_argument("--gate", type=int, default=0, metavar="K",
+                         help="#28 BRAMKA: walk-forward na K oknach + twardy werdykt PASS/FAIL (exit 1 gdy przewaga nie jest spójna OOS). Uruchom PRZED wdrożeniem zmiany strategii.")
+    parser.add_argument("--gate-min-beating", type=float, default=50.0, help="Bramka: min %% okien bijących benchmark (domyślnie 50).")
+    parser.add_argument("--gate-min-alpha", type=float, default=0.0, help="Bramka: min mediana alfy %% (domyślnie 0).")
     parser.add_argument("--venue", choices=["alpaca", "crypto"], default="alpaca",
                          help="alpaca (akcje US, benchmark SPY) lub crypto (24/7, benchmark BTCUSD). crypto wymusza Yahoo (głębsza historia niż Alpaca crypto).")
     args = parser.parse_args()
@@ -216,6 +220,22 @@ def main() -> None:
             else:
                 print("  ⚠ Przewaga NIE jest spójna między oknami — wynik może pochodzić z jednego okna. Czerwona flaga GO-LIVE.")
         return
+
+    if args.gate:
+        result = walk_forward.walk_forward(
+            bars_by_symbol, eff, benchmark_symbol=benchmark, folds=args.gate, starting_cash=args.cash,
+        )
+        print(f"\n=== BRAMKA WALK-FORWARD ({source}, {args.gate} okien OOS) ===")
+        print(walk_forward.format_report(result))
+        verdict = walk_forward.gate_verdict(
+            result, min_folds_beating_pct=args.gate_min_beating, min_median_alpha_pct=args.gate_min_alpha,
+        )
+        print("\n## WERDYKT BRAMKI")
+        if verdict["passed"]:
+            print(f"  ✅ PASS — przewaga spójna OOS {verdict['metrics']}")
+        else:
+            print(f"  ❌ FAIL — NIE wdrażaj tej zmiany: {'; '.join(verdict['reasons'])}")
+        sys.exit(0 if verdict["passed"] else 1)
 
     if args.altseason:
         k = args.altseason

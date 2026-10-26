@@ -121,6 +121,36 @@ def walk_forward(
     return {"folds": fold_reports, "summary": summary}
 
 
+def gate_verdict(result: dict, *, min_folds_beating_pct: float = 50.0,
+                 min_median_alpha_pct: float = 0.0) -> dict:
+    """#28 BRAMKA (anty-zygzak): zamienia raport walk-forward w twardy werdykt
+    PASS/FAIL dla zmiany strategii/configu. FAIL, gdy przewaga NIE jest spójna —
+    pobiliśmy benchmark w < min_folds_beating_pct okien LUB mediana alfy <
+    min_median_alpha_pct. Użycie: uruchom PRZED wdrożeniem zmiany; nie promuj
+    zmiany, która nie przechodzi OOS. Zwraca {passed, reasons, metrics}."""
+    if "error" in result or "summary" not in result:
+        return {"passed": False, "reasons": [f"brak wyniku walk-forward: {result.get('error', 'nieznany')}"], "metrics": {}}
+    s = result["summary"]
+    beat = s.get("folds_beating_benchmark") or "0/0"
+    try:
+        num, den = (int(x) for x in str(beat).split("/"))
+        beat_pct = (num / den * 100) if den else 0.0
+    except (ValueError, ZeroDivisionError):
+        beat_pct = 0.0
+    median_alpha = s.get("median_alpha_pct")
+    reasons = []
+    if beat_pct < min_folds_beating_pct:
+        reasons.append(f"pobiło benchmark tylko w {beat} okien ({beat_pct:.0f}% < {min_folds_beating_pct:.0f}%)")
+    if median_alpha is None or median_alpha < min_median_alpha_pct:
+        reasons.append(f"mediana alfy {median_alpha}% < próg {min_median_alpha_pct}%")
+    return {
+        "passed": not reasons,
+        "reasons": reasons,
+        "metrics": {"folds_beating_pct": round(beat_pct, 1), "median_alpha_pct": median_alpha,
+                    "worst_fold_drawdown_pct": s.get("worst_fold_drawdown_pct")},
+    }
+
+
 def format_report(result: dict) -> str:
     """Zwięzły, czytelny markdown walk-forward (do SUMMARY/CI/dziennika)."""
     if "error" in result:

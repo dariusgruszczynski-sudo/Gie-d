@@ -66,3 +66,16 @@ def test_format_report_renders_table_and_error(settings):
     md = walk_forward.format_report(result)
     assert "Walk-forward" in md and "| # |" in md
     assert walk_forward.format_report({"error": "x"}).startswith("Walk-forward: BŁĄD")
+
+
+def test_gate_verdict_pass_and_fail():
+    """#28: bramka PASS gdy przewaga spójna (>=50% okien bije, mediana alfy>=0),
+    FAIL inaczej. Werdykt czytelny do pre-deploy checku."""
+    from app.services import walk_forward
+    good = {"summary": {"folds_beating_benchmark": "3/4", "median_alpha_pct": 12.0, "worst_fold_drawdown_pct": 20.0}}
+    bad = {"summary": {"folds_beating_benchmark": "1/4", "median_alpha_pct": -20.0, "worst_fold_drawdown_pct": 28.0}}
+    assert walk_forward.gate_verdict(good)["passed"] is True
+    v = walk_forward.gate_verdict(bad)
+    assert v["passed"] is False and v["reasons"]
+    # Błąd / brak wyniku -> FAIL (nie przepuszczaj na pustych danych).
+    assert walk_forward.gate_verdict({"error": "insufficient history"})["passed"] is False
