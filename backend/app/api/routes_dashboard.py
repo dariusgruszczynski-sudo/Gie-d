@@ -1099,6 +1099,53 @@ def get_coins(db: Session = Depends(get_db), settings: Settings = Depends(get_se
     }
 
 
+@router.get("/entry-gate")
+def get_entry_gate(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """#30 „Dlaczego (nie) kupuje" na żywo: co realnie blokuje NOWE wejścia TERAZ —
+    flagi konta (halt/pauza/budżet/reżim) + własne słowa silnika z ostatniej decyzji
+    krypto. Zamienia „stoi bezczynnie" w zrozumiałą przyczynę. Tanie (bez brokera)."""
+    state = risk_manager.get_state(db)
+    venue = "crypto" if settings.crypto_enabled else "alpaca"
+    paused_col = {"crypto": "crypto_paused", "extended": "extended_paused"}.get(venue, "is_paused")
+
+    blocking = None
+    if state.is_halted:
+        blocking = {"code": "halt", "message": f"ZATRZYMANE: {state.halted_reason or 'halt ryzyka'}"}
+    elif getattr(state, paused_col, False):
+        blocking = {"code": "paused", "message": "PAUZA (ręczna) — wznów w Sterowaniu, żeby bot wrócił do handlu"}
+    else:
+        try:
+            bs = budget_tracker.get_budget_status(db, settings)
+            if settings.claude_pause_trading_at_budget and bs["claude_monthly_budget_usd"] > 0 and \
+               bs["claude_spend_usd_this_month"] >= bs["claude_monthly_budget_usd"] and settings.crypto_llm_enabled:
+                blocking = {"code": "budget", "message": "Budżet LLM wyczerpany — nowe wejścia wstrzymane do końca miesiąca"}
+        except Exception:  # noqa: BLE001
+            pass
+    if blocking is None:
+        regime = _load_regime(getattr(state, "crypto_market_regime_json", "") or "{}") if venue == "crypto" else None
+        if regime and regime.get("regime") == "risk_off":
+            blocking = {"code": "regime", "message": "Reżim risk-off: rynek pod długą średnią — nowe longi wstrzymane (siedzimy w gotówce)"}
+
+    # Własne słowa silnika z ostatniej decyzji tej nogi (najświeższe „co i czemu").
+    last = db.execute(
+        select(Decision).where(Decision.venue == venue).order_by(Decision.timestamp.desc()).limit(1)
+    ).scalars().first()
+    engine_note = (last.reasoning or "").strip() if last else ""
+
+    if blocking is not None:
+        verdict, message = "blocked", blocking["message"]
+    else:
+        verdict = "scanning"
+        message = "Brak blokad konta — bot skanuje; wejdzie, gdy setup przejdzie bramki (reżim / wybicie / ADX / rama 4h / konfluencja). Dziś rynek może nie dawać czystego wejścia."
+    return {
+        "verdict": verdict,
+        "code": blocking["code"] if blocking else "scanning",
+        "message": message,
+        "engine_note": engine_note,
+        "venue": venue,
+    }
+
+
 @router.get("/learning")
 def get_learning(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     """KRZYWA UCZENIA (#15): czy bot poprawia się w czasie — expectancy/trafność

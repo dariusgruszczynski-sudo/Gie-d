@@ -96,6 +96,28 @@ function riskFuel(status: StatusResponse) {
 }
 
 /* ──────────────────────────────── KOKPIT ───────────────────────────────── */
+function EntryGateBanner() {
+  const [g, setG] = useState<import("../api/client").EntryGateResponse | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () => api.entryGate().then((r) => alive && setG(r)).catch(() => { /* best-effort */ });
+    load();
+    const t = setInterval(load, 20000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+  if (!g) return null;
+  const blocked = g.verdict === "blocked";
+  return (
+    <div className={`cr-gate ${blocked ? "blocked" : "scan"}`}>
+      <span className="ico">{blocked ? "⛔" : "🔎"}</span>
+      <div className="txt">
+        <b>Nowe wejścia: {blocked ? "wstrzymane" : "skanuję"}</b> — {g.message}
+        {g.engine_note && <span className="note">silnik: {g.engine_note}</span>}
+      </div>
+    </div>
+  );
+}
+
 export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }: {
   status: StatusResponse; portfolio: PortfolioResponse | null; decisions: Decision[];
   onGoFlow: () => void; onGoVerdict: () => void;
@@ -143,6 +165,8 @@ export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }:
         <span className="ico">{doingIco}</span>
         <div className="txt">{doingTxt}<span className="when">{latest ? ago(latest.timestamp) : "na żywo"} · bot {pausedOf(status) ? "wstrzymany" : "pilnuje"}</span></div>
       </div>
+
+      <EntryGateBanner />
 
       <div className="cr-grid c2">
         <div className="cr-panel">

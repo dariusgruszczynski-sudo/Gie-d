@@ -409,6 +409,7 @@ export const api = {
   history: () => apiFetch<HistoryResponse>(withShare("/api/history")),
   coins: () => apiFetch<CoinsResponse>(withShare("/api/coins")),
   learning: () => apiFetch<LearningResponse>(withShare("/api/learning")),
+  entryGate: () => apiFetch<EntryGateResponse>(withShare("/api/entry-gate")),
   audit: () => apiFetch<AuditResponse>(withShare("/api/audit")),
   health: () => apiFetch<HealthReport>("/api/health"),
   healthReset: (action: string) =>
@@ -470,6 +471,13 @@ export interface CoinRow {
   last_at: string | null;
   in_universe: boolean;
   status: "won" | "lost" | "flat" | "watch";
+}
+export interface EntryGateResponse {
+  verdict: "blocked" | "scanning";
+  code: string;
+  message: string;
+  engine_note: string;
+  venue: string;
 }
 export interface LearningResponse {
   cohorts: Array<{ from: string | null; to: string | null; n: number; expectancy_pct: number; win_rate: number }>;

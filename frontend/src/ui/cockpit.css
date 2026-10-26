@@ -560,3 +560,11 @@
 .cr-insight { margin-top: 12px; padding: 11px 13px; border-radius: 10px; border: 1px solid var(--cr-line-2); background: color-mix(in srgb, var(--cr-accent) 7%, transparent); font-size: 0.82rem; line-height: 1.5; }
 .cr-insight-h { font-weight: 700; margin-bottom: 4px; }
 .cr-insight .dim { color: var(--cr-dim-2); font-weight: 400; }
+
+/* === Baner „dlaczego (nie) kupuje" (#30, Kokpit) ======================== */
+.cr-gate { display: flex; gap: 10px; align-items: flex-start; padding: 10px 13px; border-radius: 11px; margin-bottom: 12px; border: 1px solid var(--cr-line-2); }
+.cr-gate.scan { background: color-mix(in srgb, var(--cr-accent) 7%, transparent); }
+.cr-gate.blocked { background: color-mix(in srgb, var(--cr-warn) 12%, transparent); border-color: color-mix(in srgb, var(--cr-warn) 40%, transparent); }
+.cr-gate .ico { font-size: 1.1rem; line-height: 1.3; }
+.cr-gate .txt { font-size: 0.84rem; line-height: 1.45; }
+.cr-gate .txt .note { display: block; font-size: 0.7rem; color: var(--cr-dim); margin-top: 3px; }

@@ -378,3 +378,37 @@ def test_widget_includes_edge_and_last_trade(db_session, settings):
     assert body["edge"]["avg_win_usd"] == 10.0
     assert body["last_trade"]["symbol"] == "SPY"
     assert body["last_trade"]["pnl_usd"] == 10.0
+
+
+def test_entry_gate_reports_halt_pause_and_scanning(db_session, settings):
+    """#30: endpoint mówi, co blokuje nowe wejścia — halt > pauza > reżim, a przy
+    braku blokad: 'skanuje'. Dodaje własne słowa silnika z ostatniej decyzji."""
+    from app.api.routes_dashboard import get_entry_gate
+    from app.models import Decision, TradeAction
+    from app.services import risk_manager
+
+    s = settings.model_copy(update={"crypto_enabled": True})
+    # Ostatnia decyzja krypto — jej reasoning ma wrócić jako engine_note.
+    db_session.add(Decision(symbol=None, action=TradeAction.HOLD, size_pct=0.0, confidence=0.0,
+                            reasoning="Cały koszyk w jednoczesnym spadku 1h — HOLD.", venue="crypto", executed=False))
+    db_session.commit()
+
+    # Bez halt/pauzy (wznowione): skanuje.
+    risk_manager.get_state(db_session).crypto_paused = False
+    db_session.commit()
+    g = get_entry_gate(db=db_session, settings=s)
+    assert g["verdict"] == "scanning" and "koszyk" in g["engine_note"]
+
+    # Pauza ręczna -> blocked/paused.
+    risk_manager.get_state(db_session).crypto_paused = True
+    db_session.commit()
+    g2 = get_entry_gate(db=db_session, settings=s)
+    assert g2["verdict"] == "blocked" and g2["code"] == "paused"
+
+    # Halt > pauza.
+    st = risk_manager.get_state(db_session)
+    st.is_halted = True
+    st.halted_reason = "Kill-switch dźwigni"
+    db_session.commit()
+    g3 = get_entry_gate(db=db_session, settings=s)
+    assert g3["code"] == "halt" and "Kill-switch" in g3["message"]
