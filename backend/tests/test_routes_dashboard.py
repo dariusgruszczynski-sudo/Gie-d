@@ -412,3 +412,50 @@ def test_entry_gate_reports_halt_pause_and_scanning(db_session, settings):
     db_session.commit()
     g3 = get_entry_gate(db=db_session, settings=s)
     assert g3["code"] == "halt" and "Kill-switch" in g3["message"]
+
+
+# --- Fix #1 (2026-10-27): monitor rekonsyliacji baza↔broker. Geneza: baza myślała,
+# że trzyma ~$476k crypto (HYPE+XRP+PAXG), broker widział ~$110k -- rozjazd ~$366k,
+# który realized+unrealized całkowicie mijały ('+$1 174' przy koncie −27%). ---
+
+def test_reconciliation_flags_ledger_broker_divergence(db_session, settings):
+    """Gdy baza myśli, że trzymamy pozycję, a broker jej nie ma (fille okazały się
+    fikcją), monitor liczy rozjazd i reconciled=False -> czerwony baner."""
+    from app.api.routes_dashboard import _reconciliation_view
+    from app.models import Trade, TradeMode
+    now = datetime.now(UTC)
+    db_session.add(Trade(timestamp=now, symbol="HYPE/USD", side="BUY", quantity=100.0,
+                         price=80.0, usdt_value=8000.0, mode=TradeMode.LIVE, venue="crypto"))
+    # Broker: 0 HYPE (pozycja „wyparowała"), sama gotówka.
+    db_session.add(PortfolioSnapshot(timestamp=now, total_value_usdt=2000.0, usdt_balance=2000.0,
+                                     balances_json=json.dumps({}),
+                                     prices_json=json.dumps({"HYPE/USD": 80.0}), venue="crypto"))
+    db_session.commit()
+    rec = _reconciliation_view(db_session, settings.model_copy(update={"crypto_enabled": True}))
+    assert rec is not None
+    assert rec["ledger_crypto_usd"] == pytest.approx(8000.0)
+    assert rec["broker_crypto_usd"] == pytest.approx(0.0)
+    assert rec["residual_usd"] == pytest.approx(8000.0)
+    assert rec["reconciled"] is False
+    assert rec["by_symbol"][0]["symbol"] == "HYPE/USD"
+
+
+def test_reconciliation_ok_when_ledger_matches_broker(db_session, settings):
+    """Gdy baza zgadza się z brokerem, reconciled=True (brak banera)."""
+    from app.api.routes_dashboard import _reconciliation_view
+    from app.models import Trade, TradeMode
+    now = datetime.now(UTC)
+    db_session.add(Trade(timestamp=now, symbol="BTC/USD", side="BUY", quantity=0.1,
+                         price=80000.0, usdt_value=8000.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.add(PortfolioSnapshot(timestamp=now, total_value_usdt=10000.0, usdt_balance=2000.0,
+                                     balances_json=json.dumps({"BTC/USD": 0.1}),
+                                     prices_json=json.dumps({"BTC/USD": 80000.0}), venue="crypto"))
+    db_session.commit()
+    rec = _reconciliation_view(db_session, settings.model_copy(update={"crypto_enabled": True}))
+    assert rec["reconciled"] is True
+    assert rec["residual_usd"] == pytest.approx(0.0)
+
+
+def test_reconciliation_none_when_crypto_disabled(db_session, settings):
+    from app.api.routes_dashboard import _reconciliation_view
+    assert _reconciliation_view(db_session, settings.model_copy(update={"crypto_enabled": False})) is None

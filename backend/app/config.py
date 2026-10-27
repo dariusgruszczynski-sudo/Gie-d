@@ -186,6 +186,14 @@ class Settings(BaseSettings):
     # 40 -> 20: twardy sufit udziału JEDNEJ pary (anty-koncentracja + z dala od
     # limitu $200k/zlecenie nawet przy piramidowaniu).
     crypto_max_position_pct: float = 20.0            # max udział jednej pary
+    # ANTY-BLOWOUT NA NIEPŁYNNE (2026-10-27, wyraźna zgoda właściciela): pojedyncze
+    # zlecenie nie może przekroczyć N× średniego dziennego obrotu $ monety (ze
+    # skanera). Geneza: HYPE (~$2k/d obrotu) dostał $232k w 3 zleceniach = ~100×
+    # dzienny wolumen — fille po jednej, zamrożonej cenie $81,36 okazały się fikcją,
+    # a konto rozjechało się z brokerem o ~$360k (policzone w rekonsyliacji). Na
+    # mikro-giełdzie Alpaki ROZMIAR musi być wiązany płynnością, nie tylko % konta:
+    # 20% z $626k = $125k to wciąż 60× dziennego obrotu cienkiej monety. 0 = wyłączone.
+    crypto_max_order_vs_dollar_vol_mult: float = 8.0
     # Cel pojedynczego auto-deploy: mniejszy niż bazowe 25% (osobny override), żeby
     # zlecenia nie ocierały się o limit Alpaki. 15% zostawia bufor pod $200k.
     crypto_auto_deploy_max_position_pct: float = 15.0

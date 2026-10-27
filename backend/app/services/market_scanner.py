@@ -121,11 +121,15 @@ def scan_universe_report(broker, settings: Settings) -> dict:
     fallback = list(settings.crypto_symbols)
 
     def _report(universe, *, pool_size=0, scanned=0, scored=0, top=None,
-                fell_back=False, reason="", cached=False, skips=None, liquidity=None) -> dict:
+                fell_back=False, reason="", cached=False, skips=None, liquidity=None,
+                dollar_vol=None) -> dict:
         return {
             "universe": universe or fallback, "pool_size": pool_size, "scanned": scanned,
             "scored": scored, "top": top or [], "fell_back": fell_back, "reason": reason,
             "cached": cached, "skips": skips or {}, "liquidity": liquidity or {},
+            # Pełna mapa sym -> śr. dzienny obrót $ (NIE tylko top-12 z podsumowania):
+            # egzekucja wiąże nią rozmiar zlecenia (crypto_max_order_vs_dollar_vol_mult).
+            "dollar_vol": dollar_vol or {},
         }
 
     if not getattr(settings, "crypto_scanner_enabled", False):
@@ -212,4 +216,5 @@ def scan_universe_report(broker, settings: Settings) -> dict:
         reason = "ok"
     return _report(result, pool_size=pool_size, scanned=len(pool), scored=len(scored),
                    top=top, fell_back=fell_back, reason=reason, skips=skips,
-                   liquidity=_liquidity_summary(liq))
+                   liquidity=_liquidity_summary(liq),
+                   dollar_vol={s: round(v) for s, v in liq.items()})

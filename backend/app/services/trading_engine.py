@@ -1977,6 +1977,39 @@ def _process_decision(
             db.refresh(decision)
             return decision
 
+        # --- ANTY-BLOWOUT NA NIEPŁYNNE (crypto): koncentracja + rozmiar vs obrót ---
+        # Geneza (2026-10-27): 3 zlecenia HYPE ($89k+$77k+$66k = $232k) weszły w JEDNĄ
+        # cienką monetę — ~27% konta, ~100× dziennego obrotu — bo max_position_pct był
+        # egzekwowany TYLKO w auto-deploy/pyramid, a ta ścieżka (decyzja Claude /
+        # mechaniczna) go OMIJAŁA. Fille po jednej, zamrożonej cenie okazały się fikcją
+        # i konto rozjechało się z brokerem o ~$360k. Domykamy lukę w GŁÓWNYM torze.
+        if venue == "crypto":
+            acct_total = portfolio.get("total_value_usdt", 0.0) or 0.0
+            price_now = portfolio["prices"].get(decision_data.symbol, 0.0) or 0.0
+            held_val = _held_qty(portfolio, decision_data.symbol, settings) * price_now
+            cap_pct = settings.max_position_pct
+            # Twardy cap udziału JEDNEJ monety — działa też na DOKŁADKI (dokładanie do
+            # przerośniętej pozycji to był mechanizm blowoutu), inaczej niż limit
+            # równoczesnych pozycji wyżej, który zwalnia już trzymane.
+            if acct_total > 0 and cap_pct > 0 and held_val >= acct_total * cap_pct / 100.0:
+                decision.rejection_reason = (
+                    f"Limit koncentracji: {decision_data.symbol} to już "
+                    f"{held_val / acct_total * 100:.1f}% konta (sufit {cap_pct:.0f}%) — "
+                    "wejście/dokładka zablokowane (anty-koncentracja)"
+                )
+                db.add(decision)
+                db.commit()
+                db.refresh(decision)
+                return decision
+            # Mapa średniego dziennego obrotu $ ze skanera -> twarde przycięcie rozmiaru
+            # zlecenia w _execute_trade (zlecenie ≤ N× obrotu). Stan czytamy raz tutaj.
+            if (getattr(settings, "crypto_max_order_vs_dollar_vol_mult", 0.0) or 0.0) > 0:
+                try:
+                    _sc = json.loads(getattr(risk_manager.get_state(db), "crypto_scanner_universe_json", "") or "{}")
+                    portfolio["dollar_vol"] = (_sc or {}).get("dollar_vol") or {}
+                except (TypeError, ValueError):
+                    portfolio["dollar_vol"] = {}
+
         # Auto-demotion: a ticker with a proven negative track record on this
         # venue is quarantined from NEW entries -- stop repeating what loses.
         if settings.auto_demote_enabled:
@@ -3147,6 +3180,45 @@ def _execute_trade(
         max_notional = getattr(settings, "max_order_notional_usd", 0.0)
         if max_notional > 0:
             usdt_amount = min(usdt_amount, max_notional)
+        # ANTY-BLOWOUT NA NIEPŁYNNE (crypto): dwa twarde sufity rozmiaru POJEDYNCZEGO
+        # zlecenia, żeby egzekucja nie mogła powtórzyć wlania $232k w cienkie HYPE.
+        # Jedno źródło prawdy dla rozmiaru AUTOMATU — manualne wejścia (override
+        # właściciela) celowo omijają cap, jak sufit max_position_pct niżej. Mapę
+        # obrotu bierzemy z portfela (podstawia ją bramka run_cycle), a gdy jej brak —
+        # czytamy stan skanera (fail-safe dla toru auto-deploy).
+        if venue == "crypto" and not is_manual:
+            price_now = (portfolio.get("prices") or {}).get(symbol) or 0.0
+            acct_total = portfolio.get("total_value_usdt", 0.0) or 0.0
+            # (1) Udział jednej monety: nie pozwól DOŁOŻYĆ ponad sufit % konta.
+            cap_pct = getattr(settings, "max_position_pct", 0.0) or 0.0
+            if acct_total > 0 and cap_pct > 0:
+                held_val = _held_qty(portfolio, symbol, settings) * price_now
+                conc_room = max(0.0, acct_total * cap_pct / 100.0 - held_val)
+                usdt_amount = min(usdt_amount, conc_room)
+            # (2) Płynność: zlecenie ≤ N× średniego dziennego obrotu $ monety.
+            mult = getattr(settings, "crypto_max_order_vs_dollar_vol_mult", 0.0) or 0.0
+            if mult > 0:
+                dv_map = portfolio.get("dollar_vol")
+                if dv_map is None:
+                    try:
+                        from app.services import risk_manager as _rm
+                        dv_map = (json.loads(getattr(_rm.get_state(db), "crypto_scanner_universe_json", "") or "{}") or {}).get("dollar_vol") or {}
+                    except (TypeError, ValueError):
+                        dv_map = {}
+                dv = float((dv_map or {}).get(symbol, 0.0) or 0.0)
+                if dv > 0 and usdt_amount > mult * dv:
+                    logger.info(
+                        "Płynność tnie zlecenie %s: $%.0f -> $%.0f (obrót ~$%.0f/d × %.0f)",
+                        symbol, usdt_amount, mult * dv, dv, mult,
+                    )
+                    usdt_amount = mult * dv
+            # Po przycięciach: zlecenie poniżej minimum brokera = pomiń czysto zamiast
+            # słać ~$0 (ValueError łapany wyżej -> zapisany jako rejection_reason).
+            if usdt_amount < MIN_SELL_NOTIONAL_USD:
+                raise ValueError(
+                    f"Rozmiar {symbol} przycięty do ${usdt_amount:.2f} przez limit "
+                    "koncentracji/płynności — poniżej minimum, pomijam"
+                )
         # Rekomendacja B: nazwy o szerokim spreadzie kupujemy marketable-LIMIT
         # (mniej poślizgu); reszta zostaje market. Fallback na market jest w
         # place_order_for_session, gdy kawałek < 1 akcja (małe konto, ułamki).

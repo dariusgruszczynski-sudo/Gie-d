@@ -456,6 +456,15 @@
 }
 .cr-halt-banner b { color: #ff9ca5; }
 
+/* Fix #1: baner rozjazdu baza↔broker — głośny, bursztynowo-czerwony, nie do przeoczenia. */
+.cr-recon-banner {
+  font-size: 0.82rem; line-height: 1.55; padding: 12px 14px; border-radius: 10px; margin-bottom: 12px;
+  color: var(--cr-warn); border: 1px solid color-mix(in srgb, var(--cr-warn) 50%, transparent);
+  background: color-mix(in srgb, var(--cr-warn) 11%, transparent);
+}
+.cr-recon-banner b { color: #ffd27a; }
+.cr-recon-banner .syms { display: block; margin-top: 5px; font-size: 0.72rem; color: var(--cr-dim); }
+
 /* Reużyte widżety gd-* osadzone w control-roomie — zwężenie marginesów */
 .cr-screen .gd-pcards { display: grid; gap: 10px; }
 .cr-screen .gd-stream { display: flex; flex-direction: column; gap: 8px; }

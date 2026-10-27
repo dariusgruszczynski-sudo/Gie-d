@@ -118,6 +118,24 @@ function EntryGateBanner() {
   );
 }
 
+// Fix #1: głośny baner, gdy baza transakcji rozjeżdża się z realnym kontem brokera.
+// Geneza: baza myślała, że trzymamy ~$476k crypto, broker widział ~$110k (rozjazd
+// ~$366k), a „zysk bota" pokazywał +$1 174 przy koncie −27%. Teraz to NIE przejdzie
+// po cichu — wynik automatu zaniża stratę zjedzoną po stronie kupna (niepłynne fille).
+function ReconciliationBanner({ status }: { status: StatusResponse }) {
+  const r = status.reconciliation;
+  if (!r || r.reconciled) return null;
+  const top = (r.by_symbol ?? []).slice(0, 3);
+  return (
+    <div className="cr-recon-banner">
+      ⚠️ <b>Rozjazd bazy z brokerem: {r.residual_usd >= 0 ? "+" : "−"}{money0(Math.abs(r.residual_usd))}</b> — baza myśli, że trzymamy {money0(r.ledger_crypto_usd)} crypto, a broker widzi {money0(r.broker_crypto_usd)}. „Zysk bota" może zaniżać stratę zjedzoną po stronie KUPNA (niepłynne, przepłacone fille).
+      {top.length > 0 && (
+        <span className="syms">{top.map((s) => `${s.symbol}: ${s.diff_usd >= 0 ? "+" : "−"}${money0(Math.abs(s.diff_usd))}`).join(" · ")}</span>
+      )}
+    </div>
+  );
+}
+
 export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }: {
   status: StatusResponse; portfolio: PortfolioResponse | null; decisions: Decision[];
   onGoFlow: () => void; onGoVerdict: () => void;
@@ -150,6 +168,8 @@ export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }:
       {status.is_halted && status.halted_reason && (
         <div className="cr-halt-banner">⛔ <b>Bezpiecznik zatrzymał bota.</b> {status.halted_reason} — otwórz STER i naciśnij „Odblokuj", żeby wznowić i wyzerować punkty odniesienia.</div>
       )}
+
+      <ReconciliationBanner status={status} />
 
       <div className="cr-hero">
         <span className="lbl">Wartość konta</span>

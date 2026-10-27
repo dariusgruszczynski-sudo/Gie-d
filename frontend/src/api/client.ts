@@ -84,6 +84,16 @@ export interface StatusResponse {
   account: AccountView | null;
   // Ile zarobił/stracił SAM automat (odporne na wpłaty): zrealizowany + papierowy.
   trading_pnl: { realized_usd: number; unrealized_usd: number; total_usd: number };
+  // Fix #1: monitor rozjazdu baza↔broker. reconciled=false -> wynik automatu może
+  // GROŹNIE zaniżać stratę zjedzoną po stronie kupna (niepłynne, przepłacone fille).
+  reconciliation?: {
+    ledger_crypto_usd: number;
+    broker_crypto_usd: number;
+    residual_usd: number;
+    reconciled: boolean;
+    threshold_usd: number;
+    by_symbol: { symbol: string; ledger_qty: number; broker_qty: number; diff_usd: number }[];
+  } | null;
   // Alfa vs trzymanie SPY (czy bijemy zwykłe DCA w indeks); null bez baseline'u.
   alpha_vs_spy: { benchmark: string; benchmark_value: number; alpha_usd: number; alpha_pct: number | null } | null;
   // Read-only share link enabled on the server (token stays server-side).

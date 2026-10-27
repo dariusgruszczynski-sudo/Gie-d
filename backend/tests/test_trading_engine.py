@@ -2395,3 +2395,92 @@ def test_manual_trade_refreshes_snapshot(db_session, settings):
     )
     after = db_session.query(PortfolioSnapshot).count()
     assert after > before
+
+
+# --- Fix #2 (2026-10-27): anty-blowout na niepłynne -- cap koncentracji per moneta
+# + bramka rozmiar-zlecenia-vs-obrót w _execute_trade. Geneza: 3 zlecenia HYPE
+# ($89k+$77k+$66k = $232k) w JEDNĄ cienką monetę (~27% konta, ~100× obrotu). ---
+
+def _crypto_exec_settings(settings, **over):
+    """Crypto-efektywne Settings do testów sizingu _execute_trade."""
+    from app.services.strategy_profiles import effective_settings
+    base = {"crypto_enabled": True, "quote_currency": "USD",
+            "regular_marketable_limit_enabled": False}
+    base.update(over)
+    return effective_settings(settings.model_copy(update=base), "crypto")
+
+
+@pytest.fixture
+def _no_trade_alerts(monkeypatch):
+    monkeypatch.setattr(trading_engine.email_reporter, "send_trade_alert", lambda *a, **k: None)
+    monkeypatch.setattr(trading_engine.push_notifier, "send_trade_push", lambda *a, **k: None)
+
+
+def test_crypto_concentration_cap_trims_buy(db_session, settings, _no_trade_alerts):
+    """Zlecenie krypto przycięte do max_position_pct% konta, choć size_pct chce
+    wlać całą gotówkę (anty-koncentracja — luka, przez którą wszedł HYPE)."""
+    broker = FakeAlpaca(prices={"X/USD": 100.0}, balances={"USD": 1000.0})
+    cs = _crypto_exec_settings(settings, crypto_max_position_pct=20.0,
+                               crypto_max_order_vs_dollar_vol_mult=0.0,
+                               max_order_notional_usd=0.0)
+    pf = {"balances": {}, "prices": {"X/USD": 100.0},
+          "usdt_balance": 1000.0, "total_value_usdt": 1000.0}
+    trade = trading_engine._execute_trade(
+        db=db_session, broker=broker, settings=cs, symbol="X/USD",
+        action="BUY", size_pct=100.0, portfolio=pf, decision=None,
+        is_manual=False, venue="crypto",
+    )
+    assert trade.usdt_value == pytest.approx(200.0, rel=1e-6)  # 20% z $1000
+
+
+def test_crypto_liquidity_gate_trims_to_volume_multiple(db_session, settings, _no_trade_alerts):
+    """Zlecenie ≤ N× średniego dziennego obrotu $ monety: obrót $10/d, mult 8 ->
+    sufit $80, choć gotówki jest $100k."""
+    broker = FakeAlpaca(prices={"X/USD": 100.0}, balances={"USD": 100000.0})
+    cs = _crypto_exec_settings(settings, crypto_max_position_pct=90.0,
+                               crypto_max_order_vs_dollar_vol_mult=8.0,
+                               max_order_notional_usd=0.0)
+    pf = {"balances": {}, "prices": {"X/USD": 100.0},
+          "usdt_balance": 100000.0, "total_value_usdt": 100000.0,
+          "dollar_vol": {"X/USD": 10.0}}
+    trade = trading_engine._execute_trade(
+        db=db_session, broker=broker, settings=cs, symbol="X/USD",
+        action="BUY", size_pct=100.0, portfolio=pf, decision=None,
+        is_manual=False, venue="crypto",
+    )
+    assert trade.usdt_value == pytest.approx(80.0, rel=1e-6)
+
+
+def test_crypto_manual_buy_bypasses_size_caps(db_session, settings, _no_trade_alerts):
+    """Manualny override właściciela celowo omija limity rozmiaru automatu."""
+    broker = FakeAlpaca(prices={"X/USD": 100.0}, balances={"USD": 1000.0})
+    cs = _crypto_exec_settings(settings, crypto_max_position_pct=20.0,
+                               crypto_max_order_vs_dollar_vol_mult=8.0,
+                               max_order_notional_usd=0.0)
+    pf = {"balances": {}, "prices": {"X/USD": 100.0},
+          "usdt_balance": 1000.0, "total_value_usdt": 1000.0,
+          "dollar_vol": {"X/USD": 1.0}}
+    trade = trading_engine._execute_trade(
+        db=db_session, broker=broker, settings=cs, symbol="X/USD",
+        action="BUY", size_pct=100.0, portfolio=pf, decision=None,
+        is_manual=True, venue="crypto",
+    )
+    assert trade.usdt_value == pytest.approx(1000.0, rel=1e-6)
+
+
+def test_crypto_buy_below_minimum_after_trim_raises(db_session, settings, _no_trade_alerts):
+    """Gdy limity przytną zlecenie poniżej minimum brokera -> pomijamy (ValueError)
+    zamiast słać zlecenie ~$0."""
+    broker = FakeAlpaca(prices={"X/USD": 100.0}, balances={"USD": 1000.0})
+    cs = _crypto_exec_settings(settings, crypto_max_position_pct=90.0,
+                               crypto_max_order_vs_dollar_vol_mult=8.0,
+                               max_order_notional_usd=0.0)
+    pf = {"balances": {}, "prices": {"X/USD": 100.0},
+          "usdt_balance": 1000.0, "total_value_usdt": 1000.0,
+          "dollar_vol": {"X/USD": 0.01}}  # 8 × 0.01 = $0.08 < $1
+    with pytest.raises(ValueError):
+        trading_engine._execute_trade(
+            db=db_session, broker=broker, settings=cs, symbol="X/USD",
+            action="BUY", size_pct=100.0, portfolio=pf, decision=None,
+            is_manual=False, venue="crypto",
+        )

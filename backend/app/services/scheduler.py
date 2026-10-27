@@ -121,8 +121,20 @@ def _crypto_job() -> None:
         try:
             from app.services import risk_manager
             st = risk_manager.get_state(db)
+            # Mapa obrotu $ wiąże rozmiar zleceń w egzekucji. Skaner cache'uje ranking
+            # (crypto_scanner_cache_min), a na cache-hicie NIE przelicza płynności —
+            # wtedy report["dollar_vol"] jest puste. Nie zerujemy wtedy zapisu: bramka
+            # płynności zostaje bez danych inaczej i otwiera się na oścież (fail-open),
+            # więc trzymamy OSTATNIO ZNANĄ mapę aż skaner ją odświeży.
+            dv_new = report.get("dollar_vol") or {}
+            if not dv_new:
+                try:
+                    dv_new = (json.loads(st.crypto_scanner_universe_json or "{}") or {}).get("dollar_vol") or {}
+                except (TypeError, ValueError):
+                    dv_new = {}
             st.crypto_scanner_universe_json = json.dumps({
                 **{k: report[k] for k in ("universe", "pool_size", "scanned", "scored", "fell_back", "reason", "skips", "liquidity")},
+                "dollar_vol": dv_new,
                 "at": datetime.now(UTC).isoformat(),
             })
             db.commit()
