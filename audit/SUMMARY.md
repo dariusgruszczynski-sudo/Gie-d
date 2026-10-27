@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-10-27T19:50:54Z
+# Audyt GielDarek — 2026-10-27T20:46:55Z
 
-**Wdrożenie:** kod 6ce61eb (zbud. 2026-10-26T20:40Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod ae787c0 (zbud. 2026-10-27T20:39Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 0 zamknięć · trafność —% · zrealizowany $0.0
 **7 dni:** 0 zamknięć · —% · $0.0   |   **30 dni:** 0 · —% · $0.0
@@ -10,7 +10,7 @@
 ## Wnioski
 - (neu) Za mało zamkniętych transakcji (0) na mocne wnioski — bot dopiero zbiera próbkę.
 - (neu) Limit wejść bywa osiągany (10 dni) — podniesienie może dołożyć wejść.
-- (neu) Najczęstszy powód pominięcia wejścia: „Automat (alpaca) zapauzowany ręcznie” (103× z ostatnich 300 decyzji).
+- (neu) Najczęstszy powód pominięcia wejścia: „Automat (alpaca) zapauzowany ręcznie” (101× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
 
@@ -36,6 +36,9 @@
 - 1× — Cooldown po stop-lossie: ETH/USD zablokowany do odkupu jeszcze ~1395 min
 
 **Ostatnie 20 decyzji:**
+- 2026-10-27T20:26:04.376017 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-27T20:11:06.458755 — HOLD conf=0.7 trig=news_event ⛔ ?
+- 2026-10-27T19:56:09.556112 — HOLD conf=0.7 trig=news_event ⛔ ?
 - 2026-10-27T19:41:16.916201 XRP/USD SELL conf=0.55 trig=news_event ✅WYKONANE
 - 2026-10-27T19:40:40.407366 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-10-27T19:26:07.008005 — HOLD conf=0.0 trig=news_event ⛔ ?
@@ -53,6 +56,3 @@
 - 2026-10-27T17:56:09.790692 — HOLD conf=0.7 trig=news_event ⛔ ?
 - 2026-10-27T17:41:10.289240 — HOLD conf=0.6 trig=news_event ⛔ ?
 - 2026-10-27T17:40:40.421262 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-10-27T17:26:08.942489 ETH/USD BUY conf=0.6 trig=news_event ⛔ Cooldown po stop-lossie: ETH/USD zablokowany do odkupu jeszcze ~1395 min
-- 2026-10-27T17:26:08.491528 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-10-27T17:11:16.356878 — HOLD conf=0.6 trig=news_event ⛔ ?
