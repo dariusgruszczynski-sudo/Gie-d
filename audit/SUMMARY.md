@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-10-26T23:45:38Z
+# Audyt GielDarek — 2026-10-27T11:19:15Z
 
 **Wdrożenie:** kod 6ce61eb (zbud. 2026-10-26T20:40Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
@@ -10,7 +10,7 @@
 ## Wnioski
 - (neu) Za mało zamkniętych transakcji (0) na mocne wnioski — bot dopiero zbiera próbkę.
 - (neu) Limit wejść bywa osiągany (9 dni) — podniesienie może dołożyć wejść.
-- (neu) Najczęstszy powód pominięcia wejścia: „Automat (alpaca) zapauzowany ręcznie” (104× z ostatnich 300 decyzji).
+- (neu) Najczęstszy powód pominięcia wejścia: „Automat (alpaca) zapauzowany ręcznie” (102× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
 
@@ -23,33 +23,33 @@
 - próg pewności — baza (env): 0.6 · progresja +0.03/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
-- ostatnie 120 decyzji · wykonanych: 22 · odrzuconych: 98
+- ostatnie 120 decyzji · wykonanych: 18 · odrzuconych: 102
 
 **Najczęstsze powody odrzucenia (top):**
-- 73× — Automat (alpaca) zapauzowany ręcznie
-- 22× — brak powodu
+- 67× — brak powodu
+- 32× — Automat (alpaca) zapauzowany ręcznie
 - 1× — Cooldown po stop-lossie: DOGE/USD zablokowany do odkupu jeszcze ~495 min
 - 1× — Cooldown po stop-lossie: DOGE/USD zablokowany do odkupu jeszcze ~510 min
 - 1× — Cooldown po stop-lossie: DOGE/USD zablokowany do odkupu jeszcze ~525 min
 
 **Ostatnie 20 decyzji:**
-- 2026-10-26T23:41:03.651520 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-10-26T23:26:04.866131 — HOLD conf=0.7 trig=news_event ⛔ ?
-- 2026-10-26T23:11:02.225782 — HOLD conf=0.0 trig=news_event ⛔ ?
-- 2026-10-26T22:56:04.890724 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-10-26T22:41:04.349415 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-10-26T22:26:06.699039 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-10-26T22:11:03.164944 — HOLD conf=0.7 trig=news_event ⛔ ?
-- 2026-10-26T21:56:03.204186 — HOLD conf=0.0 trig=news_event ⛔ ?
-- 2026-10-26T21:41:08.689794 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-10-26T21:26:09.751321 — HOLD conf=0.7 trig=news_event ⛔ ?
-- 2026-10-26T21:11:03.748109 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-10-26T20:56:07.116014 — HOLD conf=0.7 trig=news_event ⛔ ?
-- 2026-10-26T19:50:48.798410 — HOLD conf=0.0 trig=manual ⛔ ?
-- 2026-10-26T19:37:37.807783 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-10-26T19:07:37.980990 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-10-26T18:37:38.273955 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-10-26T18:07:38.123663 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-10-26T17:37:38.110542 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-10-26T17:07:38.117450 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-10-26T16:37:40.067419 SOL/USD SELL conf=1.0 trig=price_move ✅WYKONANE
+- 2026-10-27T11:11:01.162052 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-27T10:56:02.146735 — HOLD conf=0.7 trig=news_event ⛔ ?
+- 2026-10-27T10:41:06.731100 — HOLD conf=0.7 trig=news_event ⛔ ?
+- 2026-10-27T10:26:05.329997 — HOLD conf=0.7 trig=news_event ⛔ ?
+- 2026-10-27T10:11:02.729671 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-27T09:55:57.602124 — HOLD conf=0.0 trig=news_event ⛔ ?
+- 2026-10-27T09:41:09.020177 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-27T09:25:58.672745 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-27T09:11:03.013509 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-27T08:55:59.951314 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-27T08:41:05.522876 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-27T08:26:01.522721 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-27T08:11:03.119664 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-27T07:56:03.860398 — HOLD conf=0.65 trig=news_event ⛔ ?
+- 2026-10-27T07:41:04.539836 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-27T07:26:05.117755 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-27T07:11:01.509751 — HOLD conf=0.0 trig=news_event ⛔ ?
+- 2026-10-27T06:55:56.387833 — HOLD conf=0.0 trig=news_event ⛔ ?
+- 2026-10-27T06:41:11.626556 — HOLD conf=0.7 trig=news_event ⛔ ?
+- 2026-10-27T06:26:04.021761 — HOLD conf=0.7 trig=news_event ⛔ ?
