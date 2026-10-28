@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-10-28T11:53:04Z
+# Audyt GielDarek — 2026-10-28T18:46:54Z
 
 **Wdrożenie:** kod ae787c0 (zbud. 2026-10-27T20:39Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
@@ -10,7 +10,7 @@
 ## Wnioski
 - (neu) Za mało zamkniętych transakcji (0) na mocne wnioski — bot dopiero zbiera próbkę.
 - (neu) Limit wejść bywa osiągany (11 dni) — podniesienie może dołożyć wejść.
-- (neu) Najczęstszy powód pominięcia wejścia: „Automat (alpaca) zapauzowany ręcznie” (58× z ostatnich 300 decyzji).
+- (neu) Najczęstszy powód pominięcia wejścia: „Automat (alpaca) zapauzowany ręcznie” (38× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
 
@@ -23,12 +23,12 @@
 - próg pewności — baza (env): 0.6 · progresja +0.03/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
-- ostatnie 120 decyzji · wykonanych: 26 · odrzuconych: 94
+- ostatnie 120 decyzji · wykonanych: 14 · odrzuconych: 106
 
 **Najczęstsze powody odrzucenia (top):**
-- 61× — brak powodu
-- 5× — Automat (alpaca) zapauzowany ręcznie
-- 2× — Zlecenie niewykonane: Alpaca POST /v2/orders: 403 {"available":"963060308.407551403","balance":"963060308.407551403","code":40310000,"message":"insufficient balance for PEPE (requested: 963060308.407551408, available: 963060308.407551403)","symbol":"USD"}
+- 65× — brak powodu
+- 11× — Automat (alpaca) zapauzowany ręcznie
+- 5× — Zlecenie niewykonane: Alpaca POST /v2/orders: 403 {"available":"963060308.407551403","balance":"963060308.407551403","code":40310000,"message":"insufficient balance for PEPE (requested: 963060308.407551408, available: 963060308.407551403)","symbol":"USD"}
 - 1× — Cooldown po stop-lossie: AVAX/USD zablokowany do odkupu jeszcze ~1350 min
 - 1× — Cooldown po stop-lossie: AVAX/USD zablokowany do odkupu jeszcze ~1365 min
 - 1× — Cooldown po stop-lossie: AVAX/USD zablokowany do odkupu jeszcze ~1380 min
@@ -36,23 +36,23 @@
 - 1× — Cooldown po stop-lossie: AVAX/USD zablokowany do odkupu jeszcze ~1425 min
 
 **Ostatnie 20 decyzji:**
-- 2026-10-28T11:41:38.897493 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-10-28T11:26:36.343059 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-10-28T11:11:41.249522 PEPE/USD SELL conf=0.55 trig=news_event ⛔ Zlecenie niewykonane: Alpaca POST /v2/orders: 403 {"available":"963060308.407551403","balance":"963060308.407551403","code":40310000,"message":"insufficient balance for PEPE (requested: 963060308.407551408, available: 963060308.407551403)","symbol":"USD"}
-- 2026-10-28T10:56:43.103976 — HOLD conf=0.7 trig=news_event ⛔ ?
-- 2026-10-28T10:41:32.781975 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-10-28T10:26:38.319080 — HOLD conf=0.7 trig=news_event ⛔ ?
-- 2026-10-28T10:11:41.868225 — HOLD conf=0.7 trig=news_event ⛔ ?
-- 2026-10-28T09:56:38.155557 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-10-28T09:41:38.276258 — HOLD conf=0.0 trig=news_event ⛔ ?
-- 2026-10-28T09:26:44.271286 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-10-28T09:11:34.480366 — HOLD conf=0.0 trig=news_event ⛔ ?
-- 2026-10-28T08:56:42.820168 PEPE/USD SELL conf=0.65 trig=news_event ⛔ Zlecenie niewykonane: Alpaca POST /v2/orders: 403 {"available":"963060308.407551403","balance":"963060308.407551403","code":40310000,"message":"insufficient balance for PEPE (requested: 963060308.407551408, available: 963060308.407551403)","symbol":"USD"}
-- 2026-10-28T08:41:41.445085 — HOLD conf=0.7 trig=news_event ⛔ ?
-- 2026-10-28T08:26:43.078139 PEPE/USD SELL conf=0.55 trig=news_event ✅WYKONANE
-- 2026-10-28T08:11:39.800946 PAXG/USD SELL conf=0.55 trig=news_event ✅WYKONANE
-- 2026-10-28T07:56:40.862962 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-10-28T07:41:40.160217 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-10-28T07:26:38.453924 — HOLD conf=0.6 trig=news_event ⛔ ?
-- 2026-10-28T07:11:38.882659 — HOLD conf=0.0 trig=news_event ⛔ ?
-- 2026-10-28T06:56:39.909978 — HOLD conf=0.0 trig=news_event ⛔ ?
+- 2026-10-28T18:41:47.876721 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-28T18:41:17.050112 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
+- 2026-10-28T18:26:47.288538 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-28T18:11:49.244958 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-28T18:11:16.767327 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
+- 2026-10-28T17:56:41.524998 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-28T17:42:01.134000 PEPE/USD SELL conf=0.55 trig=news_event ⛔ Zlecenie niewykonane: Alpaca POST /v2/orders: 403 {"available":"963060308.407551403","balance":"963060308.407551403","code":40310000,"message":"insufficient balance for PEPE (requested: 963060308.407551408, available: 963060308.407551403)","symbol":"USD"}
+- 2026-10-28T17:41:16.689485 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
+- 2026-10-28T17:26:47.916151 PEPE/USD SELL conf=0.55 trig=news_event ⛔ Zlecenie niewykonane: Alpaca POST /v2/orders: 403 {"available":"963060308.407551403","balance":"963060308.407551403","code":40310000,"message":"insufficient balance for PEPE (requested: 963060308.407551408, available: 963060308.407551403)","symbol":"USD"}
+- 2026-10-28T17:11:46.338511 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-28T17:11:16.348530 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
+- 2026-10-28T16:56:44.824844 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-28T16:41:51.141162 — HOLD conf=0.0 trig=news_event ⛔ ?
+- 2026-10-28T16:41:16.457194 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
+- 2026-10-28T16:26:44.451365 — HOLD conf=0.7 trig=news_event ⛔ ?
+- 2026-10-28T16:12:10.974858 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-28T16:11:16.542311 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
+- 2026-10-28T15:56:44.798691 — HOLD conf=0.6 trig=news_event ⛔ ?
+- 2026-10-28T15:41:46.563923 — HOLD conf=0.7 trig=news_event ⛔ ?
+- 2026-10-28T15:41:16.437797 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
