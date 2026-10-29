@@ -234,11 +234,13 @@ class Settings(BaseSettings):
     crypto_signal_timeframe: str = "1h"
     # SILNIK HYBRYDOWY: mechanika (wyjścia stopy/cele + wejścia auto-deploy wg
     # konfluencji) ZAWSZE jedzie; LLM (Claude) dokłada warstwę strategiczną —
-    # wetuje/synteza na wejściach. 2026-10-26 (decyzja właściciela: „klucz jest,
-    # Sonnet już chodzi"): WŁĄCZONY. Kluczowe: jest ADDYTYWNY, nie kruchy — gdy
-    # budżet się wyczerpie, krypto SCHODZI DO MECHANIKI ($0, auto-deploy), a NIE
-    # staje (patrz crypto_budget_fallback w run_cycle). Model: claude_model (Sonnet).
-    crypto_llm_enabled: bool = True
+    # wetuje/synteza na wejściach. Model: claude_model (Sonnet).
+    # 2026-10-26: włączony. 2026-10-29 (wyraźna decyzja właściciela: „przejadło
+    # wszystkie tokeny"): WYŁĄCZONY. Powód: (1) brak twardego hamulca budżetu
+    # (claude_pause_trading_at_budget=False) -> LLM wołał Claude co cykl i przebił
+    # budżet $9 do $24,5 (272%); (2) to LLM zatwierdził blowout HYPE i churn, przez
+    # które konto zjechało -39% od szczytu. Mechanika (darmowa, $0) jedzie dalej.
+    crypto_llm_enabled: bool = False
     crypto_auto_deploy_enabled: bool = True
     # Limity ryzyka DEDYKOWANE krypto (24/7, dużo wyższa zmienność niż akcje).
     # Gdy CRYPTO_ENABLED, to ONE są autorytatywne dla account-wide haltu (patrz
