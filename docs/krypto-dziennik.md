@@ -37,6 +37,30 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Tydzień 4 — 2026-11-01 (blowout HYPE — załatany kodem; LLM wyłączony; silnik na pauzie)
+**Najgorszy tydzień projektu.** Po włączeniu LLM (10-26) + podniesieniu limitów silnik
+wlał **$231 742 w HYPE/USD** (niepłynna mikro-moneta, ~27% konta) w 3 zleceniach/30 min —
+fille po jednej zamrożonej cenie okazały się fikcją, a konto rozjechało się z brokerem.
+- **Zamknięcia:** 21 w oknie, **trafność 0%**, **realized −$25 345** (expectancy −$1 207/zamknięcie).
+  Pomiar wciąż zatruty bazą kosztową z ery blowoutu, ale kierunek jednoznaczny.
+- **vs BTC:** BTC ~płasko w oknie; strategia głęboko pod kreską — **NIE bije BTC**.
+- **Koncentracja:** katastrofalna — jedna moneta (HYPE $232k) zniosła cały tydzień → red flag „1–2 strzały".
+- **Konto:** $609 461 — od szczytu **−39,1%** (drawdown > 30% = czerwona flaga złamana).
+
+**Reakcja (za wyraźną zgodą właściciela):** (1) monitor rekonsyliacji baza↔broker + baner
+[ae787c0]; (2) anty-blowout: twardy cap koncentracji 20% w GŁÓWNYM torze decyzji (dotąd
+egzekwowany tylko w auto-deploy — luka, przez którą wszedł HYPE) + bramka płynności 8×
+dziennego obrotu [ae787c0] — zweryfikowane na transakcjach po deployu: zero przerośniętych
+wejść, rozmiary wiązane płynnością; (3) **LLM wyłączony** [17ba8e2] — przepalał budżet (272%,
+$24,5 z $9) i zatwierdzał złe wejścia; listopad spend **$0,04** (potwierdzone — reset + off = $0).
+Silnik od ~10-29 **zapauzowany** przez właściciela (`crypto_paused=true`).
+
+**GO-LIVE: zdecydowanie NIE** — złamane naraz: drawdown 39% (>30%), poniżej BTC, wynik oparty
+na 1 blowout. Otwarte: rozjazd baza↔broker **$255k** (phantom HYPE w naszej bazie, broker ma 0) —
+do decyzji właściciela: reset papierowego konta Alpaca albo kod re-syncujący ledger. Czysty
+pomiar możliwy dopiero po wznowieniu silnika (mechanika + nowe zabezpieczenia) i zebraniu
+≥3 tyg / ≥50 zamknięć BEZ blowoutu.
+
 ### Wpis — 2026-10-18 (mniejsze, liczniejsze pozycje — z dala od limitu $200k)
 Właściciel: „Rob" (zgoda na propozycję mniejszych pozycji). Przyczyna serii 403: na
 koncie $1M pozycje po ~25% = ~$250k ocierały się o limit $200k/zlecenie Alpaki.
