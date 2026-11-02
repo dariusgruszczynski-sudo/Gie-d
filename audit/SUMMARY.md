@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-11-01T12:24:06Z
+# Audyt GielDarek — 2026-11-02T14:20:02Z
 
-**Wdrożenie:** kod 17ba8e2 (zbud. 2026-10-29T08:55Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 0484480 (zbud. 2026-11-01T20:49Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 0 zamknięć · trafność —% · zrealizowany $0.0
 **7 dni:** 0 zamknięć · —% · $0.0   |   **30 dni:** 0 · —% · $0.0
@@ -10,7 +10,7 @@
 ## Wnioski
 - (neu) Za mało zamkniętych transakcji (0) na mocne wnioski — bot dopiero zbiera próbkę.
 - (neu) Limit wejść bywa osiągany (11 dni) — podniesienie może dołożyć wejść.
-- (neu) Najczęstszy powód pominięcia wejścia: „Automat (crypto) zapauzowany ręcznie” (277× z ostatnich 300 decyzji).
+- (neu) Najczęstszy powód pominięcia wejścia: „Automat (crypto) zapauzowany ręcznie” (288× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
 
@@ -29,23 +29,23 @@
 - 120× — Automat (crypto) zapauzowany ręcznie
 
 **Ostatnie 20 decyzji:**
-- 2026-11-01T12:10:44.160114 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T11:55:47.696372 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T11:40:43.852776 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T11:25:44.042883 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T11:10:43.806434 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T10:55:47.495742 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T10:40:44.090324 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T10:25:43.948096 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T10:10:43.961854 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T09:55:47.531861 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T09:40:44.091967 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T09:25:43.877883 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T09:10:43.922091 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T08:55:43.936794 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T08:40:47.393055 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T08:25:43.985639 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T08:10:43.834609 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T07:55:44.118671 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T07:40:47.337163 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-01T07:25:43.800288 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T14:19:30.648161 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T14:04:34.756550 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T13:49:30.611037 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T13:34:30.605400 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T13:19:30.844583 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T13:04:34.906649 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T12:49:30.796567 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T12:34:30.693397 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T12:19:30.483322 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T12:04:34.986040 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T11:49:30.766829 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T11:34:31.470500 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T11:19:30.580543 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T11:04:30.867532 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T10:49:35.173994 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T10:34:30.753823 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T10:19:30.469696 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T10:04:30.485220 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T09:49:34.163527 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-02T09:34:30.759295 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (crypto) zapauzowany ręcznie
