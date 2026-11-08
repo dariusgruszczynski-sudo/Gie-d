@@ -37,6 +37,20 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Tydzień 5 — 2026-11-08 (silnik zapauzowany cały tydzień — zero handlu, zamrożone)
+**Brak aktywności.** Silnik krypto **zapauzowany** przez właściciela od ~10-29
+(`crypto_paused=true`) — przez cały tydzień **0 transakcji**, `day_realized $0`.
+- **Zamknięcia / trafność / realized:** brak nowych (nic nie handlowano) — żadnych nowych dowodów pod GO-LIVE.
+- **Konto:** $609 471 — płasko tydzień-do-tygodnia (dzień/tydzień −27,5%, od szczytu **−39%**).
+- **vs BTC / koncentracja:** n/d (brak transakcji).
+- **✅ Koszt AI ≈ $0 potwierdzony:** listopad spend **$0,14 / $9** (LLM wyłączony od 10-29 [17ba8e2]).
+
+**Otwarte (czeka na decyzję właściciela):** (1) rozjazd baza↔broker **$226k** — phantom HYPE
+(2848 szt. w naszej bazie, broker ma 0); maleje tylko wraz z markiem HYPE, nie znika. Do
+wyboru: reset papierowego konta Alpaca albo kod re-syncujący ledger. (2) Wznowienie silnika
+(mechanika + cap koncentracji + bramka płynności, bez LLM) — potrzebne, by w ogóle zbierać
+dalej dowody. **GO-LIVE: NIE** (pomiar zamrożony; drawdown 39% i tak łamie próg).
+
 ### Tydzień 4 — 2026-11-01 (blowout HYPE — załatany kodem; LLM wyłączony; silnik na pauzie)
 **Najgorszy tydzień projektu.** Po włączeniu LLM (10-26) + podniesieniu limitów silnik
 wlał **$231 742 w HYPE/USD** (niepłynna mikro-moneta, ~27% konta) w 3 zleceniach/30 min —
