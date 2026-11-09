@@ -94,6 +94,16 @@ export interface StatusResponse {
     threshold_usd: number;
     by_symbol: { symbol: string; ledger_qty: number; broker_qty: number; diff_usd: number }[];
   } | null;
+  // R28/R38: nagłówek-uczciwość zawsze na wierzchu — bijemy BTC? na ilu zamknięciach?
+  honesty?: {
+    beats_btc: boolean | null;
+    alpha_pct_vs_btc: number | null;
+    closed_trades: number;
+    sample_sufficient: boolean;
+    since: string | null;
+    reconciled: boolean;
+    benchmark: string | null;
+  } | null;
   // Alfa vs trzymanie SPY (czy bijemy zwykłe DCA w indeks); null bez baseline'u.
   alpha_vs_spy: { benchmark: string; benchmark_value: number; alpha_usd: number; alpha_pct: number | null } | null;
   // Read-only share link enabled on the server (token stays server-side).

@@ -1977,6 +1977,29 @@ def _process_decision(
             db.refresh(decision)
             return decision
 
+        # --- TRYB BTC-RDZEŃ (R12, meta-analiza 2026-11-09) ---
+        # Gdy BTC w POTWIERDZONYM spadku (sma50<sma200), NOWE wejścia w alty są
+        # wstrzymane — trzymaj BTC/gotówkę. Geneza: walk-forward pokazał, że rotacja
+        # altów PRZEGRYWA z trzymaniem BTC (bije w 1/4 okien OOS, mediana alfy −21%).
+        # Dokładki do już trzymanych (already_held) zwolnione; brak danych BTC albo
+        # trend "above"/nieokreślony => przepuszczamy (fail-open, nie dławimy na szumie).
+        if (
+            venue == "crypto"
+            and getattr(settings, "crypto_btc_core_mode", False)
+            and not already_held
+            and _base_asset(decision_data.symbol, settings.quote_currency) != "BTC"
+            and _trend_of(market_data, "BTC/USD") == "below"
+        ):
+            decision.rejection_reason = (
+                f"Tryb BTC-rdzeń: BTC w trendzie spadkowym (sma50<sma200) — nowe wejście "
+                f"w {decision_data.symbol} wstrzymane; alty rotujemy tylko w up-reżimie "
+                "(domyślnie trzymaj BTC/gotówkę)"
+            )
+            db.add(decision)
+            db.commit()
+            db.refresh(decision)
+            return decision
+
         # --- ANTY-BLOWOUT NA NIEPŁYNNE (crypto): koncentracja + rozmiar vs obrót ---
         # Geneza (2026-10-27): 3 zlecenia HYPE ($89k+$77k+$66k = $232k) weszły w JEDNĄ
         # cienką monetę — ~27% konta, ~100× dziennego obrotu — bo max_position_pct był
@@ -2832,6 +2855,17 @@ def run_cycle(
     state = risk_manager.update_portfolio_value(
         db, settings, account_total, cash_usdt=portfolio.get("usdt_balance"),
     )
+    # WATCHDOG REKONCYLIACJI (R19/R26, meta-analiza): zanim cokolwiek zrobimy,
+    # sprawdź czy NASZA baza pozycji zgadza się z saldem brokera. Rozjazd > próg
+    # => auto-halt. Blowout HYPE był AWARIĄ REKONCYLIACJI (nie przekroczeniem progu
+    # straty), więc progowe halty go przepuściły; ten watchdog by go złapał.
+    # Mechaniczne wyjścia niżej i tak chronią pozycje — blokujemy tylko NOWE
+    # wejścia, dopóki księgi nie zgadzają się z brokerem.
+    if venue == "crypto":
+        from app.services import reconciliation
+
+        reconciliation.check_and_halt(db, settings, account_total=account_total)
+        state = risk_manager.get_state(db)
     if venue == "alpaca":
         scorecard.update_benchmark_baseline(db, settings, portfolio)
 

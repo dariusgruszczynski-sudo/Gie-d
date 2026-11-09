@@ -32,7 +32,12 @@ class Settings(BaseSettings):
     # tokenów załadowałeś), automat PRZESTAJE pytać Claude i otwierać nowe
     # pozycje. Mechaniczne wyjścia (stop/trailing) i tak biegną, więc otwarte
     # pozycje zostają chronione. Licznik "zostało $" jest na Konsoli na żywo.
-    claude_pause_trading_at_budget: bool = False
+    # 2026-11-09 (R16, meta-analiza): WŁĄCZONE na stałe jako twardy hamulec. Geneza:
+    # LLM przepalił budżet do 272% ($24,5/$9), bo hamulca nie było. Dla KRYPTO jest
+    # bezpieczny — przy wyczerpaniu budżetu krypto schodzi do mechaniki ($0, patrz
+    # crypto_budget_fallback w run_cycle), więc darmowy silnik jedzie dalej; tylko
+    # PŁATNE wywołania Claude się zatrzymują. Belt-and-suspenders pod powrót LLM.
+    claude_pause_trading_at_budget: bool = True
 
     alpaca_api_key: str = ""
     alpaca_api_secret: str = ""
@@ -194,6 +199,21 @@ class Settings(BaseSettings):
     # mikro-giełdzie Alpaki ROZMIAR musi być wiązany płynnością, nie tylko % konta:
     # 20% z $626k = $125k to wciąż 60× dziennego obrotu cienkiej monety. 0 = wyłączone.
     crypto_max_order_vs_dollar_vol_mult: float = 8.0
+    # WATCHDOG REKONCYLIACJI (R19/R24/R26, meta-analiza 2026-11-09): auto-halt, gdy
+    # pozycje wg NASZEJ bazy rozjeżdżają się z saldem brokera o > tego % konta.
+    # Geneza: blowout HYPE był AWARIĄ REKONCYLIACJI (baza myślała 2848 HYPE, broker
+    # miał 0; rozjazd ~$226k), a P&L kłamał tygodniami ("+$1k" przy koncie −27%).
+    # Progowe halty (30/40/55%) tego nie łapały, bo to nie była strata na wycenie.
+    # Nie handlujemy, gdy księgi nie zgadzają się z brokerem — źródłem prawdy jest
+    # broker. 0 = wyłączony. Podłoga absolutna poniżej (żeby drobny lag nie straszył).
+    crypto_reconciliation_halt_pct: float = 1.0
+    crypto_reconciliation_halt_floor_usd: float = 2_000.0
+    # TRYB BTC-RDZEŃ (R12, meta-analiza): w reżimie INNYM niż potwierdzony wzrostowy
+    # NOWE wejścia tylko w BTC (trzymaj BTC/gotówkę), bez rotacji niepłynnych altów.
+    # Geneza: walk-forward pokazał, że rotacja altów PRZEGRYWA z trzymaniem BTC
+    # (bije w 1 z 4 okien OOS, mediana alfy −21%). Domyślna pozycja w niepewności =
+    # BTC. Alty wracają TYLKO w potwierdzonym up-reżimie (market_regime risk_on).
+    crypto_btc_core_mode: bool = True
     # Cel pojedynczego auto-deploy: mniejszy niż bazowe 25% (osobny override), żeby
     # zlecenia nie ocierały się o limit Alpaki. 15% zostawia bufor pod $200k.
     crypto_auto_deploy_max_position_pct: float = 15.0

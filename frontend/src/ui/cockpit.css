@@ -474,6 +474,21 @@
 .cr-recon-banner b { color: #ffd27a; }
 .cr-recon-banner .syms { display: block; margin-top: 5px; font-size: 0.72rem; color: var(--cr-dim); }
 
+/* R28/R38: nagłówek-uczciwość — jedna prawda na wierzchu (bijemy BTC?). */
+.cr-honesty {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px;
+  padding: 9px 13px; border-radius: 10px; margin-bottom: 10px;
+  border: 1px solid var(--cr-line-2); background: var(--cr-panel);
+}
+.cr-honesty .q { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--cr-dim); }
+.cr-honesty .a { font-size: 0.92rem; font-weight: 800; }
+.cr-honesty .meta { font-size: 0.7rem; color: var(--cr-dim); margin-left: auto; }
+.cr-honesty.good { border-color: color-mix(in srgb, var(--cr-up) 45%, transparent); background: color-mix(in srgb, var(--cr-up) 8%, transparent); }
+.cr-honesty.good .a { color: var(--cr-up); }
+.cr-honesty.bad { border-color: color-mix(in srgb, var(--cr-down) 45%, transparent); background: color-mix(in srgb, var(--cr-down) 8%, transparent); }
+.cr-honesty.bad .a { color: var(--cr-down); }
+.cr-honesty.neu .a { color: var(--cr-txt); }
+
 /* Reużyte widżety gd-* osadzone w control-roomie — zwężenie marginesów */
 .cr-screen .gd-pcards { display: grid; gap: 10px; }
 .cr-screen .gd-stream { display: flex; flex-direction: column; gap: 8px; }

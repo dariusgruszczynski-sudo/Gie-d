@@ -78,3 +78,13 @@ def test_properties_still_resolve():
     assert s.symbol_blacklist_set == {"TQQQ", "SQQQ"}
     assert s.dashboard_credentials == {}
     assert Settings(_env_file=None, dashboard_users="a:b,c:d").dashboard_credentials == {"a": "b", "c": "d"}
+
+
+def test_meta_analysis_knobs_2026_11():
+    """R12/R16/R19/R26 (meta-analiza 2026-11-09): nowe knoby i twardy hamulec budżetu."""
+    from app.config import Settings
+    s = Settings(anthropic_api_key="x", alpaca_api_key="x", alpaca_api_secret="x")
+    assert s.claude_pause_trading_at_budget is True          # R16 hard cap on
+    assert s.crypto_btc_core_mode is True                    # R12
+    assert s.crypto_reconciliation_halt_pct == 1.0           # R19/R26
+    assert s.crypto_reconciliation_halt_floor_usd == 2000.0

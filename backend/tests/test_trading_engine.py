@@ -2484,3 +2484,51 @@ def test_crypto_buy_below_minimum_after_trim_raises(db_session, settings, _no_tr
             action="BUY", size_pct=100.0, portfolio=pf, decision=None,
             is_manual=False, venue="crypto",
         )
+
+
+# --- R12 (meta-analiza 2026-11-09): tryb BTC-rdzeń — alty tylko w up-reżimie BTC ---
+
+def _btc_core_setup(settings, monkeypatch, btc_trend):
+    """Wspólny setup: crypto + LLM on + BTC-core; wstrzyknięty trend BTC w market_data."""
+    from app.services import risk_manager
+    from app.services.strategy_profiles import effective_settings
+    s = settings.model_copy(update={
+        "crypto_enabled": True, "crypto_llm_enabled": True, "crypto_btc_core_mode": True,
+        "entry_filter_enabled": False, "crypto_min_buy_confidence": 0.0, "min_buy_confidence": 0.0,
+        "crypto_reconciliation_halt_pct": 0.0,  # watchdog off w tym teście
+    })
+    md = {
+        "SOL/USD": {"technical": {"sma50_vs_sma200_1h": "above"}, "price": 100.0},
+        "BTC/USD": {"technical": {"sma50_vs_sma200_1h": btc_trend}, "price": 60000.0},
+    }
+    monkeypatch.setattr(trading_engine, "_build_market_data", lambda *a, **k: md)
+    return effective_settings(s, "crypto")
+
+
+def test_btc_core_blocks_alt_when_btc_downtrend(db_session, settings, monkeypatch):
+    from app.services import risk_manager
+    cs = _btc_core_setup(settings, monkeypatch, btc_trend="below")
+    risk_manager.resume(db_session, venue="crypto")
+    broker = FakeAlpaca(prices={"SOL/USD": 100.0, "BTC/USD": 60000.0}, balances={"USD": 50000.0})
+    advisor = FakeAdvisor(TradingDecision("BUY", "SOL/USD", 10.0, 0.9, "momentum"))
+    decision = trading_engine.run_cycle(
+        db_session, cs, broker, FakeNews(), advisor,
+        venue="crypto", whitelist=["SOL/USD", "BTC/USD"], always_open=True, force=True,
+    )
+    assert decision is not None
+    assert "BTC-rdzeń" in (decision.rejection_reason or "")
+
+
+def test_btc_core_allows_alt_when_btc_uptrend(db_session, settings, monkeypatch):
+    """BTC w trendzie wzrostowym -> bramka BTC-rdzeń NIE blokuje alta."""
+    from app.services import risk_manager
+    cs = _btc_core_setup(settings, monkeypatch, btc_trend="above")
+    risk_manager.resume(db_session, venue="crypto")
+    broker = FakeAlpaca(prices={"SOL/USD": 100.0, "BTC/USD": 60000.0}, balances={"USD": 50000.0})
+    advisor = FakeAdvisor(TradingDecision("BUY", "SOL/USD", 10.0, 0.9, "momentum"))
+    decision = trading_engine.run_cycle(
+        db_session, cs, broker, FakeNews(), advisor,
+        venue="crypto", whitelist=["SOL/USD", "BTC/USD"], always_open=True, force=True,
+    )
+    # Może odpaść z INNEGO powodu, ale NIE z BTC-rdzenia.
+    assert "BTC-rdzeń" not in ((decision.rejection_reason or "") if decision else "")

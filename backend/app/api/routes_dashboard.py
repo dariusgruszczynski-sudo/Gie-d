@@ -19,7 +19,7 @@ from app.config import Settings, get_settings
 from app.db import SessionLocal, get_db
 from app.models import Decision, PortfolioSnapshot, SystemState, Trade
 from app.serialization import serialize
-from app.services import budget_tracker, market_hours, playbook, risk_manager, scorecard, self_review, shadow_analysis
+from app.services import budget_tracker, market_hours, playbook, reconciliation, risk_manager, scorecard, self_review, shadow_analysis
 from app.services.strategy_profiles import effective_settings
 from app.services.trading_engine import _state_col, average_cost_basis, describe_position_plan, position_opened_at
 from app.services.whitelist_review import get_extended_whitelist
@@ -144,6 +144,9 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         # Fix #1: monitor rozjazdu baza↔broker. reconciled=False -> czerwony baner na
         # pulpicie (wynik automatu może zaniżać stratę zjedzoną po stronie kupna).
         "reconciliation": _reconciliation_view(db, settings),
+        # R28/R38: nagłówek-uczciwość ZAWSZE na wierzchu — bijemy BTC? na ilu
+        # zamknięciach? od kiedy? księgi OK? Płynie do audit-snapshots (R17/R29).
+        "honesty": _honesty_view(db, settings, account),
         # Alfa vs trzymanie SPY -- czy bot bije zwykłe DCA w indeks.
         "alpha_vs_spy": _alpha_view(db, settings, account),
         # Read-only share link enabled? (token itself never leaves the server.)
@@ -364,70 +367,50 @@ def _trading_pnl_view(db: Session, settings: Settings | None = None) -> dict:
 
 
 def _reconciliation_view(db: Session, settings: Settings) -> dict | None:
-    """Fix #1 (UCZCIWOŚĆ RAPORTU): porównaj POZYCJE wg naszej bazy transakcji
-    (netto kupna−sprzedaże) z tym, co realnie trzyma broker (ostatni snapshot).
+    """Monitor rozjazdu baza↔broker. Delegacja do serwisu `reconciliation`
+    (jedno źródło prawdy, wspólne z watchdogiem auto-haltu R19/R26). reconciled=
+    False wymusza czerwony baner na pulpicie — dziura jak blowout HYPE (baza
+    myślała 2848 HYPE, broker 0) nigdy nie przejdzie po cichu."""
+    acct = (_account_view(db, settings) or {}).get("total_value", None)
+    return reconciliation.ledger_vs_broker(db, settings, account_total=acct)
 
-    Geneza (2026-10-27): baza myślała, że trzymamy ~$476k crypto (HYPE+XRP+PAXG),
-    a broker widział ~$110k — rozjazd ~$366k. Gotówka wyszła na KUPNO, a pozycja
-    warta ułamek: strata zjadła się po stronie FILLI (niepłynne, przepłacone), więc
-    realized (liczy tylko sprzedaże) + unrealized (liczy tylko to, co broker TRZYMA
-    teraz) MIJAŁY ją całkowicie — dashboard pokazywał '+$1 174' przy koncie −27%.
 
-    Ten monitor liczy ten rozjazd jawnie. reconciled=False wymusza na pulpicie
-    czerwony baner, więc taka dziura NIGDY więcej nie przejdzie po cichu."""
+def _honesty_view(db: Session, settings: Settings, account: dict | None) -> dict | None:
+    """NAGŁÓWEK-UCZCIWOŚĆ (R1/R28/R38, meta-analiza): jedna prawda zawsze na
+    wierzchu — BIJEMY BTC? tak/nie · na ilu zamknięciach · od kiedy · czy księgi
+    zgadzają się z brokerem. Płynie też do audit-snapshots (status.json), więc
+    nadzór git-first widzi CZYSTĄ, epoch-aware liczbę (R17/R29), nie surowy log.
+
+    Celowo proste i odporne: liczy krypto-scorecard z ostatniego snapshotu; gdy
+    brak danych/benchmarku, pola schodzą do None (UI pokazuje 'za mało danych')."""
     if not settings.crypto_enabled:
         return None
     snap = _latest_snapshot(db, "crypto")
     if snap is None:
         return None
     try:
-        broker_bal = json.loads(snap.balances_json or "{}")
         prices = json.loads(snap.prices_json or "{}")
     except (TypeError, ValueError):
-        return None
-
-    rows = db.execute(
-        select(Trade.symbol, Trade.side, Trade.quantity, Trade.price)
-        .where(Trade.venue == "crypto")
-        .order_by(Trade.id)
-    ).all()
-    ledger_qty: dict[str, float] = {}
-    last_px: dict[str, float] = {}
-    for sym, side, qty, px in rows:
-        signed = qty if "BUY" in str(side).upper() else -qty
-        ledger_qty[sym] = ledger_qty.get(sym, 0.0) + (signed or 0.0)
-        if px:
-            last_px[sym] = px
-
-    def _px(sym: str) -> float:
-        return prices.get(sym) or last_px.get(sym) or 0.0
-
-    ledger_usd = sum(max(0.0, q) * _px(s) for s, q in ledger_qty.items())
-    broker_usd = sum((broker_bal.get(s, 0.0) or 0.0) * _px(s) for s in set(broker_bal) | set(ledger_qty))
-    residual = round(ledger_usd - broker_usd, 2)
-
-    by_symbol = []
-    for s in set(ledger_qty) | set(broker_bal):
-        lq = max(0.0, ledger_qty.get(s, 0.0))
-        bq = broker_bal.get(s, 0.0) or 0.0
-        d = (lq - bq) * _px(s)
-        if abs(d) >= 1.0:
-            by_symbol.append({
-                "symbol": s, "ledger_qty": round(lq, 6),
-                "broker_qty": round(bq, 6), "diff_usd": round(d, 2),
-            })
-    by_symbol.sort(key=lambda x: -abs(x["diff_usd"]))
-
-    # Próg: większy z $500 i 0,5% konta -> drobny lag brokera nie straszy, blowout tak.
-    acct = (_account_view(db, settings) or {}).get("total_value", 0.0) or 0.0
-    threshold = max(500.0, acct * 0.005)
+        prices = {}
+    total = (account or {}).get("total_value", snap.total_value_usdt) or 0.0
+    card = scorecard.compute_scorecard(
+        db, settings, {"total_value_usdt": total, "prices": prices}, venue="crypto",
+    )
+    rec = reconciliation.ledger_vs_broker(db, settings, account_total=total)
+    alpha_pct = card.get("alpha_pct")
+    closed = card.get("closed_trades") or 0
+    # beats_btc: None dopóki nie ma benchmarku albo za mało zamknięć na werdykt.
+    beats_btc = None
+    if alpha_pct is not None and closed >= 1:
+        beats_btc = alpha_pct >= 0
     return {
-        "ledger_crypto_usd": round(ledger_usd, 2),
-        "broker_crypto_usd": round(broker_usd, 2),
-        "residual_usd": residual,
-        "reconciled": abs(residual) <= threshold,
-        "threshold_usd": round(threshold, 2),
-        "by_symbol": by_symbol[:8],
+        "beats_btc": beats_btc,
+        "alpha_pct_vs_btc": alpha_pct,
+        "closed_trades": closed,
+        "sample_sufficient": closed >= 50,
+        "since": card.get("stats_since") or card.get("since"),
+        "reconciled": (rec or {}).get("reconciled", True),
+        "benchmark": card.get("benchmark_symbol"),
     }
 
 

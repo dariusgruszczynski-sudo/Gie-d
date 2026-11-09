@@ -136,6 +136,30 @@ function ReconciliationBanner({ status }: { status: StatusResponse }) {
   );
 }
 
+// R28/R38: nagłówek-uczciwość ZAWSZE na wierzchu. Jedna prawda: bijemy BTC? na ilu
+// zamknięciach? od kiedy? Jeśli księgi rozjechane z brokerem — mówi to wprost, zanim
+// ktokolwiek spojrzy na „zysk". Koniec z „+$1k" przy koncie −39%.
+function HonestyHeader({ status }: { status: StatusResponse }) {
+  const h = status.honesty;
+  if (!h) return null;
+  const bench = h.benchmark || "BTC";
+  const a = h.alpha_pct_vs_btc;
+  let cls = "neu", txt = "za mało danych na werdykt";
+  if (!h.reconciled) { cls = "bad"; txt = "⚠ księgi rozjechane z brokerem"; }
+  else if (h.closed_trades >= 1 && h.beats_btc !== null) {
+    cls = h.beats_btc ? "good" : "bad";
+    txt = (h.beats_btc ? `bije trzymanie ${bench}` : `przegrywa z trzymaniem ${bench}`)
+      + (a != null ? ` (${a >= 0 ? "+" : ""}${a.toFixed(1)}%)` : "");
+  }
+  return (
+    <div className={`cr-honesty ${cls}`}>
+      <span className="q">Bijemy {bench}?</span>
+      <b className="a">{txt}</b>
+      <span className="meta">{h.closed_trades}/50 zamknięć{h.since ? ` · od ${String(h.since).slice(0, 10)}` : ""}{h.closed_trades > 0 && !h.sample_sufficient ? " · próbka za mała" : ""}</span>
+    </div>
+  );
+}
+
 export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }: {
   status: StatusResponse; portfolio: PortfolioResponse | null; decisions: Decision[];
   onGoFlow: () => void; onGoVerdict: () => void;
@@ -165,6 +189,7 @@ export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }:
 
   return (
     <div className="cr-screen">
+      <HonestyHeader status={status} />
       {status.is_halted && status.halted_reason && (
         <div className="cr-halt-banner">⛔ <b>Bezpiecznik zatrzymał bota.</b> {status.halted_reason} — otwórz STER i naciśnij „Odblokuj", żeby wznowić i wyzerować punkty odniesienia.</div>
       )}
