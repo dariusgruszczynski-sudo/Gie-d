@@ -2490,7 +2490,6 @@ def test_crypto_buy_below_minimum_after_trim_raises(db_session, settings, _no_tr
 
 def _btc_core_setup(settings, monkeypatch, btc_trend):
     """Wspólny setup: crypto + LLM on + BTC-core; wstrzyknięty trend BTC w market_data."""
-    from app.services import risk_manager
     from app.services.strategy_profiles import effective_settings
     s = settings.model_copy(update={
         "crypto_enabled": True, "crypto_llm_enabled": True, "crypto_btc_core_mode": True,
