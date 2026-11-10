@@ -513,11 +513,13 @@ export interface EntryGateResponse {
   venue: string;
 }
 export interface LearningResponse {
-  cohorts: Array<{ from: string | null; to: string | null; n: number; expectancy_pct: number; win_rate: number }>;
+  cohorts: Array<{ from: string | null; to: string | null; n: number; expectancy_pct: number; expectancy_R: number | null; win_rate: number }>;
   trend: "improving" | "flat" | "degrading" | null;
   total_closes: number;
+  expectancy_R: number | null;
   since: string | null;
   cohort_size: number;
+  schema_version: number;
   attribution: Array<{ feature: string; value: string; n: number; win_rate: number; avg_pct: number }>;
   meta_insight: {
     working?: string; bleeding?: string; proposed_change?: string; rationale?: string;

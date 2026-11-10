@@ -16,6 +16,13 @@ from sqlalchemy.orm import Session
 
 from app.models import Decision, Trade
 
+# Wersja schematu wektora cech z _entry_features. Podbijaj ZA KAŻDYM RAZEM, gdy
+# zmieni się zestaw lub semantyka cech — konsument (atrybucja/krzywa/model) musi
+# wtedy wiedzieć, że starsze etykiety mają inny kształt i NIE WOLNO mieszać ich z
+# nowymi w jednym treningu (inaczej model uczy się na niespójnym wejściu = szum).
+# Każde zamknięcie niesie ten znacznik, więc dataset jest samoopisujący się.
+FEATURE_SCHEMA_VERSION = 1
+
 
 def _aware(ts):
     if ts is None:
@@ -42,10 +49,23 @@ def _entry_features(snapshot_json: str, symbol: str) -> dict:
     }
 
 
-def labeled_closes(db: Session, *, venue: str | None = "crypto", open_since=None) -> list[dict]:
+def labeled_closes(db: Session, *, venue: str | None = "crypto", open_since=None, settings=None) -> list[dict]:
     """Dla KAŻDEJ zamkniętej pozycji: cechy wejścia (z decyzji otwierającej lot) +
-    wynik (pnl_pct, win) + czasy. Average-cost walk z trackingiem lotu i decyzji
-    otwierającej. Najstarsze pierwsze. To etykietowany dataset do uczenia."""
+    wynik (pnl_pct, win, pnl_R) + czasy. Average-cost walk z trackingiem lotu i
+    decyzji otwierającej. Najstarsze pierwsze. To etykietowany dataset do uczenia.
+
+    pnl_R (R-multiple) = wynik / ryzyko-początkowe-na-wejściu. Liczony DOKŁADNIE
+    tak jak w backteście (`entry_risk_usd = koszt * stop_pct/100`, stop z
+    dynamic_stop_loss_pct wg zmienności WIDZIANEJ przy wejściu), więc etykieta
+    live i etykieta backtestu są w tej samej jednostce i wolno je porównywać.
+    None, gdy brak `settings` lub nie da się odtworzyć ryzyka (brak vol/koszt)."""
+    _stop_pct = None
+    if settings is not None:
+        from app.services.trading_engine import dynamic_stop_loss_pct
+
+        def _stop_pct(vol):  # noqa: E306 — lokalnie, by uniknąć importu cyklicznego
+            return dynamic_stop_loss_pct(settings, vol)
+
     trades = db.execute(select(Trade).order_by(Trade.timestamp.asc())).scalars().all()
     dec_ids = {t.decision_id for t in trades if t.decision_id}
     decs: dict[int, Decision] = {}
@@ -86,13 +106,22 @@ def labeled_closes(db: Session, *, venue: str | None = "crypto", open_since=None
             if keep:
                 d = decs.get(lot_dec.get(sym))
                 lo = lot_open.get(sym)
+                feats = _entry_features(d.market_data_snapshot if d else "{}", sym)
+                pnl_r = None
+                if _stop_pct is not None and cost_usd > 0:
+                    sp = _stop_pct(feats.get("vol_pct"))
+                    risk0 = cost_usd * sp / 100.0
+                    if risk0 > 0:
+                        pnl_r = round(pnl / risk0, 2)
                 out.append({
                     "symbol": sym,
                     "opened_at": lo.isoformat() if lo else None,
                     "sold_at": _aware(t.timestamp).isoformat() if t.timestamp else None,
                     "pnl_pct": round(pnl / cost_usd * 100, 2) if cost_usd > 0 else None,
+                    "pnl_R": pnl_r,
                     "win": pnl >= 0,
-                    "features": _entry_features(d.market_data_snapshot if d else "{}", sym),
+                    "schema_version": FEATURE_SCHEMA_VERSION,
+                    "features": feats,
                 })
             cost[sym] -= cost_usd
             qty[sym] -= sell_qty
@@ -164,7 +193,7 @@ def learning_curve(db: Session, settings, *, venue: str = "crypto", cohort_size:
 
     state = risk_manager.get_state(db)
     epoch, epoch_raw = scorecard.effective_epoch(state, settings, venue=venue)
-    closes = labeled_closes(db, venue=venue, open_since=epoch)
+    closes = labeled_closes(db, venue=venue, open_since=epoch, settings=settings)
     closes.sort(key=lambda c: c["sold_at"] or "")
 
     cohorts: list[dict] = []
@@ -173,11 +202,16 @@ def learning_curve(db: Session, settings, *, venue: str = "crypto", cohort_size:
         pnl = [c["pnl_pct"] for c in chunk if c["pnl_pct"] is not None]
         if not pnl:
             continue
+        rs = [c["pnl_R"] for c in chunk if c.get("pnl_R") is not None]
         cohorts.append({
             "from": chunk[0]["sold_at"],
             "to": chunk[-1]["sold_at"],
             "n": len(chunk),
             "expectancy_pct": round(sum(pnl) / len(pnl), 2),
+            # Expectancy w R to UCZCIWA miara edge: ile zarabiamy na jednostkę
+            # ryzyka. Rośnie tylko, gdy wygrane są duże WZGLĘDEM stopów — nie da
+            # się jej podkręcić ciasnymi stopami jak surowego %. None, gdy brak R.
+            "expectancy_R": round(sum(rs) / len(rs), 2) if rs else None,
             "win_rate": round(sum(1 for c in chunk if c["win"]) / len(chunk) * 100, 1),
         })
 
@@ -186,11 +220,14 @@ def learning_curve(db: Session, settings, *, venue: str = "crypto", cohort_size:
         first, last = cohorts[0]["expectancy_pct"], cohorts[-1]["expectancy_pct"]
         trend = "improving" if last > first else ("flat" if last == first else "degrading")
 
+    all_r = [c["pnl_R"] for c in closes if c.get("pnl_R") is not None]
     return {
         "cohorts": cohorts,
         "trend": trend,
         "total_closes": len(closes),
+        "expectancy_R": round(sum(all_r) / len(all_r), 2) if all_r else None,
         "since": epoch_raw or None,
         "cohort_size": cohort_size,
+        "schema_version": FEATURE_SCHEMA_VERSION,
         "attribution": feature_attribution(closes),
     }

@@ -608,6 +608,9 @@ function LearningPanel() {
   return (
     <div className="cr-panel">
       <div className="cr-ph"><h3>Krzywa uczenia — czy bot się poprawia?</h3><span className={`cr-chip ${trendChip.cls}`}>{trendChip.t}</span></div>
+      {d.expectancy_R != null && (
+        <p className="cr-foot-note" style={{ padding: "2px 2px 0" }}>Expectancy na jednostkę ryzyka: <b style={{ color: d.expectancy_R >= 0 ? "var(--cr-up)" : "var(--cr-down)" }}>{d.expectancy_R >= 0 ? "+" : ""}{d.expectancy_R}R</b> <span className="dim">/ trejd (uczciwa miara edge — niezależna od szerokości stopa)</span></p>
+      )}
       {d.total_closes < 10 ? (
         <p className="cr-foot-note" style={{ padding: "6px 2px 0" }}>Za mało zamkniętych trejdów od startu obecnej strategii ({d.total_closes}) na wiarygodny trend — zbieramy dalej.</p>
       ) : (
@@ -616,7 +619,7 @@ function LearningPanel() {
             {d.cohorts.map((c, i) => (
               <div key={i} className={`cr-cohort ${c.expectancy_pct >= 0 ? "up" : "down"}`} title={`${c.from ?? ""} → ${c.to ?? ""} · ${c.n} trejdów`}>
                 <span className="v">{c.expectancy_pct >= 0 ? "+" : ""}{c.expectancy_pct}%</span>
-                <span className="s">{c.win_rate.toFixed(0)}% traf · {c.n}</span>
+                <span className="s">{c.win_rate.toFixed(0)}% traf · {c.n}{c.expectancy_R != null ? ` · ${c.expectancy_R >= 0 ? "+" : ""}${c.expectancy_R}R` : ""}</span>
               </div>
             ))}
           </div>

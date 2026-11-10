@@ -45,6 +45,44 @@ def test_labeled_closes_open_since_excludes_blowout(db_session):
     assert rows == []
 
 
+def test_labeled_closes_r_multiple_matches_entry_risk(db_session, settings):
+    """pnl_R = wynik / ryzyko-początkowe, liczone jak w backteście
+    (koszt * stop_pct/100, stop ze zmienności widzianej przy wejściu). Z settings
+    etykieta R musi być obecna i równa pnl/risk0; bez settings — None."""
+    from app.services.trading_engine import dynamic_stop_loss_pct
+
+    t0 = datetime(2026, 10, 20, tzinfo=UTC)
+    _open_buy(db_session, "SOL/USD", t0, 100.0, 1.0, _snap("SOL/USD"))  # vol_pct=3.0 w _snap
+    db_session.add(Trade(timestamp=datetime(2026, 10, 21, tzinfo=UTC), symbol="SOL/USD", side="SELL",
+                         quantity=1.0, price=120.0, usdt_value=120.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.commit()
+
+    sp = dynamic_stop_loss_pct(settings, 3.0)
+    expected_r = round(20.0 / (100.0 * sp / 100.0), 2)  # pnl=20, risk0=koszt*stop%/100
+
+    with_s = learning.labeled_closes(db_session, venue="crypto", settings=settings)
+    assert with_s[0]["pnl_R"] == expected_r
+    assert with_s[0]["schema_version"] == learning.FEATURE_SCHEMA_VERSION
+
+    without_s = learning.labeled_closes(db_session, venue="crypto")  # brak settings
+    assert without_s[0]["pnl_R"] is None
+    assert without_s[0]["schema_version"] == learning.FEATURE_SCHEMA_VERSION
+
+
+def test_learning_curve_reports_expectancy_r(db_session, settings):
+    s = settings.model_copy(update={"crypto_stats_epoch_default": "2026-10-16T00:00:00+00:00"})
+    for i, (buy, sell) in enumerate([(100, 110), (100, 120)]):
+        sym = f"R{i}/USD"
+        _open_buy(db_session, sym, datetime(2026, 10, 20 + i, tzinfo=UTC), float(buy), 1.0, _snap(sym))
+        db_session.add(Trade(timestamp=datetime(2026, 10, 20 + i, 12, tzinfo=UTC), symbol=sym, side="SELL",
+                             quantity=1.0, price=float(sell), usdt_value=float(sell), mode=TradeMode.LIVE, venue="crypto"))
+    db_session.commit()
+    lc = learning.learning_curve(db_session, s, venue="crypto", cohort_size=2)
+    assert lc["schema_version"] == learning.FEATURE_SCHEMA_VERSION
+    assert lc["expectancy_R"] is not None and lc["expectancy_R"] > 0
+    assert lc["cohorts"][0]["expectancy_R"] is not None
+
+
 def test_learning_curve_cohorts_and_trend(db_session, settings):
     s = settings.model_copy(update={"crypto_stats_epoch_default": "2026-10-16T00:00:00+00:00"})
     # 4 zamknięcia: 2 słabe, potem 2 mocne -> trend improving (cohort_size=2).
