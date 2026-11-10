@@ -93,6 +93,96 @@ def ledger_vs_broker(db: Session, settings: Settings, *, account_total: float | 
     }
 
 
+def resync_ledger_to_broker(db: Session, settings: Settings, *, apply: bool = False) -> dict:
+    """Dociąga NASZĄ bazę transakcji do realnych pozycji brokera (źródło prawdy).
+
+    Dla każdej monety, gdzie baza myśli, że trzyma WIĘCEJ niż broker (phantom —
+    jak HYPE: baza 2848 szt., broker 0), księguje syntetyczną transakcję
+    uzgadniającą: SELL nadwyżki po cenie 0 = pełne spisanie kosztu phantomu w
+    realized. Po tym netto bazy = saldo brokera, więc (a) watchdog widzi
+    reconciled=True i silnik może wznowić, (b) realized P&L przestaje UKRYWAĆ
+    stratę zjedzoną po stronie kupna (koniec z "+$1k" przy koncie −39%).
+
+    Cena 0 (nie bieżący mark): pozycja u brokera ZNIKŁA, więc konserwatywnie
+    zakładamy, że gotówka przepadła — realized dostaje pełny koszt phantomu.
+    Wartość konta na pulpicie pochodzi i tak z brokera, więc to NIE zmienia
+    wyświetlanego salda; prostuje tylko nasz wewnętrzny rachunek wyniku.
+
+    apply=False (domyślnie): tylko PODGLĄD — nic nie zapisuje. Idempotentne:
+    ponowne uruchomienie po uzgodnieniu = brak zmian. Rozjazd w DRUGĄ stronę
+    (broker trzyma więcej niż baza) jest tylko RAPORTOWANY, nie zmyślamy kupna.
+    """
+    from datetime import UTC, datetime
+
+    from app.models import TradeMode
+    from app.services.trading_engine import _base_asset, average_cost_basis
+
+    snap = _latest_crypto_snapshot(db)
+    if snap is None:
+        return {"applied": False, "reason": "brak snapshotu krypto", "adjustments": [], "total_loss_usd": 0.0}
+    try:
+        broker_bal = json.loads(snap.balances_json or "{}")
+        prices = json.loads(snap.prices_json or "{}")
+    except (TypeError, ValueError):
+        return {"applied": False, "reason": "nieczytelny snapshot", "adjustments": [], "total_loss_usd": 0.0}
+
+    rows = db.execute(
+        select(Trade.symbol, Trade.side, Trade.quantity)
+        .where(Trade.venue == "crypto")
+        .order_by(Trade.id)
+    ).all()
+    ledger_qty: dict[str, float] = {}
+    for sym, side, qty in rows:
+        signed = qty if "BUY" in str(side).upper() else -qty
+        ledger_qty[sym] = ledger_qty.get(sym, 0.0) + (signed or 0.0)
+
+    adjustments: list[dict] = []
+    reverse: list[dict] = []
+    now = datetime.now(UTC)
+    for sym, lq in ledger_qty.items():
+        bq = float(broker_bal.get(sym, 0.0) or 0.0)
+        excess = lq - bq
+        price = float(prices.get(sym, 0.0) or 0.0)
+        if excess * max(price, 1.0) < 1.0:
+            # nadwyżka < ~$1 (albo baza <= broker). Rozjazd w drugą stronę -> raport.
+            if (bq - lq) * max(price, 1.0) >= 1.0:
+                reverse.append({"symbol": sym, "ledger_qty": round(lq, 6), "broker_qty": round(bq, 6)})
+            continue
+        basis = average_cost_basis(db, _base_asset(sym, settings.quote_currency), venue="crypto") or 0.0
+        loss = round(excess * basis, 2)   # SELL po cenie 0 => realized = −(excess*basis)
+        adjustments.append({
+            "symbol": sym, "excess_qty": round(excess, 6),
+            "avg_cost": round(basis, 6), "loss_usd": loss,
+            "mark_now": round(price, 6),
+        })
+        if apply:
+            db.add(Trade(
+                timestamp=now, symbol=sym, side="SELL", quantity=excess, price=0.0,
+                usdt_value=0.0, order_id=f"RESYNC-{sym}-{now.strftime('%Y%m%dT%H%M%S')}",
+                mode=TradeMode.LIVE, is_manual=False, venue="crypto",
+                pnl_usd=-loss, pnl_pct=-100.0 if basis > 0 else 0.0,
+            ))
+
+    total_loss = round(sum(a["loss_usd"] for a in adjustments), 2)
+    if apply and adjustments:
+        db.commit()
+        try:
+            risk_manager = __import__("app.services.risk_manager", fromlist=["_log_event"])
+            risk_manager._log_event(
+                db, "ledger_resync",
+                f"Uzgodniono {len(adjustments)} pozycji z brokerem; spisano ${total_loss:,.0f} jako realized",
+            )
+        except Exception:  # pragma: no cover
+            pass
+    return {
+        "applied": bool(apply and adjustments),
+        "adjustments": adjustments,
+        "reverse_divergence": reverse,
+        "total_loss_usd": total_loss,
+        "count": len(adjustments),
+    }
+
+
 def check_and_halt(db: Session, settings: Settings, *, account_total: float | None = None) -> dict | None:
     """WATCHDOG (R19/R26): gdy rozjazd baza↔broker przekracza próg, zatrzymaj
     handel (auto-halt) i zaalarmuj. Zwraca raport rekonsyliacji (albo None).

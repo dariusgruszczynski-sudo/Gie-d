@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.serialization import serialize
-from app.services import audit, push_notifier, risk_manager
+from app.services import audit, push_notifier, reconciliation, risk_manager
 from app.services.alpaca_client import AlpacaAPIError, AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
 from app.services.market_context import MarketContextClient
@@ -60,6 +60,26 @@ def audit_log(db: Session = Depends(get_db)):
     """Dziennik operacji wrażliwych (najnowsze pierwsze). Pod /api/control, więc
     dostęp TYLKO dla zalogowanego właściciela -- link RO nigdy go nie zobaczy."""
     return {"entries": audit.recent(db, limit=100)}
+
+
+@router.post("/reconcile-resync")
+def reconcile_resync(apply: bool = False, db: Session = Depends(get_db),
+                     settings: Settings = Depends(get_settings), request: Request = None):
+    """NARZĘDZIE RE-SYNC (R24/R25): dociąga naszą bazę transakcji do realnych
+    pozycji brokera (źródło prawdy). Dla każdego phantomu (baza > broker) księguje
+    transakcję uzgadniającą — spisuje koszt w realized, zeruje nadwyżkę, więc
+    watchdog widzi reconciled=True i silnik może wznowić.
+
+    apply=false (domyślnie): PODGLĄD — zwraca co by zaksięgowało, nic nie zapisuje.
+    apply=true: WYKONUJE — księguje uzgodnienia (operacja na rekordach, audytowana).
+    Idempotentne. Pod /api/control -> tylko zalogowany właściciel."""
+    report = reconciliation.resync_ledger_to_broker(db, settings, apply=apply)
+    audit.record(
+        db, "reconcile_resync",
+        detail=f"apply={apply} pozycji={report.get('count')} strata=${report.get('total_loss_usd')}",
+        request=request,
+    )
+    return report
 
 
 @router.post("/set-budget")

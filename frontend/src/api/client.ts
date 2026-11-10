@@ -349,6 +349,16 @@ async function apiFetch<T>(path: string, init?: RequestInit, timeoutMs: number =
   }
 }
 
+// R24/R25: raport narzędzia re-sync (uzgodnienie bazy z brokerem).
+export interface ResyncReport {
+  applied: boolean;
+  count: number;
+  total_loss_usd: number;
+  adjustments: { symbol: string; excess_qty: number; avg_cost: number; loss_usd: number; mark_now: number }[];
+  reverse_divergence: { symbol: string; ledger_qty: number; broker_qty: number }[];
+  reason?: string;
+}
+
 export const api = {
   status: () => apiFetch<StatusResponse>(withShare("/api/status")),
   knowledge: () => apiFetch<KnowledgeResponse>(withShare("/api/knowledge")),
@@ -364,6 +374,8 @@ export const api = {
   resume: (venue: string = "alpaca") => apiFetch<unknown>(`/api/control/resume?venue=${venue}`, { method: "POST" }),
   panic: () => apiFetch<{ paused: boolean; sold: string[]; failed: string[]; message: string }>(
     "/api/control/panic", { method: "POST" }, LONG_TIMEOUT_MS),
+  reconcileResync: (apply: boolean = false) =>
+    apiFetch<ResyncReport>(`/api/control/reconcile-resync?apply=${apply}`, { method: "POST" }, LONG_TIMEOUT_MS),
   connectAlpaca: (apiKey: string, apiSecret: string) =>
     apiFetch<{ connected: boolean; mode: string; cash: number; message: string }>(
       "/api/control/connect-alpaca", { method: "POST", headers: { "Content-Type": "application/json" },

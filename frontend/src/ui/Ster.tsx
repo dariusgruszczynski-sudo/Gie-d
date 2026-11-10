@@ -177,6 +177,51 @@ function LimitsSection({ status }: { status: StatusResponse }) {
   );
 }
 
+// R24/R25: narzędzie re-sync — dociąga naszą bazę do realnych pozycji brokera.
+// Pokazuje się TYLKO gdy księgi rozjechane (reconciliation.reconciled === false),
+// bo wtedy watchdog haltuje silnik. Podgląd -> wykonanie (audytowane, idempotentne).
+function ReconcileSection({ status, onChanged }: { status: StatusResponse; onChanged: () => void }) {
+  const rec = status.reconciliation;
+  const [busy, setBusy] = useState<string | null>(null);
+  const [res, setRes] = useState<import("../api/client").ResyncReport | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  if (!rec || rec.reconciled) return null;
+  const usd = (x: number) => "$" + Math.round(x).toLocaleString("en-US");
+  async function preview() {
+    setBusy("prev"); setErr(null);
+    try { setRes(await api.reconcileResync(false)); } catch (e) { setErr(String(e)); } finally { setBusy(null); }
+  }
+  async function apply() {
+    if (!window.confirm(`Uzgodnić księgi z brokerem?\n\nZaksięguje ${res?.count ?? "?"} pozycji jako realized stratę ${res ? usd(res.total_loss_usd) : ""}. Prostuje nasz rachunek wyniku (SALDO KONTA z brokera się NIE zmienia) i odblokowuje czyste wznowienie silnika. Operacja audytowana, idempotentna.`)) return;
+    setBusy("apply"); setErr(null);
+    try {
+      const r = await api.reconcileResync(true);
+      setRes(r);
+      window.alert(`Uzgodniono ${r.count} pozycji. Spisano ${usd(r.total_loss_usd)} jako realized. Watchdog powinien teraz pokazać reconciled — silnik można wznowić.`);
+      onChanged();
+    } catch (e) { setErr(String(e)); } finally { setBusy(null); }
+  }
+  return (
+    <div className="cr-sec">
+      <h4>⚖️ Uzgodnij księgi z brokerem</h4>
+      <p className="hint">Baza rozjechana z brokerem o <b>{usd(Math.abs(rec.residual_usd))}</b> (phantom). Uzgodnienie dociąga naszą bazę do brokera (źródło prawdy), prostuje realized i odblokowuje czyste wznowienie. Saldo konta (z brokera) się nie zmienia.</p>
+      <button className="cr-btn block" disabled={busy !== null} onClick={preview}>{busy === "prev" ? "Liczę…" : "🔍 Podgląd uzgodnienia"}</button>
+      {err && <div className="cr-msg err">{err}</div>}
+      {res && (
+        <div style={{ marginTop: 8 }}>
+          <p className="hint" style={{ margin: "0 0 4px" }}>Do uzgodnienia: <b>{res.count}</b> poz. · spisanie realized: <b style={{ color: "var(--cr-down)" }}>{usd(res.total_loss_usd)}</b></p>
+          {res.adjustments.slice(0, 8).map((aj) => (
+            <p className="cr-prop-mut" key={aj.symbol} style={{ margin: "2px 0" }}>{aj.symbol}: {aj.excess_qty} szt. @ koszt {aj.avg_cost} → {usd(aj.loss_usd)}</p>
+          ))}
+          {!res.applied
+            ? <button className="cr-btn warn block" disabled={busy !== null} onClick={apply} style={{ marginTop: 6 }}>{busy === "apply" ? "Uzgadniam…" : "✓ Wykonaj uzgodnienie"}</button>
+            : <p className="cr-prop-mut" style={{ color: "var(--cr-up)" }}>✓ Uzgodnione — silnik można wznowić.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SterDrawer({ status, onChanged, onClose }: { status: StatusResponse; onChanged: () => void; onClose: () => void }) {
   const paused = status.crypto_enabled ? !!status.crypto_paused : status.is_paused;
   const halted = !!status.is_halted;
@@ -219,6 +264,7 @@ export function SterDrawer({ status, onChanged, onClose }: { status: StatusRespo
             teraz steruje <b style={{ color: dotCol }}>{halted ? "BEZPIECZNIK (HALT)" : paused ? "TY (wstrzymany)" : "BOT"}</b>
           </div>
           <EngineSection status={status} onChanged={onChanged} />
+          <ReconcileSection status={status} onChanged={onChanged} />
           <ConnectAlpacaSection onChanged={onChanged} />
           <PanicSection onChanged={onChanged} />
           <ManualSection status={status} onChanged={onChanged} />
