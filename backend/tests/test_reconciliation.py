@@ -3,6 +3,8 @@
 import json
 from datetime import UTC, datetime
 
+import pytest
+
 from app.models import PortfolioSnapshot, Trade, TradeMode
 from app.services import reconciliation, risk_manager
 
@@ -120,10 +122,14 @@ def test_resync_apply_books_and_reconciles(db_session, settings):
     rec = reconciliation.ledger_vs_broker(db_session, cs, account_total=2000.0)
     assert rec["reconciled"] is True
     assert abs(rec["residual_usd"]) < 1.0
-    # Zaksięgowano syntetyczną transakcję uzgadniającą ze stratą.
+    # Zaksięgowano syntetyczną transakcję uzgadniającą (SELL nadwyżki po cenie 0).
     adj = db_session.query(Trade).filter(Trade.order_id.like("RESYNC-%")).all()
     assert len(adj) == 1
-    assert adj[0].pnl_usd == -8000.0
+    assert adj[0].side == "SELL" and adj[0].quantity == 100.0 and adj[0].price == 0.0
+    # Strata zaksięgowana w realized (walk: cena 0 vs baza $80 * 100 = −$8000).
+    from app.services import scorecard
+    realized, _w, _l = scorecard._walk_realized(db_session, venue="crypto")
+    assert realized == pytest.approx(-8000.0, abs=1.0)
 
 
 def test_resync_idempotent(db_session, settings):

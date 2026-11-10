@@ -158,11 +158,13 @@ def resync_ledger_to_broker(db: Session, settings: Settings, *, apply: bool = Fa
             "mark_now": round(price, 6),
         })
         if apply:
+            # SELL nadwyżki po cenie 0: realized liczony jest przez walk (cena 0 vs
+            # baza kosztowa => strata = −excess*basis), więc NIE przechowujemy pnl na
+            # wierszu (Trade nie ma takiej kolumny — pnl jest liczony przy odczycie).
             db.add(Trade(
                 timestamp=now, symbol=sym, side="SELL", quantity=excess, price=0.0,
                 usdt_value=0.0, order_id=f"RESYNC-{sym}-{now.strftime('%Y%m%dT%H%M%S')}",
                 mode=TradeMode.LIVE, is_manual=False, venue="crypto",
-                pnl_usd=-loss, pnl_pct=-100.0 if basis > 0 else 0.0,
             ))
 
     total_loss = round(sum(a["loss_usd"] for a in adjustments), 2)
