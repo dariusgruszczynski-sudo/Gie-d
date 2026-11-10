@@ -115,7 +115,7 @@ def resync_ledger_to_broker(db: Session, settings: Settings, *, apply: bool = Fa
     from datetime import UTC, datetime
 
     from app.models import TradeMode
-    from app.services.trading_engine import _base_asset, average_cost_basis
+    from app.services.trading_engine import average_cost_basis
 
     snap = _latest_crypto_snapshot(db)
     if snap is None:
@@ -148,7 +148,9 @@ def resync_ledger_to_broker(db: Session, settings: Settings, *, apply: bool = Fa
             if (bq - lq) * max(price, 1.0) >= 1.0:
                 reverse.append({"symbol": sym, "ledger_qty": round(lq, 6), "broker_qty": round(bq, 6)})
             continue
-        basis = average_cost_basis(db, _base_asset(sym, settings.quote_currency), venue="crypto") or 0.0
+        # average_cost_basis dopasowuje po PEŁNYM symbolu (Trade.symbol == "HYPE/USD"),
+        # nie po base — podajemy sym, nie _base_asset(sym).
+        basis = average_cost_basis(db, sym, venue="crypto") or 0.0
         loss = round(excess * basis, 2)   # SELL po cenie 0 => realized = −(excess*basis)
         adjustments.append({
             "symbol": sym, "excess_qty": round(excess, 6),
