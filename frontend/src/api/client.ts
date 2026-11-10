@@ -525,6 +525,21 @@ export interface LearningResponse {
     working?: string; bleeding?: string; proposed_change?: string; rationale?: string;
     confidence?: number; based_on_closes?: number; trend?: string | null; at?: string;
   } | null;
+  // Walidacja OOS (anty-overfit): czy edge z trainu utrzymuje się na nieoglądanych danych.
+  oos?: {
+    status: "ok" | "insufficient_data";
+    total_closes: number;
+    min_total?: number;
+    train_n?: number;
+    test_n?: number;
+    edge_buckets?: string[];
+    oos_edge_avg_pct?: number | null;
+    oos_baseline_avg_pct?: number | null;
+    oos_matched_n?: number;
+    holds?: boolean;
+    since: string | null;
+    schema_version: number;
+  };
 }
 export interface CoinsResponse {
   coins: CoinRow[];

@@ -133,37 +133,41 @@ def labeled_closes(db: Session, *, venue: str | None = "crypto", open_since=None
     return out
 
 
+def _feature_bucket(key, val):
+    """Binuje jedną cechę wejścia na czytelną wartość kategoryczną. Cechy ciągłe
+    (rsi/adx/vol/change) → proste przedziały; kategoryczne → str. Wspólne dla
+    atrybucji i walidacji OOS, żeby obie liczyły edge na IDENTYCZNYCH kubełkach."""
+    if val is None:
+        return None
+    if key in ("trend", "macd", "htf_trend_ok"):
+        return str(val)
+    try:
+        v = float(val)
+    except (TypeError, ValueError):
+        return str(val)
+    if key == "rsi":
+        return "rsi<35" if v < 35 else ("rsi35-50" if v < 50 else ("rsi50-70" if v < 70 else "rsi>=70"))
+    if key == "adx":
+        return "adx<20" if v < 20 else ("adx20-30" if v < 30 else "adx>=30")
+    if key == "vol_pct":
+        return "vol<3" if v < 3 else ("vol3-6" if v < 6 else "vol>=6")
+    if key == "change_period_pct":
+        return "chg<0" if v < 0 else ("chg0-5" if v < 5 else "chg>=5")
+    return str(val)
+
+
 def feature_attribution(closes: list[dict]) -> list[dict]:
     """ATRYBUCJA EDGE (#3): dla każdej cechy wejścia i jej wartości — ile trejdów,
     trafność i średni wynik %. Pokazuje, KTÓRE sygnały realnie przewidują wygrane,
     a które dodają szum. Proste zliczanie (nie model), ale uczciwe i czytelne.
     Cechy ciągłe (rsi/adx/vol/change) binujemy na proste przedziały."""
-    def _bucket(key, val):
-        if val is None:
-            return None
-        if key in ("trend", "macd", "htf_trend_ok"):
-            return str(val)
-        try:
-            v = float(val)
-        except (TypeError, ValueError):
-            return str(val)
-        if key == "rsi":
-            return "rsi<35" if v < 35 else ("rsi35-50" if v < 50 else ("rsi50-70" if v < 70 else "rsi>=70"))
-        if key == "adx":
-            return "adx<20" if v < 20 else ("adx20-30" if v < 30 else "adx>=30")
-        if key == "vol_pct":
-            return "vol<3" if v < 3 else ("vol3-6" if v < 6 else "vol>=6")
-        if key == "change_period_pct":
-            return "chg<0" if v < 0 else ("chg0-5" if v < 5 else "chg>=5")
-        return str(val)
-
     agg: dict[tuple, dict] = {}
     for c in closes:
         pnl = c.get("pnl_pct")
         if pnl is None:
             continue
         for key, val in (c.get("features") or {}).items():
-            b = _bucket(key, val)
+            b = _feature_bucket(key, val)
             if b is None:
                 continue
             a = agg.setdefault((key, b), {"feature": key, "value": b, "n": 0, "wins": 0, "sum_pct": 0.0})
@@ -230,4 +234,98 @@ def learning_curve(db: Session, settings, *, venue: str = "crypto", cohort_size:
         "cohort_size": cohort_size,
         "schema_version": FEATURE_SCHEMA_VERSION,
         "attribution": feature_attribution(closes),
+    }
+
+
+# Kolejność kolumn eksportu — stabilny kontrakt dla offline'owej analizy (pandas/
+# arkusz). Cechy spłaszczone z prefiksem feat_, metryki wyniku osobno.
+EXPORT_COLUMNS = [
+    "symbol", "opened_at", "sold_at", "schema_version",
+    "pnl_pct", "pnl_R", "win",
+    "feat_trend", "feat_macd", "feat_rsi", "feat_vol_pct",
+    "feat_adx", "feat_change_period_pct", "feat_htf_trend_ok",
+]
+
+
+def export_feature_store(db: Session, settings, *, venue: str = "crypto", from_epoch: bool = True) -> dict:
+    """FEATURE STORE (#1): płaski, wersjonowany zrzut etykietowanego datasetu —
+    każdy wiersz = jedno zamknięcie z cechami wejścia + wynikiem (%/R/win). Gotowy
+    do offline'owej analizy (pandas/arkusz) bez znajomości wewnętrznych struktur.
+    `from_epoch` wycina blowout (spójnie ze scorecardem). Czysto odczytowe."""
+    epoch = None
+    if from_epoch:
+        from app.services import risk_manager, scorecard
+        state = risk_manager.get_state(db)
+        epoch, _ = scorecard.effective_epoch(state, settings, venue=venue)
+    closes = labeled_closes(db, venue=venue, open_since=epoch, settings=settings)
+    rows = []
+    for c in closes:
+        f = c.get("features") or {}
+        rows.append({
+            "symbol": c["symbol"], "opened_at": c["opened_at"], "sold_at": c["sold_at"],
+            "schema_version": c["schema_version"],
+            "pnl_pct": c["pnl_pct"], "pnl_R": c["pnl_R"], "win": c["win"],
+            "feat_trend": f.get("trend"), "feat_macd": f.get("macd"), "feat_rsi": f.get("rsi"),
+            "feat_vol_pct": f.get("vol_pct"), "feat_adx": f.get("adx"),
+            "feat_change_period_pct": f.get("change_period_pct"), "feat_htf_trend_ok": f.get("htf_trend_ok"),
+        })
+    return {"columns": EXPORT_COLUMNS, "rows": rows, "n": len(rows), "schema_version": FEATURE_SCHEMA_VERSION}
+
+
+def oos_edge_validation(db: Session, settings, *, venue: str = "crypto",
+                        split_frac: float = 0.6, min_n: int = 3, min_total: int = 20) -> dict:
+    """WALIDACJA OOS (#4, anty-overfit): dzieli zamknięcia CHRONOLOGICZNIE na
+    in-sample (train) i out-of-sample (test). Na trainie wyłania „edge" (kubełki
+    cech z dodatnim śr. wynikiem i próbką >= min_n), potem sprawdza, czy ten edge
+    UTRZYMUJE SIĘ na nieoglądanych danych: czy trejdy OOS pasujące do edge biją
+    bazową średnią OOS. Jeśli nie bije — edge był dopasowaniem do szumu, nie wiedzą.
+
+    To JEDYNY uczciwy test, czy adaptacja czegokolwiek się nauczyła. Przy mało
+    danych (< min_total) zwraca status insufficient_data — bo walidacja na garści
+    trejdów sama jest szumem (nie udajemy wiedzy, której nie ma)."""
+    from app.services import risk_manager, scorecard
+    state = risk_manager.get_state(db)
+    epoch, epoch_raw = scorecard.effective_epoch(state, settings, venue=venue)
+    closes = [c for c in labeled_closes(db, venue=venue, open_since=epoch, settings=settings)
+              if c.get("pnl_pct") is not None]
+    closes.sort(key=lambda c: c["sold_at"] or "")
+    n = len(closes)
+    if n < min_total:
+        return {"status": "insufficient_data", "total_closes": n, "min_total": min_total,
+                "since": epoch_raw or None, "schema_version": FEATURE_SCHEMA_VERSION}
+
+    cut = max(1, int(n * split_frac))
+    train, test = closes[:cut], closes[cut:]
+    # Edge z trainu: kubełki (cecha→wartość) z dodatnim śr. % i sensowną próbką.
+    edge = {(a["feature"], a["value"]) for a in feature_attribution(train)
+            if a["avg_pct"] > 0 and a["n"] >= min_n}
+
+    def _buckets(c):
+        out = set()
+        for key, val in (c.get("features") or {}).items():
+            b = _feature_bucket(key, val)
+            if b is not None:
+                out.add((key, b))
+        return out
+
+    matched = [c for c in test if _buckets(c) & edge]
+    def _avg(rows):
+        vals = [c["pnl_pct"] for c in rows if c["pnl_pct"] is not None]
+        return round(sum(vals) / len(vals), 2) if vals else None
+
+    oos_edge_avg = _avg(matched)
+    oos_all_avg = _avg(test)
+    holds = (oos_edge_avg is not None and oos_all_avg is not None and oos_edge_avg > oos_all_avg)
+    return {
+        "status": "ok",
+        "total_closes": n,
+        "train_n": len(train),
+        "test_n": len(test),
+        "edge_buckets": sorted(f"{k}={v}" for k, v in edge),
+        "oos_edge_avg_pct": oos_edge_avg,
+        "oos_baseline_avg_pct": oos_all_avg,
+        "oos_matched_n": len(matched),
+        "holds": holds,
+        "since": epoch_raw or None,
+        "schema_version": FEATURE_SCHEMA_VERSION,
     }

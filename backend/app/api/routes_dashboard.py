@@ -1218,7 +1218,31 @@ def get_learning(db: Session = Depends(get_db), settings: Settings = Depends(get
     from app.services import learning, llm_meta
     out = learning.learning_curve(db, settings, venue="crypto")
     out["meta_insight"] = llm_meta.latest_insight(db)  # ostatni wniosek meta-ucznia (#11)
+    out["oos"] = learning.oos_edge_validation(db, settings, venue="crypto")  # anty-overfit (#4)
     return out
+
+
+@router.get("/learning/export")
+def export_learning(db: Session = Depends(get_db), settings: Settings = Depends(get_settings),
+                    fmt: str = "json"):
+    """FEATURE STORE (#1): wersjonowany, płaski zrzut etykietowanego datasetu
+    (cechy wejścia + wynik %/R/win per zamknięcie) do offline'owej analizy.
+    fmt=csv zwraca CSV, inaczej JSON. Czysto odczytowe."""
+    from app.services import learning
+    store = learning.export_feature_store(db, settings, venue="crypto")
+    if fmt == "csv":
+        import csv
+        import io
+
+        from fastapi.responses import Response
+        buf = io.StringIO()
+        w = csv.DictWriter(buf, fieldnames=store["columns"], extrasaction="ignore")
+        w.writeheader()
+        for r in store["rows"]:
+            w.writerow(r)
+        return Response(content=buf.getvalue(), media_type="text/csv",
+                        headers={"Content-Disposition": "attachment; filename=feature_store.csv"})
+    return store
 
 
 def _realized_since(trades, cutoff, alpaca_only: bool = False) -> tuple[float, int, int]:

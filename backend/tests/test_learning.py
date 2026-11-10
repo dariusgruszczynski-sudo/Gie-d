@@ -1,6 +1,6 @@
 """Substrat uczenia (#1/#2/#15): etykietowanie wyników + krzywa uczenia."""
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from app.models import Decision, Trade, TradeAction, TradeMode
 from app.services import learning
@@ -81,6 +81,59 @@ def test_learning_curve_reports_expectancy_r(db_session, settings):
     assert lc["schema_version"] == learning.FEATURE_SCHEMA_VERSION
     assert lc["expectancy_R"] is not None and lc["expectancy_R"] > 0
     assert lc["cohorts"][0]["expectancy_R"] is not None
+
+
+def test_export_feature_store_flat_versioned(db_session, settings):
+    """Eksport: płaski, wersjonowany dataset — stałe kolumny, cechy z prefiksem
+    feat_, metryki wyniku (%/R/win) i schema_version na każdym wierszu."""
+    s = settings.model_copy(update={"crypto_stats_epoch_default": "2026-10-01T00:00:00+00:00"})
+    t0 = datetime(2026, 10, 20, tzinfo=UTC)
+    _open_buy(db_session, "SOL/USD", t0, 100.0, 1.0, _snap("SOL/USD"))
+    db_session.add(Trade(timestamp=datetime(2026, 10, 21, tzinfo=UTC), symbol="SOL/USD", side="SELL",
+                         quantity=1.0, price=120.0, usdt_value=120.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.commit()
+    store = learning.export_feature_store(db_session, s, venue="crypto")
+    assert store["n"] == 1 and store["schema_version"] == learning.FEATURE_SCHEMA_VERSION
+    assert store["columns"] == learning.EXPORT_COLUMNS
+    r = store["rows"][0]
+    assert r["symbol"] == "SOL/USD" and r["pnl_pct"] == 20.0 and r["win"] is True
+    assert r["feat_trend"] == "above" and r["feat_rsi"] == 55 and r["feat_htf_trend_ok"] is True
+    assert r["pnl_R"] is not None  # settings podane -> R policzone
+
+
+def test_oos_validation_insufficient_data(db_session, settings):
+    """Za mało zamknięć -> status insufficient_data (nie udajemy walidacji na szumie)."""
+    s = settings.model_copy(update={"crypto_stats_epoch_default": "2026-10-01T00:00:00+00:00"})
+    t0 = datetime(2026, 10, 20, tzinfo=UTC)
+    _open_buy(db_session, "SOL/USD", t0, 100.0, 1.0, _snap("SOL/USD"))
+    db_session.add(Trade(timestamp=datetime(2026, 10, 21, tzinfo=UTC), symbol="SOL/USD", side="SELL",
+                         quantity=1.0, price=120.0, usdt_value=120.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.commit()
+    out = learning.oos_edge_validation(db_session, s, venue="crypto")
+    assert out["status"] == "insufficient_data" and out["total_closes"] == 1
+
+
+def test_oos_validation_edge_holds_out_of_sample(db_session, settings):
+    """Edge z trainu (trend=above) utrzymuje się OOS: trejdy pasujące biją bazę.
+    Układ: 8 wygranych (above, +20%) vs 16 przegranych (below, -15%) -> średnia
+    globalna ujemna, więc TYLKO selektywny kubełek trend=above przechodzi jako
+    edge; potwierdza on się na nieoglądanych danych (holds=True)."""
+    s = settings.model_copy(update={"crypto_stats_epoch_default": "2026-10-01T00:00:00+00:00"})
+    for i in range(24):
+        winner = (i % 3 == 0)
+        trend = "above" if winner else "below"
+        sell = 120.0 if winner else 85.0  # +20% / -15%
+        sym = f"W{i}/USD"
+        when = datetime(2026, 10, 15, 0, 0, tzinfo=UTC) + timedelta(hours=i)
+        _open_buy(db_session, sym, when, 100.0, 1.0, _snap(sym, trend=trend))
+        db_session.add(Trade(timestamp=when + timedelta(minutes=30), symbol=sym, side="SELL",
+                             quantity=1.0, price=sell, usdt_value=sell, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.commit()
+    out = learning.oos_edge_validation(db_session, s, venue="crypto", split_frac=0.6, min_n=3)
+    assert out["status"] == "ok" and out["total_closes"] == 24
+    assert "trend=above" in out["edge_buckets"]
+    assert out["oos_edge_avg_pct"] > out["oos_baseline_avg_pct"]
+    assert out["holds"] is True
 
 
 def test_learning_curve_cohorts_and_trend(db_session, settings):

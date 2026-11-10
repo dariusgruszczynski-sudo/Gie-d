@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   api, CoinsResponse, Decision, HistoryResponse, HistoryTrade, KnowledgeResponse,
-  PortfolioResponse, PositionPlan, StatusResponse,
+  PortfolioResponse, PositionPlan, StatusResponse, withShare,
 } from "../api/client";
 import { ago, money, money0, pct, PnlBand } from "./kit";
 import { DecRow, extract, Leg, PositionCard } from "./Console";
@@ -636,6 +636,24 @@ function LearningPanel() {
             </div>
           )}
         </>
+      )}
+      {d.oos && (
+        <div className="cr-foot-note" style={{ padding: "8px 2px 0", borderTop: "1px solid var(--cr-line)", marginTop: 8 }}>
+          {d.oos.status === "insufficient_data" ? (
+            <span className="dim">Walidacja OOS (anty-overfit): za mało zamknięć ({d.oos.total_closes}/{d.oos.min_total ?? 20}) — czekamy na dane, nie udajemy wiedzy.</span>
+          ) : (
+            <span>
+              <b>Walidacja OOS:</b>{" "}
+              {d.oos.holds
+                ? <span style={{ color: "var(--cr-up)" }}>✅ edge z próby treningowej UTRZYMAŁ się na nieoglądanych danych</span>
+                : <span style={{ color: "var(--cr-down)" }}>⚠️ edge NIE utrzymał się OOS — to było dopasowanie do szumu</span>}
+              {" "}<span className="dim">(train {d.oos.train_n} / test {d.oos.test_n}; OOS edge {d.oos.oos_edge_avg_pct ?? "—"}% vs baza {d.oos.oos_baseline_avg_pct ?? "—"}%{d.oos.edge_buckets && d.oos.edge_buckets.length ? ` · ${d.oos.edge_buckets.join(", ")}` : ""})</span>
+            </span>
+          )}
+          {d.total_closes > 0 && (
+            <> · <a href={withShare("/api/learning/export?fmt=csv")} target="_blank" rel="noreferrer">eksport CSV</a></>
+          )}
+        </div>
       )}
       {mi && mi.proposed_change && (
         <div className="cr-insight">
