@@ -215,7 +215,13 @@ function ReconcileSection({ status, onChanged }: { status: StatusResponse; onCha
           ))}
           {!res.applied
             ? <button className="cr-btn warn block" disabled={busy !== null} onClick={apply} style={{ marginTop: 6 }}>{busy === "apply" ? "Uzgadniam…" : "✓ Wykonaj uzgodnienie"}</button>
-            : <p className="cr-prop-mut" style={{ color: "var(--cr-up)" }}>✓ Uzgodnione — silnik można wznowić.</p>}
+            : <>
+                <p className="cr-prop-mut" style={{ color: "var(--cr-up)" }}>✓ Uzgodnione — silnik można wznowić.</p>
+                <button className="cr-btn block" disabled={busy !== null} onClick={async () => {
+                  setBusy("epoch");
+                  try { const r = await api.markEpoch(); window.alert(r.message || "Pomiar od teraz."); onChanged(); } catch (e) { setErr(String(e)); } finally { setBusy(null); }
+                }}>{busy === "epoch" ? "Ustawiam…" : "🧭 Zacznij czysty pomiar od teraz (R27)"}</button>
+              </>}
         </div>
       )}
     </div>

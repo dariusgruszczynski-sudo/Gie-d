@@ -645,6 +645,12 @@ class Settings(BaseSettings):
     # their BUY size by high_spread_size_scale (1.0 = no haircut).
     high_spread_symbols: str = "SH,PSQ,IWM,XLE,TLT,SLV,EEM,EFA,XLU,XLP,XLI"
     high_spread_size_scale: float = 0.6
+    # MODEL POŚLIZGU W BACKTEŚCIE (R22, meta-analiza 2026-11-09): każdy fill płaci
+    # `backtest_slippage_bps` bps w złą stronę (BUY drożej, SELL taniej). Bez tego
+    # backtest ZAWYŻA wynik, udając, że własne zlecenie nie rusza książki — a na
+    # cienkiej giełdzie rusza. Dotyczy TYLKO backtestu/walk-forward (nie żywego
+    # handlu). 15 bps/strona = konserwatywnie dla płynnych par; cienkie są gorsze.
+    backtest_slippage_bps: float = 15.0
     # --- Zlecenia z limitem na nazwach o szerokim spreadzie (rekomendacja B) ---
     # Na cieńszych/szerokospreadowych nazwach market-order potrafi wejść po gorszej
     # cenie (poślizg zjada przewagę zanim rynek się ruszy). Gdy włączone, KUPNO

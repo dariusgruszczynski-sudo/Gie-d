@@ -178,3 +178,17 @@ def test_altseason_gate_blocks_alts_when_btc_leads(settings):
     assert "error" not in r_off and "error" not in r_on
     assert r_on["entries"] > 0            # BTC nadal wchodzi
     assert r_on["entries"] < r_off["entries"]  # bramka zablokowała część wejść w alty
+
+
+def test_backtest_slippage_reduces_returns(settings):
+    """R22: wyższy poślizg -> niższy wynik backtestu (fille płacą w złą stronę)."""
+    s = settings.model_copy(update={
+        "entry_filter_enabled": False, "risk_per_trade_pct": 1.0,
+        "max_concurrent_positions": 4, "min_hold_minutes": 0, "max_position_pct": 50.0,
+    })
+    data = {"SPY": _uptrend(), "QQQ": _uptrend(phase=1.0)}
+    no_slip = backtest.run_backtest(data, s.model_copy(update={"backtest_slippage_bps": 0.0}),
+                                    benchmark_symbol="SPY", starting_cash=1000.0)
+    hi_slip = backtest.run_backtest(data, s.model_copy(update={"backtest_slippage_bps": 200.0}),
+                                    benchmark_symbol="SPY", starting_cash=1000.0)
+    assert hi_slip["total_return_pct"] < no_slip["total_return_pct"]

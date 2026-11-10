@@ -88,3 +88,10 @@ def test_meta_analysis_knobs_2026_11():
     assert s.crypto_btc_core_mode is True                    # R12
     assert s.crypto_reconciliation_halt_pct == 1.0           # R19/R26
     assert s.crypto_reconciliation_halt_floor_usd == 2000.0
+
+
+def test_backtest_slippage_default():
+    """R22: model poślizgu w backteście domyślnie włączony (15 bps/strona)."""
+    from app.config import Settings
+    s = Settings(anthropic_api_key="x", alpaca_api_key="x", alpaca_api_secret="x")
+    assert s.backtest_slippage_bps == 15.0

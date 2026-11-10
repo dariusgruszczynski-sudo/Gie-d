@@ -148,6 +148,10 @@ def run_backtest(
     altseason_gate = getattr(settings, "altseason_gate_enabled", False)
     altseason_lb = getattr(settings, "altseason_lookback", 30) or 30
 
+    # R22: poślizg per fill (BUY drożej, SELL taniej) — backtest przestaje udawać,
+    # że własne zlecenie nie rusza książki. Frakcja (np. 15 bps = 0.0015).
+    slip = max(0.0, getattr(settings, "backtest_slippage_bps", 0.0) or 0.0) / 10000.0
+
     cash = starting_cash
     positions: dict[str, _Pos] = {}
     idx = dict.fromkeys(symbols, 0)  # bars with time <= current step
@@ -196,8 +200,9 @@ def run_backtest(
             sell_qty = pos.qty * (sell_pct / 100)
             if kind == "partial" and sell_qty * price < MIN_SELL_NOTIONAL_USD:
                 continue
-            pnl = (price - basis) * sell_qty
-            cash += sell_qty * price
+            sell_px = price * (1.0 - slip)   # R22: poślizg na wyjściu
+            pnl = (sell_px - basis) * sell_qty
+            cash += sell_qty * sell_px
             realized_total += pnl
             if pos.entry_risk_usd > 0:
                 sell_returns_r.append(pnl / pos.entry_risk_usd)
@@ -273,7 +278,7 @@ def run_backtest(
                 if value < MIN_SELL_NOTIONAL_USD:
                     continue
                 cash -= value
-                pos.qty += value / price
+                pos.qty += value / (price * (1.0 + slip))   # R22: poślizg na dokładce
                 pos.cost += value
                 pos.peak = max(pos.peak, price)
                 n_entries += 1
@@ -316,7 +321,8 @@ def run_backtest(
                 continue
             cash -= value
             positions[s] = _Pos(
-                qty=value / price, cost=value, peak=price, entry_i=step, entry_risk_usd=value * stop_pct / 100
+                qty=value / (price * (1.0 + slip)), cost=value, peak=price,  # R22: poślizg na wejściu
+                entry_i=step, entry_risk_usd=value * stop_pct / 100,
             )
             n_entries += 1
 

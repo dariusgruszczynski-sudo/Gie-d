@@ -62,6 +62,20 @@ def audit_log(db: Session = Depends(get_db)):
     return {"entries": audit.recent(db, limit=100)}
 
 
+@router.post("/mark-epoch")
+def mark_epoch(db: Session = Depends(get_db), request: Request = None):
+    """CZYSTY POMIAR (R27): ustaw „od kiedy liczymy" na TERAZ — bez kasowania
+    transakcji. Scorecard/trafność/alfa-vs-BTC liczą się od tego momentu, więc
+    po uzgodnieniu księgi i wznowieniu silnika mierzymy CZYSTĄ nową erę, nie
+    skażoną blowoutem/phantomem. Odwracalne (ustaw ponownie albo Reset do czysta)."""
+    from datetime import UTC, datetime
+    state = risk_manager.get_state(db)
+    state.stats_epoch = datetime.now(UTC).isoformat()
+    db.commit()
+    audit.record(db, "mark_epoch", detail=f"stats_epoch={state.stats_epoch}", request=request)
+    return {"stats_epoch": state.stats_epoch, "message": "Pomiar liczony od teraz (czysta era)."}
+
+
 @router.post("/reconcile-resync")
 def reconcile_resync(apply: bool = False, db: Session = Depends(get_db),
                      settings: Settings = Depends(get_settings), request: Request = None):

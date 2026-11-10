@@ -647,6 +647,43 @@ function LearningPanel() {
   );
 }
 
+// R14: shadow — czy Claude (LLM) bije samą mechanikę na tych samych danych.
+// Najważniejszy test edge; dopóki LLM nie bije mechaniki, zostaje wyłączony.
+function ShadowPanel({ status }: { status: StatusResponse }) {
+  const venue = status.crypto_enabled ? "crypto" : "alpaca";
+  const [d, setD] = useState<import("../api/client").ClaudeEdge | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(false);
+  async function load() {
+    setBusy(true); setErr(false);
+    try { setD(await api.claudeEdge(venue)); } catch { setErr(true); } finally { setBusy(false); }
+  }
+  const m = d?.mechanical_only, c = d?.with_claude;
+  const enough = !!(m && c && m.closed_trades && c.closed_trades);
+  const diff = enough ? (c!.win_rate_pct ?? 0) - (m!.win_rate_pct ?? 0) : 0;
+  return (
+    <div className="cr-panel">
+      <div className="cr-ph"><h3>LLM vs sama mechanika — czy Claude dokłada edge?</h3><span className="note">retrospektywny shadow · pomiar, nie handel</span></div>
+      <p className="cr-foot-note" style={{ padding: "0 2px 8px" }}>Najważniejszy test (R14): czy decyzje Claude biją to, co zrobiłaby sama mechaniczna bramka na tych samych danych. Dopóki nie bije — LLM zostaje wyłączony.</p>
+      {!d && <button className="cr-btn block" disabled={busy} onClick={load}>{busy ? "Liczę…" : "▶ Policz shadow (Claude vs mechanika)"}</button>}
+      {err && <p className="cr-foot-note" style={{ color: "var(--cr-down)" }}>Nie udało się policzyć.</p>}
+      {d && (
+        <>
+          <div className="cr-grid c2">
+            <div className="cr-metric"><span className="k">Sama mechanika</span><span className="v">{m?.win_rate_pct ?? "—"}%</span><span className="s">{m?.closed_trades ?? 0} zamknięć · śr. {m?.avg_return_pct ?? "—"}%/trejd</span></div>
+            <div className="cr-metric"><span className="k">Z Claude (historia)</span><span className="v">{c?.win_rate_pct ?? "—"}%</span><span className="s">{c?.closed_trades ?? 0} zamknięć</span></div>
+          </div>
+          {enough
+            ? <p className="cr-foot-note" style={{ marginTop: 8, color: diff > 2 ? "var(--cr-up)" : diff < -2 ? "var(--cr-down)" : undefined }}>
+                {diff > 2 ? `✓ Claude bije mechanikę o ${diff.toFixed(1)}pp trafności` : diff < -2 ? `✗ Claude GORSZY od mechaniki o ${Math.abs(diff).toFixed(1)}pp — LLM słusznie wyłączony` : "≈ Claude ~na równi z mechaniką — LLM nie dokłada edge"}
+              </p>
+            : <p className="cr-foot-note" style={{ marginTop: 8 }}>Za mało zamknięć na werdykt ({c?.closed_trades ?? 0} z Claude, {m?.closed_trades ?? 0} mechanika).</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function Brain({ status, decisions }: { status: StatusResponse; decisions: Decision[] }) {
   const [k, setK] = useState<KnowledgeResponse | null>(null);
   const [err, setErr] = useState(false);
@@ -672,6 +709,8 @@ export function Brain({ status, decisions }: { status: StatusResponse; decisions
       <div className="cr-screen-head"><h2>Mózg</h2><span className="sub">co bot wie, widzi i czego się uczy — pełna transparentność</span></div>
 
       <LearningPanel />
+
+      <ShadowPanel status={status} />
 
       <div className="cr-panel">
         <div className="cr-ph"><h3>Puls rynku — to samo, co widzi bot</h3><span className={`cr-chip ${regimeChip.cls}`}>reżim: {regimeChip.t}</span></div>

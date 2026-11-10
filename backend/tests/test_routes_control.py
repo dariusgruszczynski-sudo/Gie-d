@@ -107,3 +107,12 @@ def test_set_exit_override_persists_and_clears(db_session):
     routes_control.set_exit_override(symbol="SPY", stop_pct=0, take_profit_pct=0, db=db_session)
     ov2 = _json.loads(risk_manager.get_state(db_session).exit_overrides_json)
     assert "SPY" not in ov2
+
+
+def test_mark_epoch_sets_stats_epoch_to_now(db_session):
+    """R27: mark-epoch ustawia 'od kiedy liczymy' na teraz (czysty pomiar)."""
+    from app.services import risk_manager
+    assert not (risk_manager.get_state(db_session).stats_epoch or "")
+    res = routes_control.mark_epoch(db=db_session, request=None)
+    assert res["stats_epoch"]
+    assert risk_manager.get_state(db_session).stats_epoch == res["stats_epoch"]
