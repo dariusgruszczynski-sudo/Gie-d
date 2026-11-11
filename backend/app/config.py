@@ -266,9 +266,11 @@ class Settings(BaseSettings):
     # handlu), żeby po kilku tygodniach ocenić, czy włączenie LLM dałoby przewagę
     # nad samą mechaniką — zanim znów wydamy realny kapitał/budżet na Claude.
     # Koszt kontrolowany: pytamy najwyżej raz na crypto_llm_shadow_min_interval_minutes
-    # i NIGDY po wyczerpaniu budżetu miesięcznego. Domyślnie OFF — właściciel
-    # włącza sam, gdy zechce zacząć zbierać materiał dowodowy.
-    crypto_llm_shadow_enabled: bool = False
+    # i NIGDY po wyczerpaniu budżetu miesięcznego.
+    # 2026-11-11: WŁĄCZONY na wyraźną prośbę właściciela — zaczynamy zbierać
+    # materiał dowodowy pod decyzję go/no-go dla LLM. Nadal ZERO handlu: Claude
+    # tylko loguje, co BY zrobił. Koszt: ~6 pytań/dobę (co 4h), twardo pod budżetem.
+    crypto_llm_shadow_enabled: bool = True
     crypto_llm_shadow_min_interval_minutes: int = 240
     crypto_auto_deploy_enabled: bool = True
     # Limity ryzyka DEDYKOWANE krypto (24/7, dużo wyższa zmienność niż akcje).
