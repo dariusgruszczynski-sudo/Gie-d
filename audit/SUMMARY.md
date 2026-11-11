@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-11-11T09:44:35Z
+# Audyt GielDarek — 2026-11-11T09:47:34Z
 
 **Wdrożenie:** kod ceee8db (zbud. 2026-11-11T09:32Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
@@ -26,9 +26,11 @@
 - ostatnie 120 decyzji · wykonanych: 0 · odrzuconych: 120
 
 **Najczęstsze powody odrzucenia (top):**
-- 120× — Rozjazd rekoncyliacji: baza vs broker różni się o $220,887 (głównie HYPE/USD: $214,910) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
+- 119× — Rozjazd rekoncyliacji: baza vs broker różni się o $220,887 (głównie HYPE/USD: $214,910) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
+- 1× — brak powodu
 
 **Ostatnie 20 decyzji:**
+- 2026-11-11T09:44:56.601330 — HOLD conf=0.7 trig=manual ⛔ ?
 - 2026-11-11T08:45:38.949945 — HOLD conf=0.0 trig=scheduled_daily ⛔ Rozjazd rekoncyliacji: baza vs broker różni się o $220,887 (głównie HYPE/USD: $214,910) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
 - 2026-11-11T08:30:42.940495 — HOLD conf=0.0 trig=scheduled_daily ⛔ Rozjazd rekoncyliacji: baza vs broker różni się o $220,887 (głównie HYPE/USD: $214,910) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
 - 2026-11-11T08:15:39.090762 — HOLD conf=0.0 trig=scheduled_daily ⛔ Rozjazd rekoncyliacji: baza vs broker różni się o $220,887 (głównie HYPE/USD: $214,910) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
@@ -48,4 +50,3 @@
 - 2026-11-11T04:45:38.983386 — HOLD conf=0.0 trig=scheduled_daily ⛔ Rozjazd rekoncyliacji: baza vs broker różni się o $220,887 (głównie HYPE/USD: $214,910) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
 - 2026-11-11T04:30:38.848492 — HOLD conf=0.0 trig=scheduled_daily ⛔ Rozjazd rekoncyliacji: baza vs broker różni się o $220,887 (głównie HYPE/USD: $214,910) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
 - 2026-11-11T04:15:38.989089 — HOLD conf=0.0 trig=scheduled_daily ⛔ Rozjazd rekoncyliacji: baza vs broker różni się o $220,887 (głównie HYPE/USD: $214,910) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
-- 2026-11-11T04:00:44.661447 — HOLD conf=0.0 trig=scheduled_daily ⛔ Rozjazd rekoncyliacji: baza vs broker różni się o $220,887 (głównie HYPE/USD: $214,910) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
