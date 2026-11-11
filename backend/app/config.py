@@ -963,11 +963,17 @@ class Settings(BaseSettings):
     stats_epoch_default: str = "2026-08-10T20:11:29+00:00"
     # KRYPTO — osobny start pomiaru OBECNEJ strategii. Blowout dźwigniowy z
     # 14-15.10.2026 (błąd operacyjny, już naprawiony: anty-lewar + sufit notional)
-    # zrobił ~−$113k i zatruwał scorecard/werdykt krypto. Mierzymy nową,
-    # mechaniczno-jakościową strategię OD 16.10 — pełna historia ZOSTAJE w logu,
-    # tylko trafność/werdykt/bilans monet liczą się od tej daty (nie niszczymy
-    # danych). Ręczny stats_epoch (Świeży start) nadal ma pierwszeństwo globalnie.
-    crypto_stats_epoch_default: str = "2026-10-16T00:00:00+00:00"
+    # zrobił ~−$113k i zatruwał scorecard/werdykt krypto. Pełna historia ZOSTAJE
+    # w logu/trades — tylko trafność/werdykt/bilans monet liczą się od tej daty
+    # (nie niszczymy danych). Ręczny stats_epoch (mark-epoch) ma pierwszeństwo.
+    #
+    # 2026-11-11: po uzgodnieniu ksiąg z brokerem (re-sync phantomów HYPE itd.,
+    # residual→$0) przesuwamy epokę na PO resyncu. To odpowiednik „mark-epoch"
+    # zrobiony configiem (właściciel kliknął wycenę+odblokuj; ten krok domyka
+    # pomiar). Scorecard mierzy teraz WYŁĄCZNIE czysty silnik mechaniczny (LLM
+    # off) od tego punktu — bez 9 starych strat i bez syntetycznych sprzedaży
+    # phantomów z re-synca. Stare dane dalej są w trades.json/audycie.
+    crypto_stats_epoch_default: str = "2026-11-11T09:30:00+00:00"
 
     # SIZING WAŻONY PRZEKONANIEM (Scenariusz A, 2026-08-18, na odpowiedzialność
     # właściciela): mocny sygnał (wysoka pewność) dostaje większą pozycję — do
