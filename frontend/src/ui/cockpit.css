@@ -180,7 +180,7 @@
 .cr-tab .badge.up { background: color-mix(in srgb, var(--cr-up) 18%, transparent); color: var(--cr-up); }
 
 /* ──────────────────────────────── SCREEN frame ─────────────────────────── */
-.cr-screen { max-width: 1180px; margin: 0 auto; padding: 16px 16px 120px; }
+.cr-screen { max-width: 1180px; margin: 0 auto; padding: 16px 16px 120px; overflow-x: clip; }
 .cr-screen-head {
   display: flex; align-items: baseline; gap: 10px; margin: 2px 0 14px;
 }
@@ -195,9 +195,11 @@
 .cr-panel.flush { padding: 0; overflow: hidden; }
 .cr-ph {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 10px; flex-wrap: wrap;
 }
-.cr-ph h3 { margin: 0; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--cr-dim); font-weight: 700; }
+/* min-width:0 pozwala długiemu tytułowi zwinąć się/zawinąć zamiast wypychać
+   wiersz poza ekran (flex-dziecko ma domyślnie min-width:auto). */
+.cr-ph h3 { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--cr-dim); font-weight: 700; }
 .cr-ph .note { font-size: 0.68rem; color: var(--cr-dim-2); }
 
 .cr-grid { display: grid; gap: 12px; }
@@ -210,8 +212,9 @@
 /* Metryka (monospace) */
 .cr-metric {
   background: var(--cr-panel-2); border: 1px solid var(--cr-line); border-radius: 9px; padding: 11px 13px;
-  display: flex; flex-direction: column; gap: 4px;
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;  /* grid-dziecko: pozwól się skurczyć */
 }
+.cr-metric .k, .cr-metric .s, .cr-metric .v { overflow-wrap: anywhere; }
 .cr-metric .k { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--cr-dim-2); }
 .cr-metric .v { font-family: var(--cr-mono); font-size: 1.28rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.05; }
 .cr-metric .s { font-size: 0.68rem; color: var(--cr-dim); }
@@ -579,7 +582,8 @@
 .cr-coin-pnl.up { color: var(--cr-up); } .cr-coin-pnl.down { color: var(--cr-down); }
 .cr-coin-meta { grid-area: meta; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.72rem; color: var(--cr-dim); }
 .cr-coin-meta .dim { color: var(--cr-dim-2); }
-.cr-foot-note { font-size: 0.7rem; color: var(--cr-dim-2); padding: 12px 4px 0; line-height: 1.45; }
+.cr-foot-note { font-size: 0.7rem; color: var(--cr-dim-2); padding: 12px 4px 0; line-height: 1.45; overflow-wrap: anywhere; }
+.cr-foot-note code { word-break: break-all; }
 
 /* === Panel „Krzywa uczenia" (Mózg) ====================================== */
 .cr-learncohorts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
