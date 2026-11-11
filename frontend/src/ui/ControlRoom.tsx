@@ -705,6 +705,46 @@ function ShadowPanel({ status }: { status: StatusResponse }) {
   );
 }
 
+function LlmShadowPanel() {
+  const [d, setD] = useState<import("../api/client").LlmShadowResponse | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(false);
+  async function load() {
+    setBusy(true); setErr(false);
+    try { setD(await api.llmShadow()); } catch { setErr(true); } finally { setBusy(false); }
+  }
+  return (
+    <div className="cr-panel">
+      <div className="cr-ph"><h3>Claude-shadow — czy warto kiedyś włączyć LLM?</h3><span className="note">log-only · zero handlu</span></div>
+      <p className="cr-foot-note" style={{ padding: "0 2px 8px" }}>Materiał dowodowy go/no-go: Claude analizuje żywe dane i jego rekomendacja jest LOGOWANA (nie wykonywana). Oceniamy, czy jego BUY-e wyprzedzają jego HOLD-y na zwrocie forward. Dopóki nie wyprzedzają — LLM zostaje off.</p>
+      {!d && <button className="cr-btn block" disabled={busy} onClick={load}>{busy ? "Liczę…" : "▶ Pokaż raport Claude-shadow"}</button>}
+      {err && <p className="cr-foot-note" style={{ color: "var(--cr-down)" }}>Nie udało się policzyć.</p>}
+      {d && (
+        <>
+          {!d.enabled && d.total_recs === 0 ? (
+            <p className="cr-foot-note">Tryb <b>wyłączony</b> (brak zebranych rekomendacji). Włącz <code>crypto_llm_shadow_enabled</code>, żeby zacząć zbierać materiał — bez ryzyka, nic nie handluje.</p>
+          ) : d.status === "insufficient_data" ? (
+            <p className="cr-foot-note">Zbieramy dane: {d.scored_buys} ocenionych BUY-ów (próg {d.min_scored ?? 5}), {d.total_recs} rekomendacji łącznie. Werdykt dopiero przy większej próbie.</p>
+          ) : (
+            <>
+              <div className="cr-grid c2">
+                <div className="cr-metric"><span className="k">Claude BUY → zwrot forward</span><span className="v">{d.buy_avg_fwd_pct ?? "—"}%</span><span className="s">{d.scored_buys} ocenionych · traf. {d.buy_win_rate ?? "—"}%</span></div>
+                <div className="cr-metric"><span className="k">Claude HOLD → zwrot forward</span><span className="v">{d.hold_avg_fwd_pct ?? "—"}%</span><span className="s">{d.scored_holds} ocenionych (baza)</span></div>
+              </div>
+              <p className="cr-foot-note" style={{ marginTop: 8, color: d.buy_beats_hold ? "var(--cr-up)" : "var(--cr-down)" }}>
+                {d.buy_beats_hold
+                  ? "✓ BUY-e Claude wyprzedzają jego HOLD-y — jest sygnał, warto rozważyć włączenie LLM"
+                  : "✗ BUY-e Claude NIE wyprzedzają HOLD-ów — brak dowodu na przewagę, LLM słusznie off"}
+                <span className="dim"> (horyzont {d.horizon_hours}h)</span>
+              </p>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function Brain({ status, decisions }: { status: StatusResponse; decisions: Decision[] }) {
   const [k, setK] = useState<KnowledgeResponse | null>(null);
   const [err, setErr] = useState(false);
@@ -732,6 +772,8 @@ export function Brain({ status, decisions }: { status: StatusResponse; decisions
       <LearningPanel />
 
       <ShadowPanel status={status} />
+
+      <LlmShadowPanel />
 
       <div className="cr-panel">
         <div className="cr-ph"><h3>Puls rynku — to samo, co widzi bot</h3><span className={`cr-chip ${regimeChip.cls}`}>reżim: {regimeChip.t}</span></div>

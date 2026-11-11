@@ -296,6 +296,25 @@ export interface ClaudeEdge {
   with_claude: ClaudeEdgeSide;
 }
 
+// SHADOW-LLM (go/no-go dla LLM): rekomendacje Claude logowane BEZ handlu, oceniane
+// na zwrocie forward — czy jego BUY-e wyprzedzają jego HOLD-y.
+export interface LlmShadowResponse {
+  status: "ok" | "insufficient_data" | "disabled";
+  enabled: boolean;
+  venue: string;
+  horizon_hours: number;
+  total_recs: number;
+  last_rec_at: string | null;
+  since: string | null;
+  scored_buys: number;
+  scored_holds: number;
+  buy_avg_fwd_pct?: number | null;
+  buy_win_rate?: number | null;
+  hold_avg_fwd_pct?: number | null;
+  buy_beats_hold?: boolean;
+  min_scored?: number;
+}
+
 // Twardy timeout na KAŻDE zapytanie. Bez tego zawieszone połączenie (typowe na
 // mobilnej sieci) wisi w nieskończoność i zajmuje jeden z ~6 slotów połączeń,
 // które iOS daje na host -- kilka takich i apka nie dobija się już do NICZEGO
@@ -431,6 +450,7 @@ export const api = {
   auditLog: () => apiFetch<{ entries: AuditEntry[] }>("/api/control/audit-log"),
   claudeEdge: (venue: string = "alpaca") =>
     apiFetch<ClaudeEdge>(withShare(`/api/claude-edge?venue=${venue}`)),
+  llmShadow: () => apiFetch<LlmShadowResponse>(withShare("/api/llm-shadow")),
   pushConfig: () => apiFetch<{ enabled: boolean; vapid_public_key: string }>("/api/push/config"),
   pushSubscribe: (sub: PushSubscriptionJSON) =>
     apiFetch<{ message: string }>("/api/push/subscribe", { method: "POST", body: JSON.stringify(sub) }),

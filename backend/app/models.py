@@ -75,6 +75,27 @@ class Trade(Base):
     decision: Mapped[Decision | None] = relationship(back_populates="trades")
 
 
+class LlmShadowRec(Base):
+    """SHADOW-LLM (tylko log, ZERO handlu): co throttlowany cykl zapisujemy, co
+    Claude BY zrobił na tych samych żywych danych, których używa silnik
+    mechaniczny. Materiał dowodowy do decyzji go/no-go dla LLM: po kilku
+    tygodniach porównujemy, czy rekomendacje Claude (BUY) wyprzedzają jego własne
+    HOLD-y na zwrocie forward — czyli czy włączenie LLM dałoby realną przewagę nad
+    samą mechaniką. Osobna tabela (create_all ją doda), nie zaśmieca decisions/
+    trades, nie wchodzi do scorecardu ani krzywej uczenia (brak powiązanego Trade)."""
+    __tablename__ = "llm_shadow_recs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    venue: Mapped[str] = mapped_column(String(16), default="crypto", index=True)
+    symbol: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    action: Mapped[str] = mapped_column(String(8), default="HOLD")  # BUY / SELL / HOLD (rekomendacja Claude)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    size_pct: Mapped[float] = mapped_column(Float, default=0.0)
+    price_at: Mapped[float] = mapped_column(Float, default=0.0)  # cena symbolu W CHWILI rekomendacji (do zwrotu forward)
+    reasoning: Mapped[str] = mapped_column(Text, default="")
+
+
 class PortfolioSnapshot(Base):
     __tablename__ = "portfolio_snapshots"
 

@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
-from app.models import Decision, PortfolioSnapshot, Trade, TradeAction, TradeMode, TriggerType
+from app.models import Decision, LlmShadowRec, PortfolioSnapshot, Trade, TradeAction, TradeMode, TriggerType
 from app.services import (
     adaptive_risk,
     budget_tracker,
@@ -2808,6 +2808,59 @@ def _build_market_data(broker, settings: Settings, portfolio: dict, symbols: lis
     return market_data
 
 
+def _maybe_log_llm_shadow(db, settings, advisor, *, tradable_symbols, market_data, headlines,
+                          portfolio, risk_context, global_context, performance_context,
+                          trigger_reason, venue) -> None:
+    """SHADOW-LLM: pyta Claude o rekomendację na ŻYWYCH danych i tylko JĄ LOGUJE
+    (zero handlu). Throttlowany (>= crypto_llm_shadow_min_interval_minutes od
+    ostatniego wpisu) i twardo pod limitem budżetu — nigdy nie pyta po jego
+    wyczerpaniu. Best-effort: nigdy nie wywraca cyklu handlowego."""
+    try:
+        if not tradable_symbols:
+            return
+        interval_min = max(1, int(getattr(settings, "crypto_llm_shadow_min_interval_minutes", 240) or 240))
+        now = datetime.now(UTC)
+        last = db.execute(
+            select(LlmShadowRec.timestamp).where(LlmShadowRec.venue == venue)
+            .order_by(LlmShadowRec.timestamp.desc()).limit(1)
+        ).scalar_one_or_none()
+        if last is not None:
+            la = last if last.tzinfo else last.replace(tzinfo=UTC)
+            if (now - la).total_seconds() < interval_min * 60:
+                return  # throttle — jeszcze za wcześnie na kolejne pytanie
+        bs = budget_tracker.get_budget_status(db, settings)
+        if bs["claude_monthly_budget_usd"] > 0 and bs["claude_spend_usd_this_month"] >= bs["claude_monthly_budget_usd"]:
+            return  # budżet wyczerpany — nie wydajemy na shadow
+        recs = _advise_portfolio(
+            advisor, whitelist=tradable_symbols, market_data=market_data, news=headlines,
+            portfolio=portfolio, risk_context=risk_context, market_context=global_context,
+            performance_context=performance_context, trigger_reason=trigger_reason.value, venue=venue,
+        )
+        budget_tracker.record_usage_cost(
+            db, sum(d.cost_usd for d in recs),
+            sum(d.input_tokens for d in recs), sum(d.output_tokens for d in recs),
+        )
+        prices = portfolio.get("prices") or {}
+        for d in recs:
+            act = getattr(d.action, "value", d.action) or "HOLD"
+            px = 0.0
+            if d.symbol:
+                try:
+                    px = float(prices.get(d.symbol) or 0.0)
+                except (TypeError, ValueError):
+                    px = 0.0
+            db.add(LlmShadowRec(
+                timestamp=now, venue=venue, symbol=d.symbol, action=str(act),
+                confidence=float(getattr(d, "confidence", 0.0) or 0.0),
+                size_pct=float(getattr(d, "size_pct", 0.0) or 0.0),
+                price_at=px, reasoning=(getattr(d, "reasoning", "") or "")[:2000],
+            ))
+        db.commit()
+        logger.info("SHADOW-LLM: zapisano %d rekomendacji (venue=%s, log-only)", len(recs), venue)
+    except Exception:
+        logger.warning("SHADOW-LLM: logowanie padło (nie wywraca cyklu)", exc_info=True)
+
+
 def run_cycle(
     db: Session,
     settings: Settings,
@@ -3082,6 +3135,15 @@ def run_cycle(
     # „Wymuś analizę" (force) i podgląd (dry_run) nadal pytają Claude na życzenie.
     if mechanical_crypto:
         decisions_data = []
+        # SHADOW-LLM (log-only): zbieraj, co Claude BY zrobił — bez handlu — żeby
+        # móc kiedyś ocenić, czy włączenie LLM dałoby przewagę nad mechaniką.
+        if getattr(settings, "crypto_llm_shadow_enabled", False) and not dry_run:
+            _maybe_log_llm_shadow(
+                db, settings, advisor, tradable_symbols=tradable_symbols,
+                market_data=market_data, headlines=headlines, portfolio=portfolio,
+                risk_context=risk_context, global_context=global_context,
+                performance_context=performance_context, trigger_reason=trigger_reason, venue=venue,
+            )
     else:
         decisions_data = _advise_portfolio(
             advisor,

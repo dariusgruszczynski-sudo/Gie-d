@@ -261,6 +261,15 @@ class Settings(BaseSettings):
     # budżet $9 do $24,5 (272%); (2) to LLM zatwierdził blowout HYPE i churn, przez
     # które konto zjechało -39% od szczytu. Mechanika (darmowa, $0) jedzie dalej.
     crypto_llm_enabled: bool = False
+    # SHADOW-LLM (go/no-go dla LLM, 2026-11-11): gdy ON, co throttlowany cykl
+    # pytamy Claude o rekomendację na ŻYWYCH danych i tylko JĄ LOGUJEMY (zero
+    # handlu), żeby po kilku tygodniach ocenić, czy włączenie LLM dałoby przewagę
+    # nad samą mechaniką — zanim znów wydamy realny kapitał/budżet na Claude.
+    # Koszt kontrolowany: pytamy najwyżej raz na crypto_llm_shadow_min_interval_minutes
+    # i NIGDY po wyczerpaniu budżetu miesięcznego. Domyślnie OFF — właściciel
+    # włącza sam, gdy zechce zacząć zbierać materiał dowodowy.
+    crypto_llm_shadow_enabled: bool = False
+    crypto_llm_shadow_min_interval_minutes: int = 240
     crypto_auto_deploy_enabled: bool = True
     # Limity ryzyka DEDYKOWANE krypto (24/7, dużo wyższa zmienność niż akcje).
     # Gdy CRYPTO_ENABLED, to ONE są autorytatywne dla account-wide haltu (patrz

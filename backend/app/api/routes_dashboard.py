@@ -1222,6 +1222,15 @@ def get_learning(db: Session = Depends(get_db), settings: Settings = Depends(get
     return out
 
 
+@router.get("/llm-shadow")
+def get_llm_shadow(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """SHADOW-LLM (go/no-go dla LLM): czy zalogowane rekomendacje Claude (bez
+    handlu) wyprzedzają jego własne HOLD-y na zwrocie forward — materiał dowodowy
+    do decyzji, czy w ogóle warto włączać LLM. Czysto odczytowe."""
+    from app.services import llm_shadow
+    return llm_shadow.shadow_report(db, settings, venue="crypto")
+
+
 @router.get("/learning/export")
 def export_learning(db: Session = Depends(get_db), settings: Settings = Depends(get_settings),
                     fmt: str = "json"):
