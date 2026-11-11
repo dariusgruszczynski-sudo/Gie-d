@@ -128,6 +128,7 @@ def test_crypto_cheap_cycle_stop_loss_closes_without_llm(db_session, settings):
     cs = settings.model_copy(update={
         "crypto_enabled": True,
         "crypto_llm_enabled": False,
+        "crypto_llm_shadow_enabled": False,   # czysty tor mechaniczny: shadow osobno (patrz test niżej)
         "crypto_auto_deploy_enabled": False,  # izoluj wyjście (bez odkupu w tym samym cyklu)
         "crypto_min_hold_minutes": 0,         # stop nie czeka na min-hold
     })
@@ -157,6 +158,52 @@ def test_crypto_cheap_cycle_stop_loss_closes_without_llm(db_session, settings):
     sells = [o for o in broker.orders if o.side == "SELL" and o.symbol == "BTC/USD"]
     assert len(sells) >= 1
     assert broker.balances["BTC/USD"] <= 1e-9
+
+
+def test_crypto_shadow_logs_claude_but_never_trades(db_session, settings):
+    """SHADOW-LLM ON: tani cykl krypto PYTA Claude i LOGUJE jego rekomendację do
+    llm_shadow_recs, ale NIGDY jej nie wykonuje. Nawet gdy Claude mówi BUY —
+    zero nowego zlecenia z shadow (jedyny BUY to ręczne wejście). Stop mechaniczny
+    działa dalej niezależnie od shadow."""
+    from sqlalchemy import select
+
+    from app.models import LlmShadowRec
+    from app.services.strategy_profiles import effective_settings
+
+    cs = settings.model_copy(update={
+        "crypto_enabled": True,
+        "crypto_llm_enabled": False,
+        "crypto_llm_shadow_enabled": True,
+        "crypto_llm_shadow_min_interval_minutes": 240,
+        "crypto_auto_deploy_enabled": False,
+        "crypto_min_hold_minutes": 0,
+    })
+    eff = effective_settings(cs, "crypto")
+    broker = FakeAlpaca(prices={"BTC/USD": 60000.0}, balances={"USD": 10000.0})
+    trading_engine.execute_manual_trade(
+        db_session, eff, broker, symbol="BTC/USD", side="BUY",
+        usdt_amount=1000.0, venue="crypto", whitelist=["BTC/USD"],
+    )
+    buys_before = len([o for o in broker.orders if o.side == "BUY" and o.symbol == "BTC/USD"])
+    risk_manager.resume(db_session, venue="crypto")
+    broker.prices["BTC/USD"] = 45000.0  # spadek -> stop
+
+    # Claude mówi BUY — gdyby shadow handlował, dołożyłby zlecenie. Nie wolno.
+    advisor = FakeAdvisor(TradingDecision("BUY", "BTC/USD", 50, 0.9, "shadow: kupowałbym"))
+    trading_engine.run_cycle(
+        db_session, eff, broker, FakeNews(), advisor,
+        venue="crypto", whitelist=["BTC/USD"], always_open=True,
+    )
+
+    # Claude ZOSTAŁ zapytany (shadow) i rekomendacja ZOSTAŁA zalogowana...
+    assert advisor.calls >= 1
+    recs = db_session.execute(select(LlmShadowRec).where(LlmShadowRec.venue == "crypto")).scalars().all()
+    assert len(recs) >= 1
+    # ...ale NIC z niej nie wykonano: żaden nowy BUY nie doszedł z shadow.
+    buys_after = len([o for o in broker.orders if o.side == "BUY" and o.symbol == "BTC/USD"])
+    assert buys_after == buys_before
+    # Mechaniczny stop dalej zamknął pozycję.
+    assert any(o.side == "SELL" and o.symbol == "BTC/USD" for o in broker.orders)
 
 
 def test_crypto_heartbeat_writes_hold_and_throttles(db_session, settings):

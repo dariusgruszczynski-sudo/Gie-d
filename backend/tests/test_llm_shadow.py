@@ -12,7 +12,8 @@ def _rec(db, sym, when, action, price):
 
 
 def test_shadow_report_empty_disabled(db_session, settings):
-    out = llm_shadow.shadow_report(db_session, settings, venue="crypto")
+    s = settings.model_copy(update={"crypto_llm_shadow_enabled": False})
+    out = llm_shadow.shadow_report(db_session, s, venue="crypto")
     assert out["status"] == "disabled" and out["total_recs"] == 0 and out["scored_buys"] == 0
     assert out["enabled"] is False
 
