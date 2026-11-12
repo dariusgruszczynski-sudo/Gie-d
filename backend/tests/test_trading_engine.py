@@ -206,6 +206,44 @@ def test_crypto_shadow_logs_claude_but_never_trades(db_session, settings):
     assert any(o.side == "SELL" and o.symbol == "BTC/USD" for o in broker.orders)
 
 
+def test_full_exit_shaves_float_ulp_so_broker_does_not_403(db_session, settings):
+    """Regresja (bug PEPE 2026-11-11): ilość z ledgera potrafi siedzieć o ~5e-9
+    PONAD realnym saldem brokera (nagromadzony float z wielu transakcji) -> Alpaca
+    odrzuca CAŁE zlecenie 403 „insufficient balance" i stop nie może domknąć
+    pozycji. Pełne wyjście musi ściąć ten ULP, by requested <= available."""
+    avail = 963060308.407551403     # realne saldo brokera
+    ledger = 963060308.407551408    # ledger o ~5e-9 wyżej
+
+    class _Broker403:
+        def __init__(self):
+            self.orders = []
+            self.last_order_session = "regular"
+
+        def place_order_for_session(self, symbol, side, *, session="regular",
+                                    usdt_amount=None, quantity=None, prefer_limit=False, limit_buffer_pct=0.0):
+            # Mimik Alpaki: SELL ponad saldo (choćby o ULP) = 403.
+            if side.upper() == "SELL" and quantity is not None and quantity > avail:
+                raise ValueError(f"403 insufficient balance (req {quantity!r} > avail {avail!r})")
+            self.orders.append(_FakeOrder(str(len(self.orders) + 1), symbol, side.upper(), quantity, 1e-5, (quantity or 0) * 1e-5))
+            return self.orders[-1]
+
+    s = settings.model_copy(update={"max_order_notional_usd": 0.0})  # izoluj logikę ścięcia
+    broker = _Broker403()
+    portfolio = {"balances": {"PEPE/USD": ledger}, "prices": {"PEPE/USD": 1e-5},
+                 "usdt_balance": 0.0, "total_value_usdt": 10000.0}
+
+    # BEZ fixa rzuciłoby 403; z fixem sprzedaje ~całość i NIE przekracza salda.
+    trade = trading_engine._execute_trade(
+        db=db_session, broker=broker, settings=s, symbol="PEPE/USD",
+        action="SELL", size_pct=100.0, portfolio=portfolio, decision=None,
+        is_manual=False, venue="crypto",
+    )
+    assert trade is not None
+    sold = broker.orders[-1].quantity
+    assert sold <= avail                 # nie przekracza salda -> brak 403
+    assert sold >= ledger * (1 - 2e-9)   # ścięło tylko ULP, nie realną pozycję
+
+
 def test_crypto_heartbeat_writes_hold_and_throttles(db_session, settings):
     """Tani silnik krypto, który tylko trzyma, zapisuje HOLD-heartbeat (żeby pulpit
     nie zamarł na starej decyzji), ale throttluje świeże wpisy."""

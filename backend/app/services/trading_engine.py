@@ -3330,6 +3330,17 @@ def _execute_trade(
     elif action == "SELL":
         base_balance = _held_qty(portfolio, symbol, settings)
         quantity = base_balance * (size_pct / 100)
+        # ANTY-403 NA PEŁNYM WYJŚCIU: ilość z ledgera potrafi siedzieć o kilka ULP
+        # (rzędu 1e-9) PONAD realnym saldem brokera — nagromadzone zaokrąglenia
+        # float z wielu transakcji. Alpaca odrzuca wtedy CAŁE zlecenie 403
+        # „insufficient balance" (requested > available o ~5e-9) i pozycja NIE może
+        # się domknąć — martwy stop (bug PEPE 2026-11-11). Przy wyjściu ~całości
+        # ścinamy mikroskopijny WZGLĘDNY epsilon, by requested ≤ available.
+        # ~1e-9 pozycji to pył (łapie go próg MIN_SELL_NOTIONAL_USD), a decyduje
+        # o tym, czy stop w ogóle zadziała. Częściowe wyjścia (<100%) są bezpieczne
+        # same z siebie (quantity < base_balance), więc ich nie ruszamy.
+        if size_pct >= 99.9 and quantity > 0:
+            quantity = min(quantity, base_balance * (1 - 1e-9))
         # Ten sam sufit notional/zlecenie co przy BUY: wyjście z dużej pozycji
         # dzieli się na kawałki ≤ limitu (lepiej sprzedać teraz część niż dostać
         # 403 i NIE sprzedać nic). Mechaniczne wyjścia dobiją resztę w kolejnym cyklu.
