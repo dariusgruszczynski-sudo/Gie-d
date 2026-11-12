@@ -1808,7 +1808,10 @@ def test_extended_partial_take_profit_promotes_to_full_exit_on_one_share(db_sess
     )
     assert len(exits) == 1
     assert exits[0].quantity == pytest.approx(1.0)  # promoted to the FULL share, not 0.5
-    assert broker.balances["GDX"] == pytest.approx(0.0)  # fully closed
+    # Pełne wyjście celowo ścina mikro-epsilon (anty-403 na float ULP), więc
+    # zostaje pył rzędu 1e-9 akcji — praktycznie zamknięte (łapie go próg
+    # MIN_SELL_NOTIONAL_USD, żadnej realnej pozycji nie ma).
+    assert broker.balances["GDX"] == pytest.approx(0.0, abs=1e-6)  # domknięte (pomijalny pył)
     assert "nie dzieli się na częściową sprzedaż" in exits[0].decision.reasoning
 
 
