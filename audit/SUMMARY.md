@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-11-14T10:04:36Z
+# Audyt GielDarek — 2026-11-14T12:46:02Z
 
 **Wdrożenie:** kod 38abde2 (zbud. 2026-11-12T12:13Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
