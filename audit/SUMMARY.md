@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-11-13T20:26:26Z
+# Audyt GielDarek — 2026-11-14T10:04:36Z
 
 **Wdrożenie:** kod 38abde2 (zbud. 2026-11-12T12:13Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
@@ -26,11 +26,12 @@
 - ostatnie 120 decyzji · wykonanych: 1 · odrzuconych: 119
 
 **Najczęstsze powody odrzucenia (top):**
-- 82× — Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"available":"963060308.407551403","balance":"963060308.407551403","code":40310000,"message":"insufficient balance for PEPE (requested: 963060308.407551408, available: 963060308.407551403)","symbol":"USD"}
-- 36× — Automat (alpaca) zapauzowany ręcznie
+- 81× — Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"available":"963060308.407551403","balance":"963060308.407551403","code":40310000,"message":"insufficient balance for PEPE (requested: 963060308.407551408, available: 963060308.407551403)","symbol":"USD"}
+- 37× — Automat (alpaca) zapauzowany ręcznie
 - 1× — brak powodu
 
 **Ostatnie 20 decyzji:**
+- 2026-11-13T20:43:30.416914 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-11-13T20:13:30.081751 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-11-13T19:43:30.318620 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-11-13T19:13:29.981825 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
@@ -50,4 +51,3 @@
 - 2026-11-12T18:43:30.155158 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-11-12T18:13:30.319980 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-11-12T17:43:30.177523 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-11-12T17:13:29.938810 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
