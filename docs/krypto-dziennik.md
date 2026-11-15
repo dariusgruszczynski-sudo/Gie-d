@@ -37,6 +37,21 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Tydzień 6 — 2026-11-15 (silnik WZNOWIONY, księgi uzgodnione, czysta era — ale 0 wejść: BTC w bessie)
+**Przełom tygodnia: silnik znów żyje.** Właściciel 11-11 uzgodnił księgi z brokerem
+(re-sync phantomów — **residual $0**, rozjazd $226k rozwiązany) i odblokował silnik;
+mark-epoch ustawił **czystą erę pomiaru od 2026-11-11 09:30**.
+- **Zamknięcia / trafność / realized (czysta era):** **0 / n/d / $0** — silnik otworzył **zero** nowych pozycji.
+- **Dlaczego 0 wejść:** filtr reżimu HTF (`crypto_regime_filter_enabled`) blokuje longi, gdy **BTC < 100-dniowa średnia**. BTC ~$71k przy 100-dniowej ~$77,4k, **stracił 200-dniową** 11-12 — makro-bessa, bot siedzi w gotówce **zgodnie z projektem**.
+- **Konto:** **$608 850** — płasko w/w, całość w gotówce (krypto $0).
+- **vs BTC: +12,35%** — ale to **NIE edge**, tylko efekt niewchodzenia w spadający rynek. Zero zamkniętych trejdów = zero dowodu umiejętności.
+- **Koncentracja:** n/d (brak transakcji).
+- **Koszt AI:** **$3,07 / $9** — świadomie **już nie $0**: włączony **Claude-shadow** (log-only, zero handlu) zbiera dowody pod decyzję o LLM, co ~4h, pod twardym limitem budżetu.
+
+**Naprawione w tygodniu:** (1) martwy stop-loss PEPE — wyjście odbijało się od 403 (float ULP > saldo brokera); fix potwierdzony na żywo (PEPE domknięte −11,3%). (2) R30 (etykiety R + feature store + walidacja OOS). (3) UX overflow (nagłówki/liczby w kafelkach).
+
+**GO-LIVE: NIE.** Kryterium 1 (≥50 zamknięć / ≥3 tyg) — **0 zamknięć nowej ery**. „Bije BTC" formalnie TAK, ale bez ani jednego trejdu to nie dowód edge, tylko bessa + gotówka. Do obserwacji: jeśli bot **tygodniami** nie zrobi wejścia (BTC pod 100-dniową), to sam w sobie wniosek — ta strategia handluje tylko w hossie BTC.
+
 ### Tydzień 5 — 2026-11-08 (silnik zapauzowany cały tydzień — zero handlu, zamrożone)
 **Brak aktywności.** Silnik krypto **zapauzowany** przez właściciela od ~10-29
 (`crypto_paused=true`) — przez cały tydzień **0 transakcji**, `day_realized $0`.
