@@ -214,7 +214,10 @@
   background: var(--cr-panel-2); border: 1px solid var(--cr-line); border-radius: 9px; padding: 11px 13px;
   display: flex; flex-direction: column; gap: 4px; min-width: 0;  /* grid-dziecko: pozwól się skurczyć */
 }
-.cr-metric .k, .cr-metric .s, .cr-metric .v { overflow-wrap: anywhere; }
+/* Tylko ETYKIETY/podteksty mogą się łamać. Liczby (.v, monospace) NIGDY —
+   overflow-wrap:anywhere łamał kwoty w pół na wąskich kolumnach (rozjazd UX). */
+.cr-metric .k, .cr-metric .s { overflow-wrap: anywhere; }
+.cr-metric .v { overflow-wrap: normal; white-space: nowrap; }
 .cr-metric .k { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--cr-dim-2); }
 .cr-metric .v { font-family: var(--cr-mono); font-size: 1.28rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.05; }
 .cr-metric .s { font-size: 0.68rem; color: var(--cr-dim); }
