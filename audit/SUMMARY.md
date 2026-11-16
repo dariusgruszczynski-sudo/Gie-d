@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-11-15T13:13:09Z
+# Audyt GielDarek — 2026-11-16T14:22:40Z
 
-**Wdrożenie:** kod 38abde2 (zbud. 2026-11-12T12:13Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 6b25598 (zbud. 2026-11-15T20:49Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 0 zamknięć · trafność —% · zrealizowany $0.0
 **7 dni:** 0 zamknięć · —% · $0.0   |   **30 dni:** 0 · —% · $0.0
