@@ -7,42 +7,44 @@
    ============================================================================= */
 
 .cr {
-  /* JASNY, SPOKOJNY motyw (wybór właściciela: „jasny, dużo powietrza").
-     Dużo bieli, duża czytelna typografia, miękkie akcenty, delikatne cienie. */
-  --cr-bg: #f4f7fb;
-  --cr-bg-2: #ffffff;
-  --cr-panel: #ffffff;
-  --cr-panel-2: #eef2f8;
-  --cr-line: rgba(18, 28, 45, 0.09);
-  --cr-line-2: rgba(18, 28, 45, 0.17);
-  --cr-txt: #16202e;
-  --cr-dim: #5b6676;
-  --cr-dim-2: #949cab;
-  --cr-up: #0f9d6b;
-  --cr-down: #e24559;
-  --cr-warn: #bd850f;
-  --cr-accent: #2f6df0;
-  --cr-mono: var(--font-mono, ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace);
+  /* MOTYW „KUTA MIEDŹ" (ciemny, premium — wybór właściciela 2026-11-19).
+     Espresso-czerń, szklane karty, miedziano-złoty akcent, mięta/róż na semantykę. */
+  --cr-bg: #0b0907;
+  --cr-bg-2: #0f0c09;
+  --cr-panel: #17120c;
+  --cr-panel-2: #1f1810;
+  --cr-line: rgba(224, 151, 90, 0.15);
+  --cr-line-2: rgba(224, 151, 90, 0.26);
+  --cr-txt: #f0e9df;
+  --cr-dim: #a99c8c;
+  --cr-dim-2: #6f6456;
+  --cr-up: #64e0a3;
+  --cr-down: #ff7d6c;
+  --cr-warn: #f2b454;
+  --cr-accent: #e0975a;
+  --cr-accent-bright: #f6bd82;
+  --cr-mono: "JetBrains Mono", var(--font-mono, ui-monospace, "SF Mono", Menlo, monospace);
   --cr-top-h: 108px;
+  color-scheme: dark;
 
   /* Nadpisanie tokenów `.gd` (console.css), żeby reużyte widżety (karty pozycji/
-     decyzji, wykresy) były JASNE, a nie ciemnymi plamami na białym tle. */
-  --txt: #16202e;
-  --dim: #5b6676;
-  --dim-2: #949cab;
-  --mint: #0f9d6b; --mint-soft: #37b88a;
-  --rose: #e24559; --rose-soft: #ef8090;
-  --gold: #b9820e; --amber: #b9820e;
-  --iris: #2f6df0; --iris-soft: #5a8bf5;
-  --ink: #ffffff; --ink-2: #f0f3f8;
-  --panel: #ffffff; --panel-2: #eef2f8;
-  --line: rgba(18, 28, 45, 0.09); --line-strong: rgba(18, 28, 45, 0.17);
-  --glass: #ffffff; --glass-strong: #ffffff;
-  --glass-sheen: linear-gradient(150deg, rgba(255,255,255,0.6), rgba(255,255,255,0) 60%);
-  --glass-edge: rgba(18, 28, 45, 0.08);
-  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  --glass-shadow: 0 2px 14px rgba(18, 28, 45, 0.06);
-  --glass-blur: saturate(100%);
+     decyzji, wykresy) grały z ciemną miedzią, a nie świeciły bielą. */
+  --txt: #f0e9df;
+  --dim: #a99c8c;
+  --dim-2: #6f6456;
+  --mint: #64e0a3; --mint-soft: #8fe9bf;
+  --rose: #ff7d6c; --rose-soft: #ff9f93;
+  --gold: #f2b454; --amber: #f2b454;
+  --iris: #e0975a; --iris-soft: #f6bd82;
+  --ink: #0b0907; --ink-2: #17120c;
+  --panel: #17120c; --panel-2: #1f1810;
+  --line: rgba(224, 151, 90, 0.15); --line-strong: rgba(224, 151, 90, 0.26);
+  --glass: rgba(32, 25, 19, 0.72); --glass-strong: rgba(42, 33, 24, 0.82);
+  --glass-sheen: linear-gradient(150deg, rgba(246,189,130,0.08), rgba(246,189,130,0) 60%);
+  --glass-edge: rgba(224, 151, 90, 0.16);
+  --glass-hi: inset 0 1px 0 rgba(246, 189, 130, 0.08);
+  --glass-shadow: 0 18px 40px -24px rgba(0, 0, 0, 0.8);
+  --glass-blur: saturate(118%) blur(14px);
 
   min-height: 100vh;
   background: var(--cr-bg);
@@ -187,12 +189,27 @@
 .cr-screen-head h2 { margin: 0; font-family: var(--font-display); font-size: 1.04rem; font-weight: 700; letter-spacing: 0.01em; }
 .cr-screen-head .sub { font-size: 0.74rem; color: var(--cr-dim); }
 
-/* Panel — podstawowy klocek control-roomu */
+/* Panel — szklany klocek control-roomu (Kuta Miedź) */
 .cr-panel {
-  background: var(--cr-panel); border: 1px solid var(--cr-line); border-radius: 10px;
-  padding: 14px; margin-bottom: 12px;
+  background: var(--cr-glass); border: 1px solid var(--cr-line); border-radius: 16px;
+  padding: 15px; margin-bottom: 12px;
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-hi), var(--glass-shadow);
 }
 .cr-panel.flush { padding: 0; overflow: hidden; }
+/* Żywa poświata miedzi w tle całego control-roomu (za panelami). */
+.cr-root::before {
+  content: ""; position: fixed; inset: -15% -15% auto; height: 62vh; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(42% 46% at 20% 16%, rgba(224,151,90,0.18), transparent 70%),
+    radial-gradient(38% 40% at 88% 6%, rgba(168,95,44,0.15), transparent 70%);
+  filter: blur(8px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cr-root::before { animation: cr-drift 24s ease-in-out infinite alternate; }
+}
+@keyframes cr-drift { from { transform: translate3d(-3%,-2%,0) scale(1); } to { transform: translate3d(4%,3%,0) scale(1.08); } }
+.cr-screen, .cr-topbar, .cr-tabs { position: relative; z-index: 1; }
 .cr-ph {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   margin-bottom: 10px; flex-wrap: wrap;
