@@ -339,7 +339,14 @@ class Settings(BaseSettings):
     regime_filter_symbol: str = "BTC/USD"
     regime_filter_timeframe: str = "1d"
     regime_filter_ma_period: int = 200
-    crypto_regime_filter_enabled: bool = True  # 2026-10-19: ON (wniosek #1 z Tyg.2) — longowanie altów w risk-off było przyczyną nr 1 strat (0W/9L). Gdy BTC < MA, NIE otwieramy nowych longów.
+    # 2026-11-19 (decyzja właściciela „B" — poluzuj filtr bessy): OFF. Makro-blok
+    # HTF (żadnych longów gdy BTC < MA100) paraliżował silnik na tydzień+ w bessie
+    # (0 wejść). Wyłączony, by bot handlował BTC także poniżej średniej i zbierał
+    # dowody. UWAGA: pierwotny powód włączenia (longowanie ALTÓW w risk-off = 0W/9L)
+    # jest NADAL chroniony przez crypto_btc_core_mode (alty blokowane, gdy BTC pod
+    # trendem) + anty-lewar + cap 20% + płynność + stopy. Luzujemy filtr bessy, NIE
+    # zabezpieczenia. Reversyjne: ustaw z powrotem True, by wrócić do „gotówka w bessie".
+    crypto_regime_filter_enabled: bool = False
     crypto_regime_filter_symbol: str = "BTC/USD"
     crypto_regime_filter_timeframe: str = "1d"
     crypto_regime_filter_ma_period: int = 100  # 2026-10-08: 200→100, żeby risk-on łapał szybciej (bot ma handlować i uczyć się, nie wisieć w gotówce)

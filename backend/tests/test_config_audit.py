@@ -1,12 +1,13 @@
 """Audyt bramek wejścia (#85): wykrywa ryzyko paraliżu z nakładających się filtrów."""
 from app.services import config_audit
-from app.services.strategy_profiles import effective_settings
 
 
 def test_entry_gate_audit_flags_paralysis_from_stacked_trend_gates(settings):
-    """Domyślna konfiguracja krypto ma 3 nakładające się filtry trendu BTC
-    (regime_filter + btc_core + mtf_confirm) — to właśnie paraliżuje wejścia."""
-    eff = effective_settings(settings, "crypto")
+    """3 nakładające się filtry trendu BTC (regime_filter + btc_core + mtf_confirm)
+    = paraliż wejść (ustawiamy jawnie, niezależnie od domyślnych knobów)."""
+    eff = settings.model_copy(update={
+        "regime_filter_enabled": True, "crypto_btc_core_mode": True, "mtf_confirm_enabled": True,
+    })
     a = config_audit.entry_gate_audit(eff)
     assert a["trend_gates"] >= 3 and a["paralysis_risk"] is True
     names = {g["gate"] for g in a["active_gates"]}
