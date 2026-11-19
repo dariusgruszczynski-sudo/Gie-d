@@ -192,3 +192,17 @@ def test_backtest_slippage_reduces_returns(settings):
     hi_slip = backtest.run_backtest(data, s.model_copy(update={"backtest_slippage_bps": 200.0}),
                                     benchmark_symbol="SPY", starting_cash=1000.0)
     assert hi_slip["total_return_pct"] < no_slip["total_return_pct"]
+
+
+def test_backtest_reports_activity_metrics(settings):
+    """#62 backlog: raport pokazuje trades_per_month i pct_time_in_market —
+    konfiguracja, która nie handluje (paraliż), jest WIDOCZNA przed produkcją."""
+    s = settings.model_copy(update={
+        "entry_filter_enabled": False, "risk_per_trade_pct": 1.0,
+        "max_concurrent_positions": 4, "min_hold_minutes": 0, "max_position_pct": 50.0,
+    })
+    data = {"SPY": _uptrend(n=800), "QQQ": _uptrend(n=800, phase=1.0)}
+    report = backtest.run_backtest(data, s, benchmark_symbol="SPY", starting_cash=1000.0)
+    assert "trades_per_month" in report and "pct_time_in_market" in report
+    assert report["pct_time_in_market"] > 0          # rosnący rynek -> trzyma pozycje
+    assert report["trades_per_month"] is not None and report["trades_per_month"] > 0

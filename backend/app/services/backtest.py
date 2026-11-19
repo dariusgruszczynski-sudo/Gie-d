@@ -159,6 +159,7 @@ def run_backtest(
     bench_curve: list[float | None] = []
     sell_returns_r: list[float] = []
     wins = losses = n_entries = 0
+    steps_in_market = 0  # #62: ile kroków z >=1 otwartą pozycją (łapie paraliż)
     realized_total = 0.0
     min_hold = math.ceil(settings.min_hold_minutes / 60) if settings.min_hold_minutes > 0 else 0
 
@@ -326,6 +327,8 @@ def run_backtest(
             )
             n_entries += 1
 
+        if positions:
+            steps_in_market += 1
         equity_curve.append(cash + sum(closes[s][idx[s] - 1] * p.qty for s, p in positions.items() if idx[s] > 0))
         bench_curve.append(
             bench_shares * closes[bench][idx[bench] - 1] if bench_shares is not None and idx[bench] > 0 else None
@@ -385,9 +388,16 @@ def run_backtest(
     years_with_alpha = sum(1 for r in yearly if r["alpha_pct"] is not None)
 
     avg_r = round(sum(sell_returns_r) / len(sell_returns_r), 3) if sell_returns_r else None
+    # #62: aktywność — ile wejść na miesiąc i ile % czasu kapitał był w rynku.
+    # Konfiguracja, która generuje ~0 wejść / ~0% czasu w rynku, jest WIDOCZNA tu,
+    # zanim trafi na produkcję (dokładnie dzisiejszy paraliż: silnik w gotówce).
+    trades_per_month = round(n_entries / (span_years * 12), 2) if span_years and span_years > 0 else None
+    pct_time_in_market = round(steps_in_market / len(timeline) * 100, 1) if timeline else None
     return {
         "steps": len(timeline),
         "entries": n_entries,
+        "trades_per_month": trades_per_month,
+        "pct_time_in_market": pct_time_in_market,
         "closed_trades": closed,
         "wins": wins,
         "losses": losses,
