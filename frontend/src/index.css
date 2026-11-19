@@ -35,6 +35,13 @@
   box-sizing: border-box;
 }
 
+html {
+  /* iOS Safari potrafi SAM NAPOMPOWAĆ tekst, gdy blok jest szerszy niż ekran
+     (stąd „różne, za duże" czcionki na kartach, które się rozjeżdżały). Blokujemy
+     auto-zoom — rozmiary mają wynikać z CSS, nie z heurystyki przeglądarki. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 body {
   margin: 0;
   color: var(--text);
