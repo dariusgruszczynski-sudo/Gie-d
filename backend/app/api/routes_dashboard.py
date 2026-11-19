@@ -1270,6 +1270,26 @@ def get_llm_shadow(db: Session = Depends(get_db), settings: Settings = Depends(g
     return llm_shadow.shadow_report(db, settings, venue="crypto")
 
 
+@router.get("/risk-metrics")
+def get_risk_metrics(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """#41: metryki RYZYKO-SKORYGOWANE (Sharpe/Sortino/max-DD/zmienność) z historii
+    equity konta krypto od czystej epoki — nie tylko z backtestu. Czysto odczytowe."""
+    venue = "crypto" if settings.crypto_enabled else "alpaca"
+    state = risk_manager.get_state(db)
+    epoch, _ = scorecard.effective_epoch(state, settings, venue=venue)
+    rows = db.execute(
+        select(PortfolioSnapshot.total_value_usdt, PortfolioSnapshot.timestamp)
+        .where(PortfolioSnapshot.venue == venue)
+        .order_by(PortfolioSnapshot.timestamp.asc())
+    ).all()
+    series = []
+    for val, ts in rows:
+        tsa = ts if ts.tzinfo else ts.replace(tzinfo=UTC)
+        if epoch is None or tsa >= epoch:
+            series.append(float(val or 0.0))
+    return {"venue": venue, **scorecard.risk_metrics(series)}
+
+
 @router.get("/learning/export")
 def export_learning(db: Session = Depends(get_db), settings: Settings = Depends(get_settings),
                     fmt: str = "json"):

@@ -358,3 +358,32 @@ def reset_scorecard(db: Session) -> None:
     state.benchmark_start_price = 0.0
     state.benchmark_start_value = 0.0
     db.commit()
+
+
+def risk_metrics(equity: list[float]) -> dict:
+    """#41 — metryki RYZYKO-SKORYGOWANE z serii equity (wartości portfela w czasie).
+    Per-próbka (nieannualizowane) — uczciwe, bez zgadywania długości okresu. Sharpe =
+    średni zwrot / odchylenie; Sortino = / odchylenie strat; plus max drawdown i
+    zmienność. None, gdy za mało punktów. Czysto obliczeniowe."""
+    eq = [float(e) for e in (equity or []) if e is not None]
+    out = {"n": len(eq), "sharpe": None, "sortino": None, "max_drawdown_pct": None, "volatility_pct": None}
+    if len(eq) < 3:
+        return out
+    rets = [(eq[i] / eq[i - 1] - 1) for i in range(1, len(eq)) if eq[i - 1] > 0]
+    if len(rets) < 2:
+        return out
+    mean = sum(rets) / len(rets)
+    std = (sum((r - mean) ** 2 for r in rets) / len(rets)) ** 0.5
+    downside = [r for r in rets if r < 0]
+    dstd = (sum(r * r for r in downside) / len(downside)) ** 0.5 if downside else 0.0
+    peak = float("-inf")
+    max_dd = 0.0
+    for e in eq:
+        peak = max(peak, e)
+        if peak > 0:
+            max_dd = max(max_dd, (peak - e) / peak * 100)
+    out["sharpe"] = round(mean / std, 3) if std > 0 else None
+    out["sortino"] = round(mean / dstd, 3) if dstd > 0 else None
+    out["max_drawdown_pct"] = round(max_dd, 2)
+    out["volatility_pct"] = round(std * 100, 2)
+    return out

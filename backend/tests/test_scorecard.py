@@ -166,3 +166,17 @@ def test_walk_realized_open_since_excludes_straddling_blowout(db_session, settin
     # stary `since` (po sprzedaży) policzyłby OBIE (AVAX 10-20 i SOL 10-21) -> 1W/1L.
     r2, w2, l2 = scorecard._walk_realized(db_session, since=epoch, venue="crypto")
     assert (w2, l2) == (1, 1)
+
+
+def test_risk_metrics_basic():
+    """#41: Sharpe/Sortino/max-DD z serii equity. Rosnąca -> Sharpe dodatni, mały DD;
+    za mało punktów -> None."""
+    from app.services import scorecard
+    assert scorecard.risk_metrics([100])["sharpe"] is None           # za mało punktów
+    rising = [100, 101, 102, 103, 104, 105]
+    m = scorecard.risk_metrics(rising)
+    assert m["n"] == 6 and m["sharpe"] is not None and m["sharpe"] > 0
+    assert m["max_drawdown_pct"] == 0.0                               # monotoniczny wzrost
+    drawdown = [100, 120, 90, 110, 80]
+    d = scorecard.risk_metrics(drawdown)
+    assert d["max_drawdown_pct"] > 0 and d["sortino"] is not None
