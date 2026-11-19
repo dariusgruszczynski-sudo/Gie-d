@@ -412,7 +412,20 @@ def _honesty_view(db: Session, settings: Settings, account: dict | None) -> dict
     beats_btc = None
     if alpha_pct is not None and closed >= 1:
         beats_btc = alpha_pct >= 0
+    # #4/#38 (backlog): UI NIE MOŻE KŁAMAĆ. Gdy silnik nic nie trzyma i dawno nie
+    # wchodził, nagłówek ma mówić „BEZCZYNNY", a nie trąbić fałszywą alfą (alfa przy
+    # 0 trejdów = artefakt: gotówka vs spadający BTC, nie umiejętność). Liczymy to
+    # wprost z pozycji + ostatniego wejścia, niezależnie od benchmarku.
+    in_market = ((account or {}).get("crypto_positions_value") or 0.0) > 1.0
+    last_entry = _last_crypto_entry_at(db)
+    days_since_entry = None
+    if last_entry is not None:
+        days_since_entry = round((datetime.now(UTC) - last_entry).total_seconds() / 86400.0, 1)
+    status = "active" if in_market else "idle"
     return {
+        "status": status,
+        "in_market": in_market,
+        "days_since_last_entry": days_since_entry,
         "beats_btc": beats_btc,
         "alpha_pct_vs_btc": alpha_pct,
         "closed_trades": closed,
@@ -421,6 +434,21 @@ def _honesty_view(db: Session, settings: Settings, account: dict | None) -> dict
         "reconciled": (rec or {}).get("reconciled", True),
         "benchmark": card.get("benchmark_symbol"),
     }
+
+
+def _last_crypto_entry_at(db: Session):
+    """Czas ostatniego WEJŚCIA (BUY) krypto, aware-UTC albo None. Do metryki
+    „dni od ostatniego wejścia" w nagłówku uczciwości (#4 backlog)."""
+    from app.models import Trade
+    row = db.execute(
+        select(Trade.timestamp)
+        .where(Trade.side == "BUY")
+        .where((Trade.venue == "crypto") | (Trade.symbol.like("%/%")))
+        .order_by(Trade.timestamp.desc()).limit(1)
+    ).scalar_one_or_none()
+    if row is None:
+        return None
+    return row if row.tzinfo else row.replace(tzinfo=UTC)
 
 
 def _day_realized_usd(db: Session) -> float:

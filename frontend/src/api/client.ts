@@ -96,6 +96,9 @@ export interface StatusResponse {
   } | null;
   // R28/R38: nagłówek-uczciwość zawsze na wierzchu — bijemy BTC? na ilu zamknięciach?
   honesty?: {
+    status?: "idle" | "active";
+    in_market?: boolean;
+    days_since_last_entry?: number | null;
     beats_btc: boolean | null;
     alpha_pct_vs_btc: number | null;
     closed_trades: number;

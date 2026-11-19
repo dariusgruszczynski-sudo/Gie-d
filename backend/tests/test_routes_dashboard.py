@@ -482,3 +482,29 @@ def test_honesty_view_returns_block_with_keys(db_session, settings):
 def test_honesty_view_none_when_crypto_disabled(db_session, settings):
     from app.api.routes_dashboard import _honesty_view
     assert _honesty_view(db_session, settings.model_copy(update={"crypto_enabled": False}), None) is None
+
+
+def test_honesty_idle_when_all_cash_not_fake_alpha(db_session, settings):
+    """#38/#4 backlog: przy 0 pozycji nagłówek-uczciwość ma mówić status='idle'
+    (BEZCZYNNY), a NIE udawać werdyktu/alfy. Trzymana pozycja -> 'active'. Oraz
+    dni-od-wejścia liczone z ostatniego BUY krypto."""
+    from app.models import Trade, TradeMode
+
+    s = settings.model_copy(update={"crypto_enabled": True})
+    db_session.add(PortfolioSnapshot(total_value_usdt=10000.0, usdt_balance=10000.0,
+                                     balances_json="{}", prices_json="{}", venue="crypto"))
+    db_session.commit()
+
+    idle = routes_dashboard._honesty_view(db_session, s, {"total_value": 10000.0, "crypto_positions_value": 0.0})
+    assert idle["status"] == "idle" and idle["in_market"] is False
+    assert idle["days_since_last_entry"] is None  # brak wejść w historii
+
+    active = routes_dashboard._honesty_view(db_session, s, {"total_value": 10000.0, "crypto_positions_value": 500.0})
+    assert active["status"] == "active" and active["in_market"] is True
+
+    # Po wejściu 3 dni temu -> dni-od-wejścia policzone (>=2.5).
+    db_session.add(Trade(timestamp=datetime.now(UTC) - timedelta(days=3), symbol="BTC/USD", side="BUY",
+                         quantity=0.1, price=60000.0, usdt_value=6000.0, mode=TradeMode.LIVE, venue="crypto"))
+    db_session.commit()
+    out = routes_dashboard._honesty_view(db_session, s, {"total_value": 10000.0, "crypto_positions_value": 0.0})
+    assert out["days_since_last_entry"] is not None and out["days_since_last_entry"] >= 2.5

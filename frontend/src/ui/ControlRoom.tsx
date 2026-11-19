@@ -144,8 +144,14 @@ function HonestyHeader({ status }: { status: StatusResponse }) {
   if (!h) return null;
   const bench = h.benchmark || "BTC";
   const a = h.alpha_pct_vs_btc;
+  const days = h.days_since_last_entry;
   let cls = "neu", txt = "za mało danych na werdykt";
   if (!h.reconciled) { cls = "bad"; txt = "⚠ księgi rozjechane z brokerem"; }
+  // #38 backlog: gdy silnik NIC nie trzyma — mów „BEZCZYNNY", nie trąb fałszywą alfą.
+  else if (h.status === "idle") {
+    cls = "warn";
+    txt = "⏸ BEZCZYNNY — nie handluje" + (days != null ? ` (${days} dni)` : "");
+  }
   else if (h.closed_trades >= 1 && h.beats_btc !== null) {
     cls = h.beats_btc ? "good" : "bad";
     txt = (h.beats_btc ? `bije trzymanie ${bench}` : `przegrywa z trzymaniem ${bench}`)
@@ -153,7 +159,7 @@ function HonestyHeader({ status }: { status: StatusResponse }) {
   }
   return (
     <div className={`cr-honesty ${cls}`}>
-      <span className="q">Bijemy {bench}?</span>
+      <span className="q">{h.status === "idle" ? "Stan silnika" : `Bijemy ${bench}?`}</span>
       <b className="a">{txt}</b>
       <span className="meta">{h.closed_trades}/50 zamknięć{h.since ? ` · od ${String(h.since).slice(0, 10)}` : ""}{h.closed_trades > 0 && !h.sample_sufficient ? " · próbka za mała" : ""}</span>
     </div>
