@@ -676,3 +676,13 @@
   background: linear-gradient(90deg, var(--cr-accent), var(--cr-accent-bright));
 }
 .cr-fb .c { font-family: var(--cr-mono); font-size: .76rem; color: var(--cr-accent-bright); min-width: 1.5rem; text-align: right; }
+
+/* ── #2/#39 Wykres equity vs BTC/DCA ── */
+.cr-eqchart svg { width: 100%; height: 150px; display: block; }
+.cr-eq-leg { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: .76rem; color: var(--cr-dim); }
+.cr-eq-leg .lg { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.cr-eq-leg .lg i { width: 14px; height: 3px; border-radius: 99px; display: inline-block; }
+.cr-eq-leg .lg.s i { background: var(--cr-accent-bright); }
+.cr-eq-leg .lg.h i { background: var(--cr-dim); }
+.cr-eq-leg .lg.c i { background: var(--cr-warn); }
+.cr-eq-leg .lg b { font-family: var(--cr-mono); color: var(--cr-txt); }

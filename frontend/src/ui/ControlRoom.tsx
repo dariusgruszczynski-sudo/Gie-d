@@ -121,6 +121,58 @@ function EntryGateBanner() {
   );
 }
 
+// #2/#39 Wykres equity: strategia vs trzymanie BTC vs DCA BTC, wszystkie
+// znormalizowane do 100 w t0 (porównywalne % mimo różnych skal $).
+function EquityVsBtcChart() {
+  const [d, setD] = useState<import("../api/client").EquitySeriesResponse | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api.equitySeries(30).then((r) => alive && setD(r)).catch(() => { /* best-effort */ });
+    return () => { alive = false; };
+  }, []);
+  if (!d || d.points.length < 2) {
+    return <div className="gd-band-empty">Zbieram serię equity vs BTC…</div>;
+  }
+  const base = d.points[0].strategy || 1;
+  const w = 1000, h = 150, pad = 8;
+  const norm = (v: number) => (v / base) * 100;
+  const sVals = d.points.map((p) => norm(p.strategy));
+  const hVals = d.points.map((p) => (p.hold_btc == null ? null : norm(p.hold_btc)));
+  const cVals = d.points.map((p) => (p.dca_btc == null ? null : norm(p.dca_btc)));
+  const flat = [...sVals, ...hVals, ...cVals].filter((v): v is number => v != null);
+  const min = Math.min(...flat), max = Math.max(...flat);
+  const range = max - min || 1;
+  const x = (i: number) => pad + (i / (d.points.length - 1)) * (w - 2 * pad);
+  const y = (v: number) => h - pad - ((v - min) / range) * (h - 2 * pad);
+  const path = (vals: (number | null)[]) => {
+    let out = "", pen = false;
+    vals.forEach((v, i) => {
+      if (v == null) { pen = false; return; }
+      out += `${pen ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)} `;
+      pen = true;
+    });
+    return out.trim();
+  };
+  const y100 = y(100);
+  const sm = d.summary;
+  const fmt = (p: number | null) => (p == null ? "—" : `${p >= 0 ? "+" : ""}${p.toFixed(1)}%`);
+  return (
+    <div className="cr-eqchart">
+      <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+        <line x1={pad} y1={y100} x2={w - pad} y2={y100} stroke="var(--cr-line-2)" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+        <path d={path(hVals)} fill="none" stroke="var(--cr-dim)" strokeWidth="1.8" vectorEffect="non-scaling-stroke" />
+        <path d={path(cVals)} fill="none" stroke="var(--cr-warn)" strokeWidth="1.8" vectorEffect="non-scaling-stroke" />
+        <path d={path(sVals)} fill="none" stroke="var(--cr-accent-bright)" strokeWidth="2.6" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <div className="cr-eq-leg">
+        <span className="lg s"><i /> strategia <b>{fmt(sm.strategy_pct)}</b></span>
+        <span className="lg h"><i /> trzymanie BTC <b>{fmt(sm.hold_btc_pct)}</b></span>
+        <span className="lg c"><i /> DCA BTC <b>{fmt(sm.dca_btc_pct)}</b></span>
+      </div>
+    </div>
+  );
+}
+
 // #6/#7 Lejek wejścia: ile kandydatów odpadło NA KTÓREJ bramce w ostatnich 7 dniach.
 // Odpowiada wprost na „automat stoi — dlaczego nie wchodzi": pokazuje bramkę, która dławi.
 function EntryFunnelPanel() {
@@ -514,6 +566,11 @@ export function Verdict({ status, portfolio }: { status: StatusResponse; portfol
           <div className="side"><div className="k">Trzymanie {sc.benchmark_symbol}</div><div className="v">{sc.benchmark_value != null ? money0(sc.benchmark_value) : "—"}</div><div className="s">kup i trzymaj</div></div>
         </div>
       )}
+
+      <div className="cr-panel flush">
+        <div style={{ padding: "12px 14px" }} className="cr-ph"><h3>Equity vs trzymanie / DCA BTC</h3><span className="note">30 dni · wszystko = 100 w starcie</span></div>
+        <div style={{ padding: "0 10px 10px" }}><EquityVsBtcChart /></div>
+      </div>
 
       <div className="cr-panel">
         <div className="cr-ph"><h3>Obrona kapitału</h3><span className="note">druga oś oceny — nie tylko zwrot</span></div>

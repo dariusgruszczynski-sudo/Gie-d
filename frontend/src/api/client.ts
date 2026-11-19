@@ -474,6 +474,7 @@ export const api = {
   learning: () => apiFetch<LearningResponse>(withShare("/api/learning")),
   entryGate: () => apiFetch<EntryGateResponse>(withShare("/api/entry-gate")),
   entryFunnel: (days = 7) => apiFetch<EntryFunnelResponse>(withShare(`/api/entry-funnel?days=${days}`)),
+  equitySeries: (days = 30) => apiFetch<EquitySeriesResponse>(withShare(`/api/equity-series?days=${days}`)),
   audit: () => apiFetch<AuditResponse>(withShare("/api/audit")),
   health: () => apiFetch<HealthReport>("/api/health"),
   healthReset: (action: string) =>
@@ -563,6 +564,18 @@ export interface EntryFunnelResponse {
   venue: string;
   window_days: number;
   headline: string;
+}
+export interface EquitySeriesResponse {
+  venue: string;
+  window_days: number;
+  points: Array<{ ts: string; strategy: number; hold_btc: number | null; dca_btc: number | null }>;
+  summary: {
+    strategy_pct: number | null;
+    hold_btc_pct: number | null;
+    dca_btc_pct: number | null;
+    beats_hold: boolean | null;
+    beats_dca: boolean | null;
+  };
 }
 export interface LearningResponse {
   cohorts: Array<{ from: string | null; to: string | null; n: number; expectancy_pct: number; expectancy_R: number | null; win_rate: number }>;
