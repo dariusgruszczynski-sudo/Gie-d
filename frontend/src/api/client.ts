@@ -301,6 +301,12 @@ export interface ClaudeEdge {
 
 // SHADOW-LLM (go/no-go dla LLM): rekomendacje Claude logowane BEZ handlu, oceniane
 // na zwrocie forward — czy jego BUY-e wyprzedzają jego HOLD-y.
+export interface GoLiveResponse {
+  criteria: Array<{ key: string; label: string; met: boolean; pending: boolean; value: string }>;
+  met: number;
+  total: number;
+  go_live: boolean;
+}
 export interface LlmShadowResponse {
   status: "ok" | "insufficient_data" | "disabled";
   enabled: boolean;
@@ -454,6 +460,7 @@ export const api = {
   claudeEdge: (venue: string = "alpaca") =>
     apiFetch<ClaudeEdge>(withShare(`/api/claude-edge?venue=${venue}`)),
   llmShadow: () => apiFetch<LlmShadowResponse>(withShare("/api/llm-shadow")),
+  goLive: () => apiFetch<GoLiveResponse>(withShare("/api/go-live")),
   pushConfig: () => apiFetch<{ enabled: boolean; vapid_public_key: string }>("/api/push/config"),
   pushSubscribe: (sub: PushSubscriptionJSON) =>
     apiFetch<{ message: string }>("/api/push/subscribe", { method: "POST", body: JSON.stringify(sub) }),

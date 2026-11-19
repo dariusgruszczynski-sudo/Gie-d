@@ -169,6 +169,44 @@ function HonestyHeader({ status }: { status: StatusResponse }) {
   );
 }
 
+function QuestCard() {
+  const [d, setD] = useState<import("../api/client").GoLiveResponse | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api.goLive().then((r) => alive && setD(r)).catch(() => { /* best-effort */ });
+    return () => { alive = false; };
+  }, []);
+  if (!d) return null;
+  const C = 238.76, off = C * (1 - d.met / Math.max(1, d.total));
+  return (
+    <div className="cr-panel">
+      <div className="cr-ph"><h3>Quest → wejście na żywo</h3>{d.go_live && <span className="cr-chip on">GO-LIVE ✓</span>}</div>
+      <div className="cr-quest-head">
+        <div className="cr-ring">
+          <svg width="88" height="88" viewBox="0 0 88 88">
+            <defs><linearGradient id="cuq" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#f6bd82" /><stop offset="1" stopColor="#a85f2c" /></linearGradient></defs>
+            <circle cx="44" cy="44" r="38" fill="none" stroke="rgba(224,151,90,.14)" strokeWidth="8" />
+            <circle cx="44" cy="44" r="38" fill="none" stroke="url(#cuq)" strokeWidth="8" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={off} />
+          </svg>
+          <div className="ctr"><div><div className="n">{d.met}/{d.total}</div><div className="d">celów</div></div></div>
+        </div>
+        <div className="t"><h3>Quest go-live</h3><p>Odblokuj realny kapitał, gdy wszystkie {d.total} celów zaświecą. Dziś zbieramy dowody.</p></div>
+      </div>
+      <div className="cr-obj">
+        {d.criteria.map((c) => {
+          const cls = c.met ? "met" : c.pending ? "lock" : "now";
+          const ic = c.met ? "✓" : c.pending ? "🔒" : "◆";
+          return (
+            <div key={c.key} className={`cr-o ${cls}`}>
+              <span className="ic">{ic}</span><span className="lbl">{c.label}</span><span className="val">{c.value}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }: {
   status: StatusResponse; portfolio: PortfolioResponse | null; decisions: Decision[];
   onGoFlow: () => void; onGoVerdict: () => void;
@@ -199,6 +237,7 @@ export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }:
   return (
     <div className="cr-screen">
       <HonestyHeader status={status} />
+      <QuestCard />
       {status.is_halted && status.halted_reason && (
         <div className="cr-halt-banner">⛔ <b>Bezpiecznik zatrzymał bota.</b> {status.halted_reason} — otwórz STER i naciśnij „Odblokuj", żeby wznowić i wyzerować punkty odniesienia.</div>
       )}

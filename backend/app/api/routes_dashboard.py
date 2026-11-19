@@ -1290,6 +1290,58 @@ def get_risk_metrics(db: Session = Depends(get_db), settings: Settings = Depends
     return {"venue": venue, **scorecard.risk_metrics(series)}
 
 
+@router.get("/go-live")
+def get_go_live(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """QUEST GO-LIVE (#1/#43): 6 twardych kryteriów z dziennika przeliczonych na
+    met/pending — zasila grywalizowaną kartę „odblokuj realny kapitał". Odczytowe."""
+    from app.services import budget_tracker, go_live, learning
+    account = _account_view(db, settings)
+    hon = _honesty_view(db, settings, account) or {}
+    closed = hon.get("closed_trades") or 0
+    weeks = 0.0
+    since = hon.get("since")
+    if since:
+        try:
+            sdt = datetime.fromisoformat(since)
+            sdt = sdt if sdt.tzinfo else sdt.replace(tzinfo=UTC)
+            weeks = max(0.0, (datetime.now(UTC) - sdt).total_seconds() / (7 * 86400))
+        except (TypeError, ValueError):
+            pass
+    exp_r = None
+    try:
+        exp_r = learning.learning_curve(db, settings, venue="crypto").get("expectancy_R")
+    except Exception:  # noqa: BLE001
+        pass
+    max_dd = None
+    try:
+        venue = "crypto" if settings.crypto_enabled else "alpaca"
+        state = risk_manager.get_state(db)
+        epoch, _ = scorecard.effective_epoch(state, settings, venue=venue)
+        rows = db.execute(
+            select(PortfolioSnapshot.total_value_usdt, PortfolioSnapshot.timestamp)
+            .where(PortfolioSnapshot.venue == venue)
+            .order_by(PortfolioSnapshot.timestamp.asc())
+        ).all()
+        series = []
+        for val, ts in rows:
+            tsa = ts if ts.tzinfo else ts.replace(tzinfo=UTC)
+            if epoch is None or tsa >= epoch:
+                series.append(float(val or 0.0))
+        max_dd = scorecard.risk_metrics(series).get("max_drawdown_pct")
+    except Exception:  # noqa: BLE001
+        pass
+    ai_spend = None
+    try:
+        ai_spend = budget_tracker.get_budget_status(db, settings).get("claude_spend_usd_this_month")
+    except Exception:  # noqa: BLE001
+        pass
+    return go_live.go_live_criteria(
+        closed_trades=closed, weeks=weeks, beats_btc=hon.get("beats_btc"),
+        expectancy_r=exp_r, max_dd_pct=max_dd, ai_spend_usd=ai_spend,
+        ai_budget_usd=getattr(settings, "claude_monthly_budget_usd", 9.0) or 9.0,
+    )
+
+
 @router.get("/learning/export")
 def export_learning(db: Session = Depends(get_db), settings: Settings = Depends(get_settings),
                     fmt: str = "json"):
