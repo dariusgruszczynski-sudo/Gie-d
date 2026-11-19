@@ -473,6 +473,7 @@ export const api = {
   coins: () => apiFetch<CoinsResponse>(withShare("/api/coins")),
   learning: () => apiFetch<LearningResponse>(withShare("/api/learning")),
   entryGate: () => apiFetch<EntryGateResponse>(withShare("/api/entry-gate")),
+  entryFunnel: (days = 7) => apiFetch<EntryFunnelResponse>(withShare(`/api/entry-funnel?days=${days}`)),
   audit: () => apiFetch<AuditResponse>(withShare("/api/audit")),
   health: () => apiFetch<HealthReport>("/api/health"),
   healthReset: (action: string) =>
@@ -548,6 +549,19 @@ export interface EntryGateResponse {
     paralysis_risk: boolean;
     note: string;
   } | null;
+}
+export interface EntryFunnelResponse {
+  evaluated: number;
+  holds: number;
+  buy_attempts: number;
+  entered: number;
+  blocked: number;
+  gates: Array<{ key: string; label: string; count: number }>;
+  top_gate: { key: string; label: string; count: number } | null;
+  samples: Record<string, string>;
+  venue: string;
+  window_days: number;
+  headline: string;
 }
 export interface LearningResponse {
   cohorts: Array<{ from: string | null; to: string | null; n: number; expectancy_pct: number; expectancy_R: number | null; win_rate: number }>;

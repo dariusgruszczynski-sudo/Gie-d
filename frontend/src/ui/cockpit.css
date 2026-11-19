@@ -648,3 +648,31 @@
 .cr-o.lock .lbl { color: var(--cr-dim); }
 .cr-o .val { margin-left: auto; font-family: var(--cr-mono); font-size: .74rem; color: var(--cr-dim); white-space: nowrap; }
 .cr-o.now .val { color: var(--cr-accent-bright); }
+
+/* ── #6/#7 Lejek wejścia: „dlaczego (nie) wchodzi" ── */
+.cr-funnel-head {
+  font-size: .9rem; color: var(--cr-txt); line-height: 1.45;
+  padding: 8px 10px; margin-bottom: 10px; border-radius: 10px;
+  background: rgba(224,151,90,.08); border: 1px solid var(--cr-line);
+}
+.cr-funnel-stages {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px;
+  font-size: .78rem; color: var(--cr-dim); margin-bottom: 12px;
+}
+.cr-funnel-stages .st { white-space: nowrap; }
+.cr-funnel-stages .st b { font-family: var(--cr-mono); color: var(--cr-txt); margin-left: 2px; }
+.cr-funnel-stages .st.up b { color: var(--cr-up); }
+.cr-funnel-stages .st.down b { color: var(--cr-down); }
+.cr-funnel-stages .sep { color: var(--cr-dim-2); }
+.cr-funnel-bars { display: flex; flex-direction: column; gap: 7px; }
+.cr-fb { display: grid; grid-template-columns: minmax(0, 11rem) 1fr auto; align-items: center; gap: 8px; }
+.cr-fb .lbl {
+  font-size: .76rem; color: var(--cr-dim); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cr-fb .bar { height: 8px; border-radius: 99px; background: rgba(255,255,255,.05); overflow: hidden; }
+.cr-fb .bar i {
+  display: block; height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, var(--cr-accent), var(--cr-accent-bright));
+}
+.cr-fb .c { font-family: var(--cr-mono); font-size: .76rem; color: var(--cr-accent-bright); min-width: 1.5rem; text-align: right; }

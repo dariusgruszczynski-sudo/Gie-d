@@ -121,6 +121,51 @@ function EntryGateBanner() {
   );
 }
 
+// #6/#7 Lejek wejścia: ile kandydatów odpadło NA KTÓREJ bramce w ostatnich 7 dniach.
+// Odpowiada wprost na „automat stoi — dlaczego nie wchodzi": pokazuje bramkę, która dławi.
+function EntryFunnelPanel() {
+  const [f, setF] = useState<import("../api/client").EntryFunnelResponse | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () => api.entryFunnel(7).then((r) => alive && setF(r)).catch(() => { /* best-effort */ });
+    load();
+    const t = setInterval(load, 30000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+  if (!f) return null;
+  const maxC = Math.max(1, ...f.gates.map((g) => g.count));
+  return (
+    <div className="cr-panel cr-funnel" style={{ marginTop: 12 }}>
+      <div className="cr-ph"><h3>Lejek wejścia</h3><span className="note">dlaczego (nie) wchodzi · {f.window_days} dni</span></div>
+      <div className="cr-funnel-head">{f.headline}</div>
+      <div className="cr-funnel-stages">
+        <span className="st">ocen: <b>{f.evaluated}</b></span>
+        <span className="sep">→</span>
+        <span className="st">bez sygnału: <b>{f.holds}</b></span>
+        <span className="sep">→</span>
+        <span className="st">chciał wejść: <b>{f.buy_attempts}</b></span>
+        <span className="sep">→</span>
+        <span className="st up">weszło: <b>{f.entered}</b></span>
+        <span className="sep">·</span>
+        <span className="st down">zdławione: <b>{f.blocked}</b></span>
+      </div>
+      {f.gates.length > 0 ? (
+        <div className="cr-funnel-bars">
+          {f.gates.map((g) => (
+            <div key={g.key} className="cr-fb" title={f.samples[g.key] || g.label}>
+              <span className="lbl">{g.label}</span>
+              <span className="bar"><i style={{ width: `${Math.max(6, Math.round((g.count / maxC) * 100))}%` }} /></span>
+              <span className="c">{g.count}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="cr-empty">Brak zdławionych wejść w oknie — żadna bramka nie blokowała.</p>
+      )}
+    </div>
+  );
+}
+
 // Fix #1: głośny baner, gdy baza transakcji rozjeżdża się z realnym kontem brokera.
 // Geneza: baza myślała, że trzymamy ~$476k crypto, broker widział ~$110k (rozjazd
 // ~$366k), a „zysk bota" pokazywał +$1 174 przy koncie −27%. Teraz to NIE przejdzie
@@ -363,7 +408,8 @@ export function Flow({ status, alpaca, extended, decisions, onChanged }: {
           ) : <p className="cr-empty">Brak otwartych pozycji — gotówka czeka na najlepsze wejścia.</p>}
         </div>
         <div>
-          <div className="cr-ph"><h3>Dziennik decyzji</h3><span className="note">sygnał → próg → akcja</span></div>
+          <EntryFunnelPanel />
+          <div className="cr-ph" style={{ marginTop: 12 }}><h3>Dziennik decyzji</h3><span className="note">sygnał → próg → akcja</span></div>
           <div className="cr-decfilter">
             <button className={filter === "all" ? "on" : ""} onClick={() => setFilter("all")}>Wszystko</button>
             <button className={filter === "acts" ? "on" : ""} onClick={() => setFilter("acts")}>Tylko akcje (kup/sprzedaj)</button>

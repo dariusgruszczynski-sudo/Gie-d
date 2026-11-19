@@ -1250,6 +1250,47 @@ def get_entry_gate(db: Session = Depends(get_db), settings: Settings = Depends(g
     }
 
 
+@router.get("/entry-funnel")
+def get_entry_funnel(
+    days: int = Query(default=7, ge=1, le=90),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    """#6/#7 Lejek wejścia: ilu kandydatów odpadło NA KTÓREJ bramce w oknie.
+    Czysta agregacja po zapisanych decyzjach (zero dotknięcia hot-path). Odpowiada
+    wprost na „automat stoi — dlaczego nie wchodzi": pokazuje bramkę, która dławi."""
+    from app.services import entry_funnel as ef
+
+    venue = "crypto" if settings.crypto_enabled else "alpaca"
+    since = datetime.now(UTC) - timedelta(days=days)
+    rows = db.execute(
+        select(Decision)
+        .where(Decision.venue == venue, Decision.timestamp >= since)
+        .order_by(Decision.timestamp.desc())
+        .limit(2000)
+    ).scalars().all()
+    funnel = ef.entry_funnel(rows).as_dict()
+    funnel["venue"] = venue
+    funnel["window_days"] = days
+    # Jednozdaniowe „dlaczego nie wchodzi" dla UI.
+    if funnel["blocked"] == 0 and funnel["entered"] > 0:
+        funnel["headline"] = f"Wchodzi normalnie — {funnel['entered']} wejść w oknie {days} dni."
+    elif funnel["top_gate"]:
+        tg = funnel["top_gate"]
+        funnel["headline"] = (
+            f"Najczęściej dławi: {tg['label']} ({tg['count']}× na {funnel['blocked']} "
+            f"zablokowanych prób wejścia w {days} dni)."
+        )
+    elif funnel["buy_attempts"] == 0:
+        funnel["headline"] = (
+            f"Zero prób wejścia w {days} dni — silnik nie znalazł ani jednego kandydata "
+            "(brak sygnału na szczycie lejka, nie bramki niżej)."
+        )
+    else:
+        funnel["headline"] = f"Brak zablokowanych wejść w oknie {days} dni."
+    return funnel
+
+
 @router.get("/learning")
 def get_learning(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     """KRZYWA UCZENIA (#15): czy bot poprawia się w czasie — expectancy/trafność
