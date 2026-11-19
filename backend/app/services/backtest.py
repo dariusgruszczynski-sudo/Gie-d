@@ -102,6 +102,49 @@ def _yearly_breakdown(timeline: list[float], equity_curve: list[float], bench_cu
     return rows
 
 
+def _ma_trend_return(closes: list[float], ma_period: int, starting_cash: float = 1000.0) -> dict | None:
+    """#100/#14 — NAJPROSTSZY możliwy benchmark: długo gdy cena > SMA(ma_period),
+    inaczej gotówka. ZERO knobów, zero LLM, zero 22 bramek. Jeśli złożony silnik
+    tego nie bije na tych samych danych, cała złożoność ma wartość UJEMNĄ.
+    Zwraca zwrot %, max DD, liczbę wejść i % czasu w rynku (albo None, gdy za mało
+    danych)."""
+    n = len(closes)
+    if n <= ma_period + 1:
+        return None
+    cash = starting_cash
+    units = 0.0
+    trades = 0
+    in_steps = 0
+    steps = 0
+    peak = -math.inf
+    max_dd = 0.0
+    for i in range(ma_period, n):
+        px = closes[i]
+        ma = sum(closes[i - ma_period:i]) / ma_period
+        if px > ma and units == 0.0:
+            units = cash / px
+            cash = 0.0
+            trades += 1
+        elif px <= ma and units > 0.0:
+            cash = units * px
+            units = 0.0
+        equity = cash + units * px
+        if units > 0.0:
+            in_steps += 1
+        steps += 1
+        peak = max(peak, equity)
+        if peak > 0:
+            max_dd = max(max_dd, (peak - equity) / peak * 100)
+    final = cash + units * closes[-1]
+    return {
+        "total_return_pct": round((final / starting_cash - 1) * 100, 2),
+        "max_drawdown_pct": round(max_dd, 2),
+        "trades": trades,
+        "pct_time_in_market": round(in_steps / steps * 100, 1) if steps else None,
+        "ma_period": ma_period,
+    }
+
+
 @dataclass
 class _Pos:
     qty: float
@@ -393,11 +436,21 @@ def run_backtest(
     # zanim trafi na produkcję (dokładnie dzisiejszy paraliż: silnik w gotówce).
     trades_per_month = round(n_entries / (span_years * 12), 2) if span_years and span_years > 0 else None
     pct_time_in_market = round(steps_in_market / len(timeline) * 100, 1) if timeline else None
+    # #100/#14: benchmark „głupiego bota" (cena > SMA200 na symbolu bazowym). Czy
+    # cała złożoność w ogóle bije najprostszą regułę trendu? beats_ma_trend=False
+    # = sygnał, że trzeba CIĄĆ, a nie dokładać.
+    ma_trend_baseline = _ma_trend_return(closes[bench], 200, starting_cash) if bench else None
+    beats_ma_trend = (
+        ma_trend_baseline is not None
+        and total_return_pct > ma_trend_baseline["total_return_pct"]
+    )
     return {
         "steps": len(timeline),
         "entries": n_entries,
         "trades_per_month": trades_per_month,
         "pct_time_in_market": pct_time_in_market,
+        "ma_trend_baseline": ma_trend_baseline,
+        "beats_ma_trend": beats_ma_trend if ma_trend_baseline is not None else None,
         "closed_trades": closed,
         "wins": wins,
         "losses": losses,

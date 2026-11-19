@@ -206,3 +206,30 @@ def test_backtest_reports_activity_metrics(settings):
     assert "trades_per_month" in report and "pct_time_in_market" in report
     assert report["pct_time_in_market"] > 0          # rosnący rynek -> trzyma pozycje
     assert report["trades_per_month"] is not None and report["trades_per_month"] > 0
+
+
+def test_ma_trend_baseline_profitable_on_uptrend():
+    """#100: najprostszy bot (cena > SMA200) na rosnącej serii zarabia i jest
+    prawie cały czas w rynku — to jest punkt odniesienia dla złożonego silnika."""
+    from app.services.backtest import _ma_trend_return
+    closes = [100 * (1.001 ** i) for i in range(400)]  # stabilny trend wzrostowy
+    b = _ma_trend_return(closes, 200, 1000.0)
+    assert b is not None
+    assert b["total_return_pct"] > 0
+    assert b["pct_time_in_market"] > 50
+    assert b["trades"] >= 1
+
+
+def test_backtest_report_includes_ma_trend_baseline(settings):
+    """#100/#14: raport pokazuje benchmark głupiego bota + flagę beats_ma_trend —
+    czy cała złożoność bije prostą regułę trendu."""
+    s = settings.model_copy(update={
+        "entry_filter_enabled": False, "risk_per_trade_pct": 1.0,
+        "max_concurrent_positions": 4, "min_hold_minutes": 0, "max_position_pct": 50.0,
+    })
+    data = {"SPY": _uptrend(n=800), "QQQ": _uptrend(n=800, phase=1.0)}
+    report = backtest.run_backtest(data, s, benchmark_symbol="SPY", starting_cash=1000.0)
+    assert "ma_trend_baseline" in report and "beats_ma_trend" in report
+    assert report["ma_trend_baseline"]["ma_period"] == 200
+    assert isinstance(report["ma_trend_baseline"]["total_return_pct"], float)
+    assert report["beats_ma_trend"] in (True, False)
