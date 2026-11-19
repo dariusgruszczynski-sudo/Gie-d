@@ -1291,6 +1291,55 @@ def get_entry_funnel(
     return funnel
 
 
+@router.get("/equity-series")
+def get_equity_series(
+    days: int = Query(default=30, ge=1, le=365),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    """#2/#39 Seria equity: strategia vs trzymanie BTC vs DCA BTC — stała linia
+    odniesienia „czy aktywny handel w ogóle bije najprostsze alternatywy?".
+    Czysta kalkulacja po istniejących snapshotach (zero dotknięcia hot-path)."""
+    from app.services import equity_series as es
+
+    venue = "crypto" if settings.crypto_enabled else "alpaca"
+    since = datetime.now(UTC) - timedelta(days=days)
+    snaps = db.execute(
+        select(PortfolioSnapshot)
+        .where(PortfolioSnapshot.venue == venue,
+               PortfolioSnapshot.timestamp >= since,
+               PortfolioSnapshot.total_value_usdt > 0)
+        .order_by(PortfolioSnapshot.timestamp.asc())
+    ).scalars().all()
+
+    def _btc_price(prices_json: str) -> float | None:
+        try:
+            p = json.loads(prices_json or "{}")
+        except (TypeError, ValueError):
+            return None
+        for k in ("BTC/USD", "BTC/USDT", "BTC"):
+            v = p.get(k)
+            if isinstance(v, (int, float)) and v > 0:
+                return float(v)
+        return None
+
+    rows = [(s.timestamp.isoformat(), float(s.total_value_usdt), _btc_price(s.prices_json)) for s in snaps]
+    # Downsampling do ~150 punktów (lekki wykres) — równomierny krok, zawsze z ostatnim.
+    cap = 150
+    if len(rows) > cap:
+        step = len(rows) / cap
+        idx = sorted({int(i * step) for i in range(cap)} | {len(rows) - 1})
+        rows = [rows[i] for i in idx]
+
+    points = es.equity_baselines(rows)
+    return {
+        "venue": venue,
+        "window_days": days,
+        "points": [p.as_dict() for p in points],
+        "summary": es.series_summary(points),
+    }
+
+
 @router.get("/learning")
 def get_learning(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     """KRZYWA UCZENIA (#15): czy bot poprawia się w czasie — expectancy/trafność
