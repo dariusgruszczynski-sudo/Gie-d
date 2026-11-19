@@ -545,7 +545,7 @@ class Settings(BaseSettings):
     # ustępuje — mechanika napędza wejścia (67% trafności w shadow-analizie vs
     # 26% selekcji Claude'a), Claude zostaje wetem/kontekstem. Bramka pewności
     # działa dalej tam, gdzie mechanika NIE potwierdza. false = jak dotąd.
-    mechanical_entries_enabled: bool = False
+    mechanical_entries_enabled: bool = True  # 2026-11-19 („Ruszaj"): ON — gdy mechanika POTWIERDZA konfluencję (≥2/3), nie blokujemy wejścia samą skromną pewnością Claude'a. Nie obniża progu sygnału (score dalej ≥crypto_entry_min_score), tylko zdejmuje weto 0.60. Dowód: 67% trafności mechaniki vs 26% selekcji Claude'a (shadow). Rewert: =False.
     # Progresywny próg wejścia: efektywny próg pewności = min_buy_confidence +
     # progressive_confidence_step * (liczba już trzymanych pozycji), przycięty do
     # progressive_confidence_cap. Dzięki temu bot może otworzyć WIĘCEJ pozycji,

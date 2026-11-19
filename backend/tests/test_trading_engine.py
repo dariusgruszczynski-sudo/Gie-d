@@ -1819,7 +1819,10 @@ def test_extended_partial_take_profit_promotes_to_full_exit_on_one_share(db_sess
 # Pakiet 2 -- anty-churn (conviction floor, per-day cap, min hold)
 # ============================================================================
 def test_low_confidence_buy_is_rejected(db_session, settings):
-    s = settings.model_copy(update={"min_buy_confidence": 0.6})
+    # Mechanika OFF: ten test sprawdza PRÓG PEWNOŚCI w izolacji (gdy mechanika
+    # potwierdza, bypass pewności ma własny test_p4_*). Domyślnie mechanika jest
+    # teraz ON (2026-11-19), więc przypinamy OFF, by testować samą bramkę pewności.
+    s = settings.model_copy(update={"min_buy_confidence": 0.6, "mechanical_entries_enabled": False})
     broker = FakeAlpaca()
     advisor = FakeAdvisor(TradingDecision("BUY", "SPY", 10, 0.5, "Słaba przewaga."))
     decision = trading_engine.run_cycle(db_session, s, broker, FakeNews(), advisor, force=True)
