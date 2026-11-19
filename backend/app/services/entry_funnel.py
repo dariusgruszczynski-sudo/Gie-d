@@ -76,6 +76,14 @@ class EntryFunnel:
     top_gate: FunnelStage | None    # najczęstsza bramka blokująca ("dlaczego nie wchodzi")
     samples: dict[str, str]         # klucz bramki -> przykładowy pełny reason
 
+    @property
+    def fill_rate(self) -> float | None:
+        """#10 fill-rate: ile prób wejścia faktycznie weszło (entered/buy_attempts).
+        None gdy zero prób (nie ma czego liczyć)."""
+        if self.buy_attempts <= 0:
+            return None
+        return self.entered / self.buy_attempts
+
     def as_dict(self) -> dict:
         return {
             "evaluated": self.evaluated,
@@ -83,6 +91,7 @@ class EntryFunnel:
             "buy_attempts": self.buy_attempts,
             "entered": self.entered,
             "blocked": self.blocked,
+            "fill_rate": self.fill_rate,
             "gates": [{"key": g.key, "label": g.label, "count": g.count} for g in self.gates],
             "top_gate": (
                 {"key": self.top_gate.key, "label": self.top_gate.label, "count": self.top_gate.count}

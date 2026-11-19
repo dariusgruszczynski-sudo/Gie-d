@@ -43,6 +43,21 @@ def test_funnel_counts_and_top_gate():
     assert "btc_core" in f.samples
 
 
+def test_funnel_fill_rate():
+    # 1 weszło na 4 próby BUY -> 25%.
+    decisions = [
+        {"action": "BUY", "executed": True, "rejection_reason": None},
+        {"action": "BUY", "executed": False, "rejection_reason": "Filtr konfluencji: brak"},
+        {"action": "BUY", "executed": False, "rejection_reason": "Filtr konfluencji: brak"},
+        {"action": "BUY", "executed": False, "rejection_reason": "Cooldown po stop-lossie: ETH"},
+    ]
+    f = entry_funnel(decisions)
+    assert f.fill_rate == 0.25
+    assert f.as_dict()["fill_rate"] == 0.25
+    # Zero prób -> None (nie ma czego liczyć).
+    assert entry_funnel([{"action": "HOLD", "executed": False, "rejection_reason": None}]).fill_rate is None
+
+
 def test_funnel_empty_has_no_top_gate():
     f = entry_funnel([])
     assert f.evaluated == 0 and f.blocked == 0 and f.top_gate is None
