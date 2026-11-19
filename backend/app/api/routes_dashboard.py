@@ -1291,6 +1291,31 @@ def get_entry_funnel(
     return funnel
 
 
+@router.get("/realized-split")
+def get_realized_split(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """#40 Jawny rozdział zrealizowanego P&L krypto: „nowa era" (od epoki strategii)
+    vs „zaszłości" (blowout sprzed epoki). Koniec mylenia −$378k (stary HYPE) z wynikiem
+    obecnej strategii. Czysta agregacja po trejdach — zero dotknięcia hot-path."""
+    from app.services import realized_split as rs
+
+    venue = "crypto" if settings.crypto_enabled else "alpaca"
+    # Epoka z tego samego źródła, co nagłówek uczciwości (spójność liczb).
+    epoch = getattr(settings, "crypto_stats_epoch_default", "") or None
+    trades = db.execute(
+        select(Trade)
+        .where((Trade.venue == venue) | (Trade.symbol.like("%/%")))
+        .order_by(Trade.timestamp.asc())
+    ).scalars().all()
+    rows = [{
+        "timestamp": (t.timestamp.isoformat() if t.timestamp else ""),
+        "symbol": t.symbol, "side": t.side, "quantity": t.quantity,
+        "price": t.price, "pnl_usd": getattr(t, "pnl_usd", None),
+    } for t in trades]
+    out = rs.realized_split(rows, epoch)
+    out["venue"] = venue
+    return out
+
+
 @router.get("/equity-series")
 def get_equity_series(
     days: int = Query(default=30, ge=1, le=365),

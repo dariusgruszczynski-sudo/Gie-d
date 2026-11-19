@@ -121,6 +121,42 @@ function EntryGateBanner() {
   );
 }
 
+// #40 Jawny rozdział realized: „nowa era" vs „zaszłości (blowout)" — koniec mylenia
+// −$378k ze starego HYPE z wynikiem obecnej strategii.
+function RealizedSplitNote() {
+  const [r, setR] = useState<import("../api/client").RealizedSplitResponse | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api.realizedSplit().then((x) => alive && setR(x)).catch(() => { /* best-effort */ });
+    return () => { alive = false; };
+  }, []);
+  if (!r || (r.legacy_count === 0 && r.epoch_count === 0)) return null;
+  const sign = (v: number) => (v >= 0 ? "+" : "−");
+  const hasLegacy = r.legacy_count > 0 && Math.abs(r.legacy_usd) > 1;
+  return (
+    <div className="cr-panel">
+      <div className="cr-ph"><h3>Zrealizowane: nowa era vs zaszłości</h3><span className="note">od epoki strategii · reszta = blowout</span></div>
+      <div className="cr-vs" style={{ marginBottom: 0 }}>
+        <div className="side">
+          <div className="k">Nowa era (od epoki)</div>
+          <div className={`v ${r.epoch_usd >= 0 ? "up" : "down"}`}>{sign(r.epoch_usd)}{money(Math.abs(r.epoch_usd))}</div>
+          <div className="s">{r.epoch_count} zamknięć — to liczy się do werdyktu</div>
+        </div>
+        {hasLegacy && (
+          <>
+            <div className="vsmid">vs</div>
+            <div className="side">
+              <div className="k">Zaszłości (blowout)</div>
+              <div className="v down" style={{ opacity: 0.7 }}>{sign(r.legacy_usd)}{money(Math.abs(r.legacy_usd))}</div>
+              <div className="s">{r.legacy_count} zamknięć sprzed epoki — NIE oceniaj po tym</div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // #2/#39 Wykres equity: strategia vs trzymanie BTC vs DCA BTC, wszystkie
 // znormalizowane do 100 w t0 (porównywalne % mimo różnych skal $).
 function EquityVsBtcChart() {
@@ -566,6 +602,8 @@ export function Verdict({ status, portfolio }: { status: StatusResponse; portfol
           <div className="side"><div className="k">Trzymanie {sc.benchmark_symbol}</div><div className="v">{sc.benchmark_value != null ? money0(sc.benchmark_value) : "—"}</div><div className="s">kup i trzymaj</div></div>
         </div>
       )}
+
+      <RealizedSplitNote />
 
       <div className="cr-panel flush">
         <div style={{ padding: "12px 14px" }} className="cr-ph"><h3>Equity vs trzymanie / DCA BTC</h3><span className="note">30 dni · wszystko = 100 w starcie</span></div>

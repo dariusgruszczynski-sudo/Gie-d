@@ -475,6 +475,7 @@ export const api = {
   entryGate: () => apiFetch<EntryGateResponse>(withShare("/api/entry-gate")),
   entryFunnel: (days = 7) => apiFetch<EntryFunnelResponse>(withShare(`/api/entry-funnel?days=${days}`)),
   equitySeries: (days = 30) => apiFetch<EquitySeriesResponse>(withShare(`/api/equity-series?days=${days}`)),
+  realizedSplit: () => apiFetch<RealizedSplitResponse>(withShare("/api/realized-split")),
   audit: () => apiFetch<AuditResponse>(withShare("/api/audit")),
   health: () => apiFetch<HealthReport>("/api/health"),
   healthReset: (action: string) =>
@@ -564,6 +565,15 @@ export interface EntryFunnelResponse {
   venue: string;
   window_days: number;
   headline: string;
+}
+export interface RealizedSplitResponse {
+  epoch_usd: number;
+  legacy_usd: number;
+  all_usd: number;
+  epoch_count: number;
+  legacy_count: number;
+  epoch: string | null;
+  venue: string;
 }
 export interface EquitySeriesResponse {
   venue: string;
