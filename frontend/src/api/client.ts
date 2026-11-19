@@ -534,6 +534,13 @@ export interface EntryGateResponse {
   message: string;
   engine_note: string;
   venue: string;
+  gate_audit?: {
+    active_gates: Array<{ gate: string; kind: string; detail: string }>;
+    count: number;
+    trend_gates: number;
+    paralysis_risk: boolean;
+    note: string;
+  } | null;
 }
 export interface LearningResponse {
   cohorts: Array<{ from: string | null; to: string | null; n: number; expectancy_pct: number; expectancy_R: number | null; win_rate: number }>;

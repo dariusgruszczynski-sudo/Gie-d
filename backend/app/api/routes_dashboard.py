@@ -1230,12 +1230,23 @@ def get_entry_gate(db: Session = Depends(get_db), settings: Settings = Depends(g
     else:
         verdict = "scanning"
         message = "Brak blokad konta — bot skanuje; wejdzie, gdy setup przejdzie bramki (reżim / wybicie / ADX / rama 4h / konfluencja). Dziś rynek może nie dawać czystego wejścia."
+    # #85: strukturalny audyt bramek — ile filtrów wejścia stackuje się naraz i czy
+    # grozi paraliż (za dużo nakładających się filtrów trendu = ~0 wejść przez AND).
+    gate_audit = None
+    try:
+        from app.services import config_audit
+        from app.services.strategy_profiles import effective_settings
+        eff = effective_settings(settings, "crypto") if venue == "crypto" else settings
+        gate_audit = config_audit.entry_gate_audit(eff)
+    except Exception:  # noqa: BLE001
+        pass
     return {
         "verdict": verdict,
         "code": blocking["code"] if blocking else "scanning",
         "message": message,
         "engine_note": engine_note,
         "venue": venue,
+        "gate_audit": gate_audit,
     }
 
 

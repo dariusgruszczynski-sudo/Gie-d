@@ -113,6 +113,9 @@ function EntryGateBanner() {
       <div className="txt">
         <b>Nowe wejścia: {blocked ? "wstrzymane" : "skanuję"}</b> — {g.message}
         {g.engine_note && <span className="note">silnik: {g.engine_note}</span>}
+        {g.gate_audit?.paralysis_risk && (
+          <span className="note" style={{ color: "var(--cr-warn)" }}>⚠ ryzyko paraliżu: {g.gate_audit.note}</span>
+        )}
       </div>
     </div>
   );
