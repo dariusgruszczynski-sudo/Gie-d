@@ -65,3 +65,15 @@ def entry_gate_audit(settings) -> dict:
         "paralysis_risk": paralysis_risk,
         "note": note,
     }
+
+
+def idle_alert_due(last_entry_at, now, *, in_market: bool, threshold_days: float = 2.0) -> bool:
+    """#9/#65: czy należy wysłać alarm BEZCZYNNOŚCI — bot nic nie trzyma (in_market
+    False) i nie wszedł od >= threshold_days (albo nigdy). Czysta funkcja; wołający
+    dokłada throttle i kanał push. Bezczynność w rynku 24/7 to stan do zgłoszenia,
+    nie 'spokój'."""
+    if in_market:
+        return False
+    if last_entry_at is None:
+        return True
+    return (now - last_entry_at).total_seconds() / 86400.0 >= threshold_days

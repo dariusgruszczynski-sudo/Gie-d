@@ -54,6 +54,21 @@ async def lifespan(app: FastAPI):
             _seed_db.close()
     except Exception:  # pragma: no cover - seed nie może blokować startu
         pass
+    # #85: ostrzeż w logu na starcie, gdy konfiguracja wejść grozi paraliżem
+    # (za dużo nakładających się filtrów trendu -> ~0 wejść). Widać od razu w logu,
+    # nie dopiero gdy właściciel zauważy, że bot nie handluje. Nieblokujące.
+    try:
+        import logging as _logging
+
+        from app.services import config_audit
+        from app.services.strategy_profiles import effective_settings
+        _s = get_settings()
+        if _s.crypto_enabled:
+            _audit = config_audit.entry_gate_audit(effective_settings(_s, "crypto"))
+            if _audit.get("paralysis_risk"):
+                _logging.getLogger("app.startup").warning("KONFIG WEJŚĆ — %s", _audit.get("note"))
+    except Exception:  # pragma: no cover - audyt nie może blokować startu
+        pass
     start_scheduler()
     # Priming (snapshot z brokera + odczyt reżimu) robi BLOKUJĄCE wywołania
     # sieciowe i potrafi trwać dziesiątki sekund. NIE wolno nim blokować startu
