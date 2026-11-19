@@ -186,11 +186,11 @@ class Settings(BaseSettings):
     # pozycje + niższy auto_deploy_max_position_pct trzymają zlecenia pod limitem.
     crypto_max_concurrent_positions: int = 20  # 2026-10-24 (wyraźna zgoda właściciela): 7 -> 20. Cap ekspozycji 50% i tak wiąże pierwszy — więcej slotów = te same ~50% rozłożone na więcej MNIEJSZYCH, bardziej zdywersyfikowanych pozycji, nie większa ekspozycja.
     crypto_min_buy_confidence: float = 0.60
-    crypto_max_new_positions_per_day: int = 0        # 0 = bez limitu (24/7)
+    crypto_max_new_positions_per_day: int = 3        # 2026-11-19 („odblokuj alty, nie dopuść do blowoutu"): 0(bez limitu)->3. Hamulec tempa: przy odblokowanych altach nie pozwól na lawinę wejść w jeden dzień (element blowoutu HYPE były 3 szybkie dokładki). 0 = bez limitu.
     crypto_min_hold_minutes: int = 60                 # krótsze trzymanie niż akcje (24/7)
     # 40 -> 20: twardy sufit udziału JEDNEJ pary (anty-koncentracja + z dala od
     # limitu $200k/zlecenie nawet przy piramidowaniu).
-    crypto_max_position_pct: float = 20.0            # max udział jednej pary
+    crypto_max_position_pct: float = 10.0            # 2026-11-19 („nie dopuść do blowoutu"): 20->10. Przy odblokowanych altach twardy sufit udziału JEDNEJ pary = 10% konta (na $600k = $60k) — blowout HYPE ($232k w jedną monetę) staje się strukturalnie niemożliwy.
     # ANTY-BLOWOUT NA NIEPŁYNNE (2026-10-27, wyraźna zgoda właściciela): pojedyncze
     # zlecenie nie może przekroczyć N× średniego dziennego obrotu $ monety (ze
     # skanera). Geneza: HYPE (~$2k/d obrotu) dostał $232k w 3 zleceniach = ~100×
@@ -198,7 +198,11 @@ class Settings(BaseSettings):
     # a konto rozjechało się z brokerem o ~$360k (policzone w rekonsyliacji). Na
     # mikro-giełdzie Alpaki ROZMIAR musi być wiązany płynnością, nie tylko % konta:
     # 20% z $626k = $125k to wciąż 60× dziennego obrotu cienkiej monety. 0 = wyłączone.
-    crypto_max_order_vs_dollar_vol_mult: float = 8.0
+    # 2026-11-19 („odblokuj alty, nie dopuść do blowoutu"): 8.0 -> 0.25. Przy
+    # odblokowanych altach ROZMIAR musi być twardo wiązany płynnością: pojedyncze
+    # zlecenie ≤ 25% średniego dziennego obrotu $ monety. 100×/60×/8× dziennego wolumenu
+    # to fikcyjne fille po zamrożonej cenie (geneza blowoutu) — 0.25× to realny fill.
+    crypto_max_order_vs_dollar_vol_mult: float = 0.25
     # WATCHDOG REKONCYLIACJI (R19/R24/R26, meta-analiza 2026-11-09): auto-halt, gdy
     # pozycje wg NASZEJ bazy rozjeżdżają się z saldem brokera o > tego % konta.
     # Geneza: blowout HYPE był AWARIĄ REKONCYLIACJI (baza myślała 2848 HYPE, broker
@@ -213,7 +217,12 @@ class Settings(BaseSettings):
     # Geneza: walk-forward pokazał, że rotacja altów PRZEGRYWA z trzymaniem BTC
     # (bije w 1 z 4 okien OOS, mediana alfy −21%). Domyślna pozycja w niepewności =
     # BTC. Alty wracają TYLKO w potwierdzonym up-reżimie (market_regime risk_on).
-    crypto_btc_core_mode: bool = True
+    # 2026-11-19 („odblokuj alty"): True -> False na WYRAŹNĄ zgodę właściciela. Alty mogą
+    # teraz wchodzić też w bessie BTC. UWAGA: to zdejmuje ochronę PRZED słabszym wynikiem
+    # (walk-forward: rotacja altów przegrywa z BTC w bessie, mediana alfy −21%) — ale NIE
+    # otwiera blowoutu: ten trzymają twarde limity koncentracji (max_position_pct=10%),
+    # płynności (order ≤ 0.25× obrotu) i tempa (max_new_positions_per_day=3). Rewert: =True.
+    crypto_btc_core_mode: bool = False
     # Cel pojedynczego auto-deploy: mniejszy niż bazowe 25% (osobny override), żeby
     # zlecenia nie ocierały się o limit Alpaki. 15% zostawia bufor pod $200k.
     crypto_auto_deploy_max_position_pct: float = 15.0
