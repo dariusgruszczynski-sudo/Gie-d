@@ -1,185 +1,158 @@
-# Backtest KRYPTO — 2026-10-24T10:13:01Z
+# Backtest KRYPTO — 2026-11-20T19:05:52Z
 
-Dane: Yahoo, 10 lat, dzienne. Benchmark: trzymanie BTC. Mechaniczny rdzeń, bez Claude.
+Dane: Yahoo, 3 lat, dzienne. Benchmark: trzymanie BTC. Mechaniczny rdzeń, bez Claude.
 
 ## Rdzeń BEZ mechanizmów  vs  Z 10 mechanizmami
 
 | Metryka | Bez (baseline) | Z mechanizmami |
 |---|---|---|
-| Zamknięć | 6377 | 244 |
-| Trafność % | 48.9 | 46.7 |
-| Expectancy (R) | 0.049 | 0.745 |
-| Zwrot % | 4025.28 | 2486.41 |
-| Benchmark BTC % | 3603.87 | 3603.49 |
-| Alpha % | 421.4 | -1117.08 |
-| Max drawdown % | 46.75 | 28.57 |
-| Wejść | 6064 | 334 |
+| Zamknięć | 1962 | 81 |
+| Trafność % | 42.6 | 17.3 |
+| Expectancy (R) | -0.014 | -0.199 |
+| Zwrot % | -40.41 | -22.36 |
+| Benchmark BTC % | -10.49 | -10.39 |
+| Alpha % | -29.92 | -11.97 |
+| Max drawdown % | 51.94 | 34.65 |
+| Wejść | 1917 | 121 |
 
 ## Pełny wynik — BEZ mechanizmów
 ```
-Pobieram do 10 lat świec dziennych dla 7 symboli (Yahoo)...
-  AVAX/USD: 2226 świec (2020-07-13 → 2026-10-24)
-  BTC/USD: 3653 świec (2016-10-24 → 2026-10-24)
-  DOGE/USD: 3272 świec (2017-11-09 → 2026-10-24)
-  ETH/USD: 3272 świec (2017-11-09 → 2026-10-24)
-  LINK/USD: 3272 świec (2017-11-09 → 2026-10-24)
-  LTC/USD: 3653 świec (2016-10-24 → 2026-10-24)
-  SOL/USD: 2389 świec (2020-04-10 → 2026-10-24)
+Pobieram do 3 lat świec dziennych dla 7 symboli (Yahoo)...
+  AVAX/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  BTC/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  DOGE/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  ETH/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  LINK/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  LTC/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  SOL/USD: 1095 świec (2023-11-22 → 2026-11-20)
   (pobieranie zajęło 3s)
 
 === WYNIK BACKTESTU (yahoo, mechaniczny rdzeń, bez Claude) ===
-  steps                       : 3653
-  entries                     : 6064
-  closed_trades               : 6377
-  wins                        : 3117
-  losses                      : 3260
-  win_rate_pct                : 48.9
-  avg_R                       : 0.049
-  expectancy_R                : 0.049
-  realized_pnl_usd            : 40252.76
-  total_return_pct            : 4025.28
-  benchmark_return_pct        : 3603.87
-  alpha_pct                   : 421.4
-  max_drawdown_pct            : 46.75
-  benchmark_max_drawdown_pct  : 83.4
-  cagr_pct                    : 45.07
-  benchmark_cagr_pct          : 43.51
-  calmar                      : 0.96
-  benchmark_calmar            : 0.52
-  final_equity                : 41252.76
-  years_beating_benchmark     : 4/10
+  steps                       : 1095
+  entries                     : 1917
+  trades_per_month            : 53.34
+  pct_time_in_market          : 75.0
+  ma_trend_baseline           : {'total_return_pct': -6.46, 'max_drawdown_pct': 32.42, 'trades': 17, 'pct_time_in_market': 54.4, 'ma_period': 200}
+  beats_ma_trend              : False
+  closed_trades               : 1962
+  wins                        : 835
+  losses                      : 1127
+  win_rate_pct                : 42.6
+  avg_R                       : -0.014
+  expectancy_R                : -0.014
+  realized_pnl_usd            : -403.66
+  total_return_pct            : -40.41
+  benchmark_return_pct        : -10.49
+  alpha_pct                   : -29.92
+  max_drawdown_pct            : 51.94
+  benchmark_max_drawdown_pct  : 53.39
+  cagr_pct                    : -15.87
+  benchmark_cagr_pct          : -3.63
+  calmar                      : -0.31
+  benchmark_calmar            : -0.07
+  final_equity                : 595.92
+  years_beating_benchmark     : 1/3
 
 === ROK PO ROKU: strategia vs BTC/USD (analiza zachowań w różnych reżimach) ===
      rok   strategia   benchmark     alpha
-    2016       +0.0%           —         —
-    2017     +113.0%     +551.4%   -438.4%
-    2018      -21.8%      -73.6%    +51.8%  <- broni kapitału w spadku
-    2019      +57.9%      +92.2%    -34.3%
-    2020     +159.3%     +303.2%   -143.8%
-    2021     +379.5%      +59.7%   +319.8%
-    2022      -39.3%      -64.3%    +25.0%  <- broni kapitału w spadku
-    2023      +86.3%     +155.4%    -69.1%
-    2024      +49.5%     +121.0%    -71.6%
-    2025      -30.4%       -6.3%    -24.1%
-    2026       +7.1%       -8.0%    +15.1%
+    2023       +0.0%           —         —
+    2024      +11.1%      +43.8%    -32.7%
+    2025      -36.1%       -6.3%    -29.8%
+    2026      -16.1%      -33.5%    +17.5%  <- broni kapitału w spadku
 
 Interpretacja:
-  Trafność 48.9% vs próg ~44% -> POWYŻEJ (jest edge)
-  Expectancy 0.049R/transakcję -> dodatnia
-  Alpha (cały okres) vs BTC/USD: +421.4% -> BIJE indeks
-  Lat z dodatnią alphą: 4/10
-  Max obsunięcie: strategia 46.75% vs BTC/USD 83.4% -> strategia broni kapitału lepiej
-  CAGR (roczny zwrot składany): strategia 45.07% vs BTC/USD 43.51%
-  Calmar (zwrot na jednostkę bólu): strategia 0.96 vs BTC/USD 0.52 -> strategia zarabia SPOKOJNIEJ (lepszy stosunek zysk/obsunięcie)
+  Trafność 42.6% vs próg ~44% -> PONIŻEJ (brak edge)
+  Expectancy -0.014R/transakcję -> ujemna
+  Alpha (cały okres) vs BTC/USD: -29.92% -> przegrywa z indeksem
+  Lat z dodatnią alphą: 1/3
+  Max obsunięcie: strategia 51.94% vs BTC/USD 53.39% -> strategia broni kapitału lepiej
+  CAGR (roczny zwrot składany): strategia -15.87% vs BTC/USD -3.63%
+  Calmar (zwrot na jednostkę bólu): strategia -0.31 vs BTC/USD -0.07 -> indeks ma lepszy Calmar
   Uruchom --sweep, by zobaczyć, ile zwrotu odblokowuje większa ekspozycja i jakim kosztem obsunięcia.
 ```
 ## Pełny wynik — Z mechanizmami
 ```
-Pobieram do 10 lat świec dziennych dla 7 symboli (Yahoo)...
-  AVAX/USD: 2226 świec (2020-07-13 → 2026-10-24)
-  BTC/USD: 3653 świec (2016-10-24 → 2026-10-24)
-  DOGE/USD: 3272 świec (2017-11-09 → 2026-10-24)
-  ETH/USD: 3272 świec (2017-11-09 → 2026-10-24)
-  LINK/USD: 3272 świec (2017-11-09 → 2026-10-24)
-  LTC/USD: 3653 świec (2016-10-24 → 2026-10-24)
-  SOL/USD: 2389 świec (2020-04-10 → 2026-10-24)
-  (pobieranie zajęło 3s)
+Pobieram do 3 lat świec dziennych dla 7 symboli (Yahoo)...
+  AVAX/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  BTC/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  DOGE/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  ETH/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  LINK/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  LTC/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  SOL/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  (pobieranie zajęło 4s)
 
 === WYNIK BACKTESTU (yahoo, mechaniczny rdzeń, bez Claude) ===
-  steps                       : 3653
-  entries                     : 334
-  closed_trades               : 244
-  wins                        : 114
-  losses                      : 130
-  win_rate_pct                : 46.7
-  avg_R                       : 0.745
-  expectancy_R                : 0.745
-  realized_pnl_usd            : 24864.1
-  total_return_pct            : 2486.41
-  benchmark_return_pct        : 3603.49
-  alpha_pct                   : -1117.08
-  max_drawdown_pct            : 28.57
-  benchmark_max_drawdown_pct  : 83.4
-  cagr_pct                    : 38.45
-  benchmark_cagr_pct          : 43.51
-  calmar                      : 1.35
-  benchmark_calmar            : 0.52
-  final_equity                : 25864.1
-  years_beating_benchmark     : 4/10
+  steps                       : 1095
+  entries                     : 121
+  trades_per_month            : 3.37
+  pct_time_in_market          : 43.4
+  ma_trend_baseline           : {'total_return_pct': -6.46, 'max_drawdown_pct': 32.42, 'trades': 17, 'pct_time_in_market': 54.4, 'ma_period': 200}
+  beats_ma_trend              : False
+  closed_trades               : 81
+  wins                        : 14
+  losses                      : 67
+  win_rate_pct                : 17.3
+  avg_R                       : -0.199
+  expectancy_R                : -0.199
+  realized_pnl_usd            : -223.61
+  total_return_pct            : -22.36
+  benchmark_return_pct        : -10.39
+  alpha_pct                   : -11.97
+  max_drawdown_pct            : 34.65
+  benchmark_max_drawdown_pct  : 53.34
+  cagr_pct                    : -8.1
+  benchmark_cagr_pct          : -3.59
+  calmar                      : -0.23
+  benchmark_calmar            : -0.07
+  final_equity                : 776.39
+  years_beating_benchmark     : 1/3
 
 === ROK PO ROKU: strategia vs BTC/USD (analiza zachowań w różnych reżimach) ===
      rok   strategia   benchmark     alpha
-    2016       +0.0%           —         —
-    2017      +73.6%     +551.4%   -477.7%
-    2018      -11.4%      -73.6%    +62.1%  <- broni kapitału w spadku
-    2019      +59.6%      +92.2%    -32.6%
-    2020     +171.7%     +303.2%   -131.4%
-    2021     +171.5%      +59.7%   +111.9%
-    2022      -15.3%      -64.3%    +48.9%  <- broni kapitału w spadku
-    2023      +52.7%     +155.4%   -102.7%
-    2024      +27.0%     +121.0%    -94.0%
-    2025       -8.8%       -6.3%     -2.5%
-    2026       -4.6%       -8.0%     +3.4%
+    2023       +0.0%           —         —
+    2024       +5.5%      +43.8%    -38.3%
+    2025      -16.7%       -6.3%    -10.4%
+    2026      -11.7%      -33.5%    +21.8%  <- broni kapitału w spadku
 
 Interpretacja:
-  Trafność 46.7% vs próg ~44% -> POWYŻEJ (jest edge)
-  Expectancy 0.745R/transakcję -> dodatnia
-  Alpha (cały okres) vs BTC/USD: -1117.08% -> przegrywa z indeksem
-  Lat z dodatnią alphą: 4/10
-  Max obsunięcie: strategia 28.57% vs BTC/USD 83.4% -> strategia broni kapitału lepiej
-  CAGR (roczny zwrot składany): strategia 38.45% vs BTC/USD 43.51%
-  Calmar (zwrot na jednostkę bólu): strategia 1.35 vs BTC/USD 0.52 -> strategia zarabia SPOKOJNIEJ (lepszy stosunek zysk/obsunięcie)
+  Trafność 17.3% vs próg ~44% -> PONIŻEJ (brak edge)
+  Expectancy -0.199R/transakcję -> ujemna
+  Alpha (cały okres) vs BTC/USD: -11.97% -> przegrywa z indeksem
+  Lat z dodatnią alphą: 1/3
+  Max obsunięcie: strategia 34.65% vs BTC/USD 53.34% -> strategia broni kapitału lepiej
+  CAGR (roczny zwrot składany): strategia -8.1% vs BTC/USD -3.59%
+  Calmar (zwrot na jednostkę bólu): strategia -0.23 vs BTC/USD -0.07 -> indeks ma lepszy Calmar
   Uruchom --sweep, by zobaczyć, ile zwrotu odblokowuje większa ekspozycja i jakim kosztem obsunięcia.
 ```
-## Tor 2 — altseason-gate vs bez (czy edge jest tylko w altseasonie)
+## Walk-forward — out-of-sample (czy przewaga trzyma się w czasie)
 ```
-Pobieram do 10 lat świec dziennych dla 7 symboli (Yahoo)...
-  AVAX/USD: 2226 świec (2020-07-13 → 2026-10-24)
-  BTC/USD: 3653 świec (2016-10-24 → 2026-10-24)
-  DOGE/USD: 3272 świec (2017-11-09 → 2026-10-24)
-  ETH/USD: 3272 świec (2017-11-09 → 2026-10-24)
-  LINK/USD: 3272 świec (2017-11-09 → 2026-10-24)
-  LTC/USD: 3653 świec (2016-10-24 → 2026-10-24)
-  SOL/USD: 2389 świec (2020-04-10 → 2026-10-24)
-  (pobieranie zajęło 3s)
+Pobieram do 3 lat świec dziennych dla 7 symboli (Yahoo)...
+  AVAX/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  BTC/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  DOGE/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  ETH/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  LINK/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  LTC/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  SOL/USD: 1095 świec (2023-11-22 → 2026-11-20)
+  (pobieranie zajęło 4s)
 
-=== TOR 2: ALTSEASON-GATE vs BEZ (walk-forward 4 okien, benchmark=trzymanie BTC/USD) ===
-
-## WARIANT A — obecne mechanizmy (BEZ altseason-gate)
+=== WALK-FORWARD (yahoo, 4 okien OOS, mechaniczny rdzeń) ===
 ## Walk-forward (out-of-sample) — czy przewaga trzyma się w czasie
 
 - Okien przebiegło: **4**
-- Pobiło BTC: **1/4** · dodatni zwrot: **4/4**
-- Alfa vs BTC: mediana **-20.86%** (min -133.98%, max 225.81%)
-- Najgorsze obsunięcie w oknie: **28.57%**
+- Pobiło BTC: **2/4** · dodatni zwrot: **1/4**
+- Alfa vs BTC: mediana **1.17%** (min -55.9%, max 20.03%)
+- Najgorsze obsunięcie w oknie: **22.72%**
 - Przewaga spójna w czasie: **NIE**
 
 | # | od | do | wejścia | trafność% | zwrot% | BTC% | alfa% | maxDD% | Calmar |
 |---|----|----|---------|-----------|--------|------|-------|--------|--------|
-| 1 | 2017-05-22 | 2019-09-28 | 61 | 55.1 | 145.42 | 279.4 | -133.98 | 28.57 | 1.26 |
-| 2 | 2019-09-29 | 2022-02-04 | 136 | 53.9 | 637.91 | 412.09 | 225.81 | 18.42 | 5.32 |
-| 3 | 2022-02-05 | 2024-06-13 | 76 | 47.4 | 37.29 | 61.09 | -23.79 | 19.22 | 0.6 |
-| 4 | 2024-06-14 | 2026-10-24 | 61 | 24.5 | 4.03 | 21.95 | -17.92 | 26.31 | 0.05 |
+| 1 | 2024-06-19 | 2025-01-25 | 40 | 25.0 | 5.3 | 61.2 | -55.9 | 14.71 | 0.3 |
+| 2 | 2025-01-26 | 2025-09-03 | 37 | 20.0 | -4.03 | 8.8 | -12.84 | 14.22 | -0.24 |
+| 3 | 2025-09-04 | 2026-04-12 | 23 | 0.0 | -20.93 | -36.1 | 15.17 | 22.72 | -0.8 |
+| 4 | 2026-04-13 | 2026-11-20 | 22 | 27.8 | -1.72 | -21.75 | 20.03 | 8.45 | -0.17 |
 
-## WARIANT B — Z altseason-gate (alty tylko gdy koszyk bije BTC)
-## Walk-forward (out-of-sample) — czy przewaga trzyma się w czasie
-
-- Okien przebiegło: **4**
-- Pobiło BTC: **1/4** · dodatni zwrot: **2/4**
-- Alfa vs BTC: mediana **-57.89%** (min -178.42%, max 16.94%)
-- Najgorsze obsunięcie w oknie: **28.95%**
-- Przewaga spójna w czasie: **NIE**
-
-| # | od | do | wejścia | trafność% | zwrot% | BTC% | alfa% | maxDD% | Calmar |
-|---|----|----|---------|-----------|--------|------|-------|--------|--------|
-| 1 | 2017-05-22 | 2019-09-28 | 56 | 52.4 | 100.98 | 279.4 | -178.42 | 28.95 | 0.93 |
-| 2 | 2019-09-29 | 2022-02-04 | 113 | 56.1 | 429.03 | 412.09 | 16.94 | 26.41 | 2.9 |
-| 3 | 2022-02-05 | 2024-06-13 | 53 | 27.5 | -14.44 | 61.09 | -75.53 | 20.71 | -0.25 |
-| 4 | 2024-06-14 | 2026-10-24 | 49 | 23.3 | -18.31 | 21.95 | -40.26 | 23.99 | -0.28 |
-
-## WERDYKT (bez lukru)
-  Pobiło BTC: BEZ 1/4 · Z 1/4
-  Mediana alfy: BEZ -20.86% · Z -57.89%
-  Najgorsze obsunięcie: BEZ 28.57% · Z 28.95%
-  ⚠ Altseason-gate NIE pomaga (nie podnosi mediany alfy). Hipoteza 'edge tylko w altseasonie' niepotwierdzona — nie wpinać.
+Interpretacja:
+  ⚠ Przewaga NIE jest spójna między oknami — wynik może pochodzić z jednego okna. Czerwona flaga GO-LIVE.
 ```
