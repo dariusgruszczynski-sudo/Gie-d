@@ -91,7 +91,7 @@ def test_meta_analysis_knobs_2026_11():
     # „nie dopuść do blowoutu": twarde limity, które trzymają odblokowane alty w ryzach.
     assert s.crypto_max_position_pct == 10.0                 # sufit udziału jednej pary
     assert s.crypto_max_order_vs_dollar_vol_mult == 0.25     # zlecenie ≤ 25% dziennego obrotu
-    assert s.crypto_max_new_positions_per_day == 3           # hamulec tempa wejść
+    assert s.crypto_max_new_positions_per_day == 5           # hamulec tempa wejść (3->5, zgoda właściciela)
 
 
 def test_backtest_slippage_default():

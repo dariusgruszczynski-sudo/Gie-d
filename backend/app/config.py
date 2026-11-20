@@ -186,7 +186,7 @@ class Settings(BaseSettings):
     # pozycje + niższy auto_deploy_max_position_pct trzymają zlecenia pod limitem.
     crypto_max_concurrent_positions: int = 20  # 2026-10-24 (wyraźna zgoda właściciela): 7 -> 20. Cap ekspozycji 50% i tak wiąże pierwszy — więcej slotów = te same ~50% rozłożone na więcej MNIEJSZYCH, bardziej zdywersyfikowanych pozycji, nie większa ekspozycja.
     crypto_min_buy_confidence: float = 0.60
-    crypto_max_new_positions_per_day: int = 3        # 2026-11-19 („odblokuj alty, nie dopuść do blowoutu"): 0(bez limitu)->3. Hamulec tempa: przy odblokowanych altach nie pozwól na lawinę wejść w jeden dzień (element blowoutu HYPE były 3 szybkie dokładki). 0 = bez limitu.
+    crypto_max_new_positions_per_day: int = 5        # 2026-11-20 (zgoda właściciela: limit 3->5). Hamulec tempa przy odblokowanych altach: max 5 nowych wejść/dzień (lawina to był element blowoutu HYPE). 0 = bez limitu.
     crypto_min_hold_minutes: int = 60                 # krótsze trzymanie niż akcje (24/7)
     # 40 -> 20: twardy sufit udziału JEDNEJ pary (anty-koncentracja + z dala od
     # limitu $200k/zlecenie nawet przy piramidowaniu).
