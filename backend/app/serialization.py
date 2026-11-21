@@ -8,6 +8,8 @@ _SENSITIVE_COLUMNS = frozenset({
     "session_secret",
     "alpaca_api_key_override",
     "alpaca_api_secret_override",
+    "kraken_api_key_override",
+    "kraken_api_secret_override",
 })
 
 

@@ -27,16 +27,25 @@ def apply_override(db: Session, settings: Settings | None = None) -> bool:
     state = _get_state(db)
     if state is None:
         return False
+    s = settings or get_settings()
+    applied = False
     key = (state.alpaca_api_key_override or "").strip()
     secret = (state.alpaca_api_secret_override or "").strip()
-    if not key or not secret:
-        return False
-    s = settings or get_settings()
-    s.alpaca_api_key = key
-    s.alpaca_api_secret = secret
-    s.alpaca_paper = True  # override z panelu dotyczy fazy paper
-    logger.info("Alpaca: użyto kluczy z panelu (override) — konto przełączone (paper).")
-    return True
+    if key and secret:
+        s.alpaca_api_key = key
+        s.alpaca_api_secret = secret
+        s.alpaca_paper = True  # override z panelu dotyczy fazy paper
+        logger.info("Alpaca: użyto kluczy z panelu (override) — konto przełączone (paper).")
+        applied = True
+    # Kraken (noga krypto) — ten sam mechanizm, niezależnie od Alpaki.
+    kkey = (getattr(state, "kraken_api_key_override", "") or "").strip()
+    ksecret = (getattr(state, "kraken_api_secret_override", "") or "").strip()
+    if kkey and ksecret:
+        s.kraken_api_key = kkey
+        s.kraken_api_secret = ksecret
+        logger.info("Kraken: użyto kluczy z panelu (override) — noga krypto gotowa na Kraken.")
+        applied = True
+    return applied
 
 
 def set_override(db: Session, api_key: str, api_secret: str) -> None:
@@ -47,5 +56,18 @@ def set_override(db: Session, api_key: str, api_secret: str) -> None:
         db.add(state)
     state.alpaca_api_key_override = api_key.strip()
     state.alpaca_api_secret_override = api_secret.strip()
+    db.commit()
+    apply_override(db)
+
+
+def set_kraken_override(db: Session, api_key: str, api_secret: str) -> None:
+    """Zapisz override kluczy Kraken do DB i nałóż na singleton od zaraz. NIE loguje
+    sekretu. Następny cykl krypto użyje Krakena bez restartu i bez dostępu do serwera."""
+    state = _get_state(db)
+    if state is None:
+        state = SystemState(id=1)
+        db.add(state)
+    state.kraken_api_key_override = api_key.strip()
+    state.kraken_api_secret_override = api_secret.strip()
     db.commit()
     apply_override(db)

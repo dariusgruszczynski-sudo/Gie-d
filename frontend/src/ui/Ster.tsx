@@ -97,6 +97,37 @@ function ConnectAlpacaSection({ onChanged }: { onChanged: () => void }) {
   );
 }
 
+function ConnectKrakenSection({ onChanged }: { onChanged: () => void }) {
+  const a = useAction();
+  const [key, setKey] = useState("");
+  const [secret, setSecret] = useState("");
+  async function connect() {
+    if (!key.trim() || !secret.trim()) return;
+    await a.run("connk", async () => {
+      const r = await api.connectKraken(key.trim(), secret.trim());
+      window.alert(r.message || "Podłączono.");
+      setKey(""); setSecret("");  // nie trzymaj sekretu w polu po sukcesie
+      onChanged();
+    }, "Kraken podłączony.");
+  }
+  return (
+    <div className="cr-sec">
+      <h4>🐙 Podłącz Kraken (krypto)</h4>
+      <p className="hint">Wklej klucze z Krakena (uprawnienia: odczyt konta + handel). Zapiszą się na serwerze i włączą nogę krypto na Kraken (EUR, tryb PAPER/dry-run) — bez restartu i bez wchodzenia na serwer. Sekret nie jest nigdzie pokazywany ani logowany.</p>
+      <div className="cr-field"><label>API Key</label>
+        <input type="text" autoComplete="off" spellCheck={false} value={key} onChange={(e) => setKey(e.target.value)} placeholder="np. jFOK..." />
+      </div>
+      <div className="cr-field"><label>Private Key</label>
+        <input type="password" autoComplete="off" spellCheck={false} value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="••••••••" />
+      </div>
+      <button className="cr-btn primary block" disabled={a.busy === "connk" || !key.trim() || !secret.trim()} onClick={connect}>
+        {a.busy === "connk" ? "Łączę i sprawdzam…" : "🐙 Podłącz Kraken"}
+      </button>
+      {a.msg && <div className={`cr-msg ${a.msg.ok ? "ok" : "err"}`}>{a.msg.t}</div>}
+    </div>
+  );
+}
+
 function ManualSection({ status, onChanged }: { status: StatusResponse; onChanged: () => void }) {
   const a = useAction();
   const crypto = !!status.crypto_enabled;
@@ -272,6 +303,7 @@ export function SterDrawer({ status, onChanged, onClose }: { status: StatusRespo
           <EngineSection status={status} onChanged={onChanged} />
           <ReconcileSection status={status} onChanged={onChanged} />
           <ConnectAlpacaSection onChanged={onChanged} />
+          <ConnectKrakenSection onChanged={onChanged} />
           <PanicSection onChanged={onChanged} />
           <ManualSection status={status} onChanged={onChanged} />
           <DrySection status={status} />

@@ -151,8 +151,20 @@ class KrakenClient:
 
     @classmethod
     def from_env(cls, transport: Callable | None = None, live_trading: bool = False) -> KrakenClient:
-        return cls(os.getenv("KRAKEN_API_KEY", ""), os.getenv("KRAKEN_API_SECRET", ""),
-                   transport, live_trading=live_trading)
+        # Najpierw singleton Settings (tam broker_credentials nakłada override z panelu
+        # „Podłącz Kraken"), potem surowy env. Dzięki temu klucz wpięty w panelu działa
+        # od zaraz, bez restartu i bez dostępu do serwera.
+        key = secret = ""
+        try:
+            from app.config import get_settings
+            s = get_settings()
+            key = (getattr(s, "kraken_api_key", "") or "").strip()
+            secret = (getattr(s, "kraken_api_secret", "") or "").strip()
+        except Exception:  # noqa: BLE001 — brak kontekstu Settings (np. test) => env
+            pass
+        key = key or os.getenv("KRAKEN_API_KEY", "")
+        secret = secret or os.getenv("KRAKEN_API_SECRET", "")
+        return cls(key, secret, transport, live_trading=live_trading)
 
     def _nonce(self) -> str:
         self._nonce_base += 1

@@ -412,6 +412,50 @@ def connect_alpaca(
     }
 
 
+class ConnectKrakenRequest(BaseModel):
+    api_key: str
+    api_secret: str
+
+
+@router.post("/connect-kraken")
+def connect_kraken(
+    req: ConnectKrakenRequest,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    request: Request = None,
+):
+    """Podłącz Kraken (noga krypto) kluczami z panelu — bez dostępu do serwera/env.
+    Weryfikuje klucze realnym odczytem konta (saldo EUR), zapisuje je jako runtime-owy
+    override (SystemState) i nakłada na współdzielony singleton Settings — następny cykl
+    krypto użyje Krakena OD ZARAZ, bez restartu. Egzekucja zostaje w DRY-RUN
+    (crypto_kraken_live=False) do czasu dowodu paper. Sekret NIGDY nie wraca/nie jest
+    logowany."""
+    key = (req.api_key or "").strip()
+    secret = (req.api_secret or "").strip()
+    if not key or not secret:
+        raise HTTPException(status_code=400, detail="Podaj klucz i sekret API Kraken.")
+    from app.services.kraken_client import KrakenClient
+    # Weryfikacja na świeżym kliencie z wklejonymi kluczami (nie ruszamy singletonu,
+    # dopóki klucze nie potwierdzą się realnym odczytem konta).
+    try:
+        probe = KrakenClient(key, secret, live_trading=False)
+        summ = probe.get_account_summary(quote="EUR")
+    except Exception as exc:  # noqa: BLE001
+        audit.record(db, "connect-kraken", detail="weryfikacja nieudana", request=request, outcome="error")
+        raise HTTPException(status_code=502, detail=f"Klucze odrzucone przez Kraken: {exc}") from exc
+    cash = float(summ.get("EUR", 0.0) or 0.0)
+
+    from app.services.broker_credentials import set_kraken_override
+
+    set_kraken_override(db, key, secret)  # zapis do DB + nałożenie na singleton
+    audit.record(db, "connect-kraken", detail=f"saldo EUR={cash:.2f} (klucz/sekret NIE logowane)", request=request)
+    return {
+        "connected": True, "mode": "paper", "cash_eur": round(cash, 2),
+        "message": f"Podłączono Kraken. Saldo €{cash:,.2f}. Noga krypto przejdzie na Kraken "
+                   "przy następnym cyklu (EUR, tryb PAPER/dry-run — zero wydanych środków).",
+    }
+
+
 class ManualTradeRequest(BaseModel):
     symbol: str
     side: Literal["BUY", "SELL"]

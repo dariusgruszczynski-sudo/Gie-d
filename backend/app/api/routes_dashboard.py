@@ -89,7 +89,11 @@ def _kraken_health(settings: Settings) -> dict:
     out: dict = {"configured": getattr(settings, "crypto_venue", "alpaca")}
     if out["configured"] != "kraken":
         return out
-    out["key_present"] = bool(os.getenv("KRAKEN_API_KEY")) and bool(os.getenv("KRAKEN_API_SECRET"))
+    # Klucz widoczny albo z env, albo z panelu („Podłącz Kraken" -> Settings override).
+    k = (getattr(settings, "kraken_api_key", "") or "") or os.getenv("KRAKEN_API_KEY", "")
+    s = (getattr(settings, "kraken_api_secret", "") or "") or os.getenv("KRAKEN_API_SECRET", "")
+    out["key_present"] = bool(k) and bool(s)
+    out["key_source"] = ("panel" if getattr(settings, "kraken_api_key", "") else ("env" if os.getenv("KRAKEN_API_KEY") else None))
     out["live_trading"] = bool(getattr(settings, "crypto_kraken_live", False))
     return out
 

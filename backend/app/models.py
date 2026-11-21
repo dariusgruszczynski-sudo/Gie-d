@@ -287,6 +287,11 @@ class SystemState(Base):
     # NIGDY nie serializowane (patrz serialization._SENSITIVE_COLUMNS).
     alpaca_api_key_override: Mapped[str] = mapped_column(String(128), default="")
     alpaca_api_secret_override: Mapped[str] = mapped_column(String(128), default="")
+    # Klucze Kraken ustawione RUNTIME z panelu („Podłącz Kraken") — nadpisują env,
+    # żeby włączyć nogę Kraken bez dostępu do serwera. Puste => klucze z env.
+    # NIGDY nie serializowane (patrz serialization._SENSITIVE_COLUMNS).
+    kraken_api_key_override: Mapped[str] = mapped_column(String(128), default="")
+    kraken_api_secret_override: Mapped[str] = mapped_column(String(128), default="")
     # Last computed broad-market regime {regime, score, reasons} -- cached here
     # by the Alpaca cycle so /api/status can show it without recomputing on
     # every 15s poll.

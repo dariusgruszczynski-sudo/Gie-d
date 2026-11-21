@@ -41,6 +41,11 @@ class Settings(BaseSettings):
 
     alpaca_api_key: str = ""
     alpaca_api_secret: str = ""
+    # Klucze Kraken (noga krypto). Czytane z env KRAKEN_API_KEY/KRAKEN_API_SECRET,
+    # albo nadpisywane RUNTIME z panelu („Podłącz Kraken") przez broker_credentials
+    # -> działa bez dostępu do serwera. Puste => Kraken niedostępny (fallback Alpaca).
+    kraken_api_key: str = ""
+    kraken_api_secret: str = ""
     # Alpaca (unlike Kraken) has a real paper-trading environment with the
     # identical API -- set to True to rehearse safely on a simulated account
     # before flipping back to live. quote_currency drives how the dashboard
