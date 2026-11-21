@@ -81,6 +81,27 @@ def _claude_budget_view(db: Session, settings: Settings) -> dict:
 
 
 @router.get("/status")
+def _kraken_health(settings: Settings) -> dict:
+    """Diagnostyka nogi Kraken Z SERWERA: czy env ma klucz, czy łączy się, jaki błąd,
+    saldo. Pozwala zobaczyć w /api/status, czemu cykl nie wszedł na Kraken (zły env /
+    brak uprawnień / błąd) zamiast zgadywać po omacku. Best-effort, nigdy nie wywala status."""
+    out: dict = {"configured": getattr(settings, "crypto_venue", "alpaca")}
+    if out["configured"] != "kraken":
+        return out
+    out["key_present"] = bool(os.getenv("KRAKEN_API_KEY")) and bool(os.getenv("KRAKEN_API_SECRET"))
+    out["live_trading"] = bool(getattr(settings, "crypto_kraken_live", False))
+    try:
+        from app.services.kraken_client import KrakenClient
+        summ = KrakenClient.from_env().get_account_summary()
+        out["connected"] = True
+        out["balance_eur"] = round(summ.get("EUR", 0.0), 2)
+        out["error"] = None
+    except Exception as e:  # noqa: BLE001
+        out["connected"] = False
+        out["error"] = str(e)[:300]
+    return out
+
+
 def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     state = risk_manager.get_state(db)
     # Day/week P&L must compare against the TRUE combined account (cash once +
@@ -114,6 +135,7 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         # diagnostyka (ile par dał broker, ile zrankowano, czy fallback). Puste =
         # skaner jeszcze nie przebiegł. To, co faktycznie handlujemy, a nie statyczna lista.
         "crypto_scanner": _load_regime(getattr(state, "crypto_scanner_universe_json", "") or "{}"),
+        "crypto_venue_health": _kraken_health(settings),
         "quote_currency": settings.quote_currency,
         "is_paused": state.is_paused,
         "extended_paused": state.extended_paused,

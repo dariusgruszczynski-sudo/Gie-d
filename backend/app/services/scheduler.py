@@ -167,8 +167,20 @@ def _crypto_job() -> None:
         )
         if decision is not None:
             logger.info("Crypto cycle produced decision: %s %s", decision.action, decision.symbol)
-    except Exception:
+    except Exception as e:
         logger.exception("Crypto trading cycle failed")
+        # Surfacuj błąd do stanu, żeby /api/status pokazał, CZEMU cykl pada na Kraken
+        # (zamiast cichego fallbacku/wywrotki). Reużywamy crypto_scanner_universe_json.
+        try:
+            from app.services import risk_manager as _rm
+            _st = _rm.get_state(db)
+            _blob = json.loads(getattr(_st, "crypto_scanner_universe_json", "") or "{}")
+            _blob["last_error"] = str(e)[:300]
+            _blob["last_error_at"] = datetime.now(UTC).isoformat()
+            _st.crypto_scanner_universe_json = json.dumps(_blob)
+            db.commit()
+        except Exception:  # noqa: BLE001
+            pass
     finally:
         db.close()
 
