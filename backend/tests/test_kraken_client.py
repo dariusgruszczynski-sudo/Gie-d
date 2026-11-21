@@ -138,3 +138,35 @@ def test_fmt_num_no_scientific_notation():
     assert _fmt_num(0.00006) == "0.00006"           # nie 6e-05
     assert _fmt_num(1234.5) == "1234.5"
     assert _fmt_num(0) == "0"
+
+
+def test_is_tradable_and_universe():
+    c = KrakenClient(transport=lambda *a: {"result": {}})
+    assert c.is_tradable("BTC/USD") is True
+    assert c.is_tradable("WIFI/USD") is False
+    syms = c.list_crypto_symbols()
+    assert "BTC/EUR" in syms and "DOGE/EUR" in syms and len(syms) == 7
+
+
+def test_place_order_for_session_dry_run_synthetic_fill():
+    def t(method, url, headers, body):
+        if "Ticker" in url:
+            return {"result": {"XXBTZEUR": {"c": ["50000.0", "0.1"]}}}
+        return {"result": {"descr": {"order": "buy ..."}}}  # AddOrder validate
+    c = KrakenClient(key="k", secret="c2VjcmV0", transport=t)
+    r = c.place_order_for_session("BTC/USD", "buy", usdt_amount=50.0)  # 50 EUR
+    assert r.order_id == "dry-run"
+    assert abs(r.quantity - 0.001) < 1e-9       # 50/50000
+    assert r.price == 50000.0 and abs(r.usdt_value - 50.0) < 1e-6
+
+
+def test_place_order_for_session_conforms_shape():
+    from app.services.kraken_client import KrakenOrderResult
+    def t(method, url, headers, body):
+        if "Ticker" in url:
+            return {"result": {"XETHZEUR": {"c": ["1500.0", "0.1"]}}}
+        return {"result": {"txid": ["OZZZ"]}}
+    c = KrakenClient(key="k", secret="c2VjcmV0", transport=t)
+    r = c.place_order_for_session("ETH", "sell", quantity=0.02, validate=False)
+    assert isinstance(r, KrakenOrderResult)
+    assert r.order_id == "OZZZ" and r.quantity == 0.02

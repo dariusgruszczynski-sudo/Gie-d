@@ -21,6 +21,18 @@ import os
 import time
 import urllib.parse
 from collections.abc import Callable
+from dataclasses import dataclass
+
+
+@dataclass
+class KrakenOrderResult:
+    """Zgodny kształtem z AlpacaClient.OrderResult (duck-typing dla silnika)."""
+    order_id: str
+    symbol: str
+    side: str
+    quantity: float
+    price: float
+    usdt_value: float  # notional w walucie konta (EUR) — nazwa pola zachowana dla zgodności
 
 API_BASE = "https://api.kraken.com"
 
@@ -226,6 +238,37 @@ class KrakenClient:
         if price <= 0:
             raise KrakenError("brak ceny do przeliczenia kwoty EUR na ilość")
         return self.place_market_order_quantity(symbol, side, eur_amount / price, validate=validate)
+
+    # ---- powierzchnia zgodna z AlpacaClient (drop-in dla nogi krypto) ----
+    def is_tradable(self, symbol: str) -> bool:
+        """Czy para jest w naszym uniwersum Kraken EUR (mapowalna)."""
+        return to_kraken_pair(symbol) is not None
+
+    def list_crypto_symbols(self) -> list[str]:
+        """Pary krypto uniwersum w formie bazowej silnika (tu: '<BASE>/EUR').
+        Baza dla skanera; integracja ustawia quote_currency=EUR dla nogi Kraken."""
+        return [f"{b}/EUR" for b in UNIVERSE_TO_KRAKEN]
+
+    def place_order_for_session(
+        self, symbol: str, side: str, *, session: str = "regular",
+        usdt_amount: float | None = None, quantity: float | None = None,
+        prefer_limit: bool = False, limit_buffer_pct: float = 0.0, validate: bool = True,
+    ) -> KrakenOrderResult:
+        """Egzekucja zgodna z AlpacaClient.place_order_for_session (krypto 24/7 = zawsze
+        'regular'). `usdt_amount` traktujemy jako kwotę EUR. validate=True (DOMYŚLNIE) =
+        dry-run: zwraca SYNTETYCZNY fill po bieżącej cenie (do paper-on-Kraken), bez
+        realnego zlecenia. Realny fill (validate=False) odpytuje cenę z tickera."""
+        price = self.get_price(symbol) or 0.0
+        if quantity is not None:
+            qty = abs(quantity)
+        elif usdt_amount is not None and price > 0:
+            qty = abs(usdt_amount) / price
+        else:
+            raise KrakenError("place_order_for_session: brak quantity i usdt_amount/ceny")
+        resp = self.place_order(symbol, side, qty, ordertype="market", validate=validate)
+        txids = (resp.get("txid") or []) if isinstance(resp, dict) else []
+        oid = txids[0] if txids else ("dry-run" if validate else "kraken")
+        return KrakenOrderResult(oid, symbol, side, qty, price, qty * price)
 
 
 def _default_transport(method: str, url: str, headers: dict, body: str | None) -> dict:
