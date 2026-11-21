@@ -80,7 +80,6 @@ def _claude_budget_view(db: Session, settings: Settings) -> dict:
     }
 
 
-@router.get("/status")
 def _kraken_health(settings: Settings) -> dict:
     """Diagnostyka nogi Kraken Z SERWERA — WYŁĄCZNIE sprawdzenie env (bez sieci!).
     Pokazuje w /api/status, czy serwer w ogóle widzi klucz (KRAKEN_API_KEY/SECRET) i
@@ -95,6 +94,7 @@ def _kraken_health(settings: Settings) -> dict:
     return out
 
 
+@router.get("/status")
 def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     state = risk_manager.get_state(db)
     # Day/week P&L must compare against the TRUE combined account (cash once +
