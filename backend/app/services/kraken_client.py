@@ -285,7 +285,14 @@ def _default_transport(method: str, url: str, headers: dict, body: str | None) -
     import ssl
     import urllib.request
 
-    ctx = ssl.create_default_context(cafile="/root/.ccr/ca-bundle.crt")
+    # CA: na serwerze produkcyjnym używamy SYSTEMOWEGO zaufania (cert Kraken jest
+    # publiczny). Custom CA (proxy sesji cloud) tylko GDY plik istnieje — inaczej
+    # hardcode ścieżki wywracał każde wywołanie Kraken na serwerze (SSL/FileNotFound).
+    ca = os.getenv("KRAKEN_CA_BUNDLE") or "/root/.ccr/ca-bundle.crt"
+    try:
+        ctx = ssl.create_default_context(cafile=ca)
+    except (FileNotFoundError, ssl.SSLError, OSError):
+        ctx = ssl.create_default_context()
     proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
     handlers = [urllib.request.HTTPSHandler(context=ctx)]
     if proxy:

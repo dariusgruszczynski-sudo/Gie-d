@@ -82,23 +82,16 @@ def _claude_budget_view(db: Session, settings: Settings) -> dict:
 
 @router.get("/status")
 def _kraken_health(settings: Settings) -> dict:
-    """Diagnostyka nogi Kraken Z SERWERA: czy env ma klucz, czy łączy się, jaki błąd,
-    saldo. Pozwala zobaczyć w /api/status, czemu cykl nie wszedł na Kraken (zły env /
-    brak uprawnień / błąd) zamiast zgadywać po omacku. Best-effort, nigdy nie wywala status."""
+    """Diagnostyka nogi Kraken Z SERWERA — WYŁĄCZNIE sprawdzenie env (bez sieci!).
+    Pokazuje w /api/status, czy serwer w ogóle widzi klucz (KRAKEN_API_KEY/SECRET) i
+    czy tryb live. Zdrowie POŁĄCZENIA/błąd diagnozuje cykl (crypto_scanner.last_error),
+    który i tak próbuje Krakena — dublowanie tego tu robiło synchroniczne wywołanie
+    sieciowe w handlerze /api/status, co potrafiło spowolnić/zawiesić cały status."""
     out: dict = {"configured": getattr(settings, "crypto_venue", "alpaca")}
     if out["configured"] != "kraken":
         return out
     out["key_present"] = bool(os.getenv("KRAKEN_API_KEY")) and bool(os.getenv("KRAKEN_API_SECRET"))
     out["live_trading"] = bool(getattr(settings, "crypto_kraken_live", False))
-    try:
-        from app.services.kraken_client import KrakenClient
-        summ = KrakenClient.from_env().get_account_summary()
-        out["connected"] = True
-        out["balance_eur"] = round(summ.get("EUR", 0.0), 2)
-        out["error"] = None
-    except Exception as e:  # noqa: BLE001
-        out["connected"] = False
-        out["error"] = str(e)[:300]
     return out
 
 
