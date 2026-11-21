@@ -242,6 +242,7 @@ class Settings(BaseSettings):
     crypto_event_exit_min_severity: float = 0.6      # próg powagi (0-1) na WYJŚCIE z trzymanej pozycji (hack/exploit/delisting)
     crypto_event_alert_min_severity: float = 0.3     # próg powagi na sam alarm (niżej = ignorujemy jako szum)
     crypto_event_unlock_block_days: float = 3.0      # blokuj NOWE wejście, gdy duży unlock monety w ≤ tylu dniach
+    crypto_event_llm_enabled: bool = False           # klasyfikator LLM powagi/trafności zdarzeń (tanio: batch, tylko na prefiltrze); OFF = fallback keyword, zero kosztu
     # Cel pojedynczego auto-deploy: mniejszy niż bazowe 25% (osobny override), żeby
     # zlecenia nie ocierają się o limit Alpaki. 15% zostawia bufor pod $200k.
     crypto_auto_deploy_max_position_pct: float = 15.0
