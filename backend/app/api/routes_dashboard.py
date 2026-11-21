@@ -1292,6 +1292,31 @@ def get_catalysts(
     now_ts = datetime.now(UTC).timestamp()
     universe = settings.crypto_symbols
     events = feed.fetch_recent_hacks(_http_get, universe, now_ts=now_ts, lookback_days=days)
+
+    # Klasyfikator LLM (opcjonalny, cache TTL): nadpisuje zgrubną powagę/symbol/typ
+    # z keyword na rozumienie treści. OFF -> zostaje keyword (zero kosztu).
+    classifier_used = "keyword"
+    if getattr(settings, "crypto_event_llm_enabled", False) and events:
+        try:
+            from app.services import crypto_event_classifier as clf
+            from app.services.claude_advisor import ClaudeAdvisor
+            from app.services.crypto_events import CryptoEvent
+            advisor = ClaudeAdvisor(settings)
+            labels = clf.classify_cached([e.headline for e in events], universe, advisor._call_model)
+            by_idx = {d["idx"]: d for d in labels}
+            events = [
+                CryptoEvent(
+                    kind=by_idx[i]["kind"] if i in by_idx and by_idx[i]["kind"] != "other" else e.kind,
+                    symbol=by_idx[i]["symbol"] if i in by_idx else e.symbol,
+                    severity=by_idx[i]["severity"] if i in by_idx else e.severity,
+                    source="llm", headline=e.headline, url=e.url, ts=e.ts, days_until=e.days_until,
+                )
+                for i, e in enumerate(events)
+            ]
+            classifier_used = "llm"
+        except Exception:  # noqa: BLE001
+            pass  # best-effort: błąd LLM -> zostaje keyword
+
     items = []
     acted = alerts = 0
     for ev in events:
@@ -1313,6 +1338,7 @@ def get_catalysts(
         "count": len(items),
         "acted": acted,
         "alerts": alerts,
+        "classifier": classifier_used,
         "items": items[:40],
     }
 

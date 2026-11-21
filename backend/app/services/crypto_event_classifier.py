@@ -12,7 +12,13 @@ Config-gated: crypto_event_llm_enabled domyślnie False -> zero kosztu, dopóki 
 
 from __future__ import annotations
 
+import hashlib
+import time
 from collections.abc import Callable
+
+# Cache TTL (moduł): te same nagłówki klasyfikujemy raz na ttl, żeby polling panelu
+# (co 60s) nie wołał LLM za każdym razem. Klucz = hash treści nagłówków.
+_CACHE: dict[str, tuple[float, list[dict]]] = {}
 
 CLASSIFY_TOOL = {
     "name": "classify_crypto_events",
@@ -96,3 +102,30 @@ def classify_headlines(
     except Exception:  # noqa: BLE001
         return []
     return parse_classification(tool_input, len(headlines))
+
+
+def classify_cached(
+    headlines: list[str],
+    universe: list[str],
+    call_model: Callable[..., tuple],
+    *,
+    ttl_sec: float = 1800.0,
+    model: str = "",
+    now: float | None = None,
+) -> list[dict]:
+    """Jak classify_headlines, ale z cache TTL po treści nagłówków — bounded koszt
+    LLM niezależnie od częstości pollingu. `now` wstrzykiwalny do testów."""
+    if not headlines:
+        return []
+    t = time.time() if now is None else now
+    key = hashlib.sha256("\u0001".join(headlines).encode()).hexdigest()
+    hit = _CACHE.get(key)
+    if hit and (t - hit[0]) < ttl_sec:
+        return hit[1]
+    res = classify_headlines(headlines, universe, call_model, model=model)
+    _CACHE[key] = (t, res)
+    # Prosty GC: trzymaj tylko ostatnie ~50 kluczy.
+    if len(_CACHE) > 50:
+        for k in sorted(_CACHE, key=lambda k: _CACHE[k][0])[:-50]:
+            _CACHE.pop(k, None)
+    return res

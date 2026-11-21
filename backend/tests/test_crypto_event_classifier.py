@@ -39,3 +39,17 @@ def test_classify_empty_and_llm_error_safe():
     assert classify_headlines([], UNI, lambda *a: ({"events": []},)) == []
     def boom(*a): raise RuntimeError("LLM down")
     assert classify_headlines(["x"], UNI, boom) == []   # błąd LLM -> [] (best-effort)
+
+
+def test_classify_cached_reuses_within_ttl():
+    from app.services.crypto_event_classifier import _CACHE, classify_cached
+    _CACHE.clear()
+    calls = {"n": 0}
+    def counting_call(model, tool, content, system, max_tokens):
+        calls["n"] += 1
+        return ({"events": [{"idx": 0, "symbol": "ETH", "kind": "hack", "severity": 0.9}]},)
+    r1 = classify_cached(["Curve exploited"], UNI, counting_call, ttl_sec=100, now=1000.0)
+    r2 = classify_cached(["Curve exploited"], UNI, counting_call, ttl_sec=100, now=1050.0)  # w TTL
+    assert r1 == r2 and calls["n"] == 1                       # drugi raz z cache
+    classify_cached(["Curve exploited"], UNI, counting_call, ttl_sec=100, now=2000.0)       # po TTL
+    assert calls["n"] == 2                                    # ponowna klasyfikacja
