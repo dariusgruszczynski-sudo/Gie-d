@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-11-20T21:00:06Z
+# Audyt GielDarek — 2026-11-21T13:56:34Z
 
-**Wdrożenie:** kod 02c7ca1 (zbud. 2026-11-20T19:04Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 9ebed1b (zbud. 2026-11-21T09:31Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 0 zamknięć · trafność —% · zrealizowany $0.0
 **7 dni:** 0 zamknięć · —% · $0.0   |   **30 dni:** 0 · —% · $0.0
@@ -9,13 +9,13 @@
 
 ## Wnioski
 - (neu) Za mało zamkniętych transakcji (0) na mocne wnioski — bot dopiero zbiera próbkę.
-- (neu) Limit wejść bywa osiągany (11 dni) — podniesienie może dołożyć wejść.
+- (neu) Limit wejść bywa osiągany (12 dni) — podniesienie może dołożyć wejść.
 - (neu) Najczęstszy powód pominięcia wejścia: „Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"available":"963060308.407551403","balance":"963060308.407551403","code":40310000,"message":"insufficient balance for PEPE (requested: 963060308.407551408, available: 963060308.407551403)","symbol":"USD"}” (99× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
 
 ## Wejścia vs limit
-- cap 0/dzień · max w dniu 9 · dni z limitem 11 · hamuje: true
+- cap 0/dzień · max w dniu 9 · dni z limitem 12 · hamuje: true
 
 ## Opus-kontroler (co REALNIE zmienił)
 - włączony: false · ostatni przebieg: 2026-09-11 · baza wiedzy: 29 wpisów
@@ -23,14 +23,16 @@
 - próg pewności — baza (env): 0.6 · progresja +0.03/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
-- ostatnie 120 decyzji · wykonanych: 1 · odrzuconych: 119
+- ostatnie 120 decyzji · wykonanych: 3 · odrzuconych: 117
 
 **Najczęstsze powody odrzucenia (top):**
 - 86× — Automat (alpaca) zapauzowany ręcznie
-- 31× — Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"available":"963060308.407551403","balance":"963060308.407551403","code":40310000,"message":"insufficient balance for PEPE (requested: 963060308.407551408, available: 963060308.407551403)","symbol":"USD"}
+- 29× — Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"available":"963060308.407551403","balance":"963060308.407551403","code":40310000,"message":"insufficient balance for PEPE (requested: 963060308.407551408, available: 963060308.407551403)","symbol":"USD"}
 - 2× — brak powodu
 
 **Ostatnie 20 decyzji:**
+- 2026-11-21T13:46:43.982183 ETH/USD BUY conf=0.6 trig=news_event ✅WYKONANE
+- 2026-11-21T13:46:40.604394 UNI/USD BUY conf=0.6 trig=news_event ✅WYKONANE
 - 2026-11-20T20:34:25.854767 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-11-20T20:04:26.241428 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-11-20T19:34:26.072009 — HOLD conf=0.0 trig=price_move ⛔ Automat (alpaca) zapauzowany ręcznie
@@ -49,5 +51,3 @@
 - 2026-11-19T19:38:04.463253 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-11-19T19:08:04.095135 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
 - 2026-11-19T18:38:04.808481 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-11-19T18:08:04.223952 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-11-19T17:38:04.365615 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
