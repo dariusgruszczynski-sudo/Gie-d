@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-11-21T21:58:05Z
+# Audyt GielDarek — 2026-11-21T22:10:21Z
 
-**Wdrożenie:** kod ? (zbud. ?) · duże zakłady (conviction): ? · sufit ryzyka ?%
+**Wdrożenie:** kod 39a881e (zbud. 2026-11-21T22:02Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 0 zamknięć · trafność —% · zrealizowany $0.0
 **7 dni:** 0 zamknięć · —% · $0.0   |   **30 dni:** 0 · —% · $0.0
@@ -18,9 +18,9 @@
 - cap 0/dzień · max w dniu 9 · dni z limitem 12 · hamuje: true
 
 ## Opus-kontroler (co REALNIE zmienił)
-- włączony: null · ostatni przebieg: — · baza wiedzy: null wpisów
+- włączony: false · ostatni przebieg: 2026-09-11 · baza wiedzy: 29 wpisów
 - nadpisania knobów: BRAK (Opus nic nie zmienił od domyślnych)
-- próg pewności — baza (env): null · progresja +null/pozycję do sufitu null
+- próg pewności — baza (env): 0.6 · progresja +0.03/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
 - ostatnie 120 decyzji · wykonanych: 3 · odrzuconych: 117
