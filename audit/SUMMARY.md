@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-11-21T21:41:33Z
+# Audyt GielDarek — 2026-11-21T21:43:04Z
 
 **Wdrożenie:** kod ? (zbud. ?) · duże zakłady (conviction): ? · sufit ryzyka ?%
 
