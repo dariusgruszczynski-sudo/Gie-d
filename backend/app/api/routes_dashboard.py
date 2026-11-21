@@ -1250,6 +1250,73 @@ def get_entry_gate(db: Session = Depends(get_db), settings: Settings = Depends(g
     }
 
 
+@router.get("/catalysts")
+def get_catalysts(
+    days: int = Query(default=7, ge=1, le=30),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    """Filar INFORMACJA — „bot czyta 24/7": świeże katalizatory (hacki z DeFiLlama)
+    + decyzja bota na trzymanych monetach (de-risk / block / alert). Best-effort:
+    błąd feedu -> pusto, nigdy 500. Działa też w trybie alert_only (podgląd)."""
+    import json as _json
+    import ssl as _ssl
+    import urllib.request as _ur
+
+    from app.services import crypto_event_feed as feed
+    from app.services.crypto_events import event_action
+
+    def _http_get(url: str):
+        ctx = _ssl.create_default_context()
+        try:
+            ctx = _ssl.create_default_context(cafile="/root/.ccr/ca-bundle.crt")
+        except Exception:  # noqa: BLE001
+            pass
+        proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
+        handlers = [_ur.HTTPSHandler(context=ctx)]
+        if proxy:
+            handlers.append(_ur.ProxyHandler({"https": proxy, "http": proxy}))
+        req = _ur.Request(url, headers={"User-Agent": "gieldarek"})
+        with _ur.build_opener(*handlers).open(req, timeout=20) as r:
+            return _json.load(r)
+
+    # Trzymane monety krypto (z ostatniego snapshotu) — do oceny „na trzymanej".
+    held: list[str] = []
+    snap = _latest_snapshot(db, "crypto")
+    if snap:
+        try:
+            held = [s for s, q in json.loads(snap.balances_json or "{}").items() if q and float(q) > 0]
+        except (TypeError, ValueError):
+            held = []
+
+    now_ts = datetime.now(UTC).timestamp()
+    universe = settings.crypto_symbols
+    events = feed.fetch_recent_hacks(_http_get, universe, now_ts=now_ts, lookback_days=days)
+    items = []
+    acted = alerts = 0
+    for ev in events:
+        d = event_action(ev, held, settings)
+        if d.acted:
+            acted += 1
+        elif d.action == "alert":
+            alerts += 1
+        items.append({
+            "kind": ev.kind, "symbol": ev.symbol, "severity": round(ev.severity, 2),
+            "headline": ev.headline, "ts": ev.ts, "source": ev.source,
+            "action": d.action, "acted": d.acted, "reason": d.reason,
+        })
+    return {
+        "enabled": bool(getattr(settings, "crypto_event_response_enabled", False)),
+        "mode": getattr(settings, "crypto_event_action_mode", "alert_only"),
+        "window_days": days,
+        "held": held,
+        "count": len(items),
+        "acted": acted,
+        "alerts": alerts,
+        "items": items[:40],
+    }
+
+
 @router.get("/entry-funnel")
 def get_entry_funnel(
     days: int = Query(default=7, ge=1, le=90),

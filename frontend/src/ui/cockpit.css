@@ -686,3 +686,14 @@
 .cr-eq-leg .lg.h i { background: var(--cr-dim); }
 .cr-eq-leg .lg.c i { background: var(--cr-warn); }
 .cr-eq-leg .lg b { font-family: var(--cr-mono); color: var(--cr-txt); }
+
+/* ── Filar INFORMACJA: panel „bot czyta 24/7" ── */
+.cr-cat-sum { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: .78rem; color: var(--cr-dim); margin-bottom: 10px; }
+.cr-cat-sum .sep { color: var(--cr-dim-2); }
+.cr-cat-sum .down { color: var(--cr-down); }
+.cr-cat-sum .dim { color: var(--cr-dim); }
+.cr-cat-list { display: flex; flex-direction: column; gap: 6px; }
+.cr-cat-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; min-width: 0; }
+.cr-cat-row .sev { font-family: var(--cr-mono); font-size: .68rem; color: var(--cr-txt); border-radius: 6px; padding: 1px 5px; min-width: 1.6rem; text-align: center; }
+.cr-cat-row .hl { font-size: .78rem; color: var(--cr-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cr-cat-row .act { font-family: var(--cr-mono); font-size: .7rem; white-space: nowrap; }

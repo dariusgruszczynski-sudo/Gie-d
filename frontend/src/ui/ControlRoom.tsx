@@ -209,6 +209,52 @@ function EquityVsBtcChart() {
   );
 }
 
+// Filar INFORMACJA — „bot czyta 24/7": świeże katalizatory (hacki) + decyzja bota.
+function CatalystsPanel() {
+  const [d, setD] = useState<import("../api/client").CatalystsResponse | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () => api.catalysts(7).then((r) => alive && setD(r)).catch(() => { /* best-effort */ });
+    load();
+    const t = setInterval(load, 60000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+  if (!d) return null;
+  const badge = (a: string) =>
+    a === "exit_now" ? { t: "DE-RISK", c: "var(--cr-down)" }
+    : a === "block_entry" ? { t: "BLOKUJ", c: "var(--cr-warn)" }
+    : a === "reduce" ? { t: "REDUKUJ", c: "var(--cr-warn)" }
+    : { t: "alert", c: "var(--cr-dim)" };
+  return (
+    <div className="cr-panel cr-cat" style={{ marginTop: 12 }}>
+      <div className="cr-ph">
+        <h3>👁 Bot czyta 24/7</h3>
+        <span className="note">katalizatory · {d.enabled ? (d.mode === "act" ? "reaguje" : "tryb alertów") : "podgląd (wył.)"} · {d.window_days} dni</span>
+      </div>
+      <div className="cr-cat-sum">
+        <span>{d.count} zdarzeń</span><span className="sep">·</span>
+        <span className="down">{d.acted} akcji</span><span className="sep">·</span>
+        <span className="dim">{d.alerts} alertów</span>
+        {d.held.length > 0 && <><span className="sep">·</span><span className="dim">trzymane: {d.held.join(", ")}</span></>}
+      </div>
+      {d.items.length ? (
+        <div className="cr-cat-list">
+          {d.items.slice(0, 8).map((it, i) => {
+            const b = badge(it.action);
+            return (
+              <div key={i} className="cr-cat-row" title={it.reason}>
+                <span className="sev" style={{ background: `rgba(224,151,90,${0.15 + it.severity * 0.5})` }}>{Math.round(it.severity * 100)}</span>
+                <span className="hl">{it.headline}</span>
+                <span className="act" style={{ color: b.c }}>{it.symbol ? `${it.symbol} ` : ""}{b.t}</span>
+              </div>
+            );
+          })}
+        </div>
+      ) : <p className="cr-empty">Cicho — brak świeżych katalizatorów w oknie.</p>}
+    </div>
+  );
+}
+
 // #6/#7 Lejek wejścia: ile kandydatów odpadło NA KTÓREJ bramce w ostatnich 7 dniach.
 // Odpowiada wprost na „automat stoi — dlaczego nie wchodzi": pokazuje bramkę, która dławi.
 function EntryFunnelPanel() {
@@ -396,6 +442,8 @@ export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }:
       </div>
 
       <EntryGateBanner />
+
+      <CatalystsPanel />
 
       <div className="cr-grid c2">
         <div className="cr-panel">

@@ -474,6 +474,7 @@ export const api = {
   learning: () => apiFetch<LearningResponse>(withShare("/api/learning")),
   entryGate: () => apiFetch<EntryGateResponse>(withShare("/api/entry-gate")),
   entryFunnel: (days = 7) => apiFetch<EntryFunnelResponse>(withShare(`/api/entry-funnel?days=${days}`)),
+  catalysts: (days = 7) => apiFetch<CatalystsResponse>(withShare(`/api/catalysts?days=${days}`)),
   equitySeries: (days = 30) => apiFetch<EquitySeriesResponse>(withShare(`/api/equity-series?days=${days}`)),
   realizedSplit: () => apiFetch<RealizedSplitResponse>(withShare("/api/realized-split")),
   audit: () => apiFetch<AuditResponse>(withShare("/api/audit")),
@@ -551,6 +552,19 @@ export interface EntryGateResponse {
     paralysis_risk: boolean;
     note: string;
   } | null;
+}
+export interface CatalystsResponse {
+  enabled: boolean;
+  mode: string;
+  window_days: number;
+  held: string[];
+  count: number;
+  acted: number;
+  alerts: number;
+  items: Array<{
+    kind: string; symbol: string | null; severity: number; headline: string;
+    ts: string; source: string; action: string; acted: boolean; reason: string;
+  }>;
 }
 export interface EntryFunnelResponse {
   evaluated: number;
