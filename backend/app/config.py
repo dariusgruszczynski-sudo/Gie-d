@@ -223,8 +223,18 @@ class Settings(BaseSettings):
     # otwiera blowoutu: ten trzymają twarde limity koncentracji (max_position_pct=10%),
     # płynności (order ≤ 0.25× obrotu) i tempa (max_new_positions_per_day=3). Rewert: =True.
     crypto_btc_core_mode: bool = False
+    # --- REAKCJA NA KATALIZATORY (R1+ z analizy „gdzie bot bije człowieka") ---
+    # Filar INFORMACJA: bot czyta feedy 24/7 i reaguje na zdarzenia (hack/exploit/
+    # unlock/delisting), zanim cena je wchłonie — gdy człowiek śpi. Rdzeń decyzyjny
+    # jest config-gated i DOMYŚLNIE OFF; a nawet włączony startuje w trybie alert-only
+    # (tylko alarmuje, NIE handluje), aż udowodni trafność. Dopiero potem 'act'.
+    crypto_event_response_enabled: bool = False      # master-switch całego toru katalizatorów
+    crypto_event_action_mode: str = "alert_only"     # 'alert_only' (shadow) | 'act' (realne de-risk/blokady)
+    crypto_event_exit_min_severity: float = 0.6      # próg powagi (0-1) na WYJŚCIE z trzymanej pozycji (hack/exploit/delisting)
+    crypto_event_alert_min_severity: float = 0.3     # próg powagi na sam alarm (niżej = ignorujemy jako szum)
+    crypto_event_unlock_block_days: float = 3.0      # blokuj NOWE wejście, gdy duży unlock monety w ≤ tylu dniach
     # Cel pojedynczego auto-deploy: mniejszy niż bazowe 25% (osobny override), żeby
-    # zlecenia nie ocierały się o limit Alpaki. 15% zostawia bufor pod $200k.
+    # zlecenia nie ocierają się o limit Alpaki. 15% zostawia bufor pod $200k.
     crypto_auto_deploy_max_position_pct: float = 15.0
     crypto_reward_risk_ratio: float = 2.0
     # TREND-FOLLOWING (dowody: time-series momentum to najmocniejsza, udokumentowana
