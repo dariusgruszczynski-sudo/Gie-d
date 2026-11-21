@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     # 'alpaca' (domyślnie, bez zmian) albo 'kraken'. Gdy 'kraken': noga krypto czyta
     # dane i (opcjonalnie) handluje przez KrakenClient (spot EUR), a quote_currency
     # nogi krypto jest ustawiane na EUR. Klucz z env serwera (KRAKEN_API_KEY/SECRET).
-    crypto_venue: str = "alpaca"
+    crypto_venue: str = "kraken"
     # Bezpiecznik realnego handlu na Kraken: False (DOMYŚLNIE) = zlecenia tylko DRY-RUN
     # (validate) — paper-on-Kraken, zero wydanych środków. True dopiero po dowodzie
     # paper + kluczu z uprawnieniem 'Create Orders'. Zero realnych zleceń bez tej flagi.
