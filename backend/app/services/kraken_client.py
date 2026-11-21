@@ -44,6 +44,13 @@ def _base_of(symbol: str) -> str:
     return (symbol or "").upper().split("/")[0]
 
 
+def _fmt_num(x: float) -> str:
+    """Liczba jako łańcuch dziesiętny bez notacji naukowej (Kraken odrzuca 1e-05).
+    Do 10 miejsc po przecinku, obcięte zera końcowe."""
+    s = f"{float(x):.10f}".rstrip("0").rstrip(".")
+    return s or "0"
+
+
 def to_kraken_pair(symbol: str) -> str | None:
     """Symbol uniwersum -> para Kraken EUR (albo None, gdy nieznana)."""
     return UNIVERSE_TO_KRAKEN.get(_base_of(symbol))
@@ -178,6 +185,47 @@ class KrakenClient:
             return {quote: float(res.get("eb", 0.0))}  # eb = equity balance
         except (TypeError, ValueError):
             return {quote: 0.0}
+
+    # ---- zapis (zlecenia) — DOMYŚLNIE DRY-RUN ----
+    def place_order(
+        self, symbol: str, side: str, volume: float, *,
+        ordertype: str = "market", price: float | None = None,
+        leverage: int | None = None, validate: bool = True,
+    ) -> dict:
+        """Składa zlecenie przez AddOrder. `validate=True` (DOMYŚLNIE) = Kraken tylko
+        WALIDUJE zlecenie (sprawdza środki/min/format), NIE wykonuje — bezpieczny dry-run.
+        `leverage` ustawiamy TYLKO dla short-hedge (Opcja D, margin); None = spot.
+        Realny handel wymaga jawnego validate=False (gated wyżej przez config + klucz z
+        uprawnieniem 'Create Orders'). side: 'buy'|'sell'."""
+        pair = to_kraken_pair(symbol)
+        if not pair:
+            raise KrakenError(f"nieznana para dla {symbol}")
+        data: dict = {
+            "pair": pair, "type": side.lower(), "ordertype": ordertype,
+            "volume": _fmt_num(volume),
+        }
+        if ordertype == "limit":
+            if price is None:
+                raise KrakenError("limit wymaga ceny")
+            data["price"] = _fmt_num(price)
+        if leverage:
+            data["leverage"] = str(leverage)
+        if validate:
+            data["validate"] = "true"
+        return self._private("/0/private/AddOrder", data)
+
+    def place_market_order_quantity(self, symbol: str, side: str, qty: float, *, validate: bool = True) -> dict:
+        """Market po ILOŚCI bazowej (jak AlpacaClient.place_market_order_quantity)."""
+        return self.place_order(symbol, side, abs(qty), ordertype="market", validate=validate)
+
+    def place_market_order_eur_amount(
+        self, symbol: str, side: str, eur_amount: float, price: float, *, validate: bool = True,
+    ) -> dict:
+        """Market po KWOCIE EUR (odpowiednik USDT-amount u Alpaki): przelicza na ilość
+        bazową po podanej cenie. Cena z feedu; precyzję docina broker/min-order."""
+        if price <= 0:
+            raise KrakenError("brak ceny do przeliczenia kwoty EUR na ilość")
+        return self.place_market_order_quantity(symbol, side, eur_amount / price, validate=validate)
 
 
 def _default_transport(method: str, url: str, headers: dict, body: str | None) -> dict:

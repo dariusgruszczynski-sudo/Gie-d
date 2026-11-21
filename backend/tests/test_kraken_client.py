@@ -98,3 +98,43 @@ def test_account_summary_parses_equity():
     resp = {"result": {"eb": "23.81", "tb": "23.80", "mf": "23.80"}}
     c = KrakenClient(key="k", secret="c2VjcmV0", transport=_fake_transport({"/0/private/TradeBalance": resp}))
     assert c.get_account_summary() == {"EUR": 23.81}
+
+
+def _capture_transport(resp):
+    sent = {}
+    def t(method, url, headers, body):
+        sent["method"] = method; sent["url"] = url; sent["body"] = body
+        return resp
+    t.sent = sent
+    return t
+
+
+def test_place_order_defaults_to_validate_dry_run():
+    t = _capture_transport({"result": {"descr": {"order": "buy 0.001 XXBTZEUR @ market"}}})
+    c = KrakenClient(key="k", secret="c2VjcmV0", transport=t)
+    c.place_market_order_quantity("BTC/USD", "buy", 0.001)
+    assert "validate=true" in t.sent["body"]        # domyślnie dry-run
+    assert "pair=XXBTZEUR" in t.sent["body"]
+    assert "ordertype=market" in t.sent["body"]
+
+
+def test_place_order_live_has_no_validate():
+    t = _capture_transport({"result": {"txid": ["OXXXXX"]}})
+    c = KrakenClient(key="k", secret="c2VjcmV0", transport=t)
+    c.place_market_order_quantity("ETH", "sell", 0.5, validate=False)
+    assert "validate" not in t.sent["body"]         # realne zlecenie tylko jawnie
+
+
+def test_eur_amount_converts_to_quantity():
+    t = _capture_transport({"result": {"descr": {}}})
+    c = KrakenClient(key="k", secret="c2VjcmV0", transport=t)
+    c.place_market_order_eur_amount("BTC", "buy", eur_amount=55.0, price=55000.0)
+    # 55 EUR / 55000 = 0.001 BTC
+    assert "volume=0.001" in t.sent["body"]
+
+
+def test_fmt_num_no_scientific_notation():
+    from app.services.kraken_client import _fmt_num
+    assert _fmt_num(0.00006) == "0.00006"           # nie 6e-05
+    assert _fmt_num(1234.5) == "1234.5"
+    assert _fmt_num(0) == "0"
