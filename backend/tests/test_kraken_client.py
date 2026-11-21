@@ -160,6 +160,23 @@ def test_place_order_for_session_dry_run_synthetic_fill():
     assert r.price == 50000.0 and abs(r.usdt_value - 50.0) < 1e-6
 
 
+def test_live_trading_flag_controls_dry_run():
+    # Gdy silnik woła bez validate: not-live -> dry-run; live -> realne.
+    bodies = []
+    def t(method, url, headers, body):
+        if "Ticker" in url:
+            return {"result": {"XXBTZEUR": {"c": ["50000", "0.1"]}}}
+        bodies.append(body)
+        return {"result": {"descr": {}, "txid": ["OX"]}}
+    paper = KrakenClient(key="k", secret="c2VjcmV0", transport=t, live_trading=False)
+    paper.place_order_for_session("BTC/EUR", "buy", usdt_amount=50.0)
+    assert "validate=true" in bodies[-1]        # paper = dry-run
+
+    live = KrakenClient(key="k", secret="c2VjcmV0", transport=t, live_trading=True)
+    live.place_order_for_session("BTC/EUR", "buy", usdt_amount=50.0)
+    assert "validate" not in bodies[-1]         # live = realne zlecenie
+
+
 def test_place_order_for_session_conforms_shape():
     from app.services.kraken_client import KrakenOrderResult
     def t(method, url, headers, body):

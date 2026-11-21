@@ -139,15 +139,20 @@ class KrakenClient:
     """Read-side klient Kraken. `transport(method, url, headers, body) -> dict`
     jest wstrzykiwany (domyślnie urllib przez proxy agenta). Klucz/sekret z env."""
 
-    def __init__(self, key: str = "", secret: str = "", transport: Callable | None = None):
+    def __init__(self, key: str = "", secret: str = "", transport: Callable | None = None,
+                 live_trading: bool = False):
         self._key = key
         self._secret = secret
         self._transport = transport or _default_transport
         self._nonce_base = int(time.time() * 1000)
+        # Gdy False (DOMYŚLNIE): egzekucja przez silnik idzie w DRY-RUN (validate),
+        # zero realnych zleceń — paper-on-Kraken. True tylko po dowodzie paper.
+        self._live = bool(live_trading)
 
     @classmethod
-    def from_env(cls, transport: Callable | None = None) -> KrakenClient:
-        return cls(os.getenv("KRAKEN_API_KEY", ""), os.getenv("KRAKEN_API_SECRET", ""), transport)
+    def from_env(cls, transport: Callable | None = None, live_trading: bool = False) -> KrakenClient:
+        return cls(os.getenv("KRAKEN_API_KEY", ""), os.getenv("KRAKEN_API_SECRET", ""),
+                   transport, live_trading=live_trading)
 
     def _nonce(self) -> str:
         self._nonce_base += 1
@@ -252,12 +257,14 @@ class KrakenClient:
     def place_order_for_session(
         self, symbol: str, side: str, *, session: str = "regular",
         usdt_amount: float | None = None, quantity: float | None = None,
-        prefer_limit: bool = False, limit_buffer_pct: float = 0.0, validate: bool = True,
+        prefer_limit: bool = False, limit_buffer_pct: float = 0.0, validate: bool | None = None,
     ) -> KrakenOrderResult:
         """Egzekucja zgodna z AlpacaClient.place_order_for_session (krypto 24/7 = zawsze
-        'regular'). `usdt_amount` traktujemy jako kwotę EUR. validate=True (DOMYŚLNIE) =
-        dry-run: zwraca SYNTETYCZNY fill po bieżącej cenie (do paper-on-Kraken), bez
-        realnego zlecenia. Realny fill (validate=False) odpytuje cenę z tickera."""
+        'regular'). `usdt_amount` traktujemy jako kwotę EUR. validate=None (gdy woła silnik)
+        => dry-run, O ILE klient nie jest w trybie live_trading. Dry-run zwraca SYNTETYCZNY
+        fill po bieżącej cenie (paper-on-Kraken), bez realnego zlecenia."""
+        if validate is None:
+            validate = not self._live
         price = self.get_price(symbol) or 0.0
         if quantity is not None:
             qty = abs(quantity)

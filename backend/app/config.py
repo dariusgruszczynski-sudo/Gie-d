@@ -48,6 +48,15 @@ class Settings(BaseSettings):
     # pairs, so it does NOT need to appear in trading_whitelist).
     alpaca_paper: bool = False
     quote_currency: str = "USD"
+    # --- VENUE NOGI KRYPTO (migracja na Kraken, Opcja D) ---
+    # 'alpaca' (domyślnie, bez zmian) albo 'kraken'. Gdy 'kraken': noga krypto czyta
+    # dane i (opcjonalnie) handluje przez KrakenClient (spot EUR), a quote_currency
+    # nogi krypto jest ustawiane na EUR. Klucz z env serwera (KRAKEN_API_KEY/SECRET).
+    crypto_venue: str = "alpaca"
+    # Bezpiecznik realnego handlu na Kraken: False (DOMYŚLNIE) = zlecenia tylko DRY-RUN
+    # (validate) — paper-on-Kraken, zero wydanych środków. True dopiero po dowodzie
+    # paper + kluczu z uprawnieniem 'Create Orders'. Zero realnych zleceń bez tej flagi.
+    crypto_kraken_live: bool = False
     # Twardy limit wartości POJEDYNCZEGO zlecenia. Alpaca odrzuca zlecenia krypto
     # powyżej $200k notional (403 code 40310000). Przy większym koncie % sizingu
     # potrafił wygenerować zlecenie > $200k -> broker odrzucał je W CAŁOŚCI i kapitał

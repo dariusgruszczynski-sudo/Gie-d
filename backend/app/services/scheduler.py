@@ -102,7 +102,20 @@ def _crypto_job() -> None:
         return
     db = SessionLocal()
     try:
-        broker = AlpacaClient(settings)
+        # VENUE nogi krypto: 'kraken' -> KrakenClient (spot EUR, zlecenia DRY-RUN
+        # dopóki crypto_kraken_live=False); inaczej Alpaca (bez zmian). Awaria klienta
+        # Kraken (brak klucza itp.) -> log i wyjście, NIE wywalamy całego schedulera.
+        crypto_venue = getattr(settings, "crypto_venue", "alpaca")
+        if crypto_venue == "kraken":
+            from app.services.kraken_client import KrakenClient
+            try:
+                broker = KrakenClient.from_env(live_trading=getattr(settings, "crypto_kraken_live", False))
+                broker.get_account_summary()  # smoke-check klucza/łączności
+            except Exception as e:  # noqa: BLE001
+                logger.error("Kraken niedostępny (%s) — pomijam cykl krypto; sprawdź KRAKEN_API_KEY na serwerze", e)
+                return
+        else:
+            broker = AlpacaClient(settings)
         news = NewsClient(settings)
         advisor = ClaudeAdvisor(settings)
         market_ctx = MarketContextClient()
@@ -140,8 +153,12 @@ def _crypto_job() -> None:
             db.commit()
         except Exception:
             logger.warning("Nie udało się zapisać diagnostyki skanera", exc_info=True)
+        crypto_eff = effective_settings(settings, "crypto")
+        if crypto_venue == "kraken":
+            # Noga Kraken rozlicza w EUR: cash keyed 'EUR', benchmark dalej BTC.
+            crypto_eff = crypto_eff.model_copy(update={"quote_currency": "EUR"})
         decision = run_cycle(
-            db, effective_settings(settings, "crypto"), broker, news, advisor, market_ctx,
+            db, crypto_eff, broker, news, advisor, market_ctx,
             venue="crypto", whitelist=whitelist, always_open=True,
         )
         if decision is not None:
