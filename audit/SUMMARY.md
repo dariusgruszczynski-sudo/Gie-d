@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-11-21T18:42:49Z
+# Audyt GielDarek — 2026-11-21T21:08:25Z
 
 **Wdrożenie:** kod e8e59bb (zbud. 2026-11-21T18:34Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
@@ -27,11 +27,21 @@
 
 **Najczęstsze powody odrzucenia (top):**
 - 86× — Automat (alpaca) zapauzowany ręcznie
-- 16× — Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"available":"963060308.407551403","balance":"963060308.407551403","code":40310000,"message":"insufficient balance for PEPE (requested: 963060308.407551408, available: 963060308.407551403)","symbol":"USD"}
-- 13× — Automat (crypto) zapauzowany ręcznie
+- 23× — Automat (crypto) zapauzowany ręcznie
+- 6× — Wyjście niewykonalne: Alpaca POST /v2/orders: 403 {"available":"963060308.407551403","balance":"963060308.407551403","code":40310000,"message":"insufficient balance for PEPE (requested: 963060308.407551408, available: 963060308.407551403)","symbol":"USD"}
 - 2× — brak powodu
 
 **Ostatnie 20 decyzji:**
+- 2026-11-21T21:04:35.547983 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-21T20:49:32.119720 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-21T20:34:32.136281 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-21T20:19:32.223122 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-21T20:04:35.546009 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-21T19:49:32.024456 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-21T19:34:32.298857 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-21T19:19:32.107654 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-21T19:04:32.251091 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
+- 2026-11-21T18:49:35.903177 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
 - 2026-11-21T18:23:30.819089 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
 - 2026-11-21T18:08:32.918570 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
 - 2026-11-21T17:53:34.214713 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
@@ -42,13 +52,3 @@
 - 2026-11-21T16:13:35.044613 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
 - 2026-11-21T15:58:31.392713 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
 - 2026-11-21T15:43:31.487545 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-21T15:28:31.354275 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-21T15:13:31.451247 — HOLD conf=0.0 trig=news_event ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-21T14:58:34.974960 — HOLD conf=0.0 trig=price_move ⛔ Automat (crypto) zapauzowany ręcznie
-- 2026-11-21T13:46:43.982183 ETH/USD BUY conf=0.6 trig=news_event ✅WYKONANE
-- 2026-11-21T13:46:40.604394 UNI/USD BUY conf=0.6 trig=news_event ✅WYKONANE
-- 2026-11-20T20:34:25.854767 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-11-20T20:04:26.241428 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-11-20T19:34:26.072009 — HOLD conf=0.0 trig=price_move ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-11-20T18:34:30.745512 — HOLD conf=0.0 trig=scheduled_daily ⛔ Automat (alpaca) zapauzowany ręcznie
-- 2026-11-20T18:24:08.867060 — HOLD conf=0.0 trig=manual ⛔ ?
