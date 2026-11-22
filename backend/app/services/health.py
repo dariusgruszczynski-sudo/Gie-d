@@ -43,7 +43,25 @@ def _age_minutes(ts: datetime | None) -> float | None:
 # be fanned out concurrently.
 
 
+def _probe_kraken_crypto(db, settings):
+    """Konto Kraken (noga krypto, EUR) — żywe źródło prawdy po migracji. Pokazuje
+    osiągalność i czy klucz jest wpięty; przy krypto-off/nie-Kraken = 'off'."""
+    if not getattr(settings, "crypto_enabled", False) or getattr(settings, "crypto_venue", "alpaca") != "kraken":
+        return _check("kraken_crypto", "Kraken — konto (krypto)", "Integracje", "off", "Noga krypto na Krakenie wyłączona")
+    try:
+        from app.services.kraken_client import KrakenClient
+        summary = KrakenClient.from_env().get_account_summary(quote="EUR")
+        eq = float(summary.get("EUR", 0.0) or 0.0)
+        live = getattr(settings, "crypto_kraken_live", False)
+        return _check("kraken_crypto", "Kraken — konto (krypto)", "Integracje", "ok",
+                      f"Konto osiągalne · equity €{eq:,.2f} · {'LIVE' if live else 'PAPER'}")
+    except Exception as exc:  # noqa: BLE001
+        return _check("kraken_crypto", "Kraken — konto (krypto)", "Integracje", "down", f"{type(exc).__name__}: {exc}")
+
+
 def _probe_alpaca_equities(db, settings):
+    if not getattr(settings, "equities_enabled", True):
+        return _check("alpaca_equities", "Alpaca — konto (US)", "Integracje", "off", "Noga akcji (Alpaca) wyłączona")
     try:
         bals = AlpacaClient(settings).get_account_balances()
         held = sum(1 for k, v in bals.items() if k != settings.quote_currency and (v or 0) > 0)
@@ -54,6 +72,8 @@ def _probe_alpaca_equities(db, settings):
 
 
 def _probe_alpaca_market_data(db, settings):
+    if not getattr(settings, "equities_enabled", True):
+        return _check("alpaca_data", "Dane rynkowe (US)", "Integracje", "off", "Noga akcji (Alpaca) wyłączona")
     try:
         rows = AlpacaClient(settings).get_klines(settings.benchmark_symbol, settings.signal_timeframe, 5)
         if rows:
@@ -199,6 +219,8 @@ def _probe_scheduler(db, settings):
 
 
 def _probe_automat_us(db, settings):
+    if not getattr(settings, "equities_enabled", True):
+        return _check("automat_us", "Silnik US", "Funkcjonalności", "off", "Noga akcji (Alpaca) wyłączona")
     state = risk_manager.get_state(db)
     if state.is_halted:
         return _check("automat_us", "Silnik US", "Funkcjonalności", "down",
@@ -235,6 +257,7 @@ def _probe_loop_freshness(db, settings):
 
 
 _PROBES = [
+    _probe_kraken_crypto,
     _probe_alpaca_equities,
     _probe_alpaca_market_data,
     _probe_alpaca_extended,

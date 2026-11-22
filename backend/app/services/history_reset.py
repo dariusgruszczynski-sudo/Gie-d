@@ -72,7 +72,7 @@ def reset_tracking(db: Session, *, wipe_lessons: bool = False) -> dict:
 
 
 # Wersja pełnego przepięcia na Kraken. Bump = przepuść wycięcie RAZ jeszcze.
-_CUTOVER_VERSION = "2026-11-22-kraken-only"
+_CUTOVER_VERSION = "2026-11-22-kraken-only-v2-allsnaps"
 
 
 def kraken_full_cutover(db: Session) -> dict | None:
@@ -99,7 +99,12 @@ def kraken_full_cutover(db: Session) -> dict | None:
     # Transakcje PRZED decyzjami (FK: trades -> decisions). Tylko nogi akcji.
     n_tr = db.query(Trade).filter(Trade.venue.in_(dead_venues)).delete(synchronize_session=False)
     n_dec = db.query(Decision).filter(Decision.venue.in_(dead_venues)).delete(synchronize_session=False)
-    n_snap = db.query(PortfolioSnapshot).filter(PortfolioSnapshot.venue.in_(dead_venues)).delete(synchronize_session=False)
+    # Snapshoty: KASUJEMY WSZYSTKIE (każda noga). To tylko historia wykresu, NIE
+    # pozycje (te są w trades + saldzie brokera). Powód: zostały STARE snapshoty
+    # krypto z ery Alpaca (gotówka ~$594k, pozycje ~$14k) — _latest_snapshot('crypto')
+    # i account_total_value brały je jako „konto Kraken" i reanimowały widmo $608k/
+    # szczyt $840k. Pierwszy cykl Kraken zapisze świeży snapshot €120.
+    n_snap = db.query(PortfolioSnapshot).delete(synchronize_session=False)
     # Re-baza ryzyka do realu (0 => następny cykl krypto ustawi szczyt = konto Kraken).
     state.peak_account_value = 0.0
     state.pending_peak_value = 0.0

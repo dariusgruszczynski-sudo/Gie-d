@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import time
 from typing import Literal
@@ -17,6 +18,8 @@ from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.strategy_profiles import effective_settings
 from app.services.trading_engine import compute_portfolio, execute_manual_trade, run_cycle
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/control", tags=["control"])
 
@@ -180,10 +183,14 @@ def reset_budget_meter(db: Session = Depends(get_db), settings: Settings = Depen
 
 
 def _broker_for(venue: str, settings: Settings):
-    """(broker, whitelist nogi, always_open) dla danego venue. KRYPTO 24/7 ->
-    crypto_symbols + always_open=True (inaczej ręczne przyciski krypto leciały na
-    whiteliście AKCJI i były bramkowane godzinami giełdy). POZA SESJĄ -> ETF-y,
-    always_open; domyślnie akcje sesji (gated godzinami)."""
+    """(broker, whitelist nogi, always_open) dla danego venue. KRYPTO na Krakenie ->
+    KrakenClient (inaczej ręczne akcje krypto leciałyby na Alpacę — zły broker/konto!)
+    + crypto_symbols + always_open=True. POZA SESJĄ -> ETF-y, always_open; domyślnie
+    akcje sesji (Alpaca, gated godzinami)."""
+    if venue == "crypto" and getattr(settings, "crypto_venue", "alpaca") == "kraken":
+        from app.services.kraken_client import KrakenClient
+        broker = KrakenClient.from_env(live_trading=getattr(settings, "crypto_kraken_live", False))
+        return broker, settings.crypto_symbols, True
     broker = AlpacaClient(settings)
     if venue == "crypto":
         return broker, settings.crypto_symbols, True
@@ -309,26 +316,45 @@ def panic(db: Session = Depends(get_db), settings: Settings = Depends(get_settin
         risk_manager.pause(db, "extended")
     if settings.crypto_enabled:
         risk_manager.pause(db, "crypto")
-    broker = AlpacaClient(settings)
-    try:
-        balances = broker.get_account_balances()
-    except AlpacaAPIError as exc:
-        audit.record(db, "panic", detail="paused; balances read FAILED", request=request, outcome="error")
-        raise HTTPException(status_code=502, detail=f"Wstrzymano bota, ale nie odczytano pozycji: {exc}") from exc
+
+    # KONTA SĄ OSOBNE: krypto na Krakenie to inny broker niż akcje na Alpace. Panika
+    # MUSI czytać saldo i sprzedawać PRZEZ WŁAŚCIWY broker każdej nogi — inaczej na
+    # koncie Kraken nic by się nie sprzedało (czytalibyśmy puste konto Alpaca).
+    kraken_crypto = settings.crypto_enabled and getattr(settings, "crypto_venue", "alpaca") == "kraken"
+    brokers = []
+    # Alpaca obsługuje akcje/extended oraz krypto-na-Alpace (wspólne konto); pomijamy
+    # ją, gdy jedyną żywą nogą jest krypto na Krakenie.
+    if getattr(settings, "equities_enabled", True) or settings.extended_enabled or (settings.crypto_enabled and not kraken_crypto):
+        brokers.append(AlpacaClient(settings))
+    if kraken_crypto:
+        from app.services.kraken_client import KrakenClient
+        brokers.append(KrakenClient.from_env(live_trading=getattr(settings, "crypto_kraken_live", False)))
+
     sold: list[str] = []
     failed: list[str] = []
-    for raw, q in balances.items():
-        sym = str(raw)
-        qty = float(q or 0.0)
-        # Pomiń gotówkę (klucz waluty kwotowanej) i puste salda.
-        if qty <= 0 or sym.upper() == settings.quote_currency.upper():
-            continue
-        v = venue_for_holding(db, sym, settings)
+    read_failed: list[str] = []
+    for broker in brokers:
         try:
-            execute_manual_trade(db, settings, broker, symbol=sym, side="SELL", quantity=qty, venue=v, whitelist=[sym])
-            sold.append(sym)
-        except Exception:  # best-effort: nie przerywaj na jednej nazwie
-            failed.append(sym)
+            balances = broker.get_account_balances()
+        except Exception as exc:  # noqa: BLE001 — best-effort; jedna noga nie blokuje reszty
+            read_failed.append(type(broker).__name__)
+            logger.warning("Panika: nie odczytano salda %s (%s)", type(broker).__name__, exc)
+            continue
+        for raw, q in balances.items():
+            sym = str(raw)
+            qty = float(q or 0.0)
+            # Pomiń gotówkę (klucz waluty kwotowanej) i puste salda.
+            if qty <= 0 or sym.upper() == settings.quote_currency.upper():
+                continue
+            v = venue_for_holding(db, sym, settings)
+            try:
+                execute_manual_trade(db, settings, broker, symbol=sym, side="SELL", quantity=qty, venue=v, whitelist=[sym])
+                sold.append(sym)
+            except Exception:  # best-effort: nie przerywaj na jednej nazwie
+                failed.append(sym)
+    if read_failed and not sold:
+        audit.record(db, "panic", detail=f"paused; balances read FAILED ({','.join(read_failed)})", request=request, outcome="error")
+        raise HTTPException(status_code=502, detail=f"Wstrzymano bota, ale nie odczytano pozycji ({', '.join(read_failed)}).")
     audit.record(db, "panic", detail=f"paused; sold={','.join(sold) or '—'}; failed={','.join(failed) or '—'}",
                  request=request, outcome="error" if failed else "ok")
     return {"paused": True, "sold": sold, "failed": failed,
@@ -361,55 +387,6 @@ def reset_history_endpoint(
     )
     return {**r, "message": "Wyczyszczono historię aplikacji; HALT zdjęty; silniki w STOP. "
             "Konto Alpaca nietknięte — jeśli saldo było pod wodą, zresetuj paper w Alpace."}
-
-
-class ConnectAlpacaRequest(BaseModel):
-    api_key: str
-    api_secret: str
-
-
-@router.post("/connect-alpaca")
-def connect_alpaca(
-    req: ConnectAlpacaRequest,
-    db: Session = Depends(get_db),
-    settings: Settings = Depends(get_settings),
-    request: Request = None,
-):
-    """Podłącz konto Alpaca (PAPER) kluczami z panelu — bez dostępu do serwera/env.
-    Weryfikuje klucze u Alpaki, zapisuje je jako runtime-owy override (SystemState),
-    nakłada na współdzielony singleton Settings (działa od zaraz, bez restartu),
-    zdejmuje HALT i re-bazuje szczyt (nowe konto zasilone). Silniki zostają w STOP —
-    właściciel świadomie wciska START. Sekret NIGDY nie wraca w odpowiedzi/logu."""
-    key = (req.api_key or "").strip()
-    secret = (req.api_secret or "").strip()
-    if not key or not secret:
-        raise HTTPException(status_code=400, detail="Podaj klucz i sekret API Alpaca.")
-    # Weryfikacja na KOPII ustawień — nie psujemy singletonu, dopóki klucze nie
-    # potwierdzą się realnym odczytem konta.
-    probe = settings.model_copy(update={
-        "alpaca_api_key": key, "alpaca_api_secret": secret, "alpaca_paper": True,
-    })
-    try:
-        balances = AlpacaClient(probe).get_account_balances()
-    except Exception as exc:
-        audit.record(db, "connect-alpaca", detail="weryfikacja nieudana", request=request, outcome="error")
-        raise HTTPException(status_code=502, detail=f"Klucze odrzucone przez Alpaca: {exc}") from exc
-    cash = float(balances.get(settings.quote_currency, 0.0) or 0.0)
-
-    from app.services.broker_credentials import set_override
-
-    set_override(db, key, secret)  # zapis do DB + nałożenie na singleton
-    state = risk_manager.get_state(db)
-    state.is_halted = False
-    state.halted_reason = None
-    state.peak_account_value = 0.0
-    db.commit()
-    audit.record(db, "connect-alpaca", detail=f"cash={cash:.2f} (klucz/sekret NIE logowane)", request=request)
-    return {
-        "connected": True, "mode": "paper", "cash": round(cash, 2),
-        "message": f"Podłączono konto Alpaca (paper). Gotówka ${cash:,.2f}. "
-                   "HALT zdjęty, silniki w STOP — wciśnij START, gdy gotowy.",
-    }
 
 
 class ConnectKrakenRequest(BaseModel):

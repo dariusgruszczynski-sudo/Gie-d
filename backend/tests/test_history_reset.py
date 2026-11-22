@@ -69,7 +69,8 @@ def test_kraken_full_cutover_purges_alpaca_keeps_crypto_and_lessons(db_session, 
     db_session.commit()
 
     r = kraken_full_cutover(db_session)
-    assert r is not None and r["trades"] == 1 and r["snapshots"] == 1
+    # Wszystkie snapshoty skasowane (2: alpaca+crypto); transakcje akcji wycięte (1).
+    assert r is not None and r["trades"] == 1 and r["snapshots"] == 2
     s = risk_manager.get_state(db_session)
     assert s.is_halted is False and s.halted_reason is None            # widmowy halt zdjęty
     assert s.peak_account_value == 0.0                                 # ryzyko re-bazowane
@@ -80,8 +81,8 @@ def test_kraken_full_cutover_purges_alpaca_keeps_crypto_and_lessons(db_session, 
     assert db_session.query(Trade).filter(Trade.venue == "crypto").count() == 1
     assert db_session.query(Decision).filter(Decision.venue == "alpaca").count() == 0
     assert db_session.query(Decision).filter(Decision.venue == "crypto").count() == 1
-    assert db_session.query(PortfolioSnapshot).filter(PortfolioSnapshot.venue == "alpaca").count() == 0
-    assert db_session.query(PortfolioSnapshot).filter(PortfolioSnapshot.venue == "crypto").count() == 1
+    # Snapshoty kasowane w całości (tylko historia wykresu) — także stare krypto z ery Alpaca.
+    assert db_session.query(PortfolioSnapshot).count() == 0
     assert s.kraken_cutover_at == _CUTOVER_VERSION
     # Idempotentny: drugie wywołanie nic nie robi.
     assert kraken_full_cutover(db_session) is None

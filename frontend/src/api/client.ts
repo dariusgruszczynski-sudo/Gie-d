@@ -409,10 +409,6 @@ export const api = {
   reconcileResync: (apply: boolean = false) =>
     apiFetch<ResyncReport>(`/api/control/reconcile-resync?apply=${apply}`, { method: "POST" }, LONG_TIMEOUT_MS),
   markEpoch: () => apiFetch<{ stats_epoch: string; message: string }>("/api/control/mark-epoch", { method: "POST" }),
-  connectAlpaca: (apiKey: string, apiSecret: string) =>
-    apiFetch<{ connected: boolean; mode: string; cash: number; message: string }>(
-      "/api/control/connect-alpaca", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ api_key: apiKey, api_secret: apiSecret }) }, LONG_TIMEOUT_MS),
   connectKraken: (apiKey: string, apiSecret: string) =>
     apiFetch<{ connected: boolean; mode: string; cash_eur: number; message: string }>(
       "/api/control/connect-kraken", { method: "POST", headers: { "Content-Type": "application/json" },
