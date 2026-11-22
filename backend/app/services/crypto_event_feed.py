@@ -110,3 +110,66 @@ def fetch_recent_hacks(
     if not isinstance(raw, list):
         return []
     return parse_defillama_hacks(raw, universe, now_ts=now_ts, lookback_days=lookback_days)
+
+
+# --- mech#6: czysty, OCHRONNY filtr blokady wejścia (nigdy nie wymusza wyjścia) ---
+_BLOCK_CACHE: dict = {"at": 0.0, "symbols": set()}
+
+
+def _default_http_get(url: str):
+    """urllib + systemowy CA (działa na serwerze), proxy gdy ustawione. Best-effort."""
+    import json as _json
+    import os as _os
+    import ssl as _ssl
+    import urllib.request as _ur
+
+    ctx = _ssl.create_default_context()
+    try:
+        ctx = _ssl.create_default_context(cafile="/root/.ccr/ca-bundle.crt")
+    except Exception:  # noqa: BLE001
+        pass
+    proxy = _os.getenv("HTTPS_PROXY") or _os.getenv("https_proxy")
+    handlers = [_ur.HTTPSHandler(context=ctx)]
+    if proxy:
+        handlers.append(_ur.ProxyHandler({"https": proxy, "http": proxy}))
+    req = _ur.Request(url, headers={"User-Agent": "gieldarek"})
+    with _ur.build_opener(*handlers).open(req, timeout=20) as r:
+        return _json.load(r)
+
+
+def blocked_symbols_for_entry(universe, settings, *, now_ts: float, ttl_sec: float = 1800.0,
+                              http_get: Callable | None = None) -> set[str]:
+    """Zbiór BAZ (np. 'ETH') do ZABLOKOWANIA nowego wejścia z powodu świeżego, poważnego
+    katalizatora (hack / zdarzenie podażowe). Czysto OCHRONNE — NIGDY nie wymusza
+    sprzedaży trzymanej pozycji (to zostaje w shadow na żywej kasie). Fail-safe: błąd
+    feedu / master OFF -> pusty zbiór (nie blokujemy nic). Cache TTL, żeby nie bić
+    feedu co cykl. Niezależne od trybu act/alert (to tylko filtr wejścia)."""
+    import time as _t
+
+    from app.services.crypto_events import AVOID_KINDS, EXIT_KINDS
+
+    if not bool(getattr(settings, "crypto_event_response_enabled", False)):
+        return set()
+    now = _t.time()
+    if _BLOCK_CACHE["symbols"] is not None and (now - _BLOCK_CACHE["at"]) < ttl_sec:
+        return set(_BLOCK_CACHE["symbols"])
+    out: set[str] = set()
+    try:
+        lookback = float(getattr(settings, "crypto_event_lookback_days", 7.0) or 7.0)
+        exit_min = float(getattr(settings, "crypto_event_exit_min_severity", 0.6))
+        alert_min = float(getattr(settings, "crypto_event_alert_min_severity", 0.3))
+        events = fetch_recent_hacks(http_get or _default_http_get, universe, now_ts=now_ts, lookback_days=lookback)
+        for ev in events:
+            if not ev.symbol:
+                continue
+            sev = max(0.0, min(1.0, float(ev.severity or 0.0)))
+            base = ev.symbol.upper().split("/")[0]
+            if ev.kind in EXIT_KINDS and sev >= exit_min:
+                out.add(base)
+            elif ev.kind in AVOID_KINDS and sev >= alert_min:
+                out.add(base)
+    except Exception:  # noqa: BLE001 — feed best-effort, nigdy nie wywala cyklu
+        return set()
+    _BLOCK_CACHE["at"] = now
+    _BLOCK_CACHE["symbols"] = out
+    return set(out)

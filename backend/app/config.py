@@ -255,7 +255,7 @@ class Settings(BaseSettings):
     # unlock/delisting), zanim cena je wchłonie — gdy człowiek śpi. Rdzeń decyzyjny
     # jest config-gated i DOMYŚLNIE OFF; a nawet włączony startuje w trybie alert-only
     # (tylko alarmuje, NIE handluje), aż udowodni trafność. Dopiero potem 'act'.
-    crypto_event_response_enabled: bool = False      # master-switch całego toru katalizatorów
+    crypto_event_response_enabled: bool = True       # master-switch katalizatorów (mech#6): ON — ochronna blokada wejścia w zhakowaną monetę (scheduler), wymuszone wyjścia dalej w shadow (alert_only)
     crypto_event_action_mode: str = "alert_only"     # 'alert_only' (shadow) | 'act' (realne de-risk/blokady)
     crypto_event_exit_min_severity: float = 0.6      # próg powagi (0-1) na WYJŚCIE z trzymanej pozycji (hack/exploit/delisting)
     crypto_event_alert_min_severity: float = 0.3     # próg powagi na sam alarm (niżej = ignorujemy jako szum)

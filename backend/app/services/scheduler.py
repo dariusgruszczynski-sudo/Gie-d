@@ -131,6 +131,21 @@ def _crypto_job() -> None:
 
         report = scan_universe_report(broker, settings)
         whitelist = report["universe"]
+        # mech#6 (Filar INFORMACJA): OCHRONNA blokada wejścia w monetę ze świeżym,
+        # poważnym katalizatorem (hack). Czyste odcięcie z whitelisty — bot NIE kupi
+        # zhakowanej monety. Nigdy nie wymusza sprzedaży (to zostaje w shadow). Fail-safe.
+        if getattr(settings, "crypto_event_response_enabled", False) and whitelist:
+            try:
+                from app.services.crypto_event_feed import blocked_symbols_for_entry
+                blocked = blocked_symbols_for_entry(
+                    {s.split("/")[0].upper() for s in whitelist}, settings, now_ts=datetime.now(UTC).timestamp(),
+                )
+                if blocked:
+                    before = len(whitelist)
+                    whitelist = [s for s in whitelist if s.split("/")[0].upper() not in blocked]
+                    logger.warning("Katalizatory: zablokowano wejście w %s — uniwersum %d->%d", sorted(blocked), before, len(whitelist))
+            except Exception:
+                logger.warning("Filtr katalizatorów nieudany (pomijam, fail-open)", exc_info=True)
         logger.info(
             "Krypto uniwersum (skaner): %s | par z brokera=%d, zrankowanych=%d, fallback=%s (%s)",
             ", ".join(whitelist), report["pool_size"], report["scored"], report["fell_back"], report["reason"],
