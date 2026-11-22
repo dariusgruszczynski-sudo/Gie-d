@@ -1,3 +1,4 @@
+import hmac
 import json
 import os
 import time
@@ -410,6 +411,49 @@ def connect_alpaca(
         "message": f"Podłączono konto Alpaca (paper). Gotówka ${cash:,.2f}. "
                    "HALT zdjęty, silniki w STOP — wciśnij START, gdy gotowy.",
     }
+
+
+class KrakenBootstrapRequest(BaseModel):
+    share: str
+    api_key: str
+    api_secret: str
+
+
+@router.post("/connect-kraken-bootstrap")
+def connect_kraken_bootstrap(
+    req: KrakenBootstrapRequest,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    request: Request = None,
+):
+    """JEDNORAZOWY bootstrap wpięcia klucza Kraken BEZ logowania do panelu — żeby
+    właściciel nie musiał nic wklejać. Zwolniony z cookie-auth (_EXEMPT_PATHS), ale
+    zabezpieczony: (1) wymaga poprawnego tokenu współdzielenia w ciele, (2) działa
+    TYLKO gdy klucza jeszcze nie ma (jednorazowy). Weryfikuje klucz realnym odczytem
+    salda EUR, zapisuje override. Sekret NIE logowany/NIE zwracany. Endpoint usuwany
+    po użyciu."""
+    token = (settings.share_token or "")
+    if not token or not hmac.compare_digest((req.share or ""), token):
+        raise HTTPException(status_code=403, detail="Bootstrap: token nieprawidłowy.")
+    from app.services.broker_credentials import _get_state, set_kraken_override
+    state = _get_state(db)
+    existing = (getattr(state, "kraken_api_key_override", "") or "").strip() if state else ""
+    if existing:
+        raise HTTPException(status_code=409, detail="Bootstrap: klucz już ustawiony (jednorazowy).")
+    key = (req.api_key or "").strip()
+    secret = (req.api_secret or "").strip()
+    if not key or not secret:
+        raise HTTPException(status_code=400, detail="Bootstrap: brak klucza/sekretu.")
+    from app.services.kraken_client import KrakenClient
+    try:
+        summ = KrakenClient(key, secret, live_trading=False).get_account_summary(quote="EUR")
+    except Exception as exc:  # noqa: BLE001
+        audit.record(db, "connect-kraken-bootstrap", detail="weryfikacja nieudana", request=request, outcome="error")
+        raise HTTPException(status_code=502, detail=f"Bootstrap: Kraken odrzucił klucze: {exc}") from exc
+    cash = float(summ.get("EUR", 0.0) or 0.0)
+    set_kraken_override(db, key, secret)
+    audit.record(db, "connect-kraken-bootstrap", detail=f"saldo EUR={cash:.2f} (klucz/sekret NIE logowane)", request=request)
+    return {"connected": True, "mode": "paper", "cash_eur": round(cash, 2)}
 
 
 class ConnectKrakenRequest(BaseModel):

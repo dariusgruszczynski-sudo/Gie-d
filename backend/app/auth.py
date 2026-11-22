@@ -22,7 +22,7 @@ from starlette.responses import Response
 COOKIE_NAME = "gie_d_session"
 SESSION_TTL_SECONDS = 60 * 60 * 24 * 7  # 1 week
 
-_EXEMPT_PATHS = {"/api/auth/login"}
+_EXEMPT_PATHS = {"/api/auth/login", "/api/control/connect-kraken-bootstrap"}
 
 # Read-only share link: a request carrying a valid ?share=<token> may GET only
 # these dashboard endpoints (no controls, no auth, no trading). Everything else
