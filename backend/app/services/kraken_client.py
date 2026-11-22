@@ -158,6 +158,21 @@ def parse_ticker_price(result: dict) -> float | None:
     return None
 
 
+def parse_ticker_quote(result: dict) -> tuple[float, float] | None:
+    """Kraken Ticker result -> (bid, ask) z pól 'b'[0]/'a'[0]. mech#5: potrzebne do
+    liczenia spreadu PRZED wejściem na żywej kasie. None gdy brak/0 (fail-open wyżej)."""
+    for _pair, info in (result or {}).items():
+        try:
+            bid = float(info["b"][0])
+            ask = float(info["a"][0])
+            if bid > 0 and ask > 0:
+                return (bid, ask)
+            return None
+        except (TypeError, ValueError, KeyError, IndexError):
+            return None
+    return None
+
+
 class KrakenError(RuntimeError):
     pass
 
@@ -229,6 +244,17 @@ class KrakenClient:
         if not pair:
             return 0.0
         return parse_ticker_price(self._public("/0/public/Ticker", {"pair": pair})) or 0.0
+
+    def get_quote(self, symbol: str) -> tuple[float, float] | None:
+        """(bid, ask) z Ticker — do liczenia spreadu przed wejściem (mech#5). None
+        gdy brak pary/danych (wołający traktuje jako fail-open: nie blokuje wejścia)."""
+        pair = to_kraken_pair(symbol)
+        if not pair:
+            return None
+        try:
+            return parse_ticker_quote(self._public("/0/public/Ticker", {"pair": pair}))
+        except Exception:  # noqa: BLE001 — best-effort, spread to filtr ochronny
+            return None
 
     # ---- odczyt (prywatny) ----
     def get_account_balances(self) -> dict[str, float]:

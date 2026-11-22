@@ -87,7 +87,9 @@ def test_meta_analysis_knobs_2026_11():
     assert s.claude_pause_trading_at_budget is True          # R16 hard cap on
     assert s.crypto_btc_core_mode is False                   # 2026-11-19: odblokowane alty (zgoda właściciela)
     assert s.crypto_reconciliation_halt_pct == 1.0           # R19/R26
-    assert s.crypto_reconciliation_halt_floor_usd == 2000.0
+    # 2026-11-22 go-live Kraken €120: podłoga rozjazdu zbita 2000->25 USD,
+    # inaczej przy małym koncie % zawsze bił pierwszy i watchdog nie ruszał.
+    assert s.crypto_reconciliation_halt_floor_usd == 25.0
     # „nie dopuść do blowoutu": twarde limity, które trzymają odblokowane alty w ryzach.
     assert s.crypto_max_position_pct == 10.0                 # sufit udziału jednej pary
     assert s.crypto_max_order_vs_dollar_vol_mult == 0.25     # zlecenie ≤ 25% dziennego obrotu

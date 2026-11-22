@@ -2622,3 +2622,22 @@ def test_btc_core_allows_alt_when_btc_uptrend(db_session, settings, monkeypatch)
     )
     # Może odpaść z INNEGO powodu, ale NIE z BTC-rdzenia.
     assert "BTC-rdzeń" not in ((decision.rejection_reason or "") if decision else "")
+
+
+class _QuoteBroker:
+    """mech#5: fake broker z get_quote — do testu liczenia spreadu wejścia."""
+    def __init__(self, quote):
+        self._q = quote
+    def get_quote(self, symbol):
+        if isinstance(self._q, Exception):
+            raise self._q
+        return self._q
+
+
+def test_crypto_entry_spread_pct():
+    # (bid, ask) = (99.5, 100.5) -> mid 100 -> spread 1.0%
+    assert trading_engine._crypto_entry_spread_pct(_QuoteBroker((99.5, 100.5)), "BTC/EUR") == pytest.approx(1.0)
+    # brak kwoty / błąd / odwrócony => None (fail-open)
+    assert trading_engine._crypto_entry_spread_pct(_QuoteBroker(None), "BTC/EUR") is None
+    assert trading_engine._crypto_entry_spread_pct(_QuoteBroker((101.0, 100.0)), "BTC/EUR") is None
+    assert trading_engine._crypto_entry_spread_pct(_QuoteBroker(RuntimeError("x")), "BTC/EUR") is None

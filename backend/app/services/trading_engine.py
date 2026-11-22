@@ -1764,6 +1764,22 @@ def effective_buy_size_pct(
     return effective_size_pct
 
 
+def _crypto_entry_spread_pct(broker, symbol: str) -> float | None:
+    """Spread % = (ask-bid)/mid*100 z aktualnego tickera. None gdy brak danych /
+    błąd (wołający traktuje jako fail-open). Best-effort — nigdy nie wywala cyklu."""
+    try:
+        quote = broker.get_quote(symbol)
+    except Exception:  # noqa: BLE001 — filtr ochronny, brak kwoty => nie blokuj
+        return None
+    if not quote:
+        return None
+    bid, ask = quote
+    mid = (bid + ask) / 2.0
+    if mid <= 0 or ask < bid:
+        return None
+    return (ask - bid) / mid * 100.0
+
+
 def _process_decision(
     db: Session,
     settings: Settings,
@@ -1999,6 +2015,27 @@ def _process_decision(
             db.commit()
             db.refresh(decision)
             return decision
+
+        # --- mech#5: FILTR SPREADU (crypto, żywa kasa) ---
+        # Tuż przed wejściem pobieramy bid/ask i odrzucamy, gdy spread szerszy niż
+        # próg — na cienkiej monecie sam spread zjada przewagę (kup po ask, zaraz
+        # warte bid). Jedno zapytanie tickera i tylko gdy BUY przeszedł wszystkie
+        # wcześniejsze bramki (rzadko). Fail-open: brak knoba/danych/błąd => nie
+        # blokujemy. Dokładki do już trzymanych też sprawdzamy (świeży fill boli tak
+        # samo). Wyjścia nigdy tędy nie przechodzą (to gałąź BUY).
+        max_spread = getattr(settings, "crypto_max_entry_spread_pct", 0.0) or 0.0
+        if venue == "crypto" and max_spread > 0 and hasattr(broker, "get_quote"):
+            spread_pct = _crypto_entry_spread_pct(broker, decision_data.symbol)
+            if spread_pct is not None and spread_pct > max_spread:
+                decision.rejection_reason = (
+                    f"Filtr spreadu: {decision_data.symbol} ma spread {spread_pct:.2f}% "
+                    f"> próg {max_spread:.2f}% — zbyt cienki rynek, sam spread zjadłby przewagę; "
+                    "wejście pominięte (wyjścia/stopy działają bez zmian)"
+                )
+                db.add(decision)
+                db.commit()
+                db.refresh(decision)
+                return decision
 
         # --- ANTY-BLOWOUT NA NIEPŁYNNE (crypto): koncentracja + rozmiar vs obrót ---
         # Geneza (2026-10-27): 3 zlecenia HYPE ($89k+$77k+$66k = $232k) weszły w JEDNĄ

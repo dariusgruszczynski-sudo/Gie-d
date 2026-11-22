@@ -250,6 +250,13 @@ class Settings(BaseSettings):
     # otwiera blowoutu: ten trzymają twarde limity koncentracji (max_position_pct=10%),
     # płynności (order ≤ 0.25× obrotu) i tempa (max_new_positions_per_day=3). Rewert: =True.
     crypto_btc_core_mode: bool = False
+    # mech#5 — FILTR SPREADU WEJŚCIA (ochronny, żywa kasa): tuż przed otwarciem
+    # pozycji na Krakenie pobieramy bid/ask i liczymy spread. Jeśli szerszy niż
+    # próg, wejście jest POMIJANE — na cienkim rynku sam spread zjada przewagę
+    # (kupujesz po ask, zaraz warte bid). 0 = wyłączone (fail-open). Dotyczy
+    # tylko NOWYCH wejść; wyjścia (stopy/cele) nigdy nie są blokowane. Brak danych
+    # tickera => nie blokujemy (fail-open, nie dławimy na chwilowym braku kwot).
+    crypto_max_entry_spread_pct: float = 0.8
     # --- REAKCJA NA KATALIZATORY (R1+ z analizy „gdzie bot bije człowieka") ---
     # Filar INFORMACJA: bot czyta feedy 24/7 i reaguje na zdarzenia (hack/exploit/
     # unlock/delisting), zanim cena je wchłonie — gdy człowiek śpi. Rdzeń decyzyjny

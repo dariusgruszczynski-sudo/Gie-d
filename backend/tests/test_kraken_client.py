@@ -5,6 +5,7 @@ from app.services.kraken_client import (
     parse_balances,
     parse_ohlc,
     parse_ticker_price,
+    parse_ticker_quote,
     sign,
     to_kraken_pair,
 )
@@ -83,6 +84,20 @@ def test_get_price_via_fake_transport():
     resp = {"result": {"XXBTZEUR": {"c": ["91000.0", "0.1"]}}}
     c = KrakenClient(transport=_fake_transport({"/0/public/Ticker": resp}))
     assert c.get_price("BTC") == 91000.0
+
+
+def test_parse_ticker_quote():
+    # mech#5: bid/ask -> para; zły/zerowy/odwrócony => None (fail-open wyżej)
+    assert parse_ticker_quote({"XXBTZEUR": {"a": ["91010.0", "1"], "b": ["90990.0", "1"]}}) == (90990.0, 91010.0)
+    assert parse_ticker_quote({}) is None
+    assert parse_ticker_quote({"X": {"a": ["0", "1"], "b": ["0", "1"]}}) is None
+    assert parse_ticker_quote({"X": {"c": ["1"]}}) is None
+
+
+def test_get_quote_via_fake_transport():
+    resp = {"result": {"XXBTZEUR": {"a": ["91010.0", "1"], "b": ["90990.0", "1"], "c": ["91000.0", "0.1"]}}}
+    c = KrakenClient(transport=_fake_transport({"/0/public/Ticker": resp}))
+    assert c.get_quote("BTC") == (90990.0, 91010.0)
 
 
 def test_balances_requires_key():
