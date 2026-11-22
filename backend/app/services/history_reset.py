@@ -72,7 +72,7 @@ def reset_tracking(db: Session, *, wipe_lessons: bool = False) -> dict:
 
 
 # Wersja pełnego przepięcia na Kraken. Bump = przepuść wycięcie RAZ jeszcze.
-_CUTOVER_VERSION = "2026-11-22-kraken-only-v2-allsnaps"
+_CUTOVER_VERSION = "2026-11-22-kraken-only-v3-usd-ledger"
 
 
 def kraken_full_cutover(db: Session) -> dict | None:
@@ -96,9 +96,22 @@ def kraken_full_cutover(db: Session) -> dict | None:
         return None  # tylko dla trybu Kraken
 
     dead_venues = ("alpaca", "extended")
-    # Transakcje PRZED decyzjami (FK: trades -> decisions). Tylko nogi akcji.
-    n_tr = db.query(Trade).filter(Trade.venue.in_(dead_venues)).delete(synchronize_session=False)
-    n_dec = db.query(Decision).filter(Decision.venue.in_(dead_venues)).delete(synchronize_session=False)
+    # Transakcje PRZED decyzjami (FK: trades -> decisions). Nogi akcji + STARE krypto
+    # z ery Alpaca. Alpaca kwotowała krypto w /USD (ETH/USD, UNI/USD...), Kraken w
+    # /EUR (NIGHT/EUR). Stare pozycje /USD NIE istnieją na Krakenie, więc zostawały
+    # w ledgerze jako widmo i wywalały rekoncyliację (bazy vs broker różnią się o
+    # ~$14k ETH/USD -> lepki HALT rozjazdu). Kasujemy krypto /USD, zostawiamy /EUR
+    # (żywe NIGHT/EUR). Warunek: venue w akcjach, LUB krypto którego symbol nie
+    # kończy się na /EUR (kraken_quote).
+    kraken_quote_suffix = "/EUR"
+    dead_trade = (Trade.venue.in_(dead_venues)) | (
+        (Trade.venue == "crypto") & (~Trade.symbol.ilike(f"%{kraken_quote_suffix}"))
+    )
+    dead_decision = (Decision.venue.in_(dead_venues)) | (
+        (Decision.venue == "crypto") & (Decision.symbol.isnot(None)) & (~Decision.symbol.ilike(f"%{kraken_quote_suffix}"))
+    )
+    n_tr = db.query(Trade).filter(dead_trade).delete(synchronize_session=False)
+    n_dec = db.query(Decision).filter(dead_decision).delete(synchronize_session=False)
     # Snapshoty: KASUJEMY WSZYSTKIE (każda noga). To tylko historia wykresu, NIE
     # pozycje (te są w trades + saldzie brokera). Powód: zostały STARE snapshoty
     # krypto z ery Alpaca (gotówka ~$594k, pozycje ~$14k) — _latest_snapshot('crypto')
@@ -116,8 +129,10 @@ def kraken_full_cutover(db: Session) -> dict | None:
     state.benchmark_start_date = ""
     state.benchmark_start_price = 0.0
     state.benchmark_start_value = 0.0
-    # Zdejmij lepki fałszywy halt spadku-od-szczytu (widmo Alpaca $840k).
-    if state.is_halted and (state.halted_reason or "").startswith("Spadek od szczytu"):
+    # Zdejmij lepkie fałszywe halty z ery Alpaca: spadek-od-szczytu (widmo $840k)
+    # ORAZ rozjazd rekoncyliacji (widmowe ETH/USD w ledgerze, już skasowane wyżej).
+    _reason = state.halted_reason or ""
+    if state.is_halted and (_reason.startswith("Spadek od szczytu") or _reason.startswith("Rozjazd rekoncyliacji")):
         state.is_halted = False
         state.halted_reason = None
     # Noga akcji wyłączona i zapauzowana; krypto zostaje aktywne.
