@@ -318,6 +318,19 @@ def compute_portfolio(db: Session, settings: Settings, broker, *, venue: str = "
             last_prices = json.loads(_prev.prices_json or "{}")
     except Exception:
         last_prices = {}
+    # Ostatnia cena z LEDGERA (nasza transakcja) — awaryjna wycena trzymanej pozycji,
+    # gdy brak ceny live i brak poprzedniego snapshotu. Kluczowe dla cienkich monet
+    # (NIGHT), których mapowanie pary na Krakenie nie zawsze jest gotowe przy
+    # priming starcie — lepiej wycenić po koszcie niż pokazać €0 (ukryta pozycja).
+    last_trade_px: dict[str, float] = {}
+    try:
+        for _sym, _px in db.execute(
+            select(Trade.symbol, Trade.price).where(Trade.venue == venue).order_by(Trade.id)
+        ).all():
+            if _px:
+                last_trade_px[_sym] = _px
+    except Exception:
+        last_trade_px = {}
     failed_symbols: list[str] = []
     total_value = usdt_balance
 
@@ -330,14 +343,18 @@ def compute_portfolio(db: Session, settings: Settings, broker, *, venue: str = "
         try:
             price = broker.get_price(symbol)
         except Exception:
-            # Transient fetch failure: reuse the last known price so a held
-            # position keeps its value this cycle instead of vanishing to $0.
-            fallback = last_prices.get(symbol)
+            price = 0.0  # traktuj jak brak ceny -> łańcuch awaryjny niżej
+        # Brak ceny live (wyjątek ALBO 0 — np. nierozwiązana para cienkiej monety):
+        # NIE zrzucaj trzymanej pozycji do €0 (phantom -100% krateruje konto i może
+        # odpalić fałszywy halt / ukryć pozycję). Awaryjnie: ostatni snapshot, potem
+        # cena z ledgera (koszt). Dopiero gdy i to zawiedzie — pomiń.
+        if not price or price <= 0:
+            fallback = last_prices.get(symbol) or last_trade_px.get(symbol) or 0.0
             if fallback and fallback > 0:
-                logger.warning("Price fetch failed for %s, using last-known %.6f", symbol, fallback)
+                logger.warning("Brak ceny live dla %s — wyceniam awaryjnie po %.6f", symbol, fallback)
                 price = fallback
             else:
-                logger.warning("Failed to fetch price for %s, skipping it this cycle", symbol, exc_info=True)
+                logger.warning("Brak ceny i braku awaryjnej dla %s — pomijam w tym cyklu", symbol)
                 failed_symbols.append(symbol)
                 continue
         base = _base_asset(symbol, settings.quote_currency)

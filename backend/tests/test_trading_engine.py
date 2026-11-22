@@ -615,6 +615,33 @@ def test_compute_portfolio_crypto_base_balance_valued_as_pair(db_session, settin
     assert portfolio["total_value_usdt"] == pytest.approx(107.75 + 272.0 * 0.044)
 
 
+def test_compute_portfolio_held_crypto_priced_by_cost_when_live_price_missing(db_session, settings):
+    """REGRESJA (NIGHT/EUR €0): gdy cena live pary jest niedostępna (0 — np. mapa
+    par cienkiej monety nie gotowa przy priming starcie), trzymana pozycja NIE może
+    być wyceniona €0 (ukryta/krater konta). Awaryjnie wyceniamy po cenie z ledgera
+    (koszt) — pozycja zostaje widoczna i realnie wyceniona."""
+    from app.models import Decision, Trade, TradeAction, TriggerType
+
+    s = settings.model_copy(update={
+        "crypto_enabled": True, "crypto_venue": "kraken", "quote_currency": "EUR",
+        "crypto_universe": "BTC/EUR",
+    })
+    # Ledger ma transakcję NIGHT/EUR po koszcie 0.044 (źródło awaryjnej wyceny).
+    dec = Decision(symbol="NIGHT/EUR", action=TradeAction.BUY, size_pct=10.0, confidence=1.0,
+                   reasoning="x", triggered_by=TriggerType.NEWS_EVENT, executed=True, venue="crypto")
+    db_session.add(dec)
+    db_session.flush()
+    db_session.add(Trade(symbol="NIGHT/EUR", side="BUY", quantity=272.0, price=0.044,
+                         usdt_value=11.98, mode="live", venue="crypto", decision_id=dec.id))
+    db_session.commit()
+    # Broker: saldo bazą, ale get_price pary = 0 (brak mapy) -> musi zadziałać fallback.
+    broker = _FakeKraken(prices={"BTC/EUR": 90000.0, "NIGHT/EUR": 0.0}, balances={"EUR": 107.75, "NIGHT": 272.0})
+    portfolio = trading_engine.compute_portfolio(db_session, s, broker, venue="crypto", whitelist=["BTC/EUR"])
+    assert portfolio["balances"].get("NIGHT/EUR") == 272.0
+    # Wyceniona po koszcie 0.044 (nie €0): konto = gotówka + 272*0.044.
+    assert portfolio["total_value_usdt"] == pytest.approx(107.75 + 272.0 * 0.044)
+
+
 def test_dual_listed_ticker_not_double_counted(db_session, settings):
     """A ticker on BOTH whitelists (e.g. XLF) must be valued on exactly ONE leg.
     Regression for the account being overstated (and the position shown twice --
