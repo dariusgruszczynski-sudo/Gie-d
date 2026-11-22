@@ -37,6 +37,34 @@ czy realne $1k — te same %).
 
 > Dopisywany co tydzień przez nadzór. Najnowszy na górze.
 
+### Tydzień 7 — 2026-11-22 (PRZEŁOM: migracja na Kraken + WEJŚCIE NA ŻYWO €120 — paper zakończony decyzją właściciela)
+**Największa zmiana całego dziennika: skończył się paper.** W tym tygodniu (1) pełna
+migracja Alpaca→Kraken (spot EUR, realne monety, bez dźwigni/futures), (2) czysty
+start konta €120, (3) **właściciel przełączył silnik na ŻYWĄ gotówkę** (`crypto_kraken_live=true`).
+- **Tryb:** `mode=live`, `paper=false`, konto **€119,82** (gotówka €107,75 + krypto €12,07). Silnik żywy, nie zapauzowany.
+- **Pierwsza transakcja na żywo:** **NIGHT/EUR** BUY €11,98 (~10% konta), wyzwalacz `news_event`, 13:41Z. Pozycja **otwarta**, **0 zamknięć**. Nieunrealizowane +€0,09 (+0,8%).
+- **Trafność / realized / expectancy:** **n/d — 0 zamkniętych** transakcji. Zero dowodu edge.
+- **vs „trzymanie BTC":** **n/d** (0 zamknięć, próbka niewystarczająca, benchmark BTC/EUR).
+- **Koncentracja:** 1 pozycja = 100% zainwestowanego krypto (ale tylko ~10% konta; 90% w gotówce). Za wcześnie na wniosek.
+
+**Kryteria GO-LIVE — stan formalny: NIE spełnione, a mimo to weszliśmy na żywo (świadoma decyzja właściciela).**
+Kryterium 1 (≥50 zamknięć / ≥3 tyg nowej ery) — **0 zamknięć**. Kryteria 2–5 (bije BTC,
+dodatni edge, drawdown, brak koncentracji) — **niemierzalne bez zamknięć**. To jest złamanie
+reguły „wchodzimy dopiero po dowodzie", zapisane tu wprost zgodnie z zasadą dziennika.
+Łagodzące: wejście **minimalne** (€120, dokładnie jak zakładał plan „start mało"), więc koszt
+nauki na żywo jest ograniczony. Od teraz zbieramy dowód na ŻYWYCH danych zamiast paper.
+
+**Zdarzenie infrastrukturalne (naprawione w tym tygodniu):** żywy silnik wpadł w **fałszywy HALT**
+„spadek od szczytu −100% (szczyt $840 728)". Przyczyna: `account_total_value` nogi krypto
+doliczał papierowy snapshot Alpaca (~$840k) do konta Kraken €120 → zatruty „szczyt” →
+pozorny drawdown −100%. Fix (`c89d9c9`): izolacja konta Kraken (osobny broker/EUR), ryzykiem
+konta live rządzi tylko noga krypto, plus jednorazowe re-bazowanie zatrutego szczytu. Otwarta
+pozycja NIGHT/EUR **nietknięta**. Po wdrożeniu halt schodzi sam na najbliższym cyklu.
+
+**Werdykt: „bez istotnych zmian” po stronie DOWODU edge** (0 zamknięć), ale **duża zmiana reżimu**
+(paper→live). Do obserwacji w kolejnych tygodniach: pierwsze zamknięcia, realny koszt prowizji
+(taker 0,26%), oraz czy news-wyzwalane wejścia (jak NIGHT) trafiają lepiej niż czyste bramki techniczne.
+
 ### Tydzień 6 — 2026-11-15 (silnik WZNOWIONY, księgi uzgodnione, czysta era — ale 0 wejść: BTC w bessie)
 **Przełom tygodnia: silnik znów żyje.** Właściciel 11-11 uzgodnił księgi z brokerem
 (re-sync phantomów — **residual $0**, rozjazd $226k rozwiązany) i odblokował silnik;
