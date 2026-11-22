@@ -39,6 +39,21 @@ _SHARE_READONLY_PREFIXES = (
     "/api/position-plans",
     "/api/history",
     "/api/audit",
+    # Pozostałe czysto-ODCZYTOWE panele pulpitu (bilans monet, katalizatory, lejek
+    # wejścia, equity vs BTC, krzywa uczenia, wiedza/playbook, quest go-live, shadow
+    # LLM, bramka wejścia, metryki ryzyka). Bez sterowania i bez sekretów — żeby link
+    # podglądu (read-only) pokazywał KOMPLETNY pulpit, nie „Wymagane logowanie".
+    "/api/coins",
+    "/api/catalysts",
+    "/api/entry-funnel",
+    "/api/entry-gate",
+    "/api/equity-series",
+    "/api/realized-split",
+    "/api/learning",
+    "/api/knowledge",
+    "/api/go-live",
+    "/api/llm-shadow",
+    "/api/risk-metrics",
 )
 
 
