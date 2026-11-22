@@ -112,12 +112,14 @@ def _crypto_job() -> None:
                 broker = KrakenClient.from_env(live_trading=getattr(settings, "crypto_kraken_live", False))
                 broker.get_account_summary()  # smoke-check klucza/łączności
             except Exception as e:  # noqa: BLE001
-                # SIATKA BEZPIECZEŃSTWA migracji: gdy Kraken niedostępny (brak klucza
-                # na serwerze), NIE gasimy bota — spadamy na Alpaca-krypto do czasu,
-                # aż klucz wyląduje w env. Wtedy następny cykl pójdzie już na Kraken.
-                logger.warning("Kraken niedostępny (%s) — fallback na Alpaca-krypto; wrzuć KRAKEN_API_KEY na serwer, by przejść na Kraken", e)
-                broker = AlpacaClient(settings)
-                crypto_venue = "alpaca"  # ten cykl liczony jako Alpaca (quote USD)
+                # Kraken to ZATWIERDZONE venue nogi krypto. Gdy chwilowo niedostępny
+                # (sieć/rate-limit), POMIJAMY ten cykl — NIE schodzimy na Alpacę.
+                # Fallback na Alpacę porównywał ledger (Kraken, 0) z kontem Alpaca,
+                # które wciąż trzyma stare papierowe pozycje (ETH/UNI ~$14k) -> fałszywy
+                # rozjazd rekoncyliacji i lepki halt. Pominięcie cyklu jest bezpieczne:
+                # otwarte pozycje na Kraken i tak chronią stopy w następnym udanym cyklu.
+                logger.warning("Kraken niedostępny (%s) — pomijam ten cykl krypto (bez fallbacku na Alpacę)", e)
+                return
         else:
             broker = AlpacaClient(settings)
         news = NewsClient(settings)

@@ -201,7 +201,19 @@ def check_and_halt(db: Session, settings: Settings, *, account_total: float | No
     if pct <= 0:
         return None
     rec = ledger_vs_broker(db, settings, account_total=account_total)
-    if rec is None or rec["reconciled"]:
+    if rec is None:
+        return rec
+    if rec["reconciled"]:
+        # SAMO-LECZENIE: jeśli wisi halt REKONCYLIACJI, a księgi znów się zgadzają,
+        # zdejmij go automatycznie (inne halty — loss-limit, kill-switch dźwigni —
+        # zostają nietknięte; rozpoznajemy po treści powodu). Bez tego halt był lepki
+        # i wymagał ręcznego Wznów nawet po zniknięciu rozjazdu (np. gdy wywołał go
+        # przejściowy fallback na inne konto).
+        state = risk_manager.get_state(db)
+        if state.is_halted and (state.halted_reason or "").startswith("Rozjazd rekoncyliacji"):
+            state.is_halted = False
+            state.halted_reason = None
+            db.commit()
         return rec
 
     state = risk_manager.get_state(db)
