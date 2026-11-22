@@ -35,6 +35,20 @@ function EngineSection({ status, onChanged }: { status: StatusResponse; onChange
         <button className="cr-btn" disabled={a.busy === "c"} onClick={() => a.run("c", () => api.runCycleNow(venue).then(onChanged), "Cykl uruchomiony")}>↻ Przemyśl teraz</button>
         <button className="cr-btn" disabled={a.busy === "f"} onClick={() => a.run("f", () => api.refreshPortfolio(venue).then(onChanged), "Odświeżono wycenę")}>⟳ Odśwież wycenę</button>
       </div>
+      {status.crypto_enabled && (
+        <div className="cr-livetoggle">
+          {status.mode === "live" ? (
+            <button className="cr-btn" disabled={a.busy === "live"} onClick={() => a.run("live", async () => { const r = await api.setCryptoLive(false); window.alert(r.message); onChanged(); }, "Przełączono na PAPER")}>
+              ⏸ Przełącz na PAPER (dry-run)
+            </button>
+          ) : (
+            <button className="cr-btn live-arm" disabled={a.busy === "live"} onClick={() => { if (window.confirm("🔴 WŁĄCZYĆ HANDEL NA ŻYWO?\n\nOd następnego cyklu bot składa REALNE zlecenia na żywej gotówce (€120), gdy setup przejdzie bramki. Kontynuować?")) a.run("live", async () => { const r = await api.setCryptoLive(true); window.alert(r.message); onChanged(); }, "Włączono LIVE"); }}>
+              🔴 Włącz HANDEL NA ŻYWO
+            </button>
+          )}
+          <span className="cr-livenote">{status.mode === "live" ? "🔴 Realne zlecenia aktywne" : "Dry-run — zero realnych zleceń"}</span>
+        </div>
+      )}
       {a.msg && <div className={`cr-msg ${a.msg.ok ? "ok" : "err"}`}>{a.msg.t}</div>}
     </div>
   );
@@ -49,8 +63,7 @@ function PanicSection({ onChanged }: { onChanged: () => void }) {
   async function resetHistory() {
     if (!window.confirm(
       "♻️ RESET DO CZYSTA?\n\nWyczyści historię aplikacji (log, wykres, liczniki), ZDEJMIE halt i zostawi silniki w STOP. " +
-      "Nauczone lekcje ZOSTAJĄ. NIE resetuje konta Alpaca — ujemną gotówkę/pozycje cofa dopiero RESET PAPER w panelu Alpaca " +
-      "(zrób to NAJPIERW). Kontynuować?"
+      "Nauczone lekcje ZOSTAJĄ. NIE rusza konta Kraken — czyści tylko lustro aplikacji. Kontynuować?"
     )) return;
     await a.run("reset", async () => { const r = await api.resetHistory(false); window.alert(r.message || "Wyczyszczono."); onChanged(); }, "Historia wyczyszczona.");
   }
@@ -59,7 +72,7 @@ function PanicSection({ onChanged }: { onChanged: () => void }) {
       <h4>🛑 Awaryjny STOP</h4>
       <p className="hint">Wstrzymuje bota i zamyka wszystkie pozycje. Na wypadek paniki.</p>
       <button className="cr-panicbtn" disabled={a.busy === "panic"} onClick={panic}>{a.busy === "panic" ? "Zamykam wszystko…" : "🛑 Sprzedaj wszystko i wstrzymaj"}</button>
-      <p className="hint" style={{ marginTop: 14 }}>Reset do czysta: czyści log/wykres/liczniki i zdejmuje halt (lekcje zostają). Konto Alpaca resetujesz osobno w panelu Alpaca.</p>
+      <p className="hint" style={{ marginTop: 14 }}>Reset do czysta: czyści log/wykres/liczniki i zdejmuje halt (lekcje zostają). Nie rusza konta Kraken.</p>
       <button className="cr-btn warn block" disabled={a.busy === "reset"} onClick={resetHistory}>{a.busy === "reset" ? "Czyszczę…" : "♻️ Reset do czysta"}</button>
       {a.msg && <div className={`cr-msg ${a.msg.ok ? "ok" : "err"}`}>{a.msg.t}</div>}
     </div>
@@ -302,7 +315,6 @@ export function SterDrawer({ status, onChanged, onClose }: { status: StatusRespo
           </div>
           <EngineSection status={status} onChanged={onChanged} />
           <ReconcileSection status={status} onChanged={onChanged} />
-          <ConnectAlpacaSection onChanged={onChanged} />
           <ConnectKrakenSection onChanged={onChanged} />
           <PanicSection onChanged={onChanged} />
           <ManualSection status={status} onChanged={onChanged} />

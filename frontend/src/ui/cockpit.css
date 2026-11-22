@@ -306,6 +306,18 @@
 .cr-mini .v.up { color: var(--cr-up); } .cr-mini .v.down { color: var(--cr-down); }
 .cr-mini .s { font-size: 0.64rem; color: var(--cr-dim-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* Baner „HANDEL NA ŻYWO" + przełącznik live/paper */
+.cr-live-banner {
+  background: color-mix(in srgb, var(--cr-down) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cr-down) 50%, transparent);
+  color: var(--cr-txt); border-radius: 12px; padding: 11px 14px; margin-bottom: 12px;
+  font-size: 0.84rem; line-height: 1.4;
+}
+.cr-live-banner b { color: var(--cr-down); letter-spacing: 0.04em; }
+.cr-livetoggle { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.cr-livenote { font-size: 0.72rem; color: var(--cr-dim); }
+.cr-btn.live-arm { border-color: color-mix(in srgb, var(--cr-down) 55%, transparent); color: var(--cr-down); }
+
 .cr-doing {
   display: flex; gap: 11px; align-items: flex-start;
   background: var(--cr-panel); border: 1px solid var(--cr-line); border-left: 3px solid var(--cr-accent);

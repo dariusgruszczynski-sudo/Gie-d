@@ -456,6 +456,29 @@ def connect_kraken(
     }
 
 
+class SetCryptoLiveRequest(BaseModel):
+    live: bool
+
+
+@router.post("/set-crypto-live")
+def set_crypto_live_endpoint(
+    req: SetCryptoLiveRequest,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    request: Request = None,
+):
+    """Przełącz nogę Kraken live<->paper RUNTIME z panelu (bez deployu). Zapis do DB
+    + nałożenie na singleton; następny cykl użyje nowego trybu."""
+    from app.services.broker_credentials import set_kraken_live
+    set_kraken_live(db, bool(req.live))
+    audit.record(db, "set-crypto-live", detail=f"live={bool(req.live)}", request=request)
+    return {
+        "live": bool(req.live), "mode": "live" if req.live else "paper",
+        "message": ("🔴 HANDEL NA ŻYWO włączony — od następnego cyklu realne zlecenia (€120)."
+                    if req.live else "Przełączono na PAPER (dry-run) — zero realnych zleceń."),
+    }
+
+
 class ManualTradeRequest(BaseModel):
     symbol: str
     side: Literal["BUY", "SELL"]

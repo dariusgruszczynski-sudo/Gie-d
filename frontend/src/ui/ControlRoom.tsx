@@ -443,6 +443,9 @@ export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }:
 
   return (
     <div className="cr-screen">
+      {status.mode === "live" && (
+        <div className="cr-live-banner">🔴 <b>HANDEL NA ŻYWO</b> — realna gotówka €120 na Kraken. Zlecenia są prawdziwe. Stop od ręki: STER → Pauza.</div>
+      )}
       <HonestyHeader status={status} />
       {status.is_halted && status.halted_reason && (
         <div className="cr-halt-banner">⛔ <b>Bezpiecznik zatrzymał bota.</b> {status.halted_reason} — otwórz STER i naciśnij „Odblokuj", żeby wznowić i wyzerować punkty odniesienia.</div>
@@ -482,7 +485,7 @@ export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }:
             </div>
             <div className="cr-fuel-note" style={{ marginTop: 4 }}>
               Najbliżej: <b>{fuel.which.name}</b> · od szczytu −{fuel.ddPct.toFixed(1)}% ·
-              gotówka {acc ? money0(acc.cash) : "—"} <small>(kill-switch dźwigni przy −$1000)</small>
+              gotówka {acc ? money0(acc.cash) : "—"} <small>(Kraken spot — bez dźwigni)</small>
             </div>
           </div>
         </div>

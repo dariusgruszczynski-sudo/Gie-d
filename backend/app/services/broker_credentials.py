@@ -45,7 +45,25 @@ def apply_override(db: Session, settings: Settings | None = None) -> bool:
         s.kraken_api_secret = ksecret
         logger.info("Kraken: użyto kluczy z panelu (override) — noga krypto gotowa na Kraken.")
         applied = True
+    # Przełącznik live/paper z panelu (runtime, bez deployu). "" = config.
+    live_ovr = (getattr(state, "crypto_kraken_live_override", "") or "").strip()
+    if live_ovr in ("0", "1"):
+        s.crypto_kraken_live = (live_ovr == "1")
+        logger.info("Kraken: tryb z panelu (override) = %s", "LIVE" if live_ovr == "1" else "paper")
+        applied = True
     return applied
+
+
+def set_kraken_live(db: Session, live: bool) -> None:
+    """Ustaw tryb live/paper nogi Kraken RUNTIME z panelu (bez deployu). Zapis do DB
+    + nałożenie na singleton od zaraz (następny cykl użyje nowego trybu)."""
+    state = _get_state(db)
+    if state is None:
+        state = SystemState(id=1)
+        db.add(state)
+    state.crypto_kraken_live_override = "1" if live else "0"
+    db.commit()
+    apply_override(db)
 
 
 def set_override(db: Session, api_key: str, api_secret: str) -> None:

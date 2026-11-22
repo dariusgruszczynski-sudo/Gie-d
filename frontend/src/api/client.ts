@@ -415,6 +415,10 @@ export const api = {
     apiFetch<{ connected: boolean; mode: string; cash_eur: number; message: string }>(
       "/api/control/connect-kraken", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ api_key: apiKey, api_secret: apiSecret }) }, LONG_TIMEOUT_MS),
+  setCryptoLive: (live: boolean) =>
+    apiFetch<{ live: boolean; mode: string; message: string }>(
+      "/api/control/set-crypto-live", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ live }) }),
   resetHistory: (wipeLessons: boolean = false) =>
     apiFetch<{ trades: number; decisions: number; snapshots: number; risk_events: number; lessons_wiped: boolean; message: string }>(
       `/api/control/reset-history?confirm=RESET&wipe_lessons=${wipeLessons}`, { method: "POST" }, LONG_TIMEOUT_MS),
