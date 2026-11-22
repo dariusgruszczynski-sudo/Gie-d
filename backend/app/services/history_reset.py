@@ -20,6 +20,10 @@ from app.models import Decision, PortfolioSnapshot, RiskEvent, SystemState, Trad
 
 logger = logging.getLogger(__name__)
 
+# Wersja czystego startu Kraken. Bump = jednorazowe ponowne przepuszczenie migracji
+# (re-bazowanie punktów odniesienia + zdjęcie lepkich haltów). Patrz kraken_clean_slate.
+_SLATE_VERSION = "2026-11-22-heal-fallback"
+
 # Pola SystemState przywracane do stanu świeżej instalacji. session_secret jest
 # CELOWO pomijany (żeby otwarte sesje logowania przetrwały). Oba silniki -> STOP.
 RESET_STATE: dict = {
@@ -78,8 +82,13 @@ def kraken_clean_slate(db: Session) -> dict | None:
     state = db.get(SystemState, 1)
     if state is None:
         return None
-    if (getattr(state, "kraken_slate_reset_at", "") or "").strip():
-        return None  # już zrobione — nie powtarzamy
+    # Wersjonowany znacznik: bump = przepuść czysty start RAZ jeszcze. Powód bumpu
+    # „heal-fallback": nieistniejący już fallback na Alpacę zatruł punkty odniesienia
+    # (day/week/peak) i zostawił lepkie halty (-100% dnia, rozjazd rekoncyliacji) na
+    # koncie Kraken z €120. Ponowny czysty start re-bazuje je i zdejmuje halt. 0
+    # transakcji => nic realnego nie ginie.
+    if (getattr(state, "kraken_slate_reset_at", "") or "").strip() == _SLATE_VERSION:
+        return None  # już na aktualnej wersji — nie powtarzamy
     from app.config import get_settings
     if getattr(get_settings(), "crypto_venue", "alpaca") != "kraken":
         return None  # czysty start tylko dla migracji na Kraken
@@ -89,8 +98,8 @@ def kraken_clean_slate(db: Session) -> dict | None:
     # reset_tracking pauzuje OBA silniki; nogę krypto na Kraken zostawiamy AKTYWNĄ,
     # żeby paper ruszył od razu (equities i tak nieużywane -> is_paused zostaje True).
     state.crypto_paused = False
-    state.stats_epoch = now           # pomiar od startu Kraken
-    state.kraken_slate_reset_at = now  # znacznik: nie powtarzaj
+    state.stats_epoch = now               # pomiar od startu Kraken
+    state.kraken_slate_reset_at = _SLATE_VERSION  # znacznik wersji: nie powtarzaj
     db.commit()
     logger.warning(
         "KRAKEN CZYSTY START: wyczyszczono erę Alpaca (trades=%s decisions=%s "
