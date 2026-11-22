@@ -58,7 +58,7 @@ def test_crypto_scorecard_benchmarks_btc_and_counts_crypto_trades(db_session, se
     # Najstarszy snapshot krypto = punkt odniesienia: BTC @50k, konto $1000.
     db_session.add(PortfolioSnapshot(
         total_value_usdt=1000.0, usdt_balance=1000.0,
-        balances_json="{}", prices_json=json.dumps({"BTC/USD": 50000.0}),
+        balances_json="{}", prices_json=json.dumps({"BTC/EUR": 50000.0}),
         failed_symbols_json="[]", venue="crypto",
     ))
     db_session.commit()
@@ -75,9 +75,10 @@ def test_crypto_scorecard_benchmarks_btc_and_counts_crypto_trades(db_session, se
 
     # BTC podwaja się do 100k: trzymanie dałoby 1000*(100k/50k)=2000.
     card = scorecard.compute_scorecard(
-        db_session, crypto_settings, {"total_value_usdt": 1200.0, "prices": {"BTC/USD": 100000.0}}, venue="crypto",
+        db_session, crypto_settings, {"total_value_usdt": 1200.0, "prices": {"BTC/EUR": 100000.0}}, venue="crypto",
     )
-    assert card["benchmark_symbol"] == "BTC/USD"
+    # Domyślny venue krypto = kraken -> benchmark „trzymaj BTC" w EUR.
+    assert card["benchmark_symbol"] == "BTC/EUR"
     assert card["benchmark_value"] == 2000.0
     assert card["wins"] == 1
     assert card["losses"] == 0

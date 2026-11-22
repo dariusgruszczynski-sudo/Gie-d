@@ -467,15 +467,16 @@ def test_honesty_view_returns_block_with_keys(db_session, settings):
     from app.api.routes_dashboard import _honesty_view
     now = datetime.now(UTC)
     db_session.add(PortfolioSnapshot(timestamp=now, total_value_usdt=10000.0, usdt_balance=9000.0,
-                                     balances_json=json.dumps({"BTC/USD": 0.0125}),
-                                     prices_json=json.dumps({"BTC/USD": 80000.0}), venue="crypto"))
+                                     balances_json=json.dumps({"BTC/EUR": 0.0125}),
+                                     prices_json=json.dumps({"BTC/EUR": 80000.0}), venue="crypto"))
     db_session.commit()
     h = _honesty_view(db_session, settings.model_copy(update={"crypto_enabled": True}),
                       {"total_value": 10000.0})
     assert h is not None
     for k in ("beats_btc", "alpha_pct_vs_btc", "closed_trades", "sample_sufficient", "reconciled", "benchmark"):
         assert k in h
-    assert h["benchmark"] == "BTC/USD"
+    # Domyślny venue krypto = kraken -> benchmark w EUR.
+    assert h["benchmark"] == "BTC/EUR"
     assert h["sample_sufficient"] is False  # 0 zamknięć
 
 
