@@ -470,6 +470,7 @@ export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }:
         <div className="txt">{doingTxt}<span className="when">{latest ? ago(latest.timestamp) : "na żywo"} · bot {pausedOf(status) ? "wstrzymany" : "pilnuje"}</span></div>
       </div>
 
+      {/* Filar INFORMACJA na wierzchu (UX#11) — przewaga „bot czyta 24/7" */}
       <CatalystsPanel />
 
       <div className="cr-grid c2">
