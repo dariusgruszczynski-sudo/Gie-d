@@ -364,10 +364,10 @@ function PaperLiveStrip() {
   return (
     <div className={`cr-plstrip ${d.go_live ? "ready" : ""}`}>
       <button className="cr-plstrip-top" onClick={() => setOpen((o) => !o)}>
-        <span className="lbl">🐙 Droga do żywego handlu <small>paper → €120 na żywo</small></span>
+        <span className="lbl">🐙 Dowody skuteczności <small>na żywo · €120 Kraken spot</small></span>
         {d.go_live
-          ? <span className="cr-chip on">GOTOWE ✓</span>
-          : <span className="n">{d.met}/{d.total} celów <i className="chev">{open ? "▲" : "▼"}</i></span>}
+          ? <span className="cr-chip on">KOMPLET ✓</span>
+          : <span className="n">{d.met}/{d.total} dowodów <i className="chev">{open ? "▲" : "▼"}</i></span>}
       </button>
       <div className="cr-plstrip-bar"><i style={{ width: `${Math.max(3, pct)}%` }} /></div>
       {open && (
