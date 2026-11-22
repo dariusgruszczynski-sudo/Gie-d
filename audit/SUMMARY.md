@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-11-22T21:15:22Z
+# Audyt GielDarek — 2026-11-22T21:21:46Z
 
-**Wdrożenie:** kod 72e00a8 (zbud. 2026-11-22T21:02Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod e392de7 (zbud. 2026-11-22T21:16Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 0 zamknięć · trafność —% · zrealizowany $0.0
 **7 dni:** 0 zamknięć · —% · $0.0   |   **30 dni:** 0 · —% · $0.0
@@ -23,12 +23,14 @@
 - próg pewności — baza (env): 0.6 · progresja +0.03/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
-- ostatnie 18 decyzji · wykonanych: 1 · odrzuconych: 17
+- ostatnie 19 decyzji · wykonanych: 1 · odrzuconych: 18
 
 **Najczęstsze powody odrzucenia (top):**
 - 17× — Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
+- 1× — Rozjazd rekoncyliacji: baza vs broker różni się o $-14,564 (głównie ETH/USD: $-13,201) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
 
 **Ostatnie 20 decyzji:**
+- 2026-11-22T21:17:09.320562 — HOLD conf=0.6 trig=manual ⛔ Rozjazd rekoncyliacji: baza vs broker różni się o $-14,564 (głównie ETH/USD: $-13,201) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
 - 2026-11-22T20:50:39.666964 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
 - 2026-11-22T20:35:39.597121 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
 - 2026-11-22T20:20:45.102774 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
