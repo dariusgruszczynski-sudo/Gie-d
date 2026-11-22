@@ -3,6 +3,7 @@ import { api, Decision, isReadOnly, PortfolioResponse, StatusResponse, withShare
 import { Brain, Coins, Cockpit, CrView, Flow, StatusBar, Verdict } from "./ui/ControlRoom";
 import { SterDrawer } from "./ui/Ster";
 import { extract } from "./ui/Console";
+import { setCurrencySymbol } from "./ui/kit";
 import { isSoundMuted, playTradeSound, setSoundMuted } from "./tradeSound";
 
 const REFRESH_MS = 15000;
@@ -45,6 +46,7 @@ export default function App() {
   const refresh = useCallback(async () => {
     try {
       const s = await api.status();
+      setCurrencySymbol(s.quote_currency);  // € (Kraken) / $ (Alpaca) — cały pulpit
       setStatus(s); setError(null); setReconnecting(false);
       if (!s.extended_enabled) { setExtendedPortfolio(null); }
 
@@ -67,7 +69,8 @@ export default function App() {
           const side = fresh[0].side.toUpperCase() === "SELL" ? "SELL" : "BUY";
           playTradeSound(side);
           navigator.vibrate?.(side === "SELL" ? [60] : [20, 40, 20]);
-          const usd = (v: number) => `$${v.toLocaleString("pl-PL", { maximumFractionDigits: 2 })}`;
+          const _sym = s.quote_currency === "EUR" ? "€" : "$";
+          const usd = (v: number) => `${_sym}${v.toLocaleString("pl-PL", { maximumFractionDigits: 2 })}`;
           fresh.slice(0, 3).forEach((x) => {
             const isSell = x.side.toUpperCase() === "SELL";
             const value = usd(x.usdt_value);

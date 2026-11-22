@@ -118,22 +118,39 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         if state.week_start_value > 0:
             week_pnl_pct = (current_total - state.week_start_value) / state.week_start_value * 100
 
+    # --- Reframe pod Kraken/EUR ---------------------------------------------
+    # Gdy noga krypto jedzie na Kraken, to ONA jest aktywnym silnikiem (equities
+    # wyłączone), więc pulpit rozlicza w EUR, pokazuje realne (EUR) uniwersum
+    # skanera i tryb paper/live Krakena — nie zaszłości Alpaca/USD.
+    _crypto_on_kraken = bool(settings.crypto_enabled) and getattr(settings, "crypto_venue", "alpaca") == "kraken"
+    _cs = _load_regime(getattr(state, "crypto_scanner_universe_json", "") or "{}")
+    if _crypto_on_kraken:
+        _scan_uni = (_cs.get("universe") if isinstance(_cs, dict) else None) or []
+        _crypto_universe = _scan_uni or [s.replace("/USD", "/EUR") for s in settings.crypto_symbols]
+        _quote_ccy = "EUR"
+        _mode = "live" if getattr(settings, "crypto_kraken_live", False) else "paper"
+    else:
+        _crypto_universe = settings.crypto_symbols
+        _quote_ccy = settings.quote_currency
+        _mode = "testnet" if settings.alpaca_paper else "live"
+
     return {
-        "mode": "testnet" if settings.alpaca_paper else "live",
+        "mode": _mode,
         # True gdy to konto PAPIEROWE (sztuczny kapitał) -- front pokazuje wyraźną
-        # plakietkę „PAPIER", żeby nie pomylić z realnymi pieniędzmi.
-        "paper": settings.alpaca_paper,
+        # plakietkę „PAPIER", żeby nie pomylić z realnymi pieniędzmi. Na Kraken:
+        # paper dopóki crypto_kraken_live=False.
+        "paper": (not getattr(settings, "crypto_kraken_live", False)) if _crypto_on_kraken else settings.alpaca_paper,
         # Krypto (24/7) venue: gdy włączone, front przełącza komunikaty z „sesji US"
         # na „rynek 24/7" i nie straszy „rynek zamknięty".
         "crypto_enabled": settings.crypto_enabled,
         "crypto_paused": state.crypto_paused,
-        "crypto_universe": settings.crypto_symbols,
+        "crypto_universe": _crypto_universe,
         # Obserwowalność skanera 24/7 (audyt): REALNE ostatnie uniwersum skanera +
         # diagnostyka (ile par dał broker, ile zrankowano, czy fallback). Puste =
         # skaner jeszcze nie przebiegł. To, co faktycznie handlujemy, a nie statyczna lista.
-        "crypto_scanner": _load_regime(getattr(state, "crypto_scanner_universe_json", "") or "{}"),
+        "crypto_scanner": _cs,
         "crypto_venue_health": _kraken_health(settings),
-        "quote_currency": settings.quote_currency,
+        "quote_currency": _quote_ccy,
         "is_paused": state.is_paused,
         "extended_paused": state.extended_paused,
         "is_halted": state.is_halted,

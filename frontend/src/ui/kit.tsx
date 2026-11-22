@@ -1,14 +1,20 @@
 import { PortfolioSnapshot } from "../api/client";
 
+// Symbol waluty sterowany globalnie z /api/status.quote_currency — jedno źródło,
+// żeby cały pulpit pokazywał € (Kraken) albo $ (Alpaca) bez zmiany w 50 miejscach.
+let _curSym = "$";
+export function setCurrencySymbol(code: string | null | undefined): void {
+  _curSym = code === "EUR" ? "€" : code === "USD" ? "$" : (code || "$");
+}
 export function money(v: number | null | undefined, dp = 2): string {
   if (v === null || v === undefined || Number.isNaN(v)) return "—";
   const neg = v < 0;
   const s = Math.abs(v).toLocaleString("pl-PL", { minimumFractionDigits: dp, maximumFractionDigits: dp });
-  return `${neg ? "−" : ""}$${s}`;
+  return `${neg ? "−" : ""}${_curSym}${s}`;
 }
 export function money0(v: number | null | undefined): string {
   if (v === null || v === undefined || Number.isNaN(v)) return "—";
-  return `$${Math.round(v).toLocaleString("pl-PL")}`;
+  return `${_curSym}${Math.round(v).toLocaleString("pl-PL")}`;
 }
 export function pct(v: number | null | undefined): string {
   if (v === null || v === undefined || Number.isNaN(v)) return "—";

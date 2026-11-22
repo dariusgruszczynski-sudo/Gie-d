@@ -86,6 +86,7 @@ def init_db() -> None:
     _add_column_if_missing("system_state", "alpaca_api_secret_override", "VARCHAR(128)", "''")
     _add_column_if_missing("system_state", "kraken_api_key_override", "VARCHAR(128)", "''")
     _add_column_if_missing("system_state", "kraken_api_secret_override", "VARCHAR(128)", "''")
+    _add_column_if_missing("system_state", "kraken_slate_reset_at", "VARCHAR(32)", "''")
     _add_column_if_missing("portfolio_snapshots", "failed_symbols_json", "TEXT", "'[]'")
     _add_column_if_missing("system_state", "stop_loss_cooldowns_json", "TEXT", "'{}'")
     _add_column_if_missing("system_state", "position_peaks_json", "TEXT", "'{}'")

@@ -290,7 +290,12 @@ def compute_scorecard(db: Session, settings: Settings, portfolio: dict, *, venue
     snapshotu krypto). Trafność/wynik liczymy z transakcji TEJ nogi."""
     state = risk_manager.get_state(db)
     portfolio_value = portfolio.get("total_value_usdt", 0.0)
-    benchmark_symbol = "BTC/USD" if venue == "crypto" else settings.benchmark_symbol
+    # Krypto bije „trzymaj BTC": na Kraken para rozlicza się w EUR (BTC/EUR),
+    # na Alpace w USD (BTC/USD). Benchmark musi pasować do waluty nogi.
+    if venue == "crypto":
+        benchmark_symbol = "BTC/EUR" if getattr(settings, "crypto_venue", "alpaca") == "kraken" else "BTC/USD"
+    else:
+        benchmark_symbol = settings.benchmark_symbol
     benchmark_price_now = portfolio["prices"].get(benchmark_symbol)
 
     # Epoka obecnej strategii (krypto: po blowoutcie). Steruje i baselinem BTC

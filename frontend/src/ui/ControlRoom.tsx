@@ -58,6 +58,9 @@ export function StatusBar({ status, lastCycleIso, onChanged }: {
         <span className={`cr-who ${paused || halted ? "you" : ""}`}>steruje <b>{paused || halted ? "TY" : "BOT"}</b></span>
         {lastCycleIso && <span className="cr-cyc">ostatni skan <b>{ago(lastCycleIso)}</b></span>}
         <span className="cr-cyc">skan co <b>~{status.poll_interval_minutes}m</b></span>
+        {status.crypto_venue_health?.configured === "kraken" && (
+          <span className="cr-venue" title="Noga krypto rozlicza w EUR na Kraken (spot)">🐙 Kraken · EUR</span>
+        )}
         <span className="cr-sys-sp" />
         <span className={`cr-paper ${status.mode === "live" ? "live" : ""}`}>{status.mode === "live" ? "LIVE" : "PAPER"}</span>
         <button className={`cr-pausebtn ${paused || halted ? "resume" : ""}`} disabled={busy} onClick={toggle}>
@@ -771,7 +774,7 @@ export function Coins() {
             <div className="cr-metric"><span className="k">Bilans łączny</span><span className={`v ${s!.total_realized_usd >= 0 ? "up" : "down"}`}>{s!.total_realized_usd >= 0 ? "+" : "−"}{money0(Math.abs(s!.total_realized_usd))}</span><span className="s">zaksięgowane</span></div>
             <div className="cr-metric"><span className="k">Na plus / minus</span><span className="v">{s!.won_count} / {s!.lost_count}</span><span className="s">z {s!.traded_count} handlowanych</span></div>
             <div className="cr-metric"><span className="k">W uniwersum</span><span className="v">{s!.universe_count}</span><span className="s">widziane teraz</span></div>
-            <div className="cr-metric"><span className="k">Par z Alpaki</span><span className="v">{s!.scanner_pool_size ?? "—"}</span><span className="s">cały dostępny rynek</span></div>
+            <div className="cr-metric"><span className="k">Par z giełdy</span><span className="v">{s!.scanner_pool_size ?? "—"}</span><span className="s">cały dostępny rynek</span></div>
           </div>
 
           {s!.scanner_skips && Object.keys(s!.scanner_skips).length > 0 && (

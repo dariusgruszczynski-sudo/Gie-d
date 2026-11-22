@@ -42,6 +42,20 @@ async def lifespan(app: FastAPI):
             _cred_db.close()
     except Exception:  # pragma: no cover - brak override nie może blokować startu
         pass
+    # KRAKEN: jednorazowy czysty start przy migracji z Alpaca (kasuje trupy z ery
+    # Alpaca, zdejmuje fałszywy HALT -100%, epoka=teraz, krypto zostaje aktywne).
+    # Idempotentny (znacznik kraken_slate_reset_at), więc bezpieczny na każdy restart.
+    try:
+        from app.db import SessionLocal
+        from app.services.history_reset import kraken_clean_slate
+
+        _slate_db = SessionLocal()
+        try:
+            kraken_clean_slate(_slate_db)
+        finally:
+            _slate_db.close()
+    except Exception:  # pragma: no cover - migracja nie może blokować startu
+        pass
     # OPUS KONTROLER (P1): env-seed włączenia (raz, dopóki właściciel nie przełączy).
     try:
         from app.db import SessionLocal

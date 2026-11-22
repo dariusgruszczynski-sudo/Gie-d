@@ -129,6 +129,12 @@
   padding: 3px 8px; border-radius: 5px; border: 1px solid var(--cr-line-2); color: var(--cr-dim);
 }
 .cr-paper.live { color: var(--cr-down); border-color: color-mix(in srgb, var(--cr-down) 50%, transparent); }
+.cr-venue {
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap;
+  padding: 3px 8px; border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--cr-up) 45%, transparent);
+  color: var(--cr-up); background: color-mix(in srgb, var(--cr-up) 10%, transparent);
+}
 .cr-pausebtn {
   font: inherit; font-size: 0.74rem; font-weight: 700; cursor: pointer;
   padding: 5px 12px; border-radius: 7px; letter-spacing: 0.03em;

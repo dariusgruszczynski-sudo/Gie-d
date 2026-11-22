@@ -48,13 +48,15 @@ export interface KnowledgeResponse {
 }
 
 export interface StatusResponse {
-  mode: "testnet" | "live";
+  mode: "testnet" | "live" | "paper";
   // true = konto PAPIEROWE (sztuczny kapitał) — UI pokazuje plakietkę „PAPIER".
   paper?: boolean;
   // true = venue krypto (24/7) włączone — UI przełącza „sesję US" na „rynek 24/7".
   crypto_enabled?: boolean;
   crypto_paused?: boolean;
   crypto_universe?: string[];
+  // Diagnostyka nogi Kraken (z /api/status): skąd klucz, czy tryb live.
+  crypto_venue_health?: { configured?: string; key_present?: boolean; key_source?: string | null; live_trading?: boolean };
   quote_currency: string;
   is_paused: boolean;
   extended_paused: boolean;

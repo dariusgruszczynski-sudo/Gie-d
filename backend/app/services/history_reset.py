@@ -11,9 +11,14 @@ NIE rusza konta Alpaca: żadne zlecenie nie jest składane ani odczytywane. Ujem
 gotówkę/pozycje cofa dopiero RESET PAPER po stronie Alpaki — ta funkcja czyści
 tylko lustro aplikacji i musi iść PO resecie konta."""
 
+import logging
+from datetime import UTC, datetime
+
 from sqlalchemy.orm import Session
 
 from app.models import Decision, PortfolioSnapshot, RiskEvent, SystemState, Trade
+
+logger = logging.getLogger(__name__)
 
 # Pola SystemState przywracane do stanu świeżej instalacji. session_secret jest
 # CELOWO pomijany (żeby otwarte sesje logowania przetrwały). Oba silniki -> STOP.
@@ -60,3 +65,36 @@ def reset_tracking(db: Session, *, wipe_lessons: bool = False) -> dict:
         "trades": n_tr, "decisions": n_dec, "snapshots": n_snap,
         "risk_events": n_re, "lessons_wiped": wipe_lessons,
     }
+
+
+def kraken_clean_slate(db: Session) -> dict | None:
+    """JEDNORAZOWY czysty start przy migracji Alpaca->Kraken. Odpala się RAZ (gdy
+    crypto_venue=='kraken' i znacznik pusty), na starcie aplikacji. Czyści historię
+    ery Alpaca (reset_tracking: transakcje/decyzje/snapshoty/zdarzenia, re-bazuje
+    szczyt, ZDEJMUJE fałszywy HALT z -100%), ale — inaczej niż ręczny reset —
+    ZOSTAWIA nogę krypto WŁĄCZONĄ (crypto_paused=False) i ustawia epokę pomiaru na
+    teraz (start Kraken). Lekcje zachowane. Idempotentny: znacznik blokuje powtórkę.
+    Zwraca podsumowanie albo None, gdy pominięto."""
+    state = db.get(SystemState, 1)
+    if state is None:
+        return None
+    if (getattr(state, "kraken_slate_reset_at", "") or "").strip():
+        return None  # już zrobione — nie powtarzamy
+    from app.config import get_settings
+    if getattr(get_settings(), "crypto_venue", "alpaca") != "kraken":
+        return None  # czysty start tylko dla migracji na Kraken
+    r = reset_tracking(db, wipe_lessons=False)
+    state = db.get(SystemState, 1)
+    now = datetime.now(UTC).isoformat()
+    # reset_tracking pauzuje OBA silniki; nogę krypto na Kraken zostawiamy AKTYWNĄ,
+    # żeby paper ruszył od razu (equities i tak nieużywane -> is_paused zostaje True).
+    state.crypto_paused = False
+    state.stats_epoch = now           # pomiar od startu Kraken
+    state.kraken_slate_reset_at = now  # znacznik: nie powtarzaj
+    db.commit()
+    logger.warning(
+        "KRAKEN CZYSTY START: wyczyszczono erę Alpaca (trades=%s decisions=%s "
+        "snapshots=%s risk_events=%s), zdjęto HALT, epoka=%s, krypto AKTYWNE (paper).",
+        r["trades"], r["decisions"], r["snapshots"], r["risk_events"], now,
+    )
+    return {**r, "kraken_slate_reset_at": now}
