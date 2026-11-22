@@ -234,7 +234,11 @@ class Settings(BaseSettings):
     # Nie handlujemy, gdy księgi nie zgadzają się z brokerem — źródłem prawdy jest
     # broker. 0 = wyłączony. Podłoga absolutna poniżej (żeby drobny lag nie straszył).
     crypto_reconciliation_halt_pct: float = 1.0
-    crypto_reconciliation_halt_floor_usd: float = 2_000.0
+    # Podłoga absolutna rozjazdu. Była €2000 (przy koncie €120 = „nigdy"); pod małe
+    # konto Kraken obniżona do €25 (≈20% konta) — łapie realny brak pozycji, toleruje
+    # drobny lag/zaokrąglenie. Halt rekoncyliacji i tak się SAMO-LECZY, gdy księgi
+    # znów się zgodzą, więc przejściowy szum nie blokuje handlu na stałe.
+    crypto_reconciliation_halt_floor_usd: float = 25.0
     # TRYB BTC-RDZEŃ (R12, meta-analiza): w reżimie INNYM niż potwierdzony wzrostowy
     # NOWE wejścia tylko w BTC (trzymaj BTC/gotówkę), bez rotacji niepłynnych altów.
     # Geneza: walk-forward pokazał, że rotacja altów PRZEGRYWA z trzymaniem BTC

@@ -333,7 +333,7 @@ function HonestyHeader({ status }: { status: StatusResponse }) {
   // #38 backlog: gdy silnik NIC nie trzyma — mów „BEZCZYNNY", nie trąb fałszywą alfą.
   else if (h.status === "idle") {
     cls = "warn";
-    txt = "⏸ BEZCZYNNY — nie handluje" + (days != null ? ` (${days} dni)` : "");
+    txt = "👁 Czuwa — skanuje rynek, czeka na setup" + (days != null ? ` (bez wejścia ${days} dni)` : "");
   }
   else if (h.closed_trades >= 1 && h.beats_btc !== null) {
     cls = h.beats_btc ? "good" : "bad";
@@ -653,7 +653,7 @@ export function Verdict({ status, portfolio }: { status: StatusResponse; portfol
     vexpl = `Na ${n} zamknięciach aktywny handel wyprzedza zwykłe trzymanie ${sc?.benchmark_symbol} o ${alphaPct.toFixed(1)}pp, przy dodatniej wartości oczekiwanej. Ma sens.`;
   } else {
     vcls = "no"; vbig = "Za BTC na zwrocie";
-    vexpl = `Na ${n} zamknięciach aktywny handel ${alphaPct < 0 ? `jest ${Math.abs(alphaPct).toFixed(1)}pp za trzymaniem ${sc?.benchmark_symbol}` : "nie ma dodatniej wartości oczekiwanej"} — na ZWROCIE. To nie jest cała ocena: patrz „Obrona kapitału" niżej (backtest 10 lat: system broni kapitału lepiej niż BTC).`;
+    vexpl = `Na ${n} zamknięciach aktywny handel ${alphaPct < 0 ? `jest ${Math.abs(alphaPct).toFixed(1)}pp za trzymaniem ${sc?.benchmark_symbol}` : "nie ma dodatniej wartości oczekiwanej"} — na ZWROCIE. To nie cała ocena: patrz „Obrona kapitału" niżej (dyscyplina i stopy ważą tyle, co sam zwrot).`;
   }
 
   return (
