@@ -486,11 +486,11 @@ export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }:
             </div>
           </div>
         </div>
-        <div className="cr-grid c2">
-          <div className="cr-metric"><span className="k">W grze</span><span className="v">{invPct}%</span><span className="s">{money0(investedOf(status))}</span></div>
-          <div className="cr-metric"><span className="k">Gotówka</span><span className="v">{acc ? money0(acc.cash) : "…"}</span><span className="s">czeka na wejścia</span></div>
-          <div className="cr-metric"><span className="k">Już wzięte</span><span className={`v ${status.trading_pnl.realized_usd >= 0 ? "up" : "down"}`}>{status.trading_pnl.realized_usd >= 0 ? "+" : "−"}{money0(Math.abs(status.trading_pnl.realized_usd))}</span><span className="s">zaksięgowane</span></div>
-          <div className="cr-metric"><span className="k">Na otwartych</span><span className={`v ${status.trading_pnl.unrealized_usd >= 0 ? "up" : "down"}`}>{status.trading_pnl.unrealized_usd >= 0 ? "+" : "−"}{money0(Math.abs(status.trading_pnl.unrealized_usd))}</span><span className="s">wycena</span></div>
+        <div className="cr-minis">
+          <div className="cr-mini"><span className="k">W grze</span><span className="v">{invPct}%</span><span className="s">{money0(investedOf(status))}</span></div>
+          <div className="cr-mini"><span className="k">Gotówka</span><span className="v">{acc ? money0(acc.cash) : "…"}</span><span className="s">czeka na wejścia</span></div>
+          <div className="cr-mini"><span className="k">Już wzięte</span><span className={`v ${status.trading_pnl.realized_usd >= 0 ? "up" : "down"}`}>{status.trading_pnl.realized_usd >= 0 ? "+" : "−"}{money0(Math.abs(status.trading_pnl.realized_usd))}</span><span className="s">zaksięgowane</span></div>
+          <div className="cr-mini"><span className="k">Na otwartych</span><span className={`v ${status.trading_pnl.unrealized_usd >= 0 ? "up" : "down"}`}>{status.trading_pnl.unrealized_usd >= 0 ? "+" : "−"}{money0(Math.abs(status.trading_pnl.unrealized_usd))}</span><span className="s">wycena</span></div>
         </div>
       </div>
 
