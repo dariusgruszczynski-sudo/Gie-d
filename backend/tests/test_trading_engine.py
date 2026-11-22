@@ -580,6 +580,41 @@ def test_compute_portfolio_values_held_position_off_whitelist(db_session, settin
     assert portfolio["total_value_usdt"] == 1000.0 + 2.0 * 250.0
 
 
+class _FakeKraken:
+    """Broker krypto jak Kraken: SALDO zwraca BAZĄ ('NIGHT'), cena po PARZE ('NIGHT/EUR')."""
+    def __init__(self, prices, balances):
+        self.prices = prices
+        self.balances = balances
+    def get_account_balances(self):
+        return dict(self.balances)
+    def get_price(self, symbol):
+        if symbol not in self.prices:
+            raise KeyError(symbol)  # jak get_price na bazie bez pary -> brak ceny
+        return self.prices[symbol]
+    def get_klines(self, symbol, interval="1h", limit=24):
+        return []
+
+
+def test_compute_portfolio_crypto_base_balance_valued_as_pair(db_session, settings):
+    """REGRESJA (NIGHT/EUR €0 + rozjazd rekoncyliacji): saldo Kraken wraca BAZĄ
+    ('NIGHT'), ale wycena/ledger używają PARY ('NIGHT/EUR'). Trzymana moneta spoza
+    whitelisty musi być dopięta jako PARA — inaczej get_price(bazy) pada i pozycja
+    wyceniana €0, a snapshot kluczuje saldo bazą (rozjazd z ledgerem po parze)."""
+    s = settings.model_copy(update={
+        "crypto_enabled": True, "crypto_venue": "kraken", "quote_currency": "EUR",
+        "crypto_universe": "BTC/EUR",  # NIGHT/EUR NIE jest na whiteliście -> dopięte z salda
+    })
+    broker = _FakeKraken(
+        prices={"BTC/EUR": 90000.0, "NIGHT/EUR": 0.044},  # cena tylko po PARZE
+        balances={"EUR": 107.75, "NIGHT": 272.0},          # saldo po BAZIE (jak Kraken)
+    )
+    portfolio = trading_engine.compute_portfolio(db_session, s, broker, venue="crypto", whitelist=["BTC/EUR"])
+    # Pozycja dopięta i wyceniana po PARZE (nie €0), saldo kluczowane PARĄ (match ledger).
+    assert portfolio["balances"].get("NIGHT/EUR") == 272.0
+    assert portfolio["balances"].get("NIGHT") is None
+    assert portfolio["total_value_usdt"] == pytest.approx(107.75 + 272.0 * 0.044)
+
+
 def test_dual_listed_ticker_not_double_counted(db_session, settings):
     """A ticker on BOTH whitelists (e.g. XLF) must be valued on exactly ONE leg.
     Regression for the account being overstated (and the position shown twice --

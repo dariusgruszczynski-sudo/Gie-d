@@ -290,8 +290,16 @@ def compute_portfolio(db: Session, settings: Settings, broker, *, venue: str = "
     for held, qty in balances.items():
         if held == settings.quote_currency or qty <= 0:
             continue
-        if _owner(held) == venue and held not in symbols:
-            symbols.append(held)
+        # KRYPTO: saldo Kraken wraca BAZĄ ("NIGHT"), ale whitelist/ledger/get_price
+        # używają PARY ("NIGHT/EUR"). Dopinamy parę, inaczej trzymana moneta spoza
+        # whitelisty jest kluczowana bazą -> get_price(baza) pada -> wycena €0, a
+        # rekoncyliacja (ledger po parze) nie matchuje salda (po bazie) i widzi 0.
+        # Akcje: ticker == baza, bez pary — zostaje bez zmian.
+        held_sym = held
+        if venue == "crypto" and "/" not in held:
+            held_sym = f"{held}/{settings.quote_currency}"
+        if _owner(held_sym) == venue and held_sym not in symbols:
+            symbols.append(held_sym)
 
     prices: dict[str, float] = {}
     coin_balances: dict[str, float] = {}
