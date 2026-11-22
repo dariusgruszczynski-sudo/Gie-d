@@ -479,6 +479,21 @@ def prime_portfolio_snapshots() -> None:
                 )
             except Exception:
                 logger.warning("Startup snapshot (extended) failed, will populate on first poll", exc_info=True)
+        # KRYPTO (Kraken): priming startowy świeżego snapshotu — po cutoverze (który
+        # kasuje wszystkie snapshoty) pulpit inaczej byłby pusty do pierwszego cyklu,
+        # a konto/ryzyko bez świeżego €120. Robimy go WŁAŚCIWYM brokerem (Kraken).
+        if settings.crypto_enabled:
+            try:
+                crypto_eff = effective_settings(settings, "crypto")
+                if getattr(settings, "crypto_venue", "alpaca") == "kraken":
+                    from app.services.kraken_client import KrakenClient
+                    cbroker = KrakenClient.from_env(live_trading=getattr(settings, "crypto_kraken_live", False))
+                    crypto_eff = crypto_eff.model_copy(update={"quote_currency": "EUR"})
+                else:
+                    cbroker = AlpacaClient(settings)
+                compute_portfolio(db, crypto_eff, cbroker, venue="crypto", whitelist=crypto_eff.crypto_symbols)
+            except Exception:
+                logger.warning("Startup snapshot (crypto) failed, will populate on first poll", exc_info=True)
     finally:
         db.close()
     # Prime the market read too, so "temperatura rynku" isn't blank until the
