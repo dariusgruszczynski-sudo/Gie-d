@@ -36,6 +36,13 @@ def _today_utc() -> date:
 PEAK_CONFIRMATION_UPDATES = 2
 PEAK_CONFIRMATION_TOLERANCE = 0.999
 
+# ANTY-WIDMO SZCZYTU: gdy zapisany szczyt konta jest większy niż tyle razy od
+# bieżącego realnego konta, to NIE realna strata, tylko szczyt zatruty z innego
+# konta/ery (paper Alpaca $840k vs €120 na Krakenie). >20× = „drawdown" > 95% —
+# na spocie long-only ze stopami taki single-period spadek jest niemożliwy, więc
+# re-bazowanie szczytu tutaj NIE maskuje prawdziwej straty.
+_STALE_PEAK_FACTOR = 20.0
+
 
 @dataclass
 class ValidationResult:
@@ -121,14 +128,27 @@ def record_deposit(db: Session, settings: Settings, amount_usd: float) -> dict:
 
 
 def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: float,
-                           cash_usdt: float | None = None) -> SystemState:
+                           cash_usdt: float | None = None, venue: str = "alpaca") -> SystemState:
     """Call this every time we compute a fresh portfolio value. Rolls the
     day/week windows forward and trips the halt if a loss limit is breached.
 
     `cash_usdt` (opcjonalnie): aktualna gotówka konta. Włącza KILL-SWITCH dźwigni
     (#25) — ujemna gotówka poniżej tolerancji = handel pod dźwignią / rozjazd z
-    brokerem (sygnatura blowoutu 14-15.10), łapany ZANIM equity zejdzie pod wodę."""
+    brokerem (sygnatura blowoutu 14-15.10), łapany ZANIM equity zejdzie pod wodę.
+
+    `venue`: która noga raportuje. ANTY-WIDMO (migracja Alpaca->Kraken): gdy krypto
+    jest AKTYWNYM kontem live na Krakenie, konto Kraken (€120) jest ODRĘBNE od uśpionej,
+    papierowej nogi Alpaca (~$840k). Wspólny stan ryzyka (szczyt/drawdown/dzienny/
+    tygodniowy halt) rządzi wtedy TYLKO cykl krypto — inaczej papierowe $840k Alpaki
+    zatruwały szczyt konta €120 i wyzwalały FAŁSZYWY halt „spadek od szczytu -100%".
+    Gdy krypto nie-live albo na Alpace: stare zachowanie (akcje autorytatywne)."""
     state = get_state(db)
+    # Autorytet ryzyka: przy live-krypto na Krakenie tylko noga krypto gated wspólny
+    # halt. Uśpiona noga akcji/extended (osobne konto) nie dotyka stanu ryzyka.
+    kraken_live_crypto = bool(getattr(settings, "crypto_enabled", False)) and \
+        getattr(settings, "crypto_venue", "alpaca") == "kraken"
+    if kraken_live_crypto and venue != "crypto":
+        return state
     today = _today_utc()
     today_str = today.isoformat()
 
@@ -205,6 +225,30 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
         if state.peak_account_value > 0
         else 0
     )
+
+    # ANTY-WIDMO SZCZYTU (jednorazowe uzdrowienie, bez kasowania historii): gdy
+    # zapisany szczyt jest NIEREALNIE wysoki względem bieżącego realnego konta
+    # (> _STALE_PEAK_FACTOR×), to zatruty szczyt z innej ery/konta (paper Alpaca
+    # $840k) — re-bazujemy go do realu i zdejmujemy lepki halt „spadek od szczytu".
+    # Dociera tu tylko autorytatywna noga (patrz wczesny return), więc equities nie
+    # może tędy skasować realnego haltu krypto. Na spocie long-only 95%+ spadek w
+    # jednym okresie jest niemożliwy => nie maskujemy prawdziwej straty.
+    if total_value_usdt > 0 and state.peak_account_value > total_value_usdt * _STALE_PEAK_FACTOR:
+        stale_peak = state.peak_account_value
+        state.peak_account_value = total_value_usdt
+        state.pending_peak_value = 0.0
+        state.pending_peak_confirmations = 0
+        drawdown_pct = 0.0
+        _log_event(
+            db, "peak_rebaselined_antighost",
+            f"Szczyt ${stale_peak:,.2f} >> realne konto ${total_value_usdt:,.2f} "
+            "(widmo po migracji Alpaca->Kraken) — re-bazuję szczyt do realu.",
+        )
+        if state.is_halted and (state.halted_reason or "").startswith("Spadek od szczytu"):
+            state.is_halted = False
+            state.halted_reason = None
+            _log_event(db, "drawdown_halt_auto_cleared",
+                       "Zdjęto lepki halt spadku-od-szczytu oparty na zatrutym szczycie (widmo Alpaca).")
 
     # RESET CZASOWY haltu limitu STRAT (bezpiecznik typu „stop na dziś"): halt
     # DZIENNY znika, gdy zaczyna się nowy dzień (UTC); TYGODNIOWY — gdy nowy tydzień.

@@ -87,6 +87,10 @@ def kraken_clean_slate(db: Session) -> dict | None:
     # (day/week/peak) i zostawił lepkie halty (-100% dnia, rozjazd rekoncyliacji) na
     # koncie Kraken z €120. Ponowny czysty start re-bazuje je i zdejmuje halt. 0
     # transakcji => nic realnego nie ginie.
+    # UWAGA: gdy jest już OTWARTA pozycja na żywo, NIE bumpuj tej wersji — reset_tracking
+    # kasuje trades/decisions, a to zabrałoby bazę kosztową otwartej pozycji. Lepki halt
+    # „spadek od szczytu" zdejmuj wtedy przez kraken_heal_peak (niżej), który NIE rusza
+    # historii transakcji.
     if (getattr(state, "kraken_slate_reset_at", "") or "").strip() == _SLATE_VERSION:
         return None  # już na aktualnej wersji — nie powtarzamy
     from app.config import get_settings

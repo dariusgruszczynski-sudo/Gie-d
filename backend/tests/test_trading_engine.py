@@ -2126,7 +2126,9 @@ def test_account_total_value_counts_crypto_from_stock_poll(db_session, settings)
     gotówkę (~$350 z $100k) i wyzwalał limit dzienny -99,6%."""
     from app.models import PortfolioSnapshot
 
-    crypto_settings = settings.model_copy(update={"crypto_enabled": True})
+    # Ten scenariusz (krypto na TYM SAMYM koncie co akcje) obowiązuje tylko dla
+    # krypto-na-Alpace; na Krakenie to osobne konto (patrz test izolacji niżej).
+    crypto_settings = settings.model_copy(update={"crypto_enabled": True, "crypto_venue": "alpaca"})
     # Krypto trzyma $98k pozycji; snapshot krypto jak z żywego cyklu.
     db_session.add(PortfolioSnapshot(total_value_usdt=99000.0, usdt_balance=1000.0, venue="crypto"))
     db_session.commit()
@@ -2136,6 +2138,25 @@ def test_account_total_value_counts_crypto_from_stock_poll(db_session, settings)
     total = trading_engine.account_total_value(db_session, crypto_settings, alpaca_portfolio, "alpaca")
     # gotówka $1000 + pozycje krypto $98000 = $99000 (NIE $1000 jak przy buggu).
     assert total == pytest.approx(99000.0)
+
+
+def test_account_total_value_isolates_kraken_crypto(db_session, settings):
+    """ANTY-WIDMO: gdy krypto jest na Krakenie (osobne konto/EUR), suma konta NOGI
+    KRYPTO = samo konto Kraken (bez nóg Alpaca), a poll AKCJI NIE dokłada krypto.
+    Inaczej papierowe $840k Alpaki zatruwały drawdown konta €120 (fałszywy halt)."""
+    from app.models import PortfolioSnapshot
+
+    s = settings.model_copy(update={"crypto_enabled": True, "crypto_venue": "kraken"})
+    # Papierowy snapshot Alpaca $840k i realny snapshot krypto €120.
+    db_session.add(PortfolioSnapshot(total_value_usdt=840000.0, usdt_balance=840000.0, venue="alpaca"))
+    db_session.commit()
+
+    # Noga KRYPTO liczy tylko konto Kraken (€107 gotówki + €12 pozycji = €119.82).
+    crypto_pf = {"usdt_balance": 107.75, "total_value_usdt": 119.82}
+    assert trading_engine.account_total_value(db_session, s, crypto_pf, "crypto") == pytest.approx(119.82)
+    # Poll AKCJI NIE dokłada krypto z Krakena (osobne konto).
+    alpaca_pf = {"usdt_balance": 840000.0, "total_value_usdt": 840000.0}
+    assert trading_engine.account_total_value(db_session, s, alpaca_pf, "alpaca") == pytest.approx(840000.0)
 
 
 def test_extended_only_drawdown_trips_account_wide_halt(db_session, settings):

@@ -841,10 +841,21 @@ def account_total_value(db: Session, settings: Settings, portfolio: dict, venue:
     cash-only total on a non-crypto poll and tripped a phantom loss halt."""
     cash = portfolio["usdt_balance"]
     this_pos = max(0.0, portfolio["total_value_usdt"] - cash)
+    # KONTO KRAKEN JEST ODRĘBNE (anty-widmo 2026-11-22). Po migracji krypto na Kraken
+    # to inny broker i inna waluta (EUR), NIE część wspólnego konta Alpaca. Sumowanie
+    # nóg między kontami zatruwało szczyt/drawdown nogi Kraken (€120) starym snapshotem
+    # paper Alpaca ($840k) => fałszywy halt „spadek od szczytu -100%". Dlatego:
+    #  • licząc dla nogi krypto na Krakenie — zwróć SAMO konto Kraken (bez innych nóg),
+    #  • licząc dla akcji/extended — NIE dokładaj snapshotu krypto (jest na Krakenie).
+    kraken_crypto = getattr(settings, "crypto_venue", "alpaca") == "kraken"
+    if venue == "crypto" and kraken_crypto:
+        return cash + this_pos
     other_pos = 0.0
     for v in _active_venues(settings):
         if v == venue:
             continue
+        if v == "crypto" and kraken_crypto:
+            continue  # krypto na Krakenie = osobne konto, nie część konta Alpaca
         snap = db.execute(
             select(PortfolioSnapshot)
             .where(PortfolioSnapshot.venue == v)
@@ -2978,7 +2989,7 @@ def run_cycle(
     # Bierzemy wtedy equity brokera (fakt), zamiast magnitudowych heurystyk.
     account_total = _reconcile_account_total(broker, account_total)
     state = risk_manager.update_portfolio_value(
-        db, settings, account_total, cash_usdt=portfolio.get("usdt_balance"),
+        db, settings, account_total, cash_usdt=portfolio.get("usdt_balance"), venue=venue,
     )
     # WATCHDOG REKONCYLIACJI (R19/R26, meta-analiza): zanim cokolwiek zrobimy,
     # sprawdź czy NASZA baza pozycji zgadza się z saldem brokera. Rozjazd > próg

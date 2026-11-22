@@ -46,13 +46,15 @@ def test_leverage_killswitch_off_for_crypto_spot(db_session, settings):
     WYŁĄCZONY — spot nie ma dźwigni, gotówka nie zejdzie poniżej zera, a próg
     −$1000 przy koncie €120 był martwy i mylił. Realną ochroną zostaje underwater
     (equity ≤ 0), który dalej działa dla krypto."""
+    # crypto_venue=kraken jest domyślny => to live-krypto na Krakenie: autorytetem
+    # ryzyka jest noga 'crypto' (akcje/extended są uśpione), więc wołamy venue="crypto".
     s = settings.model_copy(update={"crypto_enabled": True, "leverage_halt_cash_usd": 1000.0})
-    risk_manager.update_portfolio_value(db_session, s, 1000.0, cash_usdt=500.0)
+    risk_manager.update_portfolio_value(db_session, s, 1000.0, cash_usdt=500.0, venue="crypto")
     # Gotówka „ujemna" (nierealna na spocie) NIE wyzwala już kill-switcha na krypto.
-    state = risk_manager.update_portfolio_value(db_session, s, 900.0, cash_usdt=-117_000.0)
+    state = risk_manager.update_portfolio_value(db_session, s, 900.0, cash_usdt=-117_000.0, venue="crypto")
     assert state.is_halted is False
     # Ale equity ≤ 0 (underwater) dalej haltuje także krypto.
-    state2 = risk_manager.update_portfolio_value(db_session, s, -5.0, cash_usdt=-10.0)
+    state2 = risk_manager.update_portfolio_value(db_session, s, -5.0, cash_usdt=-10.0, venue="crypto")
     assert state2.is_halted is True
     assert "pod wodą" in (state2.halted_reason or "")
 
@@ -65,6 +67,36 @@ def test_leverage_killswitch_tolerates_small_and_missing_cash(db_session, settin
     # Brak cash_usdt (starzy wołający) -> tripwier pominięty.
     st2 = risk_manager.update_portfolio_value(db_session, s, 1000.0)
     assert st2.is_halted is False
+
+
+def test_stale_peak_rebaselined_and_drawdown_halt_cleared(db_session, settings):
+    """ANTY-WIDMO: szczyt zatruty z ery Alpaca ($840k) na realnym koncie Kraken (€120)
+    daje „drawdown -100%". Heal re-bazuje szczyt do realu i zdejmuje lepki halt."""
+    s = settings.model_copy(update={"crypto_enabled": True})  # crypto_venue=kraken domyślnie
+    # Zasiej realny szczyt €120, potem wstrzyknij widmowy szczyt i halt (jak w prod).
+    risk_manager.update_portfolio_value(db_session, s, 120.0, venue="crypto")
+    st = risk_manager.get_state(db_session)
+    st.peak_account_value = 840_728.19
+    st.is_halted = True
+    st.halted_reason = "Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)"
+    db_session.commit()
+    # Kolejny cykl krypto z realnym kontem €120 -> heal.
+    out = risk_manager.update_portfolio_value(db_session, s, 119.82, venue="crypto")
+    assert out.is_halted is False
+    assert out.halted_reason is None
+    assert out.peak_account_value == 119.82  # szczyt re-bazowany do realu
+
+
+def test_dormant_equities_leg_does_not_poison_live_crypto_risk(db_session, settings):
+    """Gdy krypto to aktywne konto live na Krakenie, uśpiona noga akcji ($840k paper)
+    NIE rusza wspólnego szczytu/haltu — wczesny return dla venue != crypto."""
+    s = settings.model_copy(update={"crypto_enabled": True})
+    risk_manager.update_portfolio_value(db_session, s, 120.0, venue="crypto")  # szczyt €120
+    before = risk_manager.get_state(db_session).peak_account_value
+    # Cykl akcji z papierowym $840k NIE może podbić szczytu konta live.
+    risk_manager.update_portfolio_value(db_session, s, 840_000.0, venue="alpaca")
+    after = risk_manager.get_state(db_session).peak_account_value
+    assert after == before == 120.0
 
 
 def test_no_halt_within_limit(db_session, settings):
@@ -102,10 +134,11 @@ def test_crypto_uses_wider_dedicated_loss_limits(db_session, settings):
         "crypto_weekly_loss_limit_pct": 40.0,
         "crypto_max_drawdown_halt_pct": 55.0,
     })
-    risk_manager.update_portfolio_value(db_session, cs, 1000.0)  # start dnia
-    within = risk_manager.update_portfolio_value(db_session, cs, 780.0)  # -22% (>20% akcji, <30% krypto)
+    # Live-krypto na Krakenie: autorytetem ryzyka jest noga 'crypto' (venue="crypto").
+    risk_manager.update_portfolio_value(db_session, cs, 1000.0, venue="crypto")  # start dnia
+    within = risk_manager.update_portfolio_value(db_session, cs, 780.0, venue="crypto")  # -22% (>20% akcji, <30% krypto)
     assert within.is_halted is False  # stockowy limit by tu zatrzymał -- krypto nie
-    tripped = risk_manager.update_portfolio_value(db_session, cs, 650.0)  # -35% -> przekracza 30%
+    tripped = risk_manager.update_portfolio_value(db_session, cs, 650.0, venue="crypto")  # -35% -> przekracza 30%
     assert tripped.is_halted is True
     assert "Dzienny limit" in (tripped.halted_reason or "") and "30.0%" in (tripped.halted_reason or "")
 
