@@ -233,7 +233,9 @@
 .cr-grid.c3 { grid-template-columns: repeat(3, 1fr); }
 .cr-grid.c4 { grid-template-columns: repeat(4, 1fr); }
 @media (max-width: 720px) { .cr-grid.c3, .cr-grid.c4 { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 460px) { .cr-grid.c2, .cr-grid.c3, .cr-grid.c4 { grid-template-columns: 1fr; } }
+/* Na telefonie kafle metryk (c3/c4) TRZYMAJĄ 2 kolumny (kompaktowo, bez pionowego
+   rozciągania); tylko szerokie c2 (panel + treść) zjeżdża do 1 kolumny. */
+@media (max-width: 460px) { .cr-grid.c2 { grid-template-columns: 1fr; } }
 
 /* Metryka (monospace) */
 .cr-metric {
