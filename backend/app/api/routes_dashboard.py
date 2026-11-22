@@ -338,6 +338,25 @@ def _account_view(db: Session, settings: Settings | None = None) -> dict | None:
     summing the two snapshots' totals double-counts the cash. Reconstruct the
     true account here: cash counted ONCE + each engine's position value
     (snapshot total minus that shared cash)."""
+    st = settings or get_settings()
+    # KRAKEN to OSOBNE konto (EUR) — NIE współdzieli gotówki z Alpaca. Gdy noga
+    # krypto jedzie na Kraken, konto = WYŁĄCZNIE snapshot krypto (Kraken). Martwy
+    # snapshot Alpaca (paper equities ~$594k) to inne, nieużywane konto i NIE wolno
+    # go mieszać — inaczej gotówka z najświeższego snapshotu Alpaki udaje saldo
+    # Kraken i pokazuje €594k zamiast €120.
+    if bool(st.crypto_enabled) and getattr(st, "crypto_venue", "alpaca") == "kraken":
+        cr = _latest_snapshot(db, "crypto")
+        if cr is None:
+            return None
+        cash = cr.usdt_balance
+        crypto_positions_value = cr.total_value_usdt - cr.usdt_balance
+        return {
+            "cash": round(cash, 2),
+            "equity_positions_value": 0.0,
+            "extended_positions_value": 0.0,
+            "crypto_positions_value": round(crypto_positions_value, 2),
+            "total_value": round(cash + crypto_positions_value, 2),
+        }
     a = _latest_snapshot(db, "alpaca")
     # Jeden silnik: gdy POZA SESJĄ wyłączona, WSZYSTKIE pozycje należą do portfela
     # sesji (po migracji przy starcie). Nie czytamy zamrożonego snapshotu extended
