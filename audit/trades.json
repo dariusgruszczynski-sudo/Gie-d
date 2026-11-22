@@ -1,1 +1,1 @@
-[{"id":1,"timestamp":"2026-11-22T13:41:18.252614","symbol":"NIGHT/EUR","side":"BUY","quantity":272.1717401181281,"price":0.04402,"usdt_value":11.981,"order_id":"O57TFK-2N3EB-I4TMPT","mode":"live","is_manual":false,"venue":"crypto","decision_id":1}]
+[{"id":1,"timestamp":"2026-11-22T13:41:18.252614","symbol":"NIGHT/EUR","side":"BUY","quantity":272.1717401181281,"price":0.04402,"usdt_value":11.981,"fee_usd":0.0,"order_id":"O57TFK-2N3EB-I4TMPT","mode":"live","is_manual":false,"venue":"crypto","decision_id":1}]
