@@ -24,7 +24,7 @@ function EngineSection({ status, onChanged }: { status: StatusResponse; onChange
   const halted = !!status.is_halted;
   return (
     <div className="cr-sec">
-      <h4>Silnik {status.crypto_enabled ? "· KRYPTO 24/7 (paper)" : "· Akcje US"}</h4>
+      <h4>Silnik {status.crypto_enabled ? `· KRYPTO 24/7 (${status.mode === "live" ? "🔴 LIVE" : "paper"})` : "· Akcje US"}</h4>
       {halted && <p className="hint" style={{ color: "var(--cr-down)" }}>⛔ Zatrzymany bezpiecznikiem: {status.halted_reason || ""}. „Odblokuj" wznawia i zeruje punkty odniesienia.</p>}
       <div className="cr-btnrow">
         {paused || halted ? (

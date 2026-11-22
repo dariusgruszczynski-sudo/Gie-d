@@ -59,7 +59,7 @@ export function StatusBar({ status, lastCycleIso, onChanged }: {
         )}
         {lastCycleIso && <span className="cr-cyc">skan <b>{ago(lastCycleIso)}</b></span>}
         <span className="cr-sys-sp" />
-        <span className={`cr-paper ${status.mode === "live" ? "live" : ""}`}>{status.mode === "live" ? "LIVE" : "PAPER"}</span>
+        <span className={`cr-paper ${status.mode === "live" ? "live" : ""}`}>{status.mode === "live" ? "🔴 LIVE" : "PAPER"}</span>
         <button className={`cr-pausebtn ${paused || halted ? "resume" : ""}`} disabled={busy} onClick={toggle}>
           {busy ? "…" : halted ? "▶ Odblokuj" : paused ? "▶ Wznów" : "❚❚ Pauza"}
         </button>
