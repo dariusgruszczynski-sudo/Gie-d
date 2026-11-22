@@ -186,6 +186,8 @@ def get_status(db: Session = Depends(get_db), settings: Settings = Depends(get_s
         # Ile ZAROBIŁ/STRACIŁ sam automat (odporne na wpłaty): zrealizowany +
         # niezrealizowany P&L z transakcji.
         "trading_pnl": _trading_pnl_view(db, settings),
+        # Licznik prowizji krypto (Kraken) — łącznie i dziś. Front liczy „zysk po prowizji".
+        "crypto_fees": _crypto_fees_view(db),
         # Fix #1: monitor rozjazdu baza↔broker. reconciled=False -> czerwony baner na
         # pulpicie (wynik automatu może zaniżać stratę zjedzoną po stronie kupna).
         "reconciliation": _reconciliation_view(db, settings),
@@ -518,6 +520,23 @@ def _day_realized_usd(db: Session) -> float:
     trades = db.execute(select(Trade).order_by(Trade.timestamp.asc())).scalars().all()
     realized, _w, _l = _realized_since(trades, cutoff)
     return realized
+
+
+def _crypto_fees_view(db: Session) -> dict:
+    """Licznik prowizji krypto (Kraken): łącznie i dziś (w walucie konta). Na małym
+    koncie koszt transakcyjny jest kluczowy — pokazujemy go wprost obok „zysku bota",
+    a front liczy „zysk po prowizji" = zysk − prowizje."""
+    from datetime import datetime as _dt
+
+    cutoff = _dt.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    rows = db.execute(select(Trade).where(Trade.venue == "crypto")).scalars().all()
+
+    def _aware(t):
+        return t if (t.tzinfo is not None) else t.replace(tzinfo=UTC)
+
+    total = sum((t.fee_usd or 0.0) for t in rows)
+    today = sum((t.fee_usd or 0.0) for t in rows if t.timestamp and _aware(t.timestamp) >= cutoff)
+    return {"total": round(total, 4), "today": round(today, 4)}
 
 
 def _alpha_view(db: Session, settings: Settings, account: dict | None) -> dict | None:

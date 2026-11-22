@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     # Krakena zweryfikowane vs pozycja ~€12 (10% z €120), kontrola ryzyka (stopy/limity/
     # auto-halt) aktywna, pierwsza realna transakcja ~€12. Natychmiastowy stop: STER→Pauza.
     crypto_kraken_live: bool = True
+    # Prowizja Kraken spot (taker ~0.26%). Odejmowana od „zysku bota" i liczona w
+    # liczniku prowizji — na małym koncie (€120) koszt transakcyjny jest kluczowy
+    # (udowodnione: koszty zjadają przewagę). Maker (limit post-only) ~0.16%.
+    crypto_fee_pct: float = 0.26
+    # Dzienny budżet prowizji jako % konta: gdy prowizje dziś > tego, blokuj NOWE
+    # wejścia (anty-churn kosztowy). 0 = wyłączone.
+    crypto_daily_fee_budget_pct: float = 1.5
     # Twardy limit wartości POJEDYNCZEGO zlecenia. Alpaca odrzuca zlecenia krypto
     # powyżej $200k notional (403 code 40310000). Przy większym koncie % sizingu
     # potrafił wygenerować zlecenie > $200k -> broker odrzucał je W CAŁOŚCI i kapitał

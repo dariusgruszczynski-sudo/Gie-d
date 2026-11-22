@@ -66,6 +66,9 @@ class Trade(Base):
     quantity: Mapped[float] = mapped_column(Float)
     price: Mapped[float] = mapped_column(Float)
     usdt_value: Mapped[float] = mapped_column(Float)
+    # Prowizja zapłacona za tę transakcję (w walucie konta). Liczona przy egzekucji
+    # jako usdt_value * crypto_fee_pct. Zasila licznik prowizji i „zysk po prowizji".
+    fee_usd: Mapped[float] = mapped_column(Float, default=0.0)
     order_id: Mapped[str] = mapped_column(String(64), default="")
     mode: Mapped[TradeMode] = mapped_column(Enum(TradeMode))
     is_manual: Mapped[bool] = mapped_column(Boolean, default=False)

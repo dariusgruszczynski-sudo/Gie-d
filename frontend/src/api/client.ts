@@ -57,6 +57,8 @@ export interface StatusResponse {
   crypto_universe?: string[];
   // Diagnostyka nogi Kraken (z /api/status): skąd klucz, czy tryb live.
   crypto_venue_health?: { configured?: string; key_present?: boolean; key_source?: string | null; live_trading?: boolean };
+  // Licznik prowizji krypto (Kraken): łącznie i dziś. Front liczy „zysk po prowizji".
+  crypto_fees?: { total: number; today: number };
   quote_currency: string;
   is_paused: boolean;
   extended_paused: boolean;

@@ -2329,12 +2329,37 @@ def _new_entries_blocked(db: Session, settings: Settings, broker, pf: dict, glob
     return None
 
 
+def _crypto_fees_today(db: Session) -> float:
+    """Suma prowizji krypto zapłaconych dziś (od północy UTC). Do dziennego budżetu
+    prowizji (anty-churn)."""
+    cutoff = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    rows = db.execute(select(Trade).where(Trade.venue == "crypto")).scalars().all()
+    total = 0.0
+    for t in rows:
+        ts = t.timestamp
+        if ts is None:
+            continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=UTC)
+        if ts >= cutoff:
+            total += (t.fee_usd or 0.0)
+    return total
+
+
 def auto_deploy_wants_action(db: Session, settings: Settings, portfolio: dict, symbols: list[str], venue: str) -> bool:
     """Tanie (bez Claude) sprawdzenie: czy jest leżąca gotówka I wolny slot —
     wtedy warto wymusić cykl (Claude jako weto + świeże dane), żeby auto-deploy
     rozmieścił gotówkę. Rotacja przy pełnym portfelu jedzie na innych triggerach."""
     if not settings.auto_deploy_enabled:
         return False
+    # Dzienny budżet prowizji (mech#12, anty-churn kosztowy na małym koncie): gdy
+    # prowizje zapłacone dziś przekroczą % konta, NIE otwieramy nowych pozycji
+    # (wyjścia/stopy biegną niezależnie). 0 = wyłączone.
+    fee_budget_pct = getattr(settings, "crypto_daily_fee_budget_pct", 0.0) or 0.0
+    if venue == "crypto" and fee_budget_pct > 0:
+        acct = portfolio.get("total_value_usdt", 0.0)
+        if acct > 0 and _crypto_fees_today(db) >= acct * fee_budget_pct / 100.0:
+            return False
     has_cash = venue_allocation_room(db, settings, portfolio, venue) >= settings.auto_deploy_min_cash_usd
     has_slot = (
         settings.max_concurrent_positions <= 0
@@ -3352,12 +3377,14 @@ def _execute_trade(
     else:
         raise ValueError(f"Cannot execute action {action}")
 
+    _fee_pct = getattr(settings, "crypto_fee_pct", 0.0) if venue == "crypto" else 0.0
     trade = Trade(
         symbol=result.symbol,
         side=result.side,
         quantity=result.quantity,
         price=result.price,
         usdt_value=result.usdt_value,
+        fee_usd=(result.usdt_value or 0.0) * (_fee_pct / 100.0),
         order_id=result.order_id,
         mode=TradeMode.LIVE,
         is_manual=is_manual,
@@ -3423,12 +3450,14 @@ def execute_manual_trade(
     db.commit()
     db.refresh(decision)
 
+    _fee_pct_m = getattr(settings, "crypto_fee_pct", 0.0) if venue == "crypto" else 0.0
     trade = Trade(
         symbol=result.symbol,
         side=result.side,
         quantity=result.quantity,
         price=result.price,
         usdt_value=result.usdt_value,
+        fee_usd=(result.usdt_value or 0.0) * (_fee_pct_m / 100.0),
         order_id=result.order_id,
         mode=TradeMode.LIVE,
         is_manual=True,

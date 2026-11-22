@@ -48,7 +48,8 @@ export function StatusBar({ status, lastCycleIso, onChanged }: {
     finally { setBusy(false); }
   }
   const dayUp = (status.day_pnl_pct ?? 0) >= 0;
-  const botUp = status.trading_pnl.total_usd >= 0;
+  const botNet = status.trading_pnl.total_usd - (status.crypto_fees?.total ?? 0);
+  const botUp = botNet >= 0;
   return (
     <div className="cr-top">
       <div className="cr-sys">
@@ -67,7 +68,7 @@ export function StatusBar({ status, lastCycleIso, onChanged }: {
       <div className="cr-nums">
         <div className="cr-num"><span className="k">Konto</span><span className="v big">{acc ? money0(acc.total_value) : "…"}</span></div>
         <div className="cr-num"><span className="k">Dziś</span><span className={`v ${dayUp ? "up" : "down"}`}>{status.day_pnl_pct == null ? "—" : pct(status.day_pnl_pct)}</span></div>
-        <div className="cr-num"><span className="k">Zysk bota</span><span className={`v ${botUp ? "up" : "down"}`}>{botUp ? "+" : "−"}{money0(Math.abs(status.trading_pnl.total_usd))}</span></div>
+        <div className="cr-num"><span className="k">Zysk bota</span><span className={`v ${botUp ? "up" : "down"}`} title="po prowizji">{botUp ? "+" : "−"}{money0(Math.abs(botNet))}</span></div>
       </div>
     </div>
   );
@@ -494,6 +495,7 @@ export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }:
           <div className="cr-mini"><span className="k">Gotówka</span><span className="v">{acc ? money0(acc.cash) : "…"}</span><span className="s">czeka na wejścia</span></div>
           <div className="cr-mini"><span className="k">Już wzięte</span><span className={`v ${status.trading_pnl.realized_usd >= 0 ? "up" : "down"}`}>{status.trading_pnl.realized_usd >= 0 ? "+" : "−"}{money0(Math.abs(status.trading_pnl.realized_usd))}</span><span className="s">zaksięgowane</span></div>
           <div className="cr-mini"><span className="k">Na otwartych</span><span className={`v ${status.trading_pnl.unrealized_usd >= 0 ? "up" : "down"}`}>{status.trading_pnl.unrealized_usd >= 0 ? "+" : "−"}{money0(Math.abs(status.trading_pnl.unrealized_usd))}</span><span className="s">wycena</span></div>
+          <div className="cr-mini"><span className="k">Prowizje</span><span className="v">{money(status.crypto_fees?.total ?? 0)}</span><span className="s">dziś {money(status.crypto_fees?.today ?? 0)}</span></div>
         </div>
       </div>
 
