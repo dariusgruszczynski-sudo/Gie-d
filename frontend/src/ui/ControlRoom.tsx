@@ -48,19 +48,16 @@ export function StatusBar({ status, lastCycleIso, onChanged }: {
     finally { setBusy(false); }
   }
   const dayUp = (status.day_pnl_pct ?? 0) >= 0;
-  const weekUp = (status.week_pnl_pct ?? 0) >= 0;
   const botUp = status.trading_pnl.total_usd >= 0;
   return (
     <div className="cr-top">
       <div className="cr-sys">
         <span className="cr-brand"><span className="cr-brand-dot" />GIEL<b>DAREK</b></span>
         <span className={`cr-state ${stateCls}`}><span className="dot" />{stateTxt}</span>
-        <span className={`cr-who ${paused || halted ? "you" : ""}`}>steruje <b>{paused || halted ? "TY" : "BOT"}</b></span>
-        {lastCycleIso && <span className="cr-cyc">ostatni skan <b>{ago(lastCycleIso)}</b></span>}
-        <span className="cr-cyc">skan co <b>~{status.poll_interval_minutes}m</b></span>
         {status.crypto_venue_health?.configured === "kraken" && (
           <span className="cr-venue" title="Noga krypto rozlicza w EUR na Kraken (spot)">🐙 Kraken · EUR</span>
         )}
+        {lastCycleIso && <span className="cr-cyc">skan <b>{ago(lastCycleIso)}</b></span>}
         <span className="cr-sys-sp" />
         <span className={`cr-paper ${status.mode === "live" ? "live" : ""}`}>{status.mode === "live" ? "LIVE" : "PAPER"}</span>
         <button className={`cr-pausebtn ${paused || halted ? "resume" : ""}`} disabled={busy} onClick={toggle}>
@@ -70,10 +67,7 @@ export function StatusBar({ status, lastCycleIso, onChanged }: {
       <div className="cr-nums">
         <div className="cr-num"><span className="k">Konto</span><span className="v big">{acc ? money0(acc.total_value) : "…"}</span></div>
         <div className="cr-num"><span className="k">Dziś</span><span className={`v ${dayUp ? "up" : "down"}`}>{status.day_pnl_pct == null ? "—" : pct(status.day_pnl_pct)}</span></div>
-        <div className="cr-num"><span className="k">Tydzień</span><span className={`v ${weekUp ? "up" : "down"}`}>{status.week_pnl_pct == null ? "—" : pct(status.week_pnl_pct)}</span></div>
         <div className="cr-num"><span className="k">Zysk bota</span><span className={`v ${botUp ? "up" : "down"}`}>{botUp ? "+" : "−"}{money0(Math.abs(status.trading_pnl.total_usd))}</span></div>
-        <div className="cr-num"><span className="k">Ekspozycja</span><span className="v">{invPct}%</span></div>
-        <div className="cr-num"><span className="k">Gotówka</span><span className="v">{acc ? money0(acc.cash) : "…"}</span></div>
       </div>
     </div>
   );
@@ -392,6 +386,34 @@ function PaperLiveStrip() {
   );
 }
 
+// „Jak gramy na Kraken" — zwięzła karta strategii (Opcja D): spot EUR, przewaga =
+// informacja, short tylko jako hedge, droga paper→live. Rozwijana, żeby nie zaśmiecać.
+function StrategyCard() {
+  const [open, setOpen] = useState(false);
+  const rows: Array<[string, string]> = [
+    ["Rynek", "Kraken spot, rozliczenie w EUR — realne monety, bez dźwigni i futures."],
+    ["W co wchodzimy", "Płynne pary EUR ze skanera (BTC, ETH, SOL, LINK…), pozycje long (kupno)."],
+    ["Przewaga", "INFORMACJA — bot czyta katalizatory 24/7 (hacki, odblokowania). Nie zgaduje ceny."],
+    ["Obrona", "Short tylko jako hedge (1×, nie dźwignia), twarde stopy, auto-halt przy stracie."],
+    ["Tryb", "Paper (dry-run) → €120 na żywo dopiero po dowodzie skuteczności."],
+  ];
+  return (
+    <div className="cr-strat">
+      <button className="cr-strat-top" onClick={() => setOpen((o) => !o)}>
+        <span className="t">🎯 Jak gramy na Kraken <small>spot · EUR · przewaga = informacja</small></span>
+        <i className="chev">{open ? "▲" : "▼"}</i>
+      </button>
+      {open && (
+        <div className="cr-strat-body">
+          {rows.map(([k, v]) => (
+            <div key={k} className="row"><b>{k}</b><span>{v}</span></div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }: {
   status: StatusResponse; portfolio: PortfolioResponse | null; decisions: Decision[];
   onGoFlow: () => void; onGoVerdict: () => void;
@@ -437,13 +459,12 @@ export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }:
       </div>
 
       <PaperLiveStrip />
+      <StrategyCard />
 
       <div className="cr-doing">
         <span className="ico">{doingIco}</span>
         <div className="txt">{doingTxt}<span className="when">{latest ? ago(latest.timestamp) : "na żywo"} · bot {pausedOf(status) ? "wstrzymany" : "pilnuje"}</span></div>
       </div>
-
-      <EntryGateBanner />
 
       <CatalystsPanel />
 
@@ -664,16 +685,16 @@ export function Verdict({ status, portfolio }: { status: StatusResponse; portfol
           <div className="cr-metric">
             <span className="k">Największe obsunięcie (live)</span>
             <span className={`v ${botMaxDd == null ? "" : botMaxDd <= 30 ? "up" : "down"}`}>{botMaxDd == null ? "—" : `−${botMaxDd.toFixed(1)}%`}</span>
-            <span className="s">{botMaxDd == null ? "za mało historii konta" : "od szczytu konta w oknie"}</span>
+            <span className="s">{botMaxDd == null ? "za mało historii konta" : "od szczytu konta na Kraken"}</span>
           </div>
           <div className="cr-metric">
-            <span className="k">Backtest 10 lat vs BTC</span>
-            <span className="v up">broni lepiej</span>
-            <span className="s">mniejszy drawdown, wyższy Calmar — patrz dziennik</span>
+            <span className="k">Bezpieczniki</span>
+            <span className="v">−{status.daily_loss_limit_pct}% / −{status.max_drawdown_halt_pct}%</span>
+            <span className="s">auto-halt: dzień / obsunięcie od szczytu</span>
           </div>
         </div>
         <p className="cr-foot-note" style={{ padding: "8px 2px 0" }}>
-          Uczciwie: na papierze ten system NIE bije BTC zwrotem, ale w 10-letnim backteście obsuwał się ~2× płycej niż samo trzymanie BTC i miał lepszy stosunek zysk/ból (Calmar). Oceniaj go jako warstwę OBRONNĄ, nie maszynkę do wyższego zwrotu.
+          Filozofia systemu to przede wszystkim OBRONA kapitału (twarde stopy, auto-halt), nie maszynka do wyższego zwrotu niż BTC. Na Kraken dopiero zbieramy własny dowód — póki co 0 zamknięć, więc oceniamy proces i dyscyplinę, nie wynik.
         </p>
       </div>
 
@@ -1012,8 +1033,6 @@ export function Brain({ status, decisions }: { status: StatusResponse; decisions
       <LearningPanel />
 
       <ShadowPanel status={status} />
-
-      <LlmShadowPanel />
 
       <div className="cr-panel">
         <div className="cr-ph"><h3>Puls rynku — to samo, co widzi bot</h3><span className={`cr-chip ${regimeChip.cls}`}>reżim: {regimeChip.t}</span></div>
