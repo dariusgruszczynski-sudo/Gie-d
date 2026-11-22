@@ -343,6 +343,9 @@ class SystemState(Base):
     # Znacznik JEDNORAZOWEGO czystego startu pod Kraken (migracja Alpaca->Kraken).
     # Pusty => migracja jeszcze nie zrobiona; ISO data => zrobiona (nie powtarza się).
     kraken_slate_reset_at: Mapped[str] = mapped_column(String(32), default="")
+    # PEŁNE PRZEPIĘCIE NA KRAKEN: znacznik jednorazowego wycięcia danych ery Alpaca
+    # (snapshoty/decyzje/transakcje akcji) + re-bazy punktów odniesienia. Wersjonowany.
+    kraken_cutover_at: Mapped[str] = mapped_column(String(48), default="")
     # Tryb powiadomień push per-transakcja: all (każda), big (tylko duże ruchy),
     # daily (tylko dzienne podsumowanie), off (żadne per-trade). Dzienny raport
     # leci niezależnie. Ustawiany z Centrum sterowania.

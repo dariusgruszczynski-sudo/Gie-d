@@ -32,6 +32,10 @@ _scheduler: BackgroundScheduler | None = None
 
 def _job() -> None:
     settings = get_settings()
+    # PEŁNE PRZEPIĘCIE NA KRAKEN: noga akcji wyłączona -> nie odpalamy cyklu, nie
+    # bijemy po API Alpaca, nie piszemy snapshotu akcji (źródło widma $840k).
+    if not getattr(settings, "equities_enabled", True):
+        return
     db = SessionLocal()
     try:
         broker = AlpacaClient(settings)
@@ -212,20 +216,21 @@ def _regime_job() -> None:
     settings = get_settings()
     db = SessionLocal()
     try:
-        # Grzej cache sesji rynkowej w TLE, żeby /api/status nigdy nie musiało
-        # dzwonić do Alpaca synchronicznie (patrz _serialize_session_info).
-        try:
-            market_hours.get_session_info(AlpacaClient(settings), force_refresh=True)
-        except Exception:
-            logger.warning("Session-info warmup failed", exc_info=True)
         market_ctx = MarketContextClient()
-        try:
-            compute_and_cache_regime(
-                db, effective_settings(settings, "alpaca"), AlpacaClient(settings), market_ctx,
-                venue="alpaca", whitelist=[settings.benchmark_symbol],
-            )
-        except Exception:
-            logger.warning("Regime refresh (alpaca) failed", exc_info=True)
+        # PEŁNE PRZEPIĘCIE NA KRAKEN: noga akcji wyłączona -> nie grzej sesji Alpaca
+        # ani nie licz reżimu akcji (krypto 24/7 nie ma sesji). Reżim krypto niżej.
+        if getattr(settings, "equities_enabled", True):
+            try:
+                market_hours.get_session_info(AlpacaClient(settings), force_refresh=True)
+            except Exception:
+                logger.warning("Session-info warmup failed", exc_info=True)
+            try:
+                compute_and_cache_regime(
+                    db, effective_settings(settings, "alpaca"), AlpacaClient(settings), market_ctx,
+                    venue="alpaca", whitelist=[settings.benchmark_symbol],
+                )
+            except Exception:
+                logger.warning("Regime refresh (alpaca) failed", exc_info=True)
         if settings.extended_enabled:
             try:
                 compute_and_cache_regime(
@@ -448,18 +453,24 @@ def prime_portfolio_snapshots() -> None:
         # snapshot alpaca już obejmuje te (teraz sesyjne) pozycje, a silnik
         # sesyjny zajmie się nimi po otwarciu rynku. To jedno konto Alpaca, więc
         # nic się nie przelewa; to tylko zmiana właściciela pozycji.
-        if not settings.extended_enabled:
+        # PEŁNE PRZEPIĘCIE NA KRAKEN: noga akcji wyłączona -> NIE pisz startowego
+        # snapshotu akcji. To był kanał nawrotu widma: clean-slate kasował snapshoty,
+        # a priming od razu zapisywał świeży snapshot Alpaca ($840k) -> szczyt znów
+        # zatruty. Krypto ma własny priming (niżej / pierwszy cykl krypto).
+        equities_on = getattr(settings, "equities_enabled", True)
+        if equities_on and not settings.extended_enabled:
             try:
                 migrate_extended_into_session(db)
             except Exception:
                 logger.warning("Migracja POZA SESJĄ -> sesja nie powiodła się (spróbuję przy następnym starcie)", exc_info=True)
-        try:
-            compute_portfolio(
-                db, settings, AlpacaClient(settings),
-                venue="alpaca", whitelist=settings.whitelist_symbols,
-            )
-        except Exception:
-            logger.warning("Startup snapshot (equities) failed, will populate on first poll", exc_info=True)
+        if equities_on:
+            try:
+                compute_portfolio(
+                    db, settings, AlpacaClient(settings),
+                    venue="alpaca", whitelist=settings.whitelist_symbols,
+                )
+            except Exception:
+                logger.warning("Startup snapshot (equities) failed, will populate on first poll", exc_info=True)
         if settings.extended_enabled:
             try:
                 compute_portfolio(

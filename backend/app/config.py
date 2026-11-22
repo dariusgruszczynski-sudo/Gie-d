@@ -86,6 +86,12 @@ class Settings(BaseSettings):
     # się w budżecie). Domyślnie OFF -- włącza się dopiero gdy egzekucja AH
     # (LIMIT/całe akcje) jest zbudowana i skonfigurowana.
     extended_enabled: bool = False
+    # PEŁNE PRZEPIĘCIE NA KRAKEN (2026-11-22, decyzja właściciela „nie wracam do Alpaki"):
+    # noga akcji (Alpaca, dzień + poza sesją) jest WYŁĄCZONA. Scheduler nie odpala jej
+    # cykli, nie bije po API Alpaca, nie pisze snapshotów akcji — dzięki temu papierowe
+    # konto Alpaca ($840k) nie zatruwa już ryzyka konta Kraken. Rewert: =True (wróci
+    # pełna noga akcji). Krypto na Krakenie jedzie niezależnie (crypto_enabled).
+    equities_enabled: bool = False
     # Tania, płynna whitelista ETF pod handel po godzinach (całe sztuki < ~$60).
     # Zarządzana automatycznie przez piątkowy auto-przegląd (dodaj/wyrzuć/sprzedaj);
     # to jest tylko seed startowy.

@@ -71,6 +71,64 @@ def reset_tracking(db: Session, *, wipe_lessons: bool = False) -> dict:
     }
 
 
+# Wersja pełnego przepięcia na Kraken. Bump = przepuść wycięcie RAZ jeszcze.
+_CUTOVER_VERSION = "2026-11-22-kraken-only"
+
+
+def kraken_full_cutover(db: Session) -> dict | None:
+    """PEŁNE PRZEPIĘCIE NA KRAKEN (decyzja właściciela „nie wracam do Alpaki").
+    Wycina CAŁĄ historię ery Alpaca/extended (snapshoty, decyzje, transakcje tych
+    nóg) i re-bazuje punkty odniesienia ryzyka, ale — w odróżnieniu od reset_tracking —
+    ZOSTAWIA dane nogi KRYPTO (otwarta pozycja NIGHT/EUR, jej koszt i decyzje) oraz
+    LEKCJE. Zdejmuje lepki halt „spadek od szczytu" oparty na widmowym szczycie Alpaca.
+    Idempotentny (znacznik wersji). Zwraca podsumowanie albo None, gdy pominięto.
+
+    Dlaczego osobno od kraken_clean_slate: clean-slate kasuje WSZYSTKO (w tym otwartą
+    pozycję krypto), więc z żywą pozycją jest niebezpieczny. To wycięcie jest celowane
+    w nogi akcji — nic z żywego konta Kraken nie ginie."""
+    state = db.get(SystemState, 1)
+    if state is None:
+        return None
+    if (getattr(state, "kraken_cutover_at", "") or "").strip() == _CUTOVER_VERSION:
+        return None  # już wycięte na tej wersji
+    from app.config import get_settings
+    if getattr(get_settings(), "crypto_venue", "alpaca") != "kraken":
+        return None  # tylko dla trybu Kraken
+
+    dead_venues = ("alpaca", "extended")
+    # Transakcje PRZED decyzjami (FK: trades -> decisions). Tylko nogi akcji.
+    n_tr = db.query(Trade).filter(Trade.venue.in_(dead_venues)).delete(synchronize_session=False)
+    n_dec = db.query(Decision).filter(Decision.venue.in_(dead_venues)).delete(synchronize_session=False)
+    n_snap = db.query(PortfolioSnapshot).filter(PortfolioSnapshot.venue.in_(dead_venues)).delete(synchronize_session=False)
+    # Re-baza ryzyka do realu (0 => następny cykl krypto ustawi szczyt = konto Kraken).
+    state.peak_account_value = 0.0
+    state.pending_peak_value = 0.0
+    state.pending_peak_confirmations = 0
+    state.day_start_value = 0.0
+    state.day_start_date = ""
+    state.week_start_value = 0.0
+    state.week_start_date = ""
+    state.benchmark_start_date = ""
+    state.benchmark_start_price = 0.0
+    state.benchmark_start_value = 0.0
+    # Zdejmij lepki fałszywy halt spadku-od-szczytu (widmo Alpaca $840k).
+    if state.is_halted and (state.halted_reason or "").startswith("Spadek od szczytu"):
+        state.is_halted = False
+        state.halted_reason = None
+    # Noga akcji wyłączona i zapauzowana; krypto zostaje aktywne.
+    state.is_paused = True
+    state.extended_paused = True
+    state.crypto_paused = False
+    state.kraken_cutover_at = _CUTOVER_VERSION
+    db.commit()
+    logger.warning(
+        "KRAKEN PEŁNE PRZEPIĘCIE: wycięto erę Alpaca/extended (trades=%s decisions=%s "
+        "snapshots=%s), re-baza ryzyka, zdjęto widmowy halt. Krypto + lekcje nietknięte.",
+        n_tr, n_dec, n_snap,
+    )
+    return {"trades": n_tr, "decisions": n_dec, "snapshots": n_snap, "kraken_cutover_at": _CUTOVER_VERSION}
+
+
 def kraken_clean_slate(db: Session) -> dict | None:
     """JEDNORAZOWY czysty start przy migracji Alpaca->Kraken. Odpala się RAZ (gdy
     crypto_venue=='kraken' i znacznik pusty), na starcie aplikacji. Czyści historię

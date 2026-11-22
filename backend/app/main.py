@@ -47,11 +47,14 @@ async def lifespan(app: FastAPI):
     # Idempotentny (znacznik kraken_slate_reset_at), więc bezpieczny na każdy restart.
     try:
         from app.db import SessionLocal
-        from app.services.history_reset import kraken_clean_slate
+        from app.services.history_reset import kraken_clean_slate, kraken_full_cutover
 
         _slate_db = SessionLocal()
         try:
             kraken_clean_slate(_slate_db)
+            # PEŁNE PRZEPIĘCIE NA KRAKEN: wytnij erę Alpaca/extended (snapshoty/decyzje/
+            # transakcje), re-baza ryzyka, zdejmij widmowy halt. Krypto + lekcje zostają.
+            kraken_full_cutover(_slate_db)
         finally:
             _slate_db.close()
     except Exception:  # pragma: no cover - migracja nie może blokować startu
