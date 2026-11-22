@@ -354,40 +354,40 @@ function HonestyHeader({ status }: { status: StatusResponse }) {
   );
 }
 
-function QuestCard() {
+// Slim pasek postępu paper → żywy handel (zastępuje ciężki „Quest" z pierścieniem).
+// Jedna linia: ile celów gotowych + cienki pasek + kropki stanu. Szczegół w tooltipie.
+function PaperLiveStrip() {
   const [d, setD] = useState<import("../api/client").GoLiveResponse | null>(null);
+  const [open, setOpen] = useState(false);
   useEffect(() => {
     let alive = true;
     api.goLive().then((r) => alive && setD(r)).catch(() => { /* best-effort */ });
     return () => { alive = false; };
   }, []);
   if (!d) return null;
-  const C = 238.76, off = C * (1 - d.met / Math.max(1, d.total));
+  const pct = Math.round((d.met / Math.max(1, d.total)) * 100);
   return (
-    <div className="cr-panel">
-      <div className="cr-ph"><h3>Quest → wejście na żywo</h3>{d.go_live && <span className="cr-chip on">GO-LIVE ✓</span>}</div>
-      <div className="cr-quest-head">
-        <div className="cr-ring">
-          <svg width="88" height="88" viewBox="0 0 88 88">
-            <defs><linearGradient id="cuq" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#f6bd82" /><stop offset="1" stopColor="#a85f2c" /></linearGradient></defs>
-            <circle cx="44" cy="44" r="38" fill="none" stroke="rgba(224,151,90,.14)" strokeWidth="8" />
-            <circle cx="44" cy="44" r="38" fill="none" stroke="url(#cuq)" strokeWidth="8" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={off} />
-          </svg>
-          <div className="ctr"><div><div className="n">{d.met}/{d.total}</div><div className="d">celów</div></div></div>
+    <div className={`cr-plstrip ${d.go_live ? "ready" : ""}`}>
+      <button className="cr-plstrip-top" onClick={() => setOpen((o) => !o)}>
+        <span className="lbl">🐙 Droga do żywego handlu <small>paper → €120 na żywo</small></span>
+        {d.go_live
+          ? <span className="cr-chip on">GOTOWE ✓</span>
+          : <span className="n">{d.met}/{d.total} celów <i className="chev">{open ? "▲" : "▼"}</i></span>}
+      </button>
+      <div className="cr-plstrip-bar"><i style={{ width: `${Math.max(3, pct)}%` }} /></div>
+      {open && (
+        <div className="cr-plstrip-obj">
+          {d.criteria.map((c) => {
+            const cls = c.met ? "met" : c.pending ? "lock" : "now";
+            const ic = c.met ? "✓" : c.pending ? "🔒" : "◆";
+            return (
+              <div key={c.key} className={`cr-o ${cls}`}>
+                <span className="ic">{ic}</span><span className="lbl">{c.label}</span><span className="val">{c.value}</span>
+              </div>
+            );
+          })}
         </div>
-        <div className="t"><h3>Quest go-live</h3><p>Odblokuj realny kapitał, gdy wszystkie {d.total} celów zaświecą. Dziś zbieramy dowody.</p></div>
-      </div>
-      <div className="cr-obj">
-        {d.criteria.map((c) => {
-          const cls = c.met ? "met" : c.pending ? "lock" : "now";
-          const ic = c.met ? "✓" : c.pending ? "🔒" : "◆";
-          return (
-            <div key={c.key} className={`cr-o ${cls}`}>
-              <span className="ic">{ic}</span><span className="lbl">{c.label}</span><span className="val">{c.value}</span>
-            </div>
-          );
-        })}
-      </div>
+      )}
     </div>
   );
 }
@@ -422,15 +422,12 @@ export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }:
   return (
     <div className="cr-screen">
       <HonestyHeader status={status} />
-      <QuestCard />
       {status.is_halted && status.halted_reason && (
         <div className="cr-halt-banner">⛔ <b>Bezpiecznik zatrzymał bota.</b> {status.halted_reason} — otwórz STER i naciśnij „Odblokuj", żeby wznowić i wyzerować punkty odniesienia.</div>
       )}
 
-      <ReconciliationBanner status={status} />
-
       <div className="cr-hero">
-        <span className="lbl">Wartość konta</span>
+        <span className="lbl">Wartość konta <em>· Kraken spot · EUR</em></span>
         <div className={`val ${totalUp ? "up" : "down"}`}>{acc ? money0(total) : "…"}</div>
         <div className="deltas">
           <span className="delta">dziś <b className={(status.day_pnl_pct ?? 0) >= 0 ? "up" : "down"}>{status.day_pnl_pct == null ? "—" : pct(status.day_pnl_pct)}</b> <small>(wycena)</small></span>
@@ -438,6 +435,8 @@ export function Cockpit({ status, portfolio, decisions, onGoFlow, onGoVerdict }:
           <span className="delta">zysk bota <b className={status.trading_pnl.total_usd >= 0 ? "up" : "down"}>{status.trading_pnl.total_usd >= 0 ? "+" : "−"}{money(Math.abs(status.trading_pnl.total_usd))}</b></span>
         </div>
       </div>
+
+      <PaperLiveStrip />
 
       <div className="cr-doing">
         <span className="ico">{doingIco}</span>
@@ -654,8 +653,6 @@ export function Verdict({ status, portfolio }: { status: StatusResponse; portfol
         </div>
       )}
 
-      <RealizedSplitNote />
-
       <div className="cr-panel flush">
         <div style={{ padding: "12px 14px" }} className="cr-ph"><h3>Equity vs trzymanie / DCA BTC</h3><span className="note">30 dni · wszystko = 100 w starcie</span></div>
         <div style={{ padding: "0 10px 10px" }}><EquityVsBtcChart /></div>
@@ -801,7 +798,7 @@ export function Coins() {
                   return (
                     <div key={c.symbol} className="cr-coin">
                       <div className="cr-coin-main">
-                        <span className="cr-coin-sym">{c.symbol.replace("/USD", "")}</span>
+                        <span className="cr-coin-sym">{c.symbol.replace(/\/(USD|EUR)$/, "")}</span>
                         <span className={`cr-coin-chip ${chip.cls}`}>{chip.ico} {chip.label}</span>
                         {c.in_universe && <span className="cr-coin-chip">w uniwersum</span>}
                       </div>

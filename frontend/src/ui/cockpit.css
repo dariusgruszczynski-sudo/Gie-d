@@ -7,47 +7,50 @@
    ============================================================================= */
 
 .cr {
-  /* MOTYW „KUTA MIEDŹ" (ciemny, premium — wybór właściciela 2026-11-19).
-     Espresso-czerń, szklane karty, miedziano-złoty akcent, mięta/róż na semantykę. */
-  --cr-bg: #0b0907;
-  --cr-bg-2: #0f0c09;
-  --cr-panel: #17120c;
-  --cr-panel-2: #1f1810;
-  --cr-line: rgba(224, 151, 90, 0.15);
-  --cr-line-2: rgba(224, 151, 90, 0.26);
-  --cr-txt: #f0e9df;
-  --cr-dim: #a99c8c;
-  --cr-dim-2: #6f6456;
-  --cr-up: #64e0a3;
-  --cr-down: #ff7d6c;
-  --cr-warn: #f2b454;
-  --cr-accent: #e0975a;
-  --cr-accent-bright: #f6bd82;
+  /* MOTYW „KRAKEN COCKPIT" (ciemny grafit-granat + fiolet Kraken — przebudowa
+     2026-11-22). Jedno tło-atrament, szklane karty z fioletowym akcentem, mięta/
+     koral na zysk/stratę. Pro, skupione, dużo powietrza. */
+  --cr-bg: #080a11;
+  --cr-bg-2: #0c0f18;
+  --cr-panel: #12141f;
+  --cr-panel-2: #191c2b;
+  --cr-line: rgba(139, 124, 255, 0.13);
+  --cr-line-2: rgba(139, 124, 255, 0.24);
+  --cr-txt: #eef0f8;
+  --cr-dim: #99a0bd;
+  --cr-dim-2: #5f6584;
+  --cr-up: #30d6a0;
+  --cr-down: #ff6179;
+  --cr-warn: #f6b64d;
+  --cr-accent: #8b7cff;
+  --cr-accent-bright: #ab9dff;
   --cr-mono: "JetBrains Mono", var(--font-mono, ui-monospace, "SF Mono", Menlo, monospace);
   --cr-top-h: 108px;
   color-scheme: dark;
 
   /* Nadpisanie tokenów `.gd` (console.css), żeby reużyte widżety (karty pozycji/
-     decyzji, wykresy) grały z ciemną miedzią, a nie świeciły bielą. */
-  --txt: #f0e9df;
-  --dim: #a99c8c;
-  --dim-2: #6f6456;
-  --mint: #64e0a3; --mint-soft: #8fe9bf;
-  --rose: #ff7d6c; --rose-soft: #ff9f93;
-  --gold: #f2b454; --amber: #f2b454;
-  --iris: #e0975a; --iris-soft: #f6bd82;
-  --ink: #0b0907; --ink-2: #17120c;
-  --panel: #17120c; --panel-2: #1f1810;
-  --line: rgba(224, 151, 90, 0.15); --line-strong: rgba(224, 151, 90, 0.26);
-  --glass: rgba(32, 25, 19, 0.72); --glass-strong: rgba(42, 33, 24, 0.82);
-  --glass-sheen: linear-gradient(150deg, rgba(246,189,130,0.08), rgba(246,189,130,0) 60%);
-  --glass-edge: rgba(224, 151, 90, 0.16);
-  --glass-hi: inset 0 1px 0 rgba(246, 189, 130, 0.08);
-  --glass-shadow: 0 18px 40px -24px rgba(0, 0, 0, 0.8);
-  --glass-blur: saturate(118%) blur(14px);
+     decyzji, wykresy) grały z ciemnym grafitem+fioletem, a nie świeciły bielą. */
+  --txt: #eef0f8;
+  --dim: #99a0bd;
+  --dim-2: #5f6584;
+  --mint: #30d6a0; --mint-soft: #74e6c0;
+  --rose: #ff6179; --rose-soft: #ff93a3;
+  --gold: #f6b64d; --amber: #f6b64d;
+  --iris: #8b7cff; --iris-soft: #ab9dff;
+  --ink: #080a11; --ink-2: #12141f;
+  --panel: #12141f; --panel-2: #191c2b;
+  --line: rgba(139, 124, 255, 0.13); --line-strong: rgba(139, 124, 255, 0.24);
+  --glass: rgba(20, 23, 38, 0.72); --glass-strong: rgba(28, 32, 50, 0.84);
+  --glass-sheen: linear-gradient(150deg, rgba(139,124,255,0.10), rgba(139,124,255,0) 58%);
+  --glass-edge: rgba(139, 124, 255, 0.18);
+  --glass-hi: inset 0 1px 0 rgba(171, 157, 255, 0.10);
+  --glass-shadow: 0 20px 46px -26px rgba(0, 0, 0, 0.85);
+  --glass-blur: saturate(122%) blur(16px);
 
   min-height: 100vh;
-  background: var(--cr-bg);
+  background:
+    radial-gradient(1100px 620px at 50% -8%, rgba(139, 124, 255, 0.10), transparent 60%),
+    var(--cr-bg);
   color: var(--cr-txt);
 }
 .cr .gd-bg { display: none; }
@@ -207,8 +210,8 @@
 .cr-root::before {
   content: ""; position: fixed; inset: -15% -15% auto; height: 62vh; z-index: 0; pointer-events: none;
   background:
-    radial-gradient(42% 46% at 20% 16%, rgba(224,151,90,0.18), transparent 70%),
-    radial-gradient(38% 40% at 88% 6%, rgba(168,95,44,0.15), transparent 70%);
+    radial-gradient(42% 46% at 18% 14%, rgba(139,124,255,0.18), transparent 70%),
+    radial-gradient(38% 40% at 88% 4%, rgba(90,120,255,0.13), transparent 70%);
   filter: blur(8px);
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -248,16 +251,38 @@
 
 /* ─────────────────────────────── KOKPIT ────────────────────────────────── */
 .cr-hero {
-  background: linear-gradient(160deg, var(--cr-panel-2), var(--cr-panel));
-  border: 1px solid var(--cr-line); border-radius: 12px; padding: 18px 18px 16px; margin-bottom: 12px;
+  position: relative; overflow: hidden;
+  background:
+    radial-gradient(130% 150% at 100% 0%, rgba(139,124,255,0.16), transparent 55%),
+    linear-gradient(160deg, var(--cr-panel-2), var(--cr-panel));
+  border: 1px solid var(--cr-line-2); border-radius: 18px; padding: 20px 20px 18px; margin-bottom: 12px;
+  box-shadow: var(--glass-hi), var(--glass-shadow);
+}
+.cr-hero::after {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cr-accent), transparent); opacity: 0.6;
 }
 .cr-hero .lbl { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--cr-dim); }
+.cr-hero .lbl em { font-style: normal; color: var(--cr-accent-bright); letter-spacing: 0.04em; }
 .cr-hero .val { font-family: var(--cr-mono); font-size: 2.6rem; font-weight: 800; line-height: 1.02; margin: 4px 0 2px; font-variant-numeric: tabular-nums; }
 .cr-hero .val.up { color: var(--cr-up); } .cr-hero .val.down { color: var(--cr-down); }
 .cr-hero .deltas { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
 .cr-hero .delta { font-size: 0.74rem; color: var(--cr-dim); }
 .cr-hero .delta b { font-family: var(--cr-mono); font-variant-numeric: tabular-nums; }
 .cr-hero .delta b.up { color: var(--cr-up); } .cr-hero .delta b.down { color: var(--cr-down); }
+
+/* Slim pasek paper → żywy handel (zastąpił ciężki Quest) */
+.cr-plstrip { background: var(--cr-panel); border: 1px solid var(--cr-line); border-radius: 12px; padding: 11px 14px; margin-bottom: 12px; }
+.cr-plstrip.ready { border-color: color-mix(in srgb, var(--cr-up) 42%, transparent); }
+.cr-plstrip-top { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: none; border: none; cursor: pointer; color: var(--cr-txt); font: inherit; padding: 0; text-align: left; }
+.cr-plstrip-top .lbl { font-size: 0.82rem; font-weight: 600; }
+.cr-plstrip-top .lbl small { color: var(--cr-dim); font-weight: 400; margin-left: 6px; }
+.cr-plstrip-top .n { font-family: var(--cr-mono); font-size: 0.76rem; color: var(--cr-accent-bright); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.cr-plstrip-top .n .chev { font-size: 0.56rem; color: var(--cr-dim); font-style: normal; }
+.cr-plstrip-bar { height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--cr-accent) 15%, transparent); margin-top: 9px; overflow: hidden; }
+.cr-plstrip-bar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--cr-accent), var(--cr-accent-bright)); transition: width 0.4s ease; }
+.cr-plstrip.ready .cr-plstrip-bar i { background: linear-gradient(90deg, var(--cr-up), var(--mint-soft)); }
+.cr-plstrip-obj { margin-top: 11px; display: grid; gap: 4px; }
 
 .cr-doing {
   display: flex; gap: 11px; align-items: flex-start;
