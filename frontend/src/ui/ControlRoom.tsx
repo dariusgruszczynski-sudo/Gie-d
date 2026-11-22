@@ -387,16 +387,16 @@ function PaperLiveStrip() {
   );
 }
 
-// „Jak gramy na Kraken" — zwięzła karta strategii (Opcja D): spot EUR, przewaga =
-// informacja, short tylko jako hedge, droga paper→live. Rozwijana, żeby nie zaśmiecać.
+// „Jak gramy na Kraken" — zwięzła karta strategii: spot EUR, przewaga = informacja,
+// long-only (spot = bez shortów), gra na żywo. Rozwijana, żeby nie zaśmiecać.
 function StrategyCard() {
   const [open, setOpen] = useState(false);
   const rows: Array<[string, string]> = [
     ["Rynek", "Kraken spot, rozliczenie w EUR — realne monety, bez dźwigni i futures."],
     ["W co wchodzimy", "Płynne pary EUR ze skanera (BTC, ETH, SOL, LINK…), pozycje long (kupno)."],
     ["Przewaga", "INFORMACJA — bot czyta katalizatory 24/7 (hacki, odblokowania). Nie zgaduje ceny."],
-    ["Obrona", "Short tylko jako hedge (1×, nie dźwignia), twarde stopy, auto-halt przy stracie."],
-    ["Tryb", "Paper (dry-run) → €120 na żywo dopiero po dowodzie skuteczności."],
+    ["Obrona", "Spot = bez shortów. Twarde stopy i cele, filtr spreadu, blok wejścia przy świeżym haku, auto-halt przy stracie."],
+    ["Tryb", "Na żywo — realne €120 na Kraken spot. Mechanika gra sama; LLM (Sonnet) na razie off."],
   ];
   return (
     <div className="cr-strat">

@@ -41,6 +41,22 @@ def test_leverage_killswitch_trips_on_negative_cash(db_session, settings):
     assert risk_manager.can_trade_automated(db_session, "crypto").approved is False
 
 
+def test_leverage_killswitch_off_for_crypto_spot(db_session, settings):
+    """mech#3: na Krakenie SPOT (crypto_enabled=True) kill-switch dźwigni jest
+    WYŁĄCZONY — spot nie ma dźwigni, gotówka nie zejdzie poniżej zera, a próg
+    −$1000 przy koncie €120 był martwy i mylił. Realną ochroną zostaje underwater
+    (equity ≤ 0), który dalej działa dla krypto."""
+    s = settings.model_copy(update={"crypto_enabled": True, "leverage_halt_cash_usd": 1000.0})
+    risk_manager.update_portfolio_value(db_session, s, 1000.0, cash_usdt=500.0)
+    # Gotówka „ujemna" (nierealna na spocie) NIE wyzwala już kill-switcha na krypto.
+    state = risk_manager.update_portfolio_value(db_session, s, 900.0, cash_usdt=-117_000.0)
+    assert state.is_halted is False
+    # Ale equity ≤ 0 (underwater) dalej haltuje także krypto.
+    state2 = risk_manager.update_portfolio_value(db_session, s, -5.0, cash_usdt=-10.0)
+    assert state2.is_halted is True
+    assert "pod wodą" in (state2.halted_reason or "")
+
+
 def test_leverage_killswitch_tolerates_small_and_missing_cash(db_session, settings):
     s = settings.model_copy(update={"leverage_halt_cash_usd": 1000.0})
     # Drobny minus (zaokrąglenia) w tolerancji -> brak haltu.

@@ -241,8 +241,13 @@ def update_portfolio_value(db: Session, settings: Settings, total_value_usdt: fl
         # blacklista tickerów — żadna moneta/indeks nie jest piętnowana; po
         # zresetowaniu/zasileniu konta i ręcznym Wznów handel wraca na pełnym
         # uniwersum. Lepki (nie resetuje się nowym dniem — to nie okno kroczące).
+        # mech#3: KILL-SWITCH DŹWIGNI dotyczy TYLKO akcji (margin Alpaca, geneza
+        # blowoutu 14-15.10). Kraken SPOT nie ma dźwigni — gotówka nie zejdzie
+        # poniżej zera, więc na nodze krypto ten bezpiecznik jest martwy i tylko
+        # mylił (próg −$1000 bez sensu przy koncie €120). Realną ochroną konta na
+        # spocie jest niżej „equity ≤ 0" (underwater), który zostaje dla WSZYSTKICH.
         lev_tol = getattr(settings, "leverage_halt_cash_usd", 0.0) or 0.0
-        if cash_usdt is not None and lev_tol > 0 and cash_usdt < -abs(lev_tol):
+        if not settings.crypto_enabled and cash_usdt is not None and lev_tol > 0 and cash_usdt < -abs(lev_tol):
             # KILL-SWITCH DŹWIGNI (#25): ujemna gotówka = handel ponad stan /
             # rozjazd z brokerem (blowout 14-15.10 zaczął się od −$117k gotówki,
             # gdy equity jeszcze było dodatnie). Łapiemy to WCZEŚNIEJ niż underwater.
