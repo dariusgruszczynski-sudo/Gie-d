@@ -58,10 +58,12 @@ class Settings(BaseSettings):
     # dane i (opcjonalnie) handluje przez KrakenClient (spot EUR), a quote_currency
     # nogi krypto jest ustawiane na EUR. Klucz z env serwera (KRAKEN_API_KEY/SECRET).
     crypto_venue: str = "kraken"
-    # Bezpiecznik realnego handlu na Kraken: False (DOMYŚLNIE) = zlecenia tylko DRY-RUN
-    # (validate) — paper-on-Kraken, zero wydanych środków. True dopiero po dowodzie
-    # paper + kluczu z uprawnieniem 'Create Orders'. Zero realnych zleceń bez tej flagi.
-    crypto_kraken_live: bool = False
+    # Bezpiecznik realnego handlu na Kraken: False = zlecenia tylko DRY-RUN (validate),
+    # paper. True = REALNE zlecenia na żywej gotówce. Przełączone na True 2026-11-22 na
+    # wyraźną decyzję właściciela („Dajesz") — klucz ma 'Create Orders', minima zleceń
+    # Krakena zweryfikowane vs pozycja ~€12 (10% z €120), kontrola ryzyka (stopy/limity/
+    # auto-halt) aktywna, pierwsza realna transakcja ~€12. Natychmiastowy stop: STER→Pauza.
+    crypto_kraken_live: bool = True
     # Twardy limit wartości POJEDYNCZEGO zlecenia. Alpaca odrzuca zlecenia krypto
     # powyżej $200k notional (403 code 40310000). Przy większym koncie % sizingu
     # potrafił wygenerować zlecenie > $200k -> broker odrzucał je W CAŁOŚCI i kapitał
