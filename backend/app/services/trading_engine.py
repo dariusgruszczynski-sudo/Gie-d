@@ -2653,7 +2653,7 @@ def _run_auto_deploy(
 # Maksymalny wiek „ostatniej decyzji" na pulpicie dla taniego silnika krypto:
 # gdy bot tylko trzyma i nic nie wyzwala cyklu, i tak co tyle minut zapisujemy
 # lekki HOLD-heartbeat, żeby pulpit nie zamarł na STAREJ (np. zdjętej) decyzji.
-_CRYPTO_HEARTBEAT_MIN = 360
+_CRYPTO_HEARTBEAT_MIN = 30  # mech#9: było 360 (6h) -> pulpit wyglądał na martwy. 30 min = widać, że silnik ocenia i czuwa (bez spamu).
 
 
 def _maybe_crypto_heartbeat(db: Session, settings: Settings, portfolio: dict, symbols: list[str], venue: str):
@@ -2675,15 +2675,25 @@ def _maybe_crypto_heartbeat(db: Session, settings: Settings, portfolio: dict, sy
     held = _held_symbols(portfolio, settings, symbols)
     n = len(held)
     names = ", ".join(_base_asset(s, settings.quote_currency) for s in held[:6]) or "—"
+    # mech#9: przy 0 pozycji mów WPROST, że silnik skanuje i czeka — inaczej „trzymam 0"
+    # wyglądało na zacięcie. Pokaż ile par ocenia.
+    if n == 0:
+        reasoning = (
+            f"👁 Skanuję {len(symbols)} par, 0 pozycji otwartych — żaden setup nie przeszedł bramek "
+            "(trend 4h>SMA50 / ADX / konfluencja / wybicie) w tym cyklu. Czekam cierpliwie na czysty sygnał, "
+            "nie wymuszam wejścia. Czuwam 24/7."
+        )
+    else:
+        reasoning = (
+            f"Trzymam {n} {'pozycję' if n == 1 else 'pozycji'} ({names}); brak nowego sygnału w tym cyklu. "
+            "Mechaniczne stopy/cele, trailing i breakeven czuwają 24/7 — to zdrowy stan, nie bezczynność."
+        )
     decision = Decision(
         symbol=None,
         action=TradeAction.HOLD,
         size_pct=0.0,
         confidence=0.0,
-        reasoning=(
-            f"Trzymam {n} {'pozycję' if n == 1 else 'pozycji'} ({names}); brak nowego sygnału w tym cyklu. "
-            "Mechaniczne stopy/cele, trailing i breakeven czuwają 24/7 — to zdrowy stan, nie bezczynność."
-        ),
+        reasoning=reasoning,
         market_data_snapshot="{}",
         news_snapshot="[]",
         market_context_snapshot="{}",

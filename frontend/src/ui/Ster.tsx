@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, DryRunResponse, StatusResponse } from "../api/client";
+import { money0 } from "./kit";
 
 /* STER — szuflada sterowania dostępna z każdego ekranu (zasada KONTROLA).
    Trzyma tylko sterowanie: kto rządzi, pauza/wznów, „przemyśl teraz", awaryjny
@@ -230,7 +231,7 @@ function ReconcileSection({ status, onChanged }: { status: StatusResponse; onCha
   const [res, setRes] = useState<import("../api/client").ResyncReport | null>(null);
   const [err, setErr] = useState<string | null>(null);
   if (!rec || rec.reconciled) return null;
-  const usd = (x: number) => "$" + Math.round(x).toLocaleString("en-US");
+  const usd = (x: number) => money0(x); // UX#4: waluta zależna od venue (€ na Krakenie), nie twardy $
   async function preview() {
     setBusy("prev"); setErr(null);
     try { setRes(await api.reconcileResync(false)); } catch (e) { setErr(String(e)); } finally { setBusy(null); }
