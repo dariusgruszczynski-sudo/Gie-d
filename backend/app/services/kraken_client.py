@@ -50,6 +50,31 @@ KRAKEN_ASSET_TO_TICKER = {
 # Rama czasowa silnika -> interwał Kraken OHLC (minuty).
 _INTERVAL_MIN = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240, "1d": 1440}
 
+# Kraken używa własnych tickerów dla kilku baz (wsname): XBT=BTC, XDG=DOGE.
+# Normalizujemy do zwykłych, których używa uniwersum/silnik.
+_BASE_ALIAS = {"XBT": "BTC", "XDG": "DOGE", "XXBT": "BTC", "XXDG": "DOGE"}
+# Bazy, których NIE handlujemy jako krypto (stablecoiny i fiat sparowane z EUR).
+_STABLE_FIAT = {
+    "USDT", "USDC", "DAI", "PYUSD", "EURT", "USDG", "RLUSD", "TUSD", "USDR",
+    "EURQ", "USDQ", "USDS", "EUR", "USD", "GBP", "AUD", "CHF", "CAD", "JPY", "USDD",
+    "EURC", "EURR", "USDE", "FDUSD", "GUSD", "USDL", "USD0", "LUSD", "SUSD",
+    "CRVUSD", "USDM", "GHO", "FRAX", "USTC",
+}
+
+# DYNAMICZNE uniwersum EUR z Krakena (cały rynek, nie 7 na sztywno). Budowane z
+# publicznego AssetPairs + Ticker (ranking płynności), cache z TTL. Zasilane przez
+# list_crypto_symbols (woła je skaner na starcie cyklu, PRZED get_price/get_klines),
+# a to_kraken_pair z niego czyta. Fallback: zahardkodowane UNIVERSE_TO_KRAKEN.
+_DYN_PAIRS: dict[str, str] = {}      # baza znormalizowana -> altname Kraken (np. 'SOL' -> 'SOLEUR')
+_DYN_ORDER: list[str] = []           # '<BAZA>/EUR' posortowane po płynności (malejąco)
+_DYN_AT: float = 0.0
+_DYN_TTL_SEC: float = 1800.0          # 30 min — pary zmieniają się wolno
+
+
+def _norm_base(base: str) -> str:
+    b = (base or "").upper()
+    return _BASE_ALIAS.get(b, b)
+
 
 def _base_of(symbol: str) -> str:
     """'BTC/USD' / 'BTC/EUR' / 'BTC' -> 'BTC'."""
@@ -64,8 +89,10 @@ def _fmt_num(x: float) -> str:
 
 
 def to_kraken_pair(symbol: str) -> str | None:
-    """Symbol uniwersum -> para Kraken EUR (albo None, gdy nieznana)."""
-    return UNIVERSE_TO_KRAKEN.get(_base_of(symbol))
+    """Symbol uniwersum -> para Kraken EUR (altname), albo None gdy nieznana.
+    Najpierw dynamiczna mapa (cały rynek EUR), potem zahardkodowany fallback (7)."""
+    base = _norm_base(_base_of(symbol))
+    return _DYN_PAIRS.get(base) or UNIVERSE_TO_KRAKEN.get(base)
 
 
 def from_kraken_asset(code: str) -> str:
@@ -262,9 +289,62 @@ class KrakenClient:
         return to_kraken_pair(symbol) is not None
 
     def list_crypto_symbols(self) -> list[str]:
-        """Pary krypto uniwersum w formie bazowej silnika (tu: '<BASE>/EUR').
-        Baza dla skanera; integracja ustawia quote_currency=EUR dla nogi Kraken."""
-        return [f"{b}/EUR" for b in UNIVERSE_TO_KRAKEN]
+        """CAŁY rynek EUR Krakena (setki par), posortowany po płynności (obrót 24h),
+        w formie '<BASE>/EUR'. To jest pula dla skanera — on zawęża ją do max_scan
+        najpłynniejszych, rankuje momentum i wybiera TOP-K. Dynamiczne z publicznego
+        AssetPairs + Ticker (jeden call), cache 30 min. Zasila też to_kraken_pair.
+        Fallback przy awarii: zahardkodowane 7 (UNIVERSE_TO_KRAKEN)."""
+        global _DYN_PAIRS, _DYN_ORDER, _DYN_AT
+        now = time.time()
+        if _DYN_ORDER and (now - _DYN_AT) < _DYN_TTL_SEC:
+            return list(_DYN_ORDER)
+        try:
+            pairs = self._public("/0/public/AssetPairs", {})
+            amap: dict[str, str] = {}  # baza -> altname
+            for pid, info in pairs.items():
+                if info.get("status") != "online":
+                    continue
+                ws = info.get("wsname") or ""
+                if "/" not in ws:
+                    continue
+                base, quote = ws.split("/", 1)
+                if quote != "EUR":
+                    continue
+                nb = _norm_base(base)
+                if nb in _STABLE_FIAT:
+                    continue
+                amap[nb] = info.get("altname") or pid
+            if not amap:
+                raise KrakenError("AssetPairs: zero par EUR")
+            # Ranking płynności: obrót 24h = ostatnia cena * wolumen (jeden call Ticker).
+            order_bases = sorted(amap.keys())  # fallback alfabetyczny
+            try:
+                alt_to_base = {alt: b for b, alt in amap.items()}
+                tick = self._public("/0/public/Ticker", {})
+                turnover: dict[str, float] = {}
+                for tid, tinfo in tick.items():
+                    b = alt_to_base.get(tid)
+                    if b is None:
+                        continue
+                    try:
+                        last = float((tinfo.get("c") or [0])[0])
+                        vol = float((tinfo.get("v") or [0, 0])[1])
+                        turnover[b] = last * vol
+                    except (TypeError, ValueError, IndexError):
+                        continue
+                order_bases = sorted(amap.keys(), key=lambda b: turnover.get(b, 0.0), reverse=True)
+            except Exception:  # noqa: BLE001 — brak Ticker => zostaje ranking alfabetyczny
+                pass
+            _DYN_PAIRS = amap
+            _DYN_ORDER = [f"{b}/EUR" for b in order_bases]
+            _DYN_AT = now
+            return list(_DYN_ORDER)
+        except Exception:  # noqa: BLE001 — awaria => fallback na zahardkodowane 7
+            import logging
+            logging.getLogger(__name__).warning(
+                "Kraken: dynamiczne uniwersum nieudane — fallback na 7", exc_info=True
+            )
+            return [f"{b}/EUR" for b in UNIVERSE_TO_KRAKEN]
 
     def place_order_for_session(
         self, symbol: str, side: str, *, session: str = "regular",
