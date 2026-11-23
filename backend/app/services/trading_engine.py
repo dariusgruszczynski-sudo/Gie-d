@@ -387,6 +387,29 @@ def compute_portfolio(db: Session, settings: Settings, broker, *, venue: str = "
         coin_balances[symbol] = qty
         total_value += qty * price
 
+    # ANTY-WIDMO GOTÓWKI (krypto/Kraken): equity z TradeBalance (gotówka + pozycje +
+    # środki zablokowane w OTWARTYCH ZLECENIACH) to prawda o koncie. Gdy wyraźnie
+    # przebija naszą rekonstrukcję, to odczyt wolnej gotówki ZANIŻYŁ (EUR trzymane w
+    # otwartym zleceniu / chwilowy błąd) — konto pozornie „spada" i leci fałszywy halt
+    # dziennej straty. Dociągamy gotówkę do implikowanej z equity, by pulpit i ryzyko
+    # widziały realne saldo. Gdy equity faktycznie niższe (realna wypłata) — bez zmian.
+    if venue == "crypto" and hasattr(broker, "get_account_summary"):
+        try:
+            _summ = broker.get_account_summary() or {}
+            _eq = float(_summ.get("equity") or next(iter(_summ.values()), 0.0) or 0.0)
+            if _eq > 0 and _eq > total_value * 1.02:
+                _positions_value = total_value - usdt_balance
+                _implied_cash = max(usdt_balance, _eq - _positions_value)
+                logger.warning(
+                    "Equity Krakena €%.2f > rekonstrukcja €%.2f — dociągam gotówkę €%.2f->€%.2f "
+                    "(EUR w zleceniu/Earn albo błąd odczytu; anty-widmo)",
+                    _eq, total_value, usdt_balance, _implied_cash,
+                )
+                usdt_balance = _implied_cash
+                total_value = usdt_balance + _positions_value
+        except Exception:  # noqa: BLE001 — best-effort, nigdy nie wywala cyklu
+            logger.warning("Equity-floor krypto nieudane (kontynuuję)", exc_info=True)
+
     snapshot = PortfolioSnapshot(
         total_value_usdt=total_value,
         usdt_balance=usdt_balance,
@@ -2941,7 +2964,14 @@ def _reconcile_account_total(broker, account_total: float) -> float:
     wtedy equity brokera (fakt). Best-effort: błąd nigdy nie wywala cyklu."""
     try:
         if hasattr(broker, "get_account_summary"):
-            equity = float(broker.get_account_summary().get("equity") or 0.0)
+            summary = broker.get_account_summary() or {}
+            # KRYTYCZNE: Kraken zwraca {quote: equity} (np. {"EUR": 119.8}), NIE
+            # {"equity": ...}. Stare .get("equity") dawało 0 -> bezpiecznik widma był
+            # MARTWY na Krakenie. Bierzemy 'equity' albo JEDYNĄ wartość ze słownika
+            # (TradeBalance 'eb' = pełne equity konta: gotówka + pozycje + środki
+            # zablokowane w otwartych zleceniach). Dzięki temu chwilowy odczyt
+            # gotówki=0 (zlecenie trzyma EUR / błąd odczytu) NIE kraterowuje konta.
+            equity = float(summary.get("equity") or next(iter(summary.values()), 0.0) or 0.0)
             if equity > 0 and account_total < equity * 0.8:
                 logger.warning(
                     "Suma konta z rekonstrukcji (%.2f) << equity brokera (%.2f) — "

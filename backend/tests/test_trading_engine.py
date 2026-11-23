@@ -860,13 +860,16 @@ def test_position_opened_at_none_when_flat(db_session, settings):
 
 class _FakeKrakenExec:
     """Broker krypto z egzekucją + min_order_notional (do testu fix#1/#2)."""
-    def __init__(self, prices, balances, min_notional):
+    def __init__(self, prices, balances, min_notional, equity=None):
         self.prices = prices
         self.balances = balances
         self._min = min_notional
+        self._equity = equity  # TradeBalance eb (anty-widmo gotówki); None -> {}
         self.orders = []
     def get_account_balances(self):
         return dict(self.balances)
+    def get_account_summary(self, quote="EUR"):
+        return {quote: self._equity} if self._equity is not None else {}
     def get_price(self, symbol):
         return self.prices[symbol]
     def get_klines(self, symbol, interval="1h", limit=24):
@@ -887,6 +890,24 @@ class _FakeKrakenExec:
         o = _FakeOrder(str(len(self.orders) + 1), symbol, side.upper(), qty, price, qty * price)
         self.orders.append(o)
         return o
+
+
+def test_compute_portfolio_cash_antighost_from_equity(db_session, settings):
+    """ANTY-WIDMO GOTÓWKI: gdy odczyt wolnej gotówki = 0 (EUR w otwartym zleceniu/
+    Earn/błąd), a equity Krakena (TradeBalance) pokazuje realne €119, dociągamy
+    gotówkę z equity -> konto NIE zapada się fałszywie (koniec widmowego -65% halt)."""
+    s = settings.model_copy(update={"crypto_enabled": True, "crypto_venue": "kraken", "quote_currency": "EUR"})
+    # Gotówka EUR czyta 0, krypto €42 (0.28 @ 150), ale equity Krakena = €119.
+    broker = _FakeKrakenExec(prices={"QNT/EUR": 150.0}, balances={"EUR": 0.0, "QNT": 0.28},
+                             min_notional=2.65, equity=119.0)
+    pf = trading_engine.compute_portfolio(db_session, s, broker, venue="crypto", whitelist=["QNT/EUR"])
+    assert pf["total_value_usdt"] == pytest.approx(119.0)       # equity, nie €42
+    assert pf["usdt_balance"] == pytest.approx(119.0 - 0.28 * 150.0)  # gotówka dociągnięta
+    # Realna wypłata (equity faktycznie niższe) -> BEZ sztucznego dociągania.
+    broker2 = _FakeKrakenExec(prices={"QNT/EUR": 150.0}, balances={"EUR": 0.0, "QNT": 0.28},
+                              min_notional=2.65, equity=42.0)
+    pf2 = trading_engine.compute_portfolio(db_session, s, broker2, venue="crypto", whitelist=["QNT/EUR"])
+    assert pf2["total_value_usdt"] == pytest.approx(42.0)
 
 
 def test_broker_min_notional_helper(db_session, settings):
