@@ -43,6 +43,22 @@ logger = logging.getLogger(__name__)
 # on every poll -- it's economically irrelevant (fractions of a cent).
 MIN_SELL_NOTIONAL_USD = 1.0
 
+
+def _broker_min_notional(broker, symbol: str, price: float) -> float:
+    """Minimalny NOTIONAL zlecenia brokera w walucie kwotowanej (fix#1/#2). Kraken:
+    ordermin×cena; inny broker / brak danych -> MIN_SELL_NOTIONAL_USD. Zawsze co
+    najmniej MIN_SELL_NOTIONAL_USD. Chroni przed słaniem sub-min zleceń, które broker
+    i tak odrzuca po cichu (gubiliśmy przez to realizację częściowego zysku)."""
+    try:
+        if hasattr(broker, "min_order_notional"):
+            m = broker.min_order_notional(symbol, price)
+            if m and m > 0:
+                return max(MIN_SELL_NOTIONAL_USD, float(m))
+    except Exception:  # noqa: BLE001 — bramka ochronna, nigdy nie wywala cyklu
+        pass
+    return MIN_SELL_NOTIONAL_USD
+
+
 # News-blackout alarm throttle (per venue): last time we pushed the "feeds down"
 # alarm, so a long outage doesn't spam the phone every cycle. Process-local is
 # fine -- the scheduler is one process; worst case a restart re-alarms once.
@@ -1551,11 +1567,24 @@ def check_take_profit_stop_loss(
                 new_partials[symbol] = partial_level
             continue
 
-        # A partial slice below the broker minimum is pointless -- skip it this
-        # poll and let it fire once the position (or price) is larger.
-        if kind == "partial" and qty * (sell_pct / 100) * price < MIN_SELL_NOTIONAL_USD:
-            new_peaks[symbol] = peak
-            continue
+        # fix#1: częściowa realizacja poniżej MINIMUM ZLECENIA BROKERA (Kraken ordermin
+        # × cena; na małym koncie 1/3 z €4 = €1.3 < ~€2.65) NIE może po cichu przepadać
+        # co cykl (winner nigdy nie realizowany, „chcę, nie mogę" w kółko). Gdy CAŁA
+        # pozycja mieści się w minimum -> PROMUJ do pełnego wyjścia (lock całego zysku
+        # na tym poziomie). Dopiero gdy i całość < min -> pomiń (naprawdę pył).
+        if kind == "partial":
+            broker_min = _broker_min_notional(broker, symbol, price)
+            slice_notional = qty * (sell_pct / 100) * price
+            if slice_notional < broker_min:
+                if qty * price >= broker_min:
+                    reason = (
+                        f"{reason} — 1/3 (€{slice_notional:.2f}) poniżej min. zlecenia brokera "
+                        f"(~€{broker_min:.2f}); zamykam CAŁOŚĆ, by zablokować zysk (małe konto)."
+                    )
+                    sell_pct, kind = 100.0, "partial_promoted_full"
+                else:
+                    new_peaks[symbol] = peak
+                    continue
 
         # Poza sesją fills WHOLE shares only. A partial slice of a small
         # (1-2 share) position rounds to 0 shares -- place_extended_limit_order
@@ -3481,12 +3510,16 @@ def _execute_trade(
                         symbol, usdt_amount, mult * dv, dv, mult,
                     )
                     usdt_amount = mult * dv
-            # Po przycięciach: zlecenie poniżej minimum brokera = pomiń czysto zamiast
-            # słać ~$0 (ValueError łapany wyżej -> zapisany jako rejection_reason).
-            if usdt_amount < MIN_SELL_NOTIONAL_USD:
+            # fix#2: po przycięciach sprawdź REALNE minimum brokera (Kraken ordermin ×
+            # cena, ~€2.65), nie sztywne €1. Sub-min zlecenie i tak wypadłoby po cichu
+            # na Krakenie (executed=False bez powodu) — tu odrzucamy je CZYSTO z jasnym
+            # powodem (ValueError łapany wyżej -> rejection_reason). Koniec cichych porażek.
+            price_est = (portfolio.get("prices") or {}).get(symbol) or 0.0
+            min_notional = _broker_min_notional(broker, symbol, price_est)
+            if usdt_amount < min_notional:
                 raise ValueError(
-                    f"Rozmiar {symbol} przycięty do ${usdt_amount:.2f} przez limit "
-                    "koncentracji/płynności — poniżej minimum, pomijam"
+                    f"Rozmiar {symbol} = €{usdt_amount:.2f} < min. zlecenia Krakena (~€{min_notional:.2f}) "
+                    "po limitach koncentracji/płynności — pomijam (za mały kawałek na to konto)"
                 )
         # Rekomendacja B / mech#2: WEJŚCIA składamy marketable-LIMIT (sufit poślizgu).
         # Akcje: tylko nazwy o szerokim spreadzie (regular_marketable_limit). KRYPTO

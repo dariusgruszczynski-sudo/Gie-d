@@ -858,6 +858,71 @@ def test_position_opened_at_none_when_flat(db_session, settings):
     assert trading_engine.position_opened_at(db_session, "SPY") is None
 
 
+class _FakeKrakenExec:
+    """Broker krypto z egzekucją + min_order_notional (do testu fix#1/#2)."""
+    def __init__(self, prices, balances, min_notional):
+        self.prices = prices
+        self.balances = balances
+        self._min = min_notional
+        self.orders = []
+    def get_account_balances(self):
+        return dict(self.balances)
+    def get_price(self, symbol):
+        return self.prices[symbol]
+    def get_klines(self, symbol, interval="1h", limit=24):
+        return []
+    def min_order_notional(self, symbol, price):
+        return self._min
+    def place_order_for_session(self, symbol, side, *, session="regular", usdt_amount=None,
+                                quantity=None, prefer_limit=False, limit_buffer_pct=0.0):
+        price = self.prices[symbol]
+        qty = abs(quantity) if quantity is not None else abs(usdt_amount) / price
+        base = symbol.split("/")[0]
+        if side.upper() == "BUY":
+            self.balances["EUR"] = self.balances.get("EUR", 0.0) - qty * price
+            self.balances[base] = self.balances.get(base, 0.0) + qty
+        else:
+            self.balances["EUR"] = self.balances.get("EUR", 0.0) + qty * price
+            self.balances[base] = self.balances.get(base, 0.0) - qty
+        o = _FakeOrder(str(len(self.orders) + 1), symbol, side.upper(), qty, price, qty * price)
+        self.orders.append(o)
+        return o
+
+
+def test_broker_min_notional_helper(db_session, settings):
+    b = _FakeKrakenExec({"X/EUR": 100.0}, {"EUR": 50.0}, min_notional=2.65)
+    assert trading_engine._broker_min_notional(b, "X/EUR", 100.0) == 2.65
+    # Broker bez metody -> podłoga MIN_SELL_NOTIONAL_USD.
+    assert trading_engine._broker_min_notional(FakeAlpaca(), "SPY", 100.0) == trading_engine.MIN_SELL_NOTIONAL_USD
+
+
+def test_partial_tp_promoted_to_full_when_below_broker_min(db_session, settings):
+    """fix#1: na małym koncie 1/3 pozycji < min. zlecenia Krakena -> zamiast gubić
+    realizację co cykl, PROMUJ do pełnego wyjścia (sprzedaj 100%), by zablokować zysk."""
+    s = settings.model_copy(update={
+        "crypto_enabled": True, "crypto_venue": "kraken", "quote_currency": "EUR",
+        "partial_take_profit_enabled": True, "partial_take_profit_frac": 0.33,
+        "partial_take_profit_r": 1.5, "min_hold_minutes": 0, "trailing_stop_enabled": True,
+        "stop_loss_pct": 4.0, "stop_loss_vol_mult": 0.0, "hard_take_profit_pct": 0.0,
+    })
+    # Pozycja QNT ~€4.5; 1/3 = €1.5 < min €2.65, ale całość €6 >= min -> promocja do 100%.
+    # partial_r = stop 4% × 1.5 = 6%; ruch +10% odpala częściową realizację.
+    from app.services import risk_manager
+    st = risk_manager.get_state(db_session)
+    st.crypto_paused = False; st.is_paused = False; st.is_halted = False
+    db_session.commit()
+    broker = _FakeKrakenExec(prices={"QNT/EUR": 150.0}, balances={"EUR": 100.0}, min_notional=2.65)
+    trading_engine.execute_manual_trade(db_session, s, broker, symbol="QNT/EUR", side="BUY", quantity=0.03, venue="crypto", whitelist=["QNT/EUR"])
+    broker.prices["QNT/EUR"] = 165.0  # +10% > partial_r 6% -> częściowa realizacja
+
+    portfolio = trading_engine.compute_portfolio(db_session, s, broker, venue="crypto", whitelist=["QNT/EUR"])
+    exits = trading_engine.check_take_profit_stop_loss(db_session, s, broker, portfolio, venue="crypto", always_open=True, whitelist=["QNT/EUR"])
+    assert len(exits) == 1
+    assert exits[0].symbol == "QNT/EUR"
+    assert exits[0].decision.size_pct == 100.0   # promowane do pełnego wyjścia
+    assert "zamykam CAŁOŚĆ" in exits[0].decision.reasoning
+
+
 def test_fixed_take_profit_sells_when_price_rises(db_session, settings):
     fixed = settings.model_copy(update={"trailing_stop_enabled": False})
     broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})

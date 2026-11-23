@@ -68,6 +68,7 @@ _STABLE_FIAT = {
 _DYN_PAIRS: dict[str, str] = {}      # baza znormalizowana -> altname Kraken (np. 'SOL' -> 'SOLEUR')
 _DYN_ORDER: list[str] = []           # '<BAZA>/EUR' posortowane po płynności (malejąco)
 _DYN_PAIR_DEC: dict[str, int] = {}   # baza -> pair_decimals (precyzja CENY) — mech#2 limit
+_DYN_PAIR_MIN: dict[str, float] = {} # baza -> ordermin (MIN. wolumen BAZY na zlecenie)
 _DYN_AT: float = 0.0
 _DYN_TTL_SEC: float = 1800.0          # 30 min — pary zmieniają się wolno
 
@@ -78,6 +79,15 @@ def pair_price_decimals(symbol: str) -> int | None:
     błędną precyzją i schodzi na market. mech#2."""
     base = _norm_base((symbol or "").split("/")[0])
     return _DYN_PAIR_DEC.get(base)
+
+
+def pair_ordermin(symbol: str) -> float | None:
+    """Minimalny WOLUMEN zlecenia (w bazie) dla pary — z AssetPairs 'ordermin'.
+    None gdy nieznany (pula fallback / cache pusty). Kraken ODRZUCA zlecenia poniżej
+    tego progu -> używamy do bramek rozmiaru, żeby nie słać sub-min i nie gubić
+    realizacji zysku (fix#1/#2)."""
+    base = _norm_base((symbol or "").split("/")[0])
+    return _DYN_PAIR_MIN.get(base)
 
 
 def round_price(symbol: str, price: float) -> float | None:
@@ -332,13 +342,22 @@ class KrakenClient:
         """Czy para jest w naszym uniwersum Kraken EUR (mapowalna)."""
         return to_kraken_pair(symbol) is not None
 
+    def min_order_notional(self, symbol: str, price: float) -> float | None:
+        """Minimalny NOTIONAL zlecenia w EUR = ordermin (baza) × cena. None gdy
+        ordermin nieznany (pula fallback / cache pusty) -> wołający bierze własną
+        podłogę. Służy bramkom rozmiaru (fix#1/#2), żeby nie słać sub-min zleceń."""
+        omin = pair_ordermin(symbol)
+        if omin is None or not price or price <= 0:
+            return None
+        return omin * price
+
     def list_crypto_symbols(self) -> list[str]:
         """CAŁY rynek EUR Krakena (setki par), posortowany po płynności (obrót 24h),
         w formie '<BASE>/EUR'. To jest pula dla skanera — on zawęża ją do max_scan
         najpłynniejszych, rankuje momentum i wybiera TOP-K. Dynamiczne z publicznego
         AssetPairs + Ticker (jeden call), cache 30 min. Zasila też to_kraken_pair.
         Fallback przy awarii: zahardkodowane 7 (UNIVERSE_TO_KRAKEN)."""
-        global _DYN_PAIRS, _DYN_ORDER, _DYN_AT, _DYN_PAIR_DEC
+        global _DYN_PAIRS, _DYN_ORDER, _DYN_AT, _DYN_PAIR_DEC, _DYN_PAIR_MIN
         now = time.time()
         if _DYN_ORDER and (now - _DYN_AT) < _DYN_TTL_SEC:
             return list(_DYN_ORDER)
@@ -346,6 +365,7 @@ class KrakenClient:
             pairs = self._public("/0/public/AssetPairs", {})
             amap: dict[str, str] = {}  # baza -> altname
             decmap: dict[str, int] = {}  # baza -> pair_decimals (precyzja ceny, mech#2)
+            minmap: dict[str, float] = {}  # baza -> ordermin (min wolumen, fix#1/#2)
             for pid, info in pairs.items():
                 if info.get("status") != "online":
                     continue
@@ -361,6 +381,10 @@ class KrakenClient:
                 amap[nb] = info.get("altname") or pid
                 try:
                     decmap[nb] = int(info.get("pair_decimals"))
+                except (TypeError, ValueError):
+                    pass
+                try:
+                    minmap[nb] = float(info.get("ordermin"))
                 except (TypeError, ValueError):
                     pass
             if not amap:
@@ -386,6 +410,7 @@ class KrakenClient:
                 pass
             _DYN_PAIRS = amap
             _DYN_PAIR_DEC = decmap
+            _DYN_PAIR_MIN = minmap
             _DYN_ORDER = [f"{b}/EUR" for b in order_bases]
             _DYN_AT = now
             return list(_DYN_ORDER)

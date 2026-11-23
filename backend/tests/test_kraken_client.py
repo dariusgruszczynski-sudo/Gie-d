@@ -175,6 +175,20 @@ def test_place_order_for_session_dry_run_synthetic_fill():
     assert r.price == 50000.0 and abs(r.usdt_value - 50.0) < 1e-6
 
 
+def test_pair_ordermin_and_min_order_notional():
+    import app.services.kraken_client as kc
+    kc._DYN_PAIR_MIN = {"QNT": 0.02, "BTC": 0.0001}
+    try:
+        assert kc.pair_ordermin("QNT/EUR") == 0.02
+        c = KrakenClient(transport=lambda *a: {"result": {}})
+        # min notional = ordermin * cena: 0.02 QNT * €136.9 = €2.738
+        assert abs(c.min_order_notional("QNT/EUR", 136.9) - 2.738) < 1e-6
+        assert c.min_order_notional("WIF/EUR", 1.0) is None   # nieznany ordermin
+        assert c.min_order_notional("QNT/EUR", 0) is None      # brak ceny
+    finally:
+        kc._DYN_PAIR_MIN = {}
+
+
 def test_round_price_uses_pair_decimals():
     import app.services.kraken_client as kc
     kc._DYN_PAIR_DEC = {"BTC": 1, "NIGHT": 5}
