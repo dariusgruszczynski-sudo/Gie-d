@@ -326,12 +326,14 @@ def compute_portfolio(db: Session, settings: Settings, broker, *, venue: str = "
     # (exactly what happened when crypto value briefly vanished). A one-cycle
     # stale price is vastly safer than a phantom liquidation.
     last_prices: dict[str, float] = {}
+    last_balances: dict[str, float] = {}   # anty-glitch: ostatnie DOBRE salda monet
     try:
         _prev = db.execute(
             select(PortfolioSnapshot).where(PortfolioSnapshot.venue == venue).order_by(PortfolioSnapshot.id.desc())
         ).scalars().first()
         if _prev is not None:
             last_prices = json.loads(_prev.prices_json or "{}")
+            last_balances = json.loads(_prev.balances_json or "{}")
     except Exception:
         last_prices = {}
     # Ostatnia cena z LEDGERA (nasza transakcja) — awaryjna wycena trzymanej pozycji,
@@ -387,28 +389,41 @@ def compute_portfolio(db: Session, settings: Settings, broker, *, venue: str = "
         coin_balances[symbol] = qty
         total_value += qty * price
 
-    # ANTY-WIDMO GOTÓWKI (krypto/Kraken): equity z TradeBalance (gotówka + pozycje +
-    # środki zablokowane w OTWARTYCH ZLECENIACH) to prawda o koncie. Gdy wyraźnie
-    # przebija naszą rekonstrukcję, to odczyt wolnej gotówki ZANIŻYŁ (EUR trzymane w
-    # otwartym zleceniu / chwilowy błąd) — konto pozornie „spada" i leci fałszywy halt
-    # dziennej straty. Dociągamy gotówkę do implikowanej z equity, by pulpit i ryzyko
-    # widziały realne saldo. Gdy equity faktycznie niższe (realna wypłata) — bez zmian.
+    # ANTY-GLITCH ODCZYTU SALDA (krypto/Kraken). Equity z TradeBalance (gotówka +
+    # pozycje + środki w otwartych zleceniach) to PRAWDA o koncie. Gdy wyraźnie
+    # przebija naszą rekonstrukcję, Balance API czytało NIEKOMPLETNIE (monety/gotówka
+    # jako 0) — to zatruwało wszystko: widmowy krach konta (halt dziennej straty) ORAZ
+    # fałszywy rozjazd rekoncyliacji (broker „nie ma" monet, które ledger trzyma).
+    # Zamiast ufać wadliwemu odczytowi: ODRZUCAMY go i bierzemy OSTATNIE DOBRE salda
+    # (monety + gotówka z poprzedniego snapshotu), wyceniając po bieżących cenach.
+    # Spójne saldo -> brak widmowego krachu I brak fałszywego rozjazdu. Gdy equity
+    # faktycznie niższe (realna wypłata) — nie ruszamy nic.
     if venue == "crypto" and hasattr(broker, "get_account_summary"):
         try:
             _summ = broker.get_account_summary() or {}
             _eq = float(_summ.get("equity") or next(iter(_summ.values()), 0.0) or 0.0)
-            if _eq > 0 and _eq > total_value * 1.02:
-                _positions_value = total_value - usdt_balance
-                _implied_cash = max(usdt_balance, _eq - _positions_value)
-                logger.warning(
-                    "Equity Krakena €%.2f > rekonstrukcja €%.2f — dociągam gotówkę €%.2f->€%.2f "
-                    "(EUR w zleceniu/Earn albo błąd odczytu; anty-widmo)",
-                    _eq, total_value, usdt_balance, _implied_cash,
-                )
-                usdt_balance = _implied_cash
-                total_value = usdt_balance + _positions_value
+            if _eq > 0 and _eq > total_value * 1.05:
+                if last_balances:
+                    # Ostatnie dobre salda monet, wycenione po dostępnej cenie.
+                    coin_balances = {s: q for s, q in last_balances.items() if q and q > 0}
+                    _pos = 0.0
+                    for _s, _q in coin_balances.items():
+                        _p = prices.get(_s) or last_prices.get(_s) or last_trade_px.get(_s) or 0.0
+                        prices[_s] = _p
+                        _pos += _q * _p
+                    usdt_balance = max(0.0, _eq - _pos)
+                    total_value = usdt_balance + _pos
+                    logger.warning(
+                        "GLITCH odczytu salda Kraken (equity €%.2f >> rekonstrukcja) — "
+                        "użyto ostatniego DOBREGO snapshotu (%d monet), anty-widmo", _eq, len(coin_balances),
+                    )
+                else:
+                    # Brak dobrego snapshotu: nie fabrykuj monet; dociągnij samą gotówkę.
+                    _positions_value = total_value - usdt_balance
+                    usdt_balance = max(usdt_balance, _eq - _positions_value)
+                    total_value = usdt_balance + _positions_value
         except Exception:  # noqa: BLE001 — best-effort, nigdy nie wywala cyklu
-            logger.warning("Equity-floor krypto nieudane (kontynuuję)", exc_info=True)
+            logger.warning("Anty-glitch salda krypto nieudany (kontynuuję)", exc_info=True)
 
     snapshot = PortfolioSnapshot(
         total_value_usdt=total_value,

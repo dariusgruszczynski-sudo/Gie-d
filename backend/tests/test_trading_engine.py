@@ -910,6 +910,26 @@ def test_compute_portfolio_cash_antighost_from_equity(db_session, settings):
     assert pf2["total_value_usdt"] == pytest.approx(42.0)
 
 
+def test_compute_portfolio_glitchy_read_reuses_last_good(db_session, settings):
+    """ANTY-GLITCH: gdy Balance API czyta monety jako 0 (equity Krakena >> rekonstrukcja),
+    odrzucamy wadliwy odczyt i bierzemy OSTATNIE DOBRE salda monet — bez widmowego
+    krachu i bez fałszywego rozjazdu rekoncyliacji (broker znów 'ma' te monety)."""
+    s = settings.model_copy(update={"crypto_enabled": True, "crypto_venue": "kraken", "quote_currency": "EUR"})
+    # 1) DOBRY cykl: broker ma NIGHT+VVV, equity spójne -> zapisuje dobry snapshot.
+    good = _FakeKrakenExec(prices={"NIGHT/EUR": 0.044, "VVV/EUR": 24.0},
+                           balances={"EUR": 77.0, "NIGHT": 272.0, "VVV": 0.38}, min_notional=2.65, equity=None)
+    pf1 = trading_engine.compute_portfolio(db_session, s, good, venue="crypto", whitelist=["NIGHT/EUR", "VVV/EUR"])
+    assert pf1["balances"].get("NIGHT/EUR") == 272.0 and pf1["balances"].get("VVV/EUR") == 0.38
+    # 2) GLITCH: Balance czyta same 0, ale TradeBalance equity = €119 (konto całe).
+    glitch = _FakeKrakenExec(prices={"NIGHT/EUR": 0.044, "VVV/EUR": 24.0},
+                             balances={"EUR": 0.0}, min_notional=2.65, equity=119.0)
+    pf2 = trading_engine.compute_portfolio(db_session, s, glitch, venue="crypto", whitelist=["NIGHT/EUR", "VVV/EUR"])
+    # Monety przywrócone z ostatniego dobrego snapshotu (nie 0) -> rekoncyliacja czysta.
+    assert pf2["balances"].get("NIGHT/EUR") == 272.0
+    assert pf2["balances"].get("VVV/EUR") == 0.38
+    assert pf2["total_value_usdt"] == pytest.approx(119.0)
+
+
 def test_broker_min_notional_helper(db_session, settings):
     b = _FakeKrakenExec({"X/EUR": 100.0}, {"EUR": 50.0}, min_notional=2.65)
     assert trading_engine._broker_min_notional(b, "X/EUR", 100.0) == 2.65
