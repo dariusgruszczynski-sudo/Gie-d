@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-11-23T20:54:13Z
+# Audyt GielDarek — 2026-11-23T23:10:57Z
 
-**Wdrożenie:** kod 7d86fd3 (zbud. 2026-11-23T20:50Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod cbb43e0 (zbud. 2026-11-23T21:00Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 0 zamknięć · trafność —% · zrealizowany $0.0
 **7 dni:** 0 zamknięć · —% · $0.0   |   **30 dni:** 0 · —% · $0.0
@@ -23,7 +23,7 @@
 - próg pewności — baza (env): 0.6 · progresja +0.03/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
-- ostatnie 40 decyzji · wykonanych: 6 · odrzuconych: 34
+- ostatnie 41 decyzji · wykonanych: 7 · odrzuconych: 34
 
 **Najczęstsze powody odrzucenia (top):**
 - 17× — Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
@@ -33,6 +33,7 @@
 - 1× — Rozjazd rekoncyliacji: baza vs broker różni się o $35 (głównie NIGHT/EUR: $12) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
 
 **Ostatnie 20 decyzji:**
+- 2026-11-23T21:15:35.441546 VVV/EUR SELL conf=1.0 trig=price_move ✅WYKONANE
 - 2026-11-23T20:51:51.849216 — HOLD conf=0.6 trig=manual ⛔ Rozjazd rekoncyliacji: baza vs broker różni się o $35 (głównie NIGHT/EUR: $12) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
 - 2026-11-23T20:43:29.338585 — HOLD conf=0.0 trig=news_event ⛔ Dzienny limit strat przekroczony: -65.0% (limit 30.0%)
 - 2026-11-23T20:40:10.572754 — HOLD conf=0.0 trig=manual ⛔ Dzienny limit strat przekroczony: -65.0% (limit 30.0%)
@@ -52,4 +53,3 @@
 - 2026-11-23T09:17:41.485703 TAO/EUR BUY conf=0.6 trig=news_event ⛔ ?
 - 2026-11-23T09:17:39.091963 QNT/EUR BUY conf=0.6 trig=news_event ✅WYKONANE
 - 2026-11-23T08:32:34.070527 JUP/EUR BUY conf=0.6 trig=news_event ✅WYKONANE
-- 2026-11-23T05:47:39.278316 LINK/EUR BUY conf=0.6 trig=news_event ✅WYKONANE
