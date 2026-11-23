@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-11-23T16:56:50Z
+# Audyt GielDarek — 2026-11-23T19:34:57Z
 
-**Wdrożenie:** kod ba61922 (zbud. 2026-11-22T21:47Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 080b198 (zbud. 2026-11-23T17:56Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 0 zamknięć · trafność —% · zrealizowany $0.0
 **7 dni:** 0 zamknięć · —% · $0.0   |   **30 dni:** 0 · —% · $0.0
@@ -23,14 +23,15 @@
 - próg pewności — baza (env): 0.6 · progresja +0.03/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
-- ostatnie 36 decyzji · wykonanych: 6 · odrzuconych: 30
+- ostatnie 37 decyzji · wykonanych: 6 · odrzuconych: 31
 
 **Najczęstsze powody odrzucenia (top):**
 - 17× — Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 12× — brak powodu
+- 13× — brak powodu
 - 1× — Rozjazd rekoncyliacji: baza vs broker różni się o $-14,564 (głównie ETH/USD: $-13,201) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
 
 **Ostatnie 20 decyzji:**
+- 2026-11-23T17:17:25.658122 QNT/EUR SELL conf=1.0 trig=price_move ⛔ ?
 - 2026-11-23T16:47:34.950928 TRX/EUR BUY conf=0.6 trig=news_event ⛔ ?
 - 2026-11-23T16:32:37.731942 TRX/EUR BUY conf=0.6 trig=news_event ⛔ ?
 - 2026-11-23T16:17:34.103094 TRX/EUR BUY conf=0.6 trig=news_event ⛔ ?
@@ -50,4 +51,3 @@
 - 2026-11-22T23:32:33.343871 VVV/EUR BUY conf=0.6 trig=news_event ✅WYKONANE
 - 2026-11-22T21:17:09.320562 — HOLD conf=0.6 trig=manual ⛔ Rozjazd rekoncyliacji: baza vs broker różni się o $-14,564 (głównie ETH/USD: $-13,201) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
 - 2026-11-22T20:50:39.666964 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 2026-11-22T20:35:39.597121 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
