@@ -1025,6 +1025,68 @@ def recent_edge_payoff(db: Session, settings: Settings, *, venue: str = "alpaca"
     return avg_win / avg_loss
 
 
+def half_kelly_size_mult(db: Session, settings: Settings, portfolio: dict, venue: str, symbols: list[str]) -> float:
+    """mech#15 — mnożnik rozmiaru wejścia z HALF-KELLY na świeżej skuteczności.
+    Kelly f = W − (1−W)/R (W=trafność, R=payoff śr.wygrana/śr.strata). Bierzemy
+    POŁOWĘ Kelly'ego (bezpieczniej) i skalujemy względem docelowego udziału pozycji:
+    mult = clamp(0.5·f / udział_docelowy, podłoga, 1.0). CAP 1.0 = Kelly NIGDY nie
+    napompuje pozycji ponad bazę (na żywej kasie przeszacowanie edge boli) — służy
+    TYLKO do zmniejszania, gdy świeża przewaga słaba/ujemna. NO-OP (1.0), dopóki nie
+    ma ≥ crypto_half_kelly_min_trades ZAMKNIĘĆ (zero gonienia szumu na małej próbie).
+    Wyłączone -> 1.0."""
+    if not getattr(settings, "crypto_half_kelly_enabled", False):
+        return 1.0
+    from collections import defaultdict, deque
+    min_trades = max(1, int(getattr(settings, "crypto_half_kelly_min_trades", 20) or 20))
+    lookback = max(min_trades, int(getattr(settings, "conviction_edge_lookback_trades", 20) or 20))
+    epoch, _ = scorecard.effective_epoch(risk_manager.get_state(db), settings)
+    trades = db.execute(
+        select(Trade).where(Trade.venue == venue).order_by(Trade.timestamp.asc())
+    ).scalars().all()
+    qty: dict[str, float] = defaultdict(float)
+    cost: dict[str, float] = defaultdict(float)
+    pnls: deque = deque(maxlen=lookback)
+    for t in trades:
+        s = t.symbol
+        if t.side.upper() == "BUY":
+            qty[s] += t.quantity
+            cost[s] += t.usdt_value
+        else:
+            held = qty[s]
+            if held <= 1e-12:
+                continue
+            avg = cost[s] / held
+            sell_qty = min(t.quantity, held)
+            pnl = (t.price - avg) * sell_qty
+            cost[s] -= avg * sell_qty
+            qty[s] -= sell_qty
+            if qty[s] <= 1e-12:
+                qty[s] = 0.0
+                cost[s] = 0.0
+            ts = t.timestamp
+            if ts is not None and ts.tzinfo is None:
+                ts = ts.replace(tzinfo=UTC)
+            if epoch is None or ts is None or ts >= epoch:
+                pnls.append(pnl)
+    if len(pnls) < min_trades:
+        return 1.0  # za mała próba -> nie rusza rozmiaru (dyscyplina)
+    wins = [p for p in pnls if p >= 0]
+    losses = [p for p in pnls if p < 0]
+    if not wins or not losses:
+        return 1.0
+    w = len(wins) / len(pnls)
+    r = (sum(wins) / len(wins)) / abs(sum(losses) / len(losses))
+    if r <= 0:
+        return 1.0
+    kelly = w - (1.0 - w) / r
+    half_kelly = max(0.0, 0.5 * kelly)
+    target_frac = (getattr(settings, "auto_deploy_max_position_pct", 0.0) or getattr(settings, "max_position_pct", 10.0)) / 100.0
+    if target_frac <= 0:
+        return 1.0
+    floor = getattr(settings, "crypto_half_kelly_floor", 0.25) or 0.25
+    return max(floor, min(1.0, half_kelly / target_frac))
+
+
 def dynamic_stop_loss_pct(settings: Settings, vol_pct: float | None) -> float:
     """Volatility-scaled (ATR-style) hard-stop distance in %. Scales with the
     ticker's own 1h-return volatility so the stop sits OUTSIDE normal noise --
@@ -2570,6 +2632,9 @@ def _run_auto_deploy(
             derisk *= getattr(settings, "derisk_size_mult", 1.0)
         derisk *= _correlation_size_mult(settings, count_open_positions(pf, settings, symbols))
         derisk *= _cooloff_size_mult(db, settings, pf, venue)
+        # mech#15 — half-Kelly od świeżej skuteczności (no-op do ≥ min_trades zamknięć;
+        # tylko zmniejsza przy słabej/ujemnej przewadze, nigdy nie pompuje > bazy).
+        derisk *= half_kelly_size_mult(db, settings, pf, venue, symbols)
         floor = getattr(settings, "entry_size_floor_frac", 0.0) or 0.0
         if floor > 0:
             derisk = max(derisk, floor)

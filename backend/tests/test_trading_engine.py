@@ -642,6 +642,51 @@ def test_compute_portfolio_held_crypto_priced_by_cost_when_live_price_missing(db
     assert portfolio["total_value_usdt"] == pytest.approx(107.75 + 272.0 * 0.044)
 
 
+def test_half_kelly_size_mult(db_session, settings):
+    """mech#15: half-Kelly skaluje rozmiar w DÓŁ przy słabej przewadze, po ≥min_trades
+    zamknięciach; przy za małej próbie = no-op (1.0). Nigdy nie pompuje > 1.0."""
+    from datetime import datetime, timedelta
+
+    from app.models import Decision, Trade, TradeAction, TriggerType
+
+    s = settings.model_copy(update={
+        "crypto_enabled": True, "crypto_half_kelly_enabled": True,
+        "crypto_half_kelly_min_trades": 3, "crypto_half_kelly_floor": 0.25,
+        "auto_deploy_max_position_pct": 25.0,
+    })
+    base = datetime(2026, 11, 1, 12, 0, 0)
+    i = 0
+
+    def _closed(symbol, buy_px, sell_px):
+        nonlocal i
+        for side, px in (("BUY", buy_px), ("SELL", sell_px)):
+            dec = Decision(symbol=symbol, action=TradeAction.BUY, size_pct=10.0, confidence=1.0,
+                           reasoning="x", triggered_by=TriggerType.NEWS_EVENT, executed=True, venue="crypto")
+            db_session.add(dec)
+            db_session.flush()
+            db_session.add(Trade(symbol=symbol, side=side, quantity=1.0, price=px, usdt_value=px,
+                                 mode="live", venue="crypto", decision_id=dec.id,
+                                 timestamp=base + timedelta(minutes=i)))
+            i += 1
+
+    # 2 wygrane (+20, +10) + 1 strata (-20): W=0.667, R=0.75 -> Kelly~0.22, half~0.11.
+    _closed("AAA/EUR", 100.0, 120.0)
+    _closed("BBB/EUR", 100.0, 110.0)
+    _closed("CCC/EUR", 100.0, 80.0)
+    db_session.commit()
+
+    mult = trading_engine.half_kelly_size_mult(db_session, s, {"usdt_balance": 100.0}, "crypto", [])
+    assert 0.25 <= mult < 1.0   # słaba przewaga -> zmniejsza, w granicach podłoga..1
+
+    # Za mała próba: próg 99 zamknięć -> no-op.
+    s_small = s.model_copy(update={"crypto_half_kelly_min_trades": 99})
+    assert trading_engine.half_kelly_size_mult(db_session, s_small, {"usdt_balance": 100.0}, "crypto", []) == 1.0
+
+    # Wyłączone -> 1.0.
+    s_off = s.model_copy(update={"crypto_half_kelly_enabled": False})
+    assert trading_engine.half_kelly_size_mult(db_session, s_off, {"usdt_balance": 100.0}, "crypto", []) == 1.0
+
+
 def test_dual_listed_ticker_not_double_counted(db_session, settings):
     """A ticker on BOTH whitelists (e.g. XLF) must be valued on exactly ONE leg.
     Regression for the account being overstated (and the position shown twice --

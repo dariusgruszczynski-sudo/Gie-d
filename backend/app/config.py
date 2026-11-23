@@ -271,6 +271,13 @@ class Settings(BaseSettings):
     # zostają market (gwarantowane wyjście). Bufor dobrany tak, by zawsze wypełnić.
     crypto_marketable_limit_enabled: bool = True
     crypto_limit_buffer_pct: float = 0.5
+    # mech#15 — HALF-KELLY: rozmiar wejścia skalowany świeżą skutecznością (Kelly/2,
+    # tylko w dół, cap bazy). NO-OP dopóki nie ma ≥ min_trades ZAMKNIĘĆ — zero
+    # dostrajania na małej próbie (dyscyplina z dziennika: ~3 tyg / ≥50 transakcji).
+    # Teraz (0 zamknięć) nie zmienia niczego; zacznie działać, gdy będzie track-record.
+    crypto_half_kelly_enabled: bool = True
+    crypto_half_kelly_min_trades: int = 20   # minimum zamkniętych transakcji, nim ruszy rozmiar
+    crypto_half_kelly_floor: float = 0.25    # nigdy < 25% bazy (słaba passa nie zeruje wejść)
     # --- REAKCJA NA KATALIZATORY (R1+ z analizy „gdzie bot bije człowieka") ---
     # Filar INFORMACJA: bot czyta feedy 24/7 i reaguje na zdarzenia (hack/exploit/
     # unlock/delisting), zanim cena je wchłonie — gdy człowiek śpi. Rdzeń decyzyjny
