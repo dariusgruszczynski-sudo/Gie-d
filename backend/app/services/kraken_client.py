@@ -67,8 +67,26 @@ _STABLE_FIAT = {
 # a to_kraken_pair z niego czyta. Fallback: zahardkodowane UNIVERSE_TO_KRAKEN.
 _DYN_PAIRS: dict[str, str] = {}      # baza znormalizowana -> altname Kraken (np. 'SOL' -> 'SOLEUR')
 _DYN_ORDER: list[str] = []           # '<BAZA>/EUR' posortowane po płynności (malejąco)
+_DYN_PAIR_DEC: dict[str, int] = {}   # baza -> pair_decimals (precyzja CENY) — mech#2 limit
 _DYN_AT: float = 0.0
 _DYN_TTL_SEC: float = 1800.0          # 30 min — pary zmieniają się wolno
+
+
+def pair_price_decimals(symbol: str) -> int | None:
+    """Precyzja CENY pary (pair_decimals z AssetPairs) dla bazy symbolu. None gdy
+    nieznana (pula fallback / cache pusty) — wołający wtedy NIE ryzykuje limitu z
+    błędną precyzją i schodzi na market. mech#2."""
+    base = _norm_base((symbol or "").split("/")[0])
+    return _DYN_PAIR_DEC.get(base)
+
+
+def round_price(symbol: str, price: float) -> float | None:
+    """Zaokrągl cenę do precyzji pary Kraken (inaczej AddOrder odrzuca limit
+    'Invalid price'). None gdy precyzja nieznana -> wołający robi market."""
+    dec = pair_price_decimals(symbol)
+    if dec is None or price <= 0:
+        return None
+    return round(price, dec)
 
 
 def _norm_base(base: str) -> str:
@@ -320,13 +338,14 @@ class KrakenClient:
         najpłynniejszych, rankuje momentum i wybiera TOP-K. Dynamiczne z publicznego
         AssetPairs + Ticker (jeden call), cache 30 min. Zasila też to_kraken_pair.
         Fallback przy awarii: zahardkodowane 7 (UNIVERSE_TO_KRAKEN)."""
-        global _DYN_PAIRS, _DYN_ORDER, _DYN_AT
+        global _DYN_PAIRS, _DYN_ORDER, _DYN_AT, _DYN_PAIR_DEC
         now = time.time()
         if _DYN_ORDER and (now - _DYN_AT) < _DYN_TTL_SEC:
             return list(_DYN_ORDER)
         try:
             pairs = self._public("/0/public/AssetPairs", {})
             amap: dict[str, str] = {}  # baza -> altname
+            decmap: dict[str, int] = {}  # baza -> pair_decimals (precyzja ceny, mech#2)
             for pid, info in pairs.items():
                 if info.get("status") != "online":
                     continue
@@ -340,6 +359,10 @@ class KrakenClient:
                 if nb in _STABLE_FIAT:
                     continue
                 amap[nb] = info.get("altname") or pid
+                try:
+                    decmap[nb] = int(info.get("pair_decimals"))
+                except (TypeError, ValueError):
+                    pass
             if not amap:
                 raise KrakenError("AssetPairs: zero par EUR")
             # Ranking płynności: obrót 24h = ostatnia cena * wolumen (jeden call Ticker).
@@ -362,6 +385,7 @@ class KrakenClient:
             except Exception:  # noqa: BLE001 — brak Ticker => zostaje ranking alfabetyczny
                 pass
             _DYN_PAIRS = amap
+            _DYN_PAIR_DEC = decmap
             _DYN_ORDER = [f"{b}/EUR" for b in order_bases]
             _DYN_AT = now
             return list(_DYN_ORDER)
@@ -390,10 +414,25 @@ class KrakenClient:
             qty = abs(usdt_amount) / price
         else:
             raise KrakenError("place_order_for_session: brak quantity i usdt_amount/ceny")
-        resp = self.place_order(symbol, side, qty, ordertype="market", validate=validate)
+        # mech#2: marketable-LIMIT dla WEJŚĆ (prefer_limit) — cena limitu przez księgę
+        # (BUY: powyżej, SELL: poniżej o bufor), więc zlecenie wypełnia się od razu, ale
+        # NIE gorzej niż limit => twardy sufit poślizgu (ważne na cienkich monetach).
+        # Fallback na MARKET, gdy: brak prefer_limit, brak ceny, albo nieznana precyzja
+        # pary (inaczej Kraken odrzuca 'Invalid price'). Wyjścia/stopy wołają bez
+        # prefer_limit -> zostają market (gwarantowane, szybkie wyjście).
+        ordertype = "market"
+        limit_price: float | None = None
+        if prefer_limit and price > 0:
+            buf = max(0.0, float(limit_buffer_pct or 0.0)) / 100.0
+            raw = price * (1.0 + buf) if side.lower() == "buy" else price * (1.0 - buf)
+            limit_price = round_price(symbol, raw)
+            if limit_price and limit_price > 0:
+                ordertype = "limit"
+        resp = self.place_order(symbol, side, qty, ordertype=ordertype, price=limit_price, validate=validate)
         txids = (resp.get("txid") or []) if isinstance(resp, dict) else []
         oid = txids[0] if txids else ("dry-run" if validate else "kraken")
-        return KrakenOrderResult(oid, symbol, side, qty, price, qty * price)
+        fill_price = limit_price if ordertype == "limit" else price
+        return KrakenOrderResult(oid, symbol, side, qty, fill_price, qty * fill_price)
 
 
 def _default_transport(method: str, url: str, headers: dict, body: str | None) -> dict:

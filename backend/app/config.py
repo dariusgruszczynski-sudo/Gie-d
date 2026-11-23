@@ -263,6 +263,14 @@ class Settings(BaseSettings):
     # tylko NOWYCH wejść; wyjścia (stopy/cele) nigdy nie są blokowane. Brak danych
     # tickera => nie blokujemy (fail-open, nie dławimy na chwilowym braku kwot).
     crypto_max_entry_spread_pct: float = 0.8
+    # mech#2 — ZLECENIA MARKETABLE-LIMIT NA WEJŚCIU (Kraken, żywa kasa). Zamiast
+    # czystego market (pełny poślizg) wejście składamy jako limit przez księgę o
+    # bufor %: wypełnia się od razu, ale NIE gorzej niż limit => twardy sufit
+    # poślizgu (kluczowe na cienkich monetach jak NIGHT). Gdy precyzja ceny pary
+    # nieznana -> fallback na market (bez ryzyka 'Invalid price'). Wyjścia/stopy
+    # zostają market (gwarantowane wyjście). Bufor dobrany tak, by zawsze wypełnić.
+    crypto_marketable_limit_enabled: bool = True
+    crypto_limit_buffer_pct: float = 0.5
     # --- REAKCJA NA KATALIZATORY (R1+ z analizy „gdzie bot bije człowieka") ---
     # Filar INFORMACJA: bot czyta feedy 24/7 i reaguje na zdarzenia (hack/exploit/
     # unlock/delisting), zanim cena je wchłonie — gdy człowiek śpi. Rdzeń decyzyjny

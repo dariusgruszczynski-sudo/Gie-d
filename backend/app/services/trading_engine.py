@@ -3423,17 +3423,24 @@ def _execute_trade(
                     f"Rozmiar {symbol} przycięty do ${usdt_amount:.2f} przez limit "
                     "koncentracji/płynności — poniżej minimum, pomijam"
                 )
-        # Rekomendacja B: nazwy o szerokim spreadzie kupujemy marketable-LIMIT
-        # (mniej poślizgu); reszta zostaje market. Fallback na market jest w
-        # place_order_for_session, gdy kawałek < 1 akcja (małe konto, ułamki).
-        prefer_limit = (
-            session == market_hours.REGULAR
-            and getattr(settings, "regular_marketable_limit_enabled", False)
-            and symbol in settings.high_spread_symbol_list
-        )
+        # Rekomendacja B / mech#2: WEJŚCIA składamy marketable-LIMIT (sufit poślizgu).
+        # Akcje: tylko nazwy o szerokim spreadzie (regular_marketable_limit). KRYPTO
+        # na Krakenie: wszystkie wejścia, gdy crypto_marketable_limit_enabled — bufor
+        # z crypto_limit_buffer_pct; broker schodzi na market, gdy precyzja pary
+        # nieznana. Fallback na market też w place_order_for_session dla ułamków akcji.
+        if venue == "crypto":
+            prefer_limit = bool(getattr(settings, "crypto_marketable_limit_enabled", False))
+            limit_buf = float(getattr(settings, "crypto_limit_buffer_pct", 0.0) or 0.0)
+        else:
+            prefer_limit = (
+                session == market_hours.REGULAR
+                and getattr(settings, "regular_marketable_limit_enabled", False)
+                and symbol in settings.high_spread_symbol_list
+            )
+            limit_buf = settings.regular_limit_buffer_pct
         result = broker.place_order_for_session(
             symbol, "BUY", usdt_amount=usdt_amount, session=session,
-            prefer_limit=prefer_limit, limit_buffer_pct=settings.regular_limit_buffer_pct,
+            prefer_limit=prefer_limit, limit_buffer_pct=limit_buf,
         )
     elif action == "SELL":
         base_balance = _held_qty(portfolio, symbol, settings)

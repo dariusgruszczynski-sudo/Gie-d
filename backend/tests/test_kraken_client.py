@@ -175,6 +175,53 @@ def test_place_order_for_session_dry_run_synthetic_fill():
     assert r.price == 50000.0 and abs(r.usdt_value - 50.0) < 1e-6
 
 
+def test_round_price_uses_pair_decimals():
+    import app.services.kraken_client as kc
+    kc._DYN_PAIR_DEC = {"BTC": 1, "NIGHT": 5}
+    try:
+        assert kc.round_price("BTC/EUR", 50000.123) == 50000.1
+        assert kc.round_price("NIGHT/EUR", 0.0441234) == 0.04412
+        assert kc.round_price("WIF/EUR", 1.23) is None   # nieznana para -> None (market)
+    finally:
+        kc._DYN_PAIR_DEC = {}
+
+
+def test_marketable_limit_entry_uses_limit_with_buffer():
+    import app.services.kraken_client as kc
+    kc._DYN_PAIR_DEC = {"BTC": 1}
+    try:
+        t = _capture_transport({"result": {"txid": ["OZZZ"]}})
+        # Ticker dla ceny + AddOrder; _capture zwraca to samo, ale body łapiemy z AddOrder.
+        def t2(method, url, headers, body):
+            if "Ticker" in url:
+                return {"result": {"XXBTZEUR": {"c": ["50000.0", "0.1"]}}}
+            t.sent = {"method": method, "url": url, "headers": headers, "body": body}
+            return {"result": {"txid": ["OZZZ"]}}
+        c = KrakenClient(key="k", secret="c2VjcmV0", transport=t2, live_trading=True)
+        r = c.place_order_for_session("BTC/EUR", "buy", usdt_amount=50.0, prefer_limit=True, limit_buffer_pct=0.5)
+        assert "ordertype=limit" in t.sent["body"]
+        # BUY: limit = 50000 * 1.005 = 50250.0, zaokrąglone do 1 miejsca (_fmt_num bez .0).
+        assert "price=50250" in t.sent["body"]
+        assert r.price == 50250.0
+    finally:
+        kc._DYN_PAIR_DEC = {}
+
+
+def test_marketable_limit_falls_back_to_market_when_precision_unknown():
+    import app.services.kraken_client as kc
+    kc._DYN_PAIR_DEC = {}  # brak precyzji -> market
+    sent = {}
+    def t2(method, url, headers, body):
+        if "Ticker" in url:
+            return {"result": {"XXBTZEUR": {"c": ["50000.0", "0.1"]}}}
+        sent["body"] = body
+        return {"result": {"txid": ["OZZZ"]}}
+    c = KrakenClient(key="k", secret="c2VjcmV0", transport=t2, live_trading=True)
+    c.place_order_for_session("BTC/EUR", "buy", usdt_amount=50.0, prefer_limit=True, limit_buffer_pct=0.5)
+    assert "ordertype=market" in sent["body"]   # nieznana precyzja -> bezpieczny market
+    assert "price=" not in sent["body"]
+
+
 def test_live_trading_flag_controls_dry_run():
     # Gdy silnik woła bez validate: not-live -> dry-run; live -> realne.
     bodies = []
