@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-11-22T21:58:31Z
+# Audyt GielDarek — 2026-11-23T16:56:50Z
 
 **Wdrożenie:** kod ba61922 (zbud. 2026-11-22T21:47Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
@@ -9,13 +9,13 @@
 
 ## Wnioski
 - (neu) Za mało zamkniętych transakcji (0) na mocne wnioski — bot dopiero zbiera próbkę.
-- (neu) Limit wejść bywa osiągany (1 dni) — podniesienie może dołożyć wejść.
+- (neu) Limit wejść bywa osiągany (2 dni) — podniesienie może dołożyć wejść.
 - (neu) Najczęstszy powód pominięcia wejścia: „Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)” (17× z ostatnich 300 decyzji).
 
 ## Przecieki per symbol (najgorsze)
 
 ## Wejścia vs limit
-- cap 0/dzień · max w dniu 1 · dni z limitem 1 · hamuje: true
+- cap 0/dzień · max w dniu 4 · dni z limitem 2 · hamuje: true
 
 ## Opus-kontroler (co REALNIE zmienił)
 - włączony: false · ostatni przebieg: 2026-09-11 · baza wiedzy: 29 wpisów
@@ -23,29 +23,31 @@
 - próg pewności — baza (env): 0.6 · progresja +0.03/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
-- ostatnie 19 decyzji · wykonanych: 1 · odrzuconych: 18
+- ostatnie 36 decyzji · wykonanych: 6 · odrzuconych: 30
 
 **Najczęstsze powody odrzucenia (top):**
 - 17× — Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
+- 12× — brak powodu
 - 1× — Rozjazd rekoncyliacji: baza vs broker różni się o $-14,564 (głównie ETH/USD: $-13,201) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
 
 **Ostatnie 20 decyzji:**
+- 2026-11-23T16:47:34.950928 TRX/EUR BUY conf=0.6 trig=news_event ⛔ ?
+- 2026-11-23T16:32:37.731942 TRX/EUR BUY conf=0.6 trig=news_event ⛔ ?
+- 2026-11-23T16:17:34.103094 TRX/EUR BUY conf=0.6 trig=news_event ⛔ ?
+- 2026-11-23T15:32:25.182766 QNT/EUR SELL conf=1.0 trig=price_move ⛔ ?
+- 2026-11-23T15:17:25.370854 QNT/EUR SELL conf=1.0 trig=price_move ⛔ ?
+- 2026-11-23T15:02:25.434444 QNT/EUR SELL conf=1.0 trig=price_move ⛔ ?
+- 2026-11-23T14:47:25.191917 QNT/EUR SELL conf=1.0 trig=price_move ⛔ ?
+- 2026-11-23T14:32:30.706430 QNT/EUR SELL conf=1.0 trig=price_move ⛔ ?
+- 2026-11-23T14:17:25.228217 QNT/EUR SELL conf=1.0 trig=price_move ⛔ ?
+- 2026-11-23T14:02:34.262839 HYPE/EUR BUY conf=0.6 trig=news_event ⛔ ?
+- 2026-11-23T13:47:40.015324 TRX/EUR BUY conf=0.6 trig=news_event ⛔ ?
+- 2026-11-23T11:47:39.976247 ALGO/EUR BUY conf=0.6 trig=news_event ✅WYKONANE
+- 2026-11-23T09:17:41.485703 TAO/EUR BUY conf=0.6 trig=news_event ⛔ ?
+- 2026-11-23T09:17:39.091963 QNT/EUR BUY conf=0.6 trig=news_event ✅WYKONANE
+- 2026-11-23T08:32:34.070527 JUP/EUR BUY conf=0.6 trig=news_event ✅WYKONANE
+- 2026-11-23T05:47:39.278316 LINK/EUR BUY conf=0.6 trig=news_event ✅WYKONANE
+- 2026-11-22T23:32:33.343871 VVV/EUR BUY conf=0.6 trig=news_event ✅WYKONANE
 - 2026-11-22T21:17:09.320562 — HOLD conf=0.6 trig=manual ⛔ Rozjazd rekoncyliacji: baza vs broker różni się o $-14,564 (głównie ETH/USD: $-13,201) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
 - 2026-11-22T20:50:39.666964 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
 - 2026-11-22T20:35:39.597121 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 2026-11-22T20:20:45.102774 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 2026-11-22T20:05:39.711623 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 2026-11-22T19:50:40.370228 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 2026-11-22T19:35:39.619636 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 2026-11-22T19:20:44.659660 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 2026-11-22T19:05:40.241171 — HOLD conf=0.0 trig=price_move ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 2026-11-22T18:50:39.813237 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 2026-11-22T18:35:39.757536 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 2026-11-22T18:20:44.976978 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 2026-11-22T18:05:39.810455 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 2026-11-22T17:50:40.402290 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 2026-11-22T17:35:39.743705 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 2026-11-22T17:20:39.614827 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 2026-11-22T17:05:45.344691 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 2026-11-22T16:50:39.798039 — HOLD conf=0.0 trig=news_event ⛔ Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 2026-11-22T13:41:18.035783 NIGHT/EUR BUY conf=0.6 trig=news_event ✅WYKONANE
