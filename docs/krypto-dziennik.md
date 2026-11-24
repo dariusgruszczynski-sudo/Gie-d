@@ -126,6 +126,31 @@ trailing od **+6%** (było +8%). Monety dzikie skalują się proporcjonalnie (be
 szumie). Testy **591/591**, ruff czysto. Świadomy wybór „raczej zablokuj zysk niż oddaj” —
 kosztem okazjonalnego wcześniejszego wyjścia z runnera; obserwujemy na żywych danych.
 
+### Wpis — 2026-11-24 (strategia pod NOWE realia — tnij relikty $600k/Alpaca)
+Polecenie właściciela: *„analizuj strategię pod nowe realia, nie trzymaj się staroci”*.
+Audyt wykazał mechanikę projektowaną pod **$600k paper / Alpaca / szeroki portfel**, która
+na **€120 realnych na Krakenie** jest martwa albo szkodzi. Wdrożone (wybór właściciela 2+3+4+5):
+
+- **(2) Drabinka partial-TP OFF** (`crypto_partial_take_profit_enabled=False`). Na małym koncie
+  każdy szczebel (1/3 przy 1.5R, 1/3 przy 3R) to osobna transakcja × 0.26% fee, a kawałek z €30
+  ledwo nad min-zlecenia. Jedno czyste wyjście (trailing/breakeven/stop/hard-TP) = mniej prowizji,
+  mniej bałaganu księgowego.
+- **(3) Korelacyjny de-risk OFF** (`crypto_correlation_sizing_enabled=False`). Mnożnik 0.85^N
+  ścinał już-malutkie pozycje poniżej min (to on dobił ATOM do €3.81). Przy 3-4 pozycjach
+  dywersyfikacja korelacyjna i tak niemożliwa — lepiej WYKONALNE pozycje niż dust.
+- **(4) Uniwersum-fallback /USD→/EUR.** Live idzie z dynamicznego skanera Krakena (/EUR), ale
+  statyczny fallback to był wciąż `BTC/USD,ETH/USD,…` — relikt po Alpace wskazujący pary
+  NIEISTNIEJĄCE na tym koncie. Przepisane na płynne majory /EUR.
+- **(5) Bankuj mocny zysk** (`crypto_hard_take_profit_pct` 40→**15**). Dowód: trailing oddawał
+  zysk, a runnery do +40% nigdy się nie materializowały (śr. wygrana +0,34% przed zawróceniem).
+  +15% brany CAŁY outright, zanim cofnie. Świadomy koszt: ucięty gruby ogon powyżej +15%.
+
+**Ustalenie kluczowe (gap w kodzie):** `crypto_fee_pct=0.26` jest tylko KSIĘGOWANE
+(`fee_usd` na transakcji), NIE wchodzi do decyzji wejścia/wyjścia. Breakeven-lock +0.5% łata
+to przy wyjściu na zero, ale cele/wejścia nie mają fee-hurdle. **Odłożone do decyzji:**
+(1) fee-aware progi, (6) core-satellite (hold BTC/ETH + satelita), (7) regime-gate w bessie.
+Testy **592/592**, ruff czysto. Noga akcji nietknięta (overrides tylko krypto).
+
 ### Tydzień 6 — 2026-11-15 (silnik WZNOWIONY, księgi uzgodnione, czysta era — ale 0 wejść: BTC w bessie)
 **Przełom tygodnia: silnik znów żyje.** Właściciel 11-11 uzgodnił księgi z brokerem
 (re-sync phantomów — **residual $0**, rozjazd $226k rozwiązany) i odblokował silnik;

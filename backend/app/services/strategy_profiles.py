@@ -52,6 +52,7 @@ _CRYPTO_OVERRIDES = {
     "crypto_max_position_pct": "max_position_pct",
     "crypto_reward_risk_ratio": "reward_risk_ratio",
     "crypto_trailing_stop_frac": "trailing_stop_frac",
+    "crypto_partial_take_profit_enabled": "partial_take_profit_enabled",
     "crypto_partial_take_profit_frac": "partial_take_profit_frac",
     "crypto_partial_take_profit_r": "partial_take_profit_r",
     # Partia 2 (#10 drabinka TP, #11 wyjście czasowe) — tylko noga krypto.

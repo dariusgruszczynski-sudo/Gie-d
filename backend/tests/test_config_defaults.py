@@ -112,6 +112,21 @@ def test_kraken_small_account_limits_2026_11_24():
     assert s.crypto_breakeven_lock_pct == 0.5                # zamknięcie ~+0.5% (netto zero po prowizji)
 
 
+def test_kraken_small_account_simplifications_2026_11_24():
+    """Analiza pod nowe realia (€120, fee 0.52% round-trip): wytnij mnożenie prowizji
+    i martwe relikty. Partial OFF (mniej fee), korelacyjny de-risk OFF (nie ścinaj do
+    dust), uniwersum-fallback /EUR (nie /USD po Alpace), bankuj mocny zysk (hard-TP 15%)."""
+    from app.config import Settings
+    s = Settings(anthropic_api_key="x", alpaca_api_key="x", alpaca_api_secret="x")
+    assert s.crypto_partial_take_profit_enabled is False     # mniej zdarzeń prowizji na małym koncie
+    assert s.crypto_correlation_sizing_enabled is False      # nie ścinaj już-malutkich pozycji poniżej min
+    assert s.crypto_hard_take_profit_pct == 15.0             # bankuj mocny zysk outright (było 40 blow-off)
+    assert s.crypto_universe == "BTC/EUR,ETH/EUR,SOL/EUR,LINK/EUR,AVAX/EUR,LTC/EUR,DOGE/EUR"
+    # Noga akcji NIETKNIĘTA (overrides tylko krypto):
+    assert s.partial_take_profit_enabled is True
+    assert s.hard_take_profit_pct == 6.0
+
+
 def test_backtest_slippage_default():
     """R22: model poślizgu w backteście domyślnie włączony (15 bps/strona)."""
     from app.config import Settings

@@ -168,9 +168,11 @@ class Settings(BaseSettings):
     # z tanim silnikiem (mechanika najpierw, LLM rzadko). crypto_enabled=False do
     # czasu pełnego podpięcia egzekucji (Faza 2) -- additive, nic nie psuje.
     crypto_enabled: bool = False
-    # Ciasna, PŁYNNA lista par (najgłębszy book na Alpaca). Celowo wąska: płynność
-    # > egzotyka. Format par Alpaca: "BTC/USD".
-    crypto_universe: str = "BTC/USD,ETH/USD,SOL/USD,LINK/USD,AVAX/USD,LTC/USD,DOGE/USD"
+    # Ciasna, PŁYNNA lista par — FALLBACK, gdy dynamiczny skaner Krakena nie zadziała.
+    # 2026-11-24: /USD -> /EUR. Live konto to Kraken spot EUR; stare /USD było reliktem
+    # po Alpace i wskazywało pary NIEISTNIEJĄCE na tym koncie (martwy fallback). Płynne
+    # majory /EUR, format Krakena (BTC/EUR mapuje się na XBTEUR przez cache par).
+    crypto_universe: str = "BTC/EUR,ETH/EUR,SOL/EUR,LINK/EUR,AVAX/EUR,LTC/EUR,DOGE/EUR"
     crypto_allocation_pct: float = 100.0
     # --- SKANER RYNKU 24/7 (2026-10-23, wniosek #1/#2/#3) ---------------------
     # Zamiast sztywnej 7-tki: co cykl skanuj CAŁĄ handlowalną listę par USD Alpaki,
@@ -303,7 +305,12 @@ class Settings(BaseSettings):
     # ujemny skos: mały zysk, duży stop). Ride robi trailing, część lockuje partial,
     # a twardy TP łapie tylko paraboliczny blow-off. crypto_hard_take_profit_pct niżej.
     crypto_trailing_stop_frac: float = 0.6          # szerszy trail = dłuższa jazda trendem
-    crypto_partial_take_profit_frac: float = 0.33   # zabierz 1/3 przy 1.5R (de-risk), reszta jedzie
+    # 2026-11-24 (konto €120): drabinka partial WYŁĄCZONA. Na małym koncie każdy szczebel
+    # to osobna transakcja (0.26% fee), a kawałek 1/3 z €30 ledwo nad min. zlecenia Krakena
+    # — mnożenie prowizji i bałaganu księgowego. Jedno czyste wyjście (trailing/breakeven/
+    # stop/hard-TP) wystarczy. Wrócić do ON przy większym koncie. Frac/r zostają jako nastawy.
+    crypto_partial_take_profit_enabled: bool = False
+    crypto_partial_take_profit_frac: float = 0.33   # (nieaktywne gdy enabled=False) zabierz 1/3 przy 1.5R
     crypto_partial_take_profit_r: float = 1.5
     # DRABINKA TP (#10): drugi szczebel przy 3R — zabierz kolejną 1/3 z RESZTY,
     # runner (≈45% startowej) biegnie dalej z trailingiem. Lockuje więcej zysku
@@ -314,7 +321,7 @@ class Settings(BaseSettings):
     # pracować, a nie leżeć w pozycji, która nie potwierdziła tezy momentum.
     crypto_time_exit_hours: float = 72.0
     crypto_time_exit_min_gain_pct: float = 1.0
-    crypto_hard_take_profit_pct: float = 40.0       # tylko blow-off; zwykłe trendy jadą na trailingu
+    crypto_hard_take_profit_pct: float = 15.0       # 2026-11-24: 40->15 („bankuj mocny zysk”, decyzja właściciela). Dowód: trailing oddawał zysk, a runnery do +40% nigdy się nie materializowały (śr. wygrana +0,34% przed zawróceniem). +15% = realny MOCNY ruch brany CAŁY outright, zanim cofnie. Świadomy koszt: ucięty gruby ogon powyżej +15%.
     crypto_stop_loss_vol_mult: float = 4.0
     crypto_stop_loss_min_pct: float = 4.0            # krypto rusza się 3-5%+ dziennie
     crypto_stop_loss_max_pct: float = 18.0
@@ -906,7 +913,7 @@ class Settings(BaseSettings):
     #     w jedną korelację". 1.0 = wyłączone (akcje bez zmian). Podłoga jak przy vol.
     correlation_sizing_enabled: bool = False
     correlation_size_mult: float = 1.0
-    crypto_correlation_sizing_enabled: bool = True
+    crypto_correlation_sizing_enabled: bool = False  # 2026-11-24 (konto €120): OFF. Mnożnik 0.85^N ścinał już-malutkie pozycje poniżej min. zlecenia (to on dobił ATOM do €3.81). Przy 3-4 pozycjach dywersyfikacja korelacyjna i tak niemożliwa — lepiej WYKONALNE pozycje niż dust. Wrócić do ON przy większym koncie (szerszy portfel).
     crypto_correlation_size_mult: float = 0.85
     # #14 COOL-OFF PO STRATNYM DNIU (Partia 4): gdy WCZORAJ (UTC) zrealizowany wynik
     #     krypto był ≤ −cooloff_after_loss_day_pct% konta, DZIŚ nowe wejścia idą
