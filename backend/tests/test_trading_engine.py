@@ -930,6 +930,28 @@ def test_compute_portfolio_glitchy_read_reuses_last_good(db_session, settings):
     assert pf2["total_value_usdt"] == pytest.approx(119.0)
 
 
+def test_crypto_entry_bumped_to_viable_min_when_derisk_shrinks(db_session, settings):
+    """WYKONALNOŚĆ: gdy miękki de-risk ściął wejście pod minimum Krakena, a twarde
+    limity (koncentracja/płynność/przydział) i tak mieszczą minimum -> PODNIEŚ do
+    wykonalnego min (+bufor), zamiast słać €3.81 < €4.24 i w kółko odrzucać."""
+    s = settings.model_copy(update={
+        "crypto_enabled": True, "crypto_venue": "kraken", "quote_currency": "EUR",
+        "max_position_pct": 90.0, "crypto_max_order_vs_dollar_vol_mult": 0.0,
+        "max_order_notional_usd": 0.0, "trading_whitelist": "ATOM/EUR",
+    })
+    broker = _FakeKrakenExec(prices={"ATOM/EUR": 1.21}, balances={"EUR": 100.0}, min_notional=4.24)
+    pf = {"balances": {}, "prices": {"ATOM/EUR": 1.21},
+          "usdt_balance": 100.0, "total_value_usdt": 100.0}
+    # size_pct 3% -> €3 (pod min €4.24); twarde limity luźne -> podbicie do €4.24×1.1.
+    trade = trading_engine._execute_trade(
+        db=db_session, broker=broker, settings=s, symbol="ATOM/EUR",
+        action="BUY", size_pct=3.0, portfolio=pf, decision=None, is_manual=False, venue="crypto",
+    )
+    assert trade is not None
+    assert broker.orders and broker.orders[-1].side == "BUY"
+    assert broker.orders[-1].usdt_value == pytest.approx(4.24 * 1.1, rel=1e-3)   # podbite do wykonalnego min
+
+
 def test_broker_min_notional_helper(db_session, settings):
     b = _FakeKrakenExec({"X/EUR": 100.0}, {"EUR": 50.0}, min_notional=2.65)
     assert trading_engine._broker_min_notional(b, "X/EUR", 100.0) == 2.65

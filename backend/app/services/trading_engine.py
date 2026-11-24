@@ -42,6 +42,10 @@ logger = logging.getLogger(__name__)
 # rounding bug). Treat it as not-a-position instead of retrying a doomed SELL
 # on every poll -- it's economically irrelevant (fractions of a cent).
 MIN_SELL_NOTIONAL_USD = 1.0
+# Bufor nad surowym minimum zlecenia Krakena dla NOWEGO wejścia: prowizja (~0,26%),
+# poślizg marketable-limit i zaokrąglenie wolumenu mogą zepchnąć zlecenie tuż pod
+# ordermin. 1,1 = wejście celuje w min. +10%, żeby realnie przeszło za pierwszym razem.
+_MIN_ENTRY_BUFFER = 1.1
 
 
 def _broker_min_notional(broker, symbol: str, price: float) -> float:
@@ -2657,6 +2661,16 @@ def _run_auto_deploy(
             adx = md.get("adx")
             if adx is not None and adx < min_adx:
                 return False
+        # WYKONALNOŚĆ WEJŚCIA (mały portfel): nie kwalifikuj symbolu, jeśli nie stać nas
+        # na WYKONALNE zlecenie >= minimum Krakena dla TEJ pary (ordermin×cena). Inaczej
+        # silnik co cykl próbuje zbyt małego kawałka (ATOM €3.81 < €4.24) i spamuje log
+        # odrzuceniami — a pozycja i tak się nie otworzy. Mały portfel = mniej, ale
+        # WYKONALNYCH pozycji. Buffer na prowizję/poślizg/zaokrąglenie.
+        if price > 0 and venue == "crypto":
+            pair_min = _broker_min_notional(broker, sym, price)
+            affordable = min(pf.get("usdt_balance", 0.0), venue_allocation_room(db, settings, pf, venue))
+            if affordable < pair_min * _MIN_ENTRY_BUFFER:
+                return False
         return True
 
     def rank_key(sym: str):
@@ -3532,11 +3546,21 @@ def _execute_trade(
         if venue == "crypto" and not is_manual:
             price_now = (portfolio.get("prices") or {}).get(symbol) or 0.0
             acct_total = portfolio.get("total_value_usdt", 0.0) or 0.0
+            # TWARDY SUFIT BEZPIECZEŃSTWA (niezależny od miękkiego de-risk w size_pct):
+            # przydział, max-notional, koncentracja, płynność. To on decyduje, czy
+            # WYKONALNE minimum Krakena w ogóle się mieści — podbijając pod minimum
+            # NIGDY go nie przekraczamy (inaczej złamalibyśmy anty-blowout na niepłynne).
+            hard_ceiling = float("inf")
+            if room is not None:
+                hard_ceiling = min(hard_ceiling, room)
+            if max_notional > 0:
+                hard_ceiling = min(hard_ceiling, max_notional)
             # (1) Udział jednej monety: nie pozwól DOŁOŻYĆ ponad sufit % konta.
             cap_pct = getattr(settings, "max_position_pct", 0.0) or 0.0
             if acct_total > 0 and cap_pct > 0:
                 held_val = _held_qty(portfolio, symbol, settings) * price_now
                 conc_room = max(0.0, acct_total * cap_pct / 100.0 - held_val)
+                hard_ceiling = min(hard_ceiling, conc_room)
                 usdt_amount = min(usdt_amount, conc_room)
             # (2) Płynność: zlecenie ≤ N× średniego dziennego obrotu $ monety.
             mult = getattr(settings, "crypto_max_order_vs_dollar_vol_mult", 0.0) or 0.0
@@ -3549,23 +3573,34 @@ def _execute_trade(
                     except (TypeError, ValueError):
                         dv_map = {}
                 dv = float((dv_map or {}).get(symbol, 0.0) or 0.0)
-                if dv > 0 and usdt_amount > mult * dv:
-                    logger.info(
-                        "Płynność tnie zlecenie %s: $%.0f -> $%.0f (obrót ~$%.0f/d × %.0f)",
-                        symbol, usdt_amount, mult * dv, dv, mult,
-                    )
-                    usdt_amount = mult * dv
-            # fix#2: po przycięciach sprawdź REALNE minimum brokera (Kraken ordermin ×
-            # cena, ~€2.65), nie sztywne €1. Sub-min zlecenie i tak wypadłoby po cichu
-            # na Krakenie (executed=False bez powodu) — tu odrzucamy je CZYSTO z jasnym
-            # powodem (ValueError łapany wyżej -> rejection_reason). Koniec cichych porażek.
-            price_est = (portfolio.get("prices") or {}).get(symbol) or 0.0
-            min_notional = _broker_min_notional(broker, symbol, price_est)
+                if dv > 0:
+                    hard_ceiling = min(hard_ceiling, mult * dv)
+                    if usdt_amount > mult * dv:
+                        logger.info(
+                            "Płynność tnie zlecenie %s: $%.0f -> $%.0f (obrót ~$%.0f/d × %.0f)",
+                            symbol, usdt_amount, mult * dv, dv, mult,
+                        )
+                        usdt_amount = mult * dv
+            # fix#2 + WYKONALNOŚĆ: REALNE minimum Krakena (ordermin × cena), nie sztywne €1.
+            # Gdy rozmiar spadł pod minimum przez MIĘKKIE mnożniki de-risk/korelacji na
+            # małym koncie, a TWARDE limity bezpieczeństwa i tak mieszczą minimum —
+            # PODNIEŚ do wykonalnego minimum (+bufor), ale nigdy nad twardy sufit (lepiej
+            # jedna WYKONALNA pozycja niż zero). Gdy nawet twardy sufit nie mieści minimum
+            # (niepłynna / za ciasny przydział) -> odrzuć CZYSTO z powodem (koniec cichych
+            # porażek executed=False I spamu zbyt małych zleceń ATOM €3.81 < €4.24).
+            min_notional = _broker_min_notional(broker, symbol, price_now)
             if usdt_amount < min_notional:
-                raise ValueError(
-                    f"Rozmiar {symbol} = €{usdt_amount:.2f} < min. zlecenia Krakena (~€{min_notional:.2f}) "
-                    "po limitach koncentracji/płynności — pomijam (za mały kawałek na to konto)"
-                )
+                if hard_ceiling >= min_notional:
+                    usdt_amount = min(min_notional * _MIN_ENTRY_BUFFER, hard_ceiling)
+                    logger.info(
+                        "Podnoszę %s do wykonalnego min €%.2f (miękki de-risk ściął za nisko, sufit €%.2f)",
+                        symbol, usdt_amount, hard_ceiling,
+                    )
+                else:
+                    raise ValueError(
+                        f"Rozmiar {symbol}: twarde limity (płynność/koncentracja/przydział, sufit €{hard_ceiling:.2f}) "
+                        f"nie mieszczą min. zlecenia Krakena €{min_notional:.2f} — pomijam"
+                    )
         # Rekomendacja B / mech#2: WEJŚCIA składamy marketable-LIMIT (sufit poślizgu).
         # Akcje: tylko nazwy o szerokim spreadzie (regular_marketable_limit). KRYPTO
         # na Krakenie: wszystkie wejścia, gdy crypto_marketable_limit_enabled — bufor
