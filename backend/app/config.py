@@ -219,7 +219,7 @@ class Settings(BaseSettings):
     crypto_min_hold_minutes: int = 60                 # krótsze trzymanie niż akcje (24/7)
     # 40 -> 20: twardy sufit udziału JEDNEJ pary (anty-koncentracja + z dala od
     # limitu $200k/zlecenie nawet przy piramidowaniu).
-    crypto_max_position_pct: float = 10.0            # 2026-11-19 („nie dopuść do blowoutu"): 20->10. Przy odblokowanych altach twardy sufit udziału JEDNEJ pary = 10% konta (na $600k = $60k) — blowout HYPE ($232k w jedną monetę) staje się strukturalnie niemożliwy.
+    crypto_max_position_pct: float = 30.0            # 2026-11-24 (go-live Kraken €120): 10->30. Stare 10% kalibrowane pod konto $600k; na €120 = €12 sufit/parę, poniżej progu wykonalności — bot nie mógł otworzyć sensownej pozycji. 30% na €120 = €36 (wykonalne), a blowout-guard trzyma CAP EKSPOZYCJI (max_total_exposure) + dzienny limit wejść. UWAGA: skalibrowane pod MAŁE konto — przy znaczącym wzroście konta wrócić do ~10% (lekcja blowoutu HYPE: na dużym koncie jedna para ≤10%).
     # ANTY-BLOWOUT NA NIEPŁYNNE (2026-10-27, wyraźna zgoda właściciela): pojedyncze
     # zlecenie nie może przekroczyć N× średniego dziennego obrotu $ monety (ze
     # skanera). Geneza: HYPE (~$2k/d obrotu) dostał $232k w 3 zleceniach = ~100×
@@ -289,10 +289,14 @@ class Settings(BaseSettings):
     crypto_event_alert_min_severity: float = 0.3     # próg powagi na sam alarm (niżej = ignorujemy jako szum)
     crypto_event_unlock_block_days: float = 3.0      # blokuj NOWE wejście, gdy duży unlock monety w ≤ tylu dniach
     crypto_event_llm_enabled: bool = False           # klasyfikator LLM powagi/trafności zdarzeń (tanio: batch, tylko na prefiltrze); OFF = fallback keyword, zero kosztu
-    # Cel pojedynczego auto-deploy: mniejszy niż bazowe 25% (osobny override), żeby
-    # zlecenia nie ocierają się o limit Alpaki. 15% zostawia bufor pod $200k.
-    crypto_auto_deploy_max_position_pct: float = 15.0
-    crypto_reward_risk_ratio: float = 2.0
+    # Cel pojedynczego auto-deploy. 2026-11-24 (go-live €120): 15->25. Na €120 cel 25%
+    # = €30/pozycja -> ~3-4 WYKONALNE pozycje zamiast dust < min. zlecenia Krakena.
+    # Twardy sufit (max_position_pct) i cap ekspozycji i tak wiążą.
+    crypto_auto_deploy_max_position_pct: float = 25.0
+    # 2026-11-24: 2.0->1.5. tp_arm = stop × ratio uzbraja TRAILING; niższe = trailing
+    # rusza WCZEŚNIEJ (na +1.5R zamiast +2R), więc zwycięzca mniej oddaje przed wyjściem
+    # (skarga „sprzedaje za późno / oddaje zysk"). Partial/breakeven osobno niżej.
+    crypto_reward_risk_ratio: float = 1.5
     # TREND-FOLLOWING (dowody: time-series momentum to najmocniejsza, udokumentowana
     # przewaga w krypto — dekada walk-forward + 2020-25). Rdzeń: TNIJ STRATY szybko,
     # POZWÓL ZYSKOM BIEC. Dlatego NIE ścinamy każdego zwycięzcy sztywnym +6% (to był
@@ -378,7 +382,7 @@ class Settings(BaseSettings):
     breakeven_trigger_pct: float = 0.0
     crypto_breakeven_trigger_pct: float = 8.0
     breakeven_trigger_r: float = 0.0       # 0 = użyj stałego breakeven_trigger_pct (akcje)
-    crypto_breakeven_trigger_r: float = 1.0  # krypto: uzbrój breakeven na +1R (szczyt >= 1×stop)
+    crypto_breakeven_trigger_r: float = 0.75  # 2026-11-24: 1.0->0.75. Uzbrój breakeven już na +0.75R (szczyt >= 0.75×stop), żeby MNIEJSZY zielony ruch był chroniony (skarga „sprzedaje za późno / z zielonej na stratę"). Niżej groziłby whipsaw na szumie.
     breakeven_lock_pct: float = 0.0        # akcje: wyjście dokładnie na wejściu
     crypto_breakeven_lock_pct: float = 0.5   # krypto: zamknij na ~+0.5% (pokrycie prowizji)
     # (2) Winner ratchet: po dużym biegu (>= trigger%) zacieśnij trailing (×mult),
@@ -453,7 +457,7 @@ class Settings(BaseSettings):
     #    zainwestowane >= cap% konta (krypto jest silnie skorelowane -> 5 altów to
     #    jeden zakład; to chroni przed "wszystko czerwone naraz").
     max_total_exposure_pct: float = 0.0
-    crypto_max_total_exposure_pct: float = 50.0  # 2026-10-19: 60→50 (wniosek #4) — 6 altów to jeden skorelowany zakład; niższy cap zostawia gotówkę i ogranicza „all-in w korelację".
+    crypto_max_total_exposure_pct: float = 85.0  # 2026-11-24 (go-live €120): 50→85. Stare 50% zostawiało €60 z €120 BEZCZYNNIE w gotówce — na małym koncie marnotrawstwo. 85% = €102 w grze, 15% bufor na prowizje/poślizg/min-zlecenie. (Na dużym koncie skorelowanych altów rozważyć powrót niżej — lekcja „all-in w korelację".)
     # #5 Circuit-breaker na serię strat: po N stratnych zamknięciach z rzędu
     #    (venue, licznik z historii) pauza NOWYCH wejść do rolki doby UTC.
     loss_streak_pause: int = 0
@@ -1134,8 +1138,11 @@ class Settings(BaseSettings):
     auto_deploy_rotation_max_pnl_pct: float = 1.0
     # Bezpiecznik anty-churn: maks. wymian na cykl.
     auto_deploy_max_rotations_per_cycle: int = 2
-    # Nie zawracaj sobie głowy resztką gotówki poniżej tego progu (USD).
-    auto_deploy_min_cash_usd: float = 25.0
+    # Nie zawracaj sobie głowy resztką gotówki poniżej tego progu (USD/EUR).
+    # 2026-11-24 (go-live €120): 25->10. Na €120 próg €25 zostawiał €24 „resztki",
+    # która SPOKOJNIE funduje kolejną wykonalną pozycję (min. zlecenia Krakena €3-8).
+    # €10 = deployuj póki mieści się realne zlecenie, niżej zostaw jako prawdziwy pył.
+    auto_deploy_min_cash_usd: float = 10.0
     # ANTY-KONCENTRACJA: pojedyncze auto-wejście celuje w ten % KONTA (a nie w
     # cały wolny cash), więc gotówka rozkłada się na kilka najlepszych nazw
     # (~100/ten% pozycji), zamiast wpakować ~max_position_pct w jedną. Risk-cap i

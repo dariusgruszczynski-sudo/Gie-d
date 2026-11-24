@@ -91,9 +91,25 @@ def test_meta_analysis_knobs_2026_11():
     # inaczej przy małym koncie % zawsze bił pierwszy i watchdog nie ruszał.
     assert s.crypto_reconciliation_halt_floor_usd == 25.0
     # „nie dopuść do blowoutu": twarde limity, które trzymają odblokowane alty w ryzach.
-    assert s.crypto_max_position_pct == 10.0                 # sufit udziału jednej pary
     assert s.crypto_max_order_vs_dollar_vol_mult == 0.25     # zlecenie ≤ 25% dziennego obrotu
     assert s.crypto_max_new_positions_per_day == 5           # hamulec tempa wejść (3->5, zgoda właściciela)
+
+
+def test_kraken_small_account_limits_2026_11_24():
+    """Go-live Kraken €120: limity sizingu przekalibrowane z konta $600k na €120, żeby
+    wejścia były WYKONALNE (≥ min. zlecenia Krakena), plus wyjścia zacieśnione (mniej
+    oddawania zysku). Blowout-guard dalej trzyma: cap ekspozycji + dzienny limit wejść."""
+    from app.config import Settings
+    s = Settings(anthropic_api_key="x", alpaca_api_key="x", alpaca_api_secret="x")
+    # Sizing pod małe konto (€120):
+    assert s.crypto_max_position_pct == 30.0                 # €36 sufit/parę (było €12 — za mało)
+    assert s.crypto_auto_deploy_max_position_pct == 25.0     # cel €30/pozycja -> ~3-4 wykonalne
+    assert s.crypto_max_total_exposure_pct == 85.0           # €102 w grze, 15% bufor (było €60 bezczynne)
+    assert s.auto_deploy_min_cash_usd == 10.0                # deployuj póki mieści się realne zlecenie
+    # Wyjścia zacieśnione (skarga „sprzedaje za późno / oddaje zysk"):
+    assert s.crypto_reward_risk_ratio == 1.5                 # trailing uzbraja na +1.5R (było +2R)
+    assert s.crypto_breakeven_trigger_r == 0.75              # breakeven na +0.75R (było +1R)
+    assert s.crypto_breakeven_lock_pct == 0.5                # zamknięcie ~+0.5% (netto zero po prowizji)
 
 
 def test_backtest_slippage_default():

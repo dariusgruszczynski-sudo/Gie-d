@@ -103,6 +103,29 @@ prawdziwą bramkę bez spamu. Zero dotknięcia ścieżki handlu.
 Testy **589/589**, ruff czysto. To usunięcie strukturalnej luki ochrony zysku + uczciwość
 panelu, nie curve-fit pod wynik. Obserwujemy, czy odsetek „zielona→strata” spada.
 
+**Dogrywka tego samego dnia (polecenie właściciela: „zwiększ limity pod krakena, ogarnij
+sprzedawanie za późne”):** limity sizingu były kalibrowane pod konto **$600k** (paper) i na
+**€120** dławiły wszystko — pozycje schodziły poniżej min. zlecenia Krakena, połowa konta
+siedziała bezczynnie. Przekalibrowane pod małe konto:
+
+| Knob | Było ($600k) | Teraz (€120) | Na €120 |
+|---|---|---|---|
+| `crypto_max_position_pct` | 10% | **30%** | €36 sufit/para |
+| `crypto_auto_deploy_max_position_pct` | 15% | **25%** | €30 cel/pozycja → ~3-4 wykonalne |
+| `crypto_max_total_exposure_pct` | 50% | **85%** | €102 w grze (było €60 bezczynne) |
+| `auto_deploy_min_cash_usd` | €25 | **€10** | deployuj póki mieści się realne zlecenie |
+
+Blowout-guard trzyma dalej: cap ekspozycji (85%), dzienny limit wejść (5), min-hold, limit
+zlecenia vs obrót (25%). **Uwaga na przyszłość:** to kalibracja pod MAŁE konto — przy
+znaczącym wzroście wrócić do ~10%/parę (lekcja blowoutu HYPE: na dużym koncie jedna para ≤10%).
+
+**Wyjścia dociśnięte** (skarga „sprzedaje za późno / oddaje zysk”): `crypto_reward_risk_ratio`
+2.0→**1.5** (trailing uzbraja się na +1.5R zamiast +2R) i `crypto_breakeven_trigger_r`
+1.0→**0.75** (breakeven już od +0.75R). Dla typowej monety (stop 4%): breakeven od **+3%**,
+trailing od **+6%** (było +8%). Monety dzikie skalują się proporcjonalnie (bez whipsawu na
+szumie). Testy **591/591**, ruff czysto. Świadomy wybór „raczej zablokuj zysk niż oddaj” —
+kosztem okazjonalnego wcześniejszego wyjścia z runnera; obserwujemy na żywych danych.
+
 ### Tydzień 6 — 2026-11-15 (silnik WZNOWIONY, księgi uzgodnione, czysta era — ale 0 wejść: BTC w bessie)
 **Przełom tygodnia: silnik znów żyje.** Właściciel 11-11 uzgodnił księgi z brokerem
 (re-sync phantomów — **residual $0**, rozjazd $226k rozwiązany) i odblokował silnik;
