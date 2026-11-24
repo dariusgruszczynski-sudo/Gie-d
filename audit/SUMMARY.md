@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-11-24T16:45:35Z
+# Audyt GielDarek — 2026-11-24T22:58:40Z
 
-**Wdrożenie:** kod 0be5579 (zbud. 2026-11-24T06:03Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 1f593b3 (zbud. 2026-11-24T18:10Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 0 zamknięć · trafność —% · zrealizowany $0.0
 **7 dni:** 0 zamknięć · —% · $0.0   |   **30 dni:** 0 · —% · $0.0
@@ -23,11 +23,11 @@
 - próg pewności — baza (env): 0.6 · progresja +0.03/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
-- ostatnie 51 decyzji · wykonanych: 12 · odrzuconych: 39
+- ostatnie 54 decyzji · wykonanych: 14 · odrzuconych: 40
 
 **Najczęstsze powody odrzucenia (top):**
 - 17× — Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
-- 14× — brak powodu
+- 15× — brak powodu
 - 2× — Dzienny limit strat przekroczony: -65.0% (limit 30.0%)
 - 1× — Rozjazd rekoncyliacji: baza vs broker różni się o $-14,564 (głównie ETH/USD: $-13,201) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
 - 1× — Rozjazd rekoncyliacji: baza vs broker różni się o $35 (głównie NIGHT/EUR: $12) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
@@ -36,6 +36,9 @@
 - 1× — Zlecenie niewykonane: Rozmiar ATOM/EUR = €3.81 < min. zlecenia Krakena (~€4.18) po limitach koncentracji/płynności — pomijam (za mały kawałek na to konto)
 
 **Ostatnie 20 decyzji:**
+- 2026-11-24T19:41:54.265599 — HOLD conf=0.0 trig=manual ⛔ ?
+- 2026-11-24T17:24:15.881472 LINK/EUR SELL conf=1.0 trig=price_move ✅WYKONANE
+- 2026-11-24T17:24:15.562839 NIGHT/EUR SELL conf=1.0 trig=price_move ✅WYKONANE
 - 2026-11-24T13:18:34.998208 ALGO/EUR SELL conf=1.0 trig=price_move ✅WYKONANE
 - 2026-11-24T13:03:40.297784 ATOM/EUR SELL conf=1.0 trig=price_move ✅WYKONANE
 - 2026-11-24T11:33:40.238401 JUP/EUR SELL conf=1.0 trig=price_move ✅WYKONANE
@@ -53,6 +56,3 @@
 - 2026-11-23T17:17:25.658122 QNT/EUR SELL conf=1.0 trig=price_move ⛔ ?
 - 2026-11-23T16:47:34.950928 TRX/EUR BUY conf=0.6 trig=news_event ⛔ ?
 - 2026-11-23T16:32:37.731942 TRX/EUR BUY conf=0.6 trig=news_event ⛔ ?
-- 2026-11-23T16:17:34.103094 TRX/EUR BUY conf=0.6 trig=news_event ⛔ ?
-- 2026-11-23T15:32:25.182766 QNT/EUR SELL conf=1.0 trig=price_move ⛔ ?
-- 2026-11-23T15:17:25.370854 QNT/EUR SELL conf=1.0 trig=price_move ⛔ ?
