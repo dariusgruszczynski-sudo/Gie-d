@@ -1448,6 +1448,14 @@ def get_entry_funnel(
             f"Najczęściej dławi: {tg['label']} ({tg['count']}× na {funnel['blocked']} "
             f"zablokowanych prób wejścia w {days} dni)."
         )
+    elif funnel["buy_attempts"] == 0 and funnel.get("exits", 0) > 0:
+        # Były WYJŚCIA, ale 0 nowych WEJŚĆ — panel nie może udawać „nic się nie działo".
+        # To typowe po serii stopów/breakevenów: pozycje domknięte, konto wraca do gotówki.
+        funnel["headline"] = (
+            f"{funnel['exits']} wyjść (zamknięć pozycji) w {days} dni, ale 0 NOWYCH wejść. "
+            "Pozycje były zamykane (stop/breakeven), a nowych setupów silnik nie otworzył — "
+            "teraz gotówka czeka na następne wejście. To nie zastój: handel trwał po stronie wyjść."
+        )
     elif funnel["buy_attempts"] == 0:
         # UWAGA: „zero prób" NIE znaczy automatycznie „brak sygnału". Przy małym koncie
         # filtr wykonalności (ordermin × cena Krakena) odrzuca ocenionych kandydatów

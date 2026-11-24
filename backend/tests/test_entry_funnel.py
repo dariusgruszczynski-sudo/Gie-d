@@ -52,6 +52,23 @@ def test_funnel_counts_and_top_gate():
     assert f.top_gate is not None and f.top_gate.key == "btc_core" and f.top_gate.count == 2
     assert {g.key for g in f.gates} == {"btc_core", "confluence"}
     assert "btc_core" in f.samples
+    assert f.exits == 1  # jeden wykonany SELL w oknie
+
+
+def test_funnel_counts_exits_not_as_entries():
+    """Same wyjścia (stop/breakeven) bez nowych wejść: buy_attempts=0, ale exits>0 —
+    panel ma pokazać, że handel trwał po stronie wyjść, nie udawać zastoju (skarga
+    'jakie 7 dni jak wczoraj było kilka' — widoczne sprzedaże, a lejek mówił 'zero')."""
+    decisions = [
+        {"action": "SELL", "executed": True, "rejection_reason": None},
+        {"action": "SELL", "executed": True, "rejection_reason": None},
+        {"action": "SELL", "executed": False, "rejection_reason": "min-hold: za wcześnie"},  # niewykonany SELL nie liczy się jako wyjście
+        {"action": "HOLD", "executed": False, "rejection_reason": None},
+    ]
+    f = entry_funnel(decisions)
+    assert f.buy_attempts == 0 and f.entered == 0 and f.blocked == 0
+    assert f.exits == 2  # tylko WYKONANE zamknięcia
+    assert f.as_dict()["exits"] == 2
 
 
 def test_funnel_fill_rate():

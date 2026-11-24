@@ -580,6 +580,7 @@ export interface EntryFunnelResponse {
   buy_attempts: number;
   entered: number;
   blocked: number;
+  exits: number;
   fill_rate: number | null;
   gates: Array<{ key: string; label: string; count: number }>;
   top_gate: { key: string; label: string; count: number } | null;

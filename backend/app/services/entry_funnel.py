@@ -78,6 +78,9 @@ class EntryFunnel:
     buy_attempts: int       # action == BUY (chciał wejść)
     entered: int            # BUY faktycznie wykonane
     blocked: int            # BUY zablokowane przez bramkę
+    exits: int              # SELL wykonane (zamknięcia pozycji) — NIE część lejka WEJŚCIA,
+                            # ale liczone, by panel nie wyglądał „martwo", gdy w oknie były
+                            # tylko wyjścia (stop/breakeven), a nie nowe wejścia.
     gates: list[FunnelStage]        # rozbicie zablokowanych po bramkach, malejąco
     top_gate: FunnelStage | None    # najczęstsza bramka blokująca ("dlaczego nie wchodzi")
     samples: dict[str, str]         # klucz bramki -> przykładowy pełny reason
@@ -97,6 +100,7 @@ class EntryFunnel:
             "buy_attempts": self.buy_attempts,
             "entered": self.entered,
             "blocked": self.blocked,
+            "exits": self.exits,
             "fill_rate": self.fill_rate,
             "gates": [{"key": g.key, "label": g.label, "count": g.count} for g in self.gates],
             "top_gate": (
@@ -125,7 +129,7 @@ def _norm(d: object) -> tuple[str, bool, str | None]:
 def entry_funnel(decisions: Iterable[object]) -> EntryFunnel:
     """Buduje lejek z listy decyzji (dicty lub obiekty ORM z polami
     action/executed/rejection_reason). Czysta funkcja — bez DB, łatwa do testu."""
-    evaluated = holds = buy_attempts = entered = blocked = 0
+    evaluated = holds = buy_attempts = entered = blocked = exits = 0
     counts: dict[str, int] = {}
     samples: dict[str, str] = {}
 
@@ -136,7 +140,12 @@ def entry_funnel(decisions: Iterable[object]) -> EntryFunnel:
             holds += 1
             continue
         if action != "BUY":
-            continue  # SELL i wyjścia mechaniczne nie są częścią lejka WEJŚCIA
+            # SELL/wyjścia mechaniczne nie są częścią lejka WEJŚCIA, ale liczymy
+            # WYKONANE zamknięcia osobno, żeby panel nie udawał „nic się nie działo",
+            # gdy w oknie były same wyjścia (stop/breakeven), a nie nowe wejścia.
+            if action == "SELL" and executed:
+                exits += 1
+            continue
         buy_attempts += 1
         if executed:
             entered += 1
@@ -156,6 +165,6 @@ def entry_funnel(decisions: Iterable[object]) -> EntryFunnel:
     top_gate = gates[0] if gates else None
     return EntryFunnel(
         evaluated=evaluated, holds=holds, buy_attempts=buy_attempts,
-        entered=entered, blocked=blocked, gates=gates, top_gate=top_gate,
+        entered=entered, blocked=blocked, exits=exits, gates=gates, top_gate=top_gate,
         samples=samples,
     )

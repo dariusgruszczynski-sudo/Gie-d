@@ -280,6 +280,9 @@ function EntryFunnelPanel() {
         <span className="st up">weszło: <b>{f.entered}</b></span>
         <span className="sep">·</span>
         <span className="st down">zdławione: <b>{f.blocked}</b></span>
+        {f.exits > 0 && (
+          <><span className="sep">·</span><span className="st">wyszło: <b>{f.exits}</b></span></>
+        )}
         {f.fill_rate != null && (
           <><span className="sep">·</span><span className="st">fill-rate: <b>{Math.round(f.fill_rate * 100)}%</b></span></>
         )}
