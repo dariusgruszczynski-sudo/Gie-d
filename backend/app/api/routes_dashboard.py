@@ -1449,9 +1449,15 @@ def get_entry_funnel(
             f"zablokowanych prób wejścia w {days} dni)."
         )
     elif funnel["buy_attempts"] == 0:
+        # UWAGA: „zero prób" NIE znaczy automatycznie „brak sygnału". Przy małym koncie
+        # filtr wykonalności (ordermin × cena Krakena) odrzuca ocenionych kandydatów
+        # ZANIM staną się zalogowaną próbą BUY — więc lejek ich nie widzi. Dlatego nie
+        # twierdzimy już „nie bramki niżej"; wskazujemy najczęstszą realną przyczynę.
         funnel["headline"] = (
-            f"Zero prób wejścia w {days} dni — silnik nie znalazł ani jednego kandydata "
-            "(brak sygnału na szczycie lejka, nie bramki niżej)."
+            f"Zero ZALOGOWANYCH prób wejścia w {days} dni (ocen: {funnel['evaluated']}). "
+            "Przy małym koncie zwykle znaczy to, że wolny kapitał nie pokrywa min. zlecenia "
+            "Krakena (ordermin × cena) — filtr wykonalności odrzuca kandydata przed zapisem, "
+            "żeby nie spamować logu. To bramka kapitału, nie brak sygnału."
         )
     else:
         funnel["headline"] = f"Brak zablokowanych wejść w oknie {days} dni."

@@ -68,6 +68,13 @@ def _broker_min_notional(broker, symbol: str, price: float) -> float:
 # fine -- the scheduler is one process; worst case a restart re-alarms once.
 _news_blackout_alarm_at: dict[str, datetime] = {}
 
+# Throttle obserwowalności „konto za małe na min. zlecenie" (per venue): filtr
+# wykonalności odrzuca kandydatów CICHO (żeby nie spamować logu), ale wtedy lejek
+# wejścia myśli „brak sygnału". Logujemy więc JEDNĄ decyzję-notkę na okno throttle,
+# żeby lejek pokazał prawdziwą bramkę (kapitał), nie spamując. Process-local wystarczy.
+_afford_block_logged_at: dict[str, datetime] = {}
+_AFFORD_BLOCK_THROTTLE_MIN = 60
+
 
 # Alarm o niskim budżecie tokenów: poziom, na którym już zaalarmowano w danym
 # miesiącu, żeby nie spamować. Process-local (jeden proces schedulera).
@@ -1203,6 +1210,9 @@ def describe_position_plan(settings: Settings, *, basis: float | None, price: fl
     stop = settings.stop_loss_pct
     tp_arm, trailing, partial_r = _reward_levels(settings, stop)
     partial_pct = settings.partial_take_profit_frac * 100
+    # Próg uzbrojenia breakevenu (sprzężony ze stopem = 1R dla krypto; stały dla akcji).
+    be_r = getattr(settings, "breakeven_trigger_r", 0.0)
+    be_arm = stop * be_r if (be_r > 0 and stop > 0) else getattr(settings, "breakeven_trigger_pct", 0.0)
 
     if basis is None or basis <= 0:
         return {
@@ -1238,12 +1248,21 @@ def describe_position_plan(settings: Settings, *, basis: float | None, price: fl
             f"+{change_pct:.1f}% — realizuję {partial_pct:.0f}% pozycji przy +{partial_r:.1f}%, "
             f"reszta biegnie z trailingiem."
         )
+    elif be_arm > 0 and peak >= basis * (1 + be_arm / 100):
+        # Szczyt przekroczył próg breakevenu: zysk jest już CHRONIONY — jeśli cofnie
+        # się do wejścia, zamykam na ~zero, nie oddaję go w stratę.
+        action = "breakeven_protected"
+        note = (
+            f"Zysk chroniony: po szczycie +{(peak - basis) / basis * 100:.1f}% breakeven czuwa — "
+            f"jeśli cofnie się do wejścia, zamykam na ~zero (teraz {change_pct:+.1f}%)."
+        )
     else:
         action = "hold"
         ceiling = f", pełna realizacja przy +{hard_tp:.1f}%" if hard_tp > 0 else ""
+        be_note = f", breakeven uzbroi się po szczycie +{be_arm:.1f}%" if be_arm > 0 else ""
         note = (
             f"Trzymam — czekam. Częściowa realizacja przy +{partial_r:.1f}%, trailing uzbroi się przy "
-            f"+{tp_arm:.1f}%{ceiling} (teraz {change_pct:+.1f}%)."
+            f"+{tp_arm:.1f}%{be_note}{ceiling} (teraz {change_pct:+.1f}%)."
         )
 
     return {
@@ -1253,6 +1272,7 @@ def describe_position_plan(settings: Settings, *, basis: float | None, price: fl
         "take_profit_arm_pct": round(tp_arm, 2),
         "partial_at_pct": round(partial_r, 2),
         "trailing_dist_pct": round(trailing, 2),
+        "breakeven_arm_pct": round(be_arm, 2),
         "action": action,
         "note": note,
     }
@@ -1320,11 +1340,19 @@ def _decide_mechanical_exit(
     # ULEPSZENIE 1 — BREAKEVEN RATCHET: gdy pozycja była już wyraźnie na plusie
     # (szczyt >= breakeven_trigger%) ALBO wzięliśmy już partial, zwycięzca NIE może
     # zejść poniżej wejścia -> zamykamy na ~zero zamiast oddać cały zysk w stratę.
-    be_trigger = getattr(settings, "breakeven_trigger_pct", 0.0)
-    if (taken_level > 0 or (be_trigger > 0 and peak_gain_pct >= be_trigger)) and change_pct <= 0:
+    # Próg uzbrojenia SPRZĘŻONY ze stopem: breakeven_trigger_r * (zmienny) stop = ~1R,
+    # proporcjonalnie do zmienności coina. r<=0 -> stary stały próg breakeven_trigger_pct
+    # (akcje bez zmian). Dzięki temu breakeven chroni zysk JUŻ od +1R, a nie dopiero od
+    # +8% (martwa strefa, w której zielona pozycja zawracała na -5%).
+    be_r = getattr(settings, "breakeven_trigger_r", 0.0)
+    be_trigger = stop * be_r if (be_r > 0 and stop > 0) else getattr(settings, "breakeven_trigger_pct", 0.0)
+    # Zamknięcie minimalnie NAD wejściem, żeby po prowizji wyjść faktycznie na zero.
+    be_lock = getattr(settings, "breakeven_lock_pct", 0.0)
+    if (taken_level > 0 or (be_trigger > 0 and peak_gain_pct >= be_trigger)) and change_pct <= be_lock:
+        lock_note = f", zamykam ~+{be_lock:.1f}% (po prowizji ≈0)" if be_lock > 0 else ""
         return (
             f"Breakeven: {base} cofnął się do wejścia po szczycie +{peak_gain_pct:.1f}% — "
-            f"chronię kapitał (wynik {change_pct:+.1f}%)",
+            f"chronię kapitał{lock_note} (wynik {change_pct:+.1f}%)",
             100.0,
             "breakeven",
         )
@@ -2633,7 +2661,7 @@ def _run_auto_deploy(
         logger.info("Auto-deploy wstrzymany (%s): %s", venue, block)
         return executed, pf
 
-    def eligible_new(sym: str) -> bool:
+    def eligible_new(sym: str, *, check_afford: bool = True) -> bool:
         if sym in veto_sell or sym not in market_data:
             return False
         score, _mom, ok = _candidate_score(settings, market_data.get(sym))
@@ -2666,7 +2694,7 @@ def _run_auto_deploy(
         # silnik co cykl próbuje zbyt małego kawałka (ATOM €3.81 < €4.24) i spamuje log
         # odrzuceniami — a pozycja i tak się nie otworzy. Mały portfel = mniej, ale
         # WYKONALNYCH pozycji. Buffer na prowizję/poślizg/zaokrąglenie.
-        if price > 0 and venue == "crypto":
+        if check_afford and price > 0 and venue == "crypto":
             pair_min = _broker_min_notional(broker, sym, price)
             affordable = min(pf.get("usdt_balance", 0.0), venue_allocation_room(db, settings, pf, venue))
             if affordable < pair_min * _MIN_ENTRY_BUFFER:
@@ -2784,6 +2812,46 @@ def _run_auto_deploy(
     ):
         cands = [s for s in market_data if s not in tried and eligible_new(s)]
         if not cands:
+            # OBSERWOWALNOŚĆ (lejek wejścia): jeśli kandydaci MIELI sygnał, ale odpadli
+            # WYŁĄCZNIE na wykonalności (za mało kapitału na min. zlecenie Krakena), log
+            # byłby pusty i lejek pokazałby mylące „brak sygnału". Zapisujemy więc JEDNĄ
+            # notkę-decyzję na okno throttle, żeby lejek nazwał prawdziwą bramkę (kapitał),
+            # nie spamując logu. Zero wpływu na handel (poza pętlą wykonania).
+            if venue == "crypto":
+                signal_cands = [s for s in market_data if s not in tried and eligible_new(s, check_afford=False)]
+                now = datetime.now(UTC)
+                last = _afford_block_logged_at.get(venue)
+                if signal_cands and (last is None or (now - last) >= timedelta(minutes=_AFFORD_BLOCK_THROTTLE_MIN)):
+                    _afford_block_logged_at[venue] = now
+                    best_sig = max(signal_cands, key=rank_key)
+                    bprice = pf["prices"].get(best_sig) or (market_data.get(best_sig) or {}).get("price") or 0.0
+                    bmin = _broker_min_notional(broker, best_sig, bprice) if bprice > 0 else 0.0
+                    free_room = min(pf.get("usdt_balance", 0.0), venue_allocation_room(db, settings, pf, venue))
+                    try:
+                        db.add(Decision(
+                            symbol=best_sig,
+                            action=TradeAction.BUY,
+                            size_pct=0.0,
+                            confidence=settings.min_buy_confidence,
+                            reasoning=(
+                                f"Sygnał wejścia OK dla {len(signal_cands)} kandydatów, ale wolny kapitał "
+                                f"€{free_room:.2f} nie pokrywa min. zlecenia Krakena (np. {best_sig} ≈ €{bmin:.2f}). "
+                                "Filtr wykonalności pomija je, żeby nie spamować logu zbyt małymi zleceniami — "
+                                "to bramka kapitału, nie brak sygnału."
+                            ),
+                            market_data_snapshot="{}", news_snapshot="[]", market_context_snapshot="{}",
+                            triggered_by=TriggerType.SCHEDULED_DAILY,
+                            executed=False,
+                            rejection_reason=(
+                                f"Za mało kapitału na min. zlecenia Krakena: wolny €{free_room:.2f} < "
+                                f"min {best_sig} €{bmin:.2f} (× bufor) — pomijam {len(signal_cands)} kandydatów"
+                            ),
+                            venue=venue,
+                        ))
+                        db.commit()
+                    except Exception:  # notka nie może wywalić cyklu
+                        db.rollback()
+                        logger.warning("Nie udało się zalogować notki o bramce kapitału", exc_info=True)
             break
         best = max(cands, key=rank_key)
         tried.add(best)

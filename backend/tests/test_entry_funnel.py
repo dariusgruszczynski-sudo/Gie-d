@@ -16,6 +16,17 @@ def test_classify_known_gates():
     assert classify_rejection("Rynek zamknięty -- transakcja niewykonana") == "session"
 
 
+def test_classify_affordability_before_generic_risk():
+    """Małe konto: brak kapitału na min. zlecenie to własna bramka (kapitał), NIE
+    generyczny kubełek ryzyka — mimo że tekst zawiera 'niewykonalne'."""
+    assert classify_rejection(
+        "Za mało kapitału na min. zlecenia Krakena: wolny €3.20 < min ATOM €4.24 (× bufor) — pomijam 5 kandydatów"
+    ) == "affordability"
+    assert classify_rejection(
+        "Zlecenie niewykonane: Rozmiar SOL: twarde limity (sufit €2.10) nie mieszczą min. zlecenia Krakena €7.50 — pomijam"
+    ) == "affordability"
+
+
 def test_classify_empty_and_unknown():
     assert classify_rejection(None) == ""
     assert classify_rejection("   ") == ""

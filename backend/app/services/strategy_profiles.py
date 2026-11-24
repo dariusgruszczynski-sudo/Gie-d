@@ -63,6 +63,8 @@ _CRYPTO_OVERRIDES = {
     "crypto_hard_take_profit_pct": "hard_take_profit_pct",
     # 5 ulepszeń strategii (wyjścia/ryzyko) — aktywne tylko dla nogi krypto.
     "crypto_breakeven_trigger_pct": "breakeven_trigger_pct",
+    "crypto_breakeven_trigger_r": "breakeven_trigger_r",
+    "crypto_breakeven_lock_pct": "breakeven_lock_pct",
     "crypto_ratchet_trigger_pct": "ratchet_trigger_pct",
     "crypto_ratchet_trail_mult": "ratchet_trail_mult",
     "crypto_trend_exit_ma_period": "trend_exit_ma_period",

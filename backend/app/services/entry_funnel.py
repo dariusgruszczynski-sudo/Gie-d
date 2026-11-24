@@ -27,6 +27,12 @@ _GATES: list[tuple[str, str, tuple[str, ...]]] = [
     ("concurrency", "Limit równoczesnych pozycji", ("limit równoczesnych", "równoczesnych pozycji")),
     ("daily_cap", "Limit nowych wejść na dziś (anty-churn)", ("limit nowych wejść",)),
     ("allocation", "Przydział kapitału silnika wyczerpany", ("przydział kapitału",)),
+    # Małe konto: wolny kapitał nie pokrywa min. zlecenia Krakena (ordermin × cena).
+    # PRZED kubełkiem ryzyka, bo tekst zawiera też "niewykonaln" (łapany niżej jako risk).
+    ("affordability", "Za mało kapitału na min. zlecenie Krakena", (
+        "min. zlecenia", "min zlecenia", "min-zlecenia", "ordermin",
+        "nie mieszczą min", "nie stać na min", "wolny kapitał",
+    )),
     ("auto_demote", "Auto-degradacja (ujemna historia symbolu)", ("auto-degradacja",)),
     ("cooldown", "Cooldown po stop-lossie", ("cooldown po stop", "cooldown")),
     ("earnings", "Blackout przed earnings", ("blackout przed earnings", "earnings")),

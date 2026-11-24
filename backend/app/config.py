@@ -364,8 +364,23 @@ class Settings(BaseSettings):
     # wartości krypto nakładane przez _CRYPTO_OVERRIDES. ---
     # (1) Breakeven ratchet: gdy szczyt zysku >= trigger%, zwycięzca NIE może zejść
     #     poniżej wejścia -- zamykamy na ~zero zamiast oddać cały zysk w stratę.
+    #
+    # 2026-11-24: PROGI SPRZĘŻONE ZE STOPEM. Dawny stały crypto_breakeven_trigger_pct=8%
+    #   przy stopie ~4.8% uzbrajał breakeven dopiero na ~1.7R — więc pozycja, która
+    #   urosła +4% na zielono i zawróciła, spadała aż do stopu -4.8% BEZ żadnej ochrony
+    #   (ani breakeven, ani trailing, który rusza dopiero na 2R). To była "martwa strefa":
+    #   zielona pozycja kończyła na -5%. Teraz breakeven uzbraja się na breakeven_trigger_r
+    #   * (zmienny) stop = 1R, proporcjonalnie do zmienności coina (spokojny ~4%, dziki
+    #   ~18%), więc chroni zysk WCZEŚNIE bez whipsawu na dzikich altach. r=0 -> stary
+    #   stały próg (akcje bez zmian). breakeven_lock_pct: zamknięcie minimalnie NAD
+    #   wejściem, żeby po prowizji Krakena (~0.5% w obie strony) wyjść faktycznie "na zero",
+    #   a nie na małej stracie na samych opłatach.
     breakeven_trigger_pct: float = 0.0
     crypto_breakeven_trigger_pct: float = 8.0
+    breakeven_trigger_r: float = 0.0       # 0 = użyj stałego breakeven_trigger_pct (akcje)
+    crypto_breakeven_trigger_r: float = 1.0  # krypto: uzbrój breakeven na +1R (szczyt >= 1×stop)
+    breakeven_lock_pct: float = 0.0        # akcje: wyjście dokładnie na wejściu
+    crypto_breakeven_lock_pct: float = 0.5   # krypto: zamknij na ~+0.5% (pokrycie prowizji)
     # (2) Winner ratchet: po dużym biegu (>= trigger%) zacieśnij trailing (×mult),
     #     żeby zablokować więcej zysku z silnego trendu.
     ratchet_trigger_pct: float = 0.0

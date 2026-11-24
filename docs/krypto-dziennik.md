@@ -65,6 +65,44 @@ pozycja NIGHT/EUR **nietknięta**. Po wdrożeniu halt schodzi sam na najbliższy
 (paper→live). Do obserwacji w kolejnych tygodniach: pierwsze zamknięcia, realny koszt prowizji
 (taker 0,26%), oraz czy news-wyzwalane wejścia (jak NIGHT) trafiają lepiej niż czyste bramki techniczne.
 
+### Wpis interwencyjny — 2026-11-24 (breakeven od +1R — koniec „z zielonej na −5%” + uczciwy lejek wejścia)
+Skarga właściciela (żywe konto): *„Czemu bot przekręca się na czerwono z pozycjami, które
+były na zielono?! Nawet wyjść na zero nie potrafimy?”* — ALGO/EUR zamknięte stopem −4,9%,
+ATOM/EUR −4,8%, obie po tym jak były na plusie.
+
+**Diagnoza (read-only, mechanika wyjść):** była **martwa strefa ochrony zysku**. Przy
+krypto stopie ~4,8% (vol-skalowany, min 4%):
+- breakeven uzbrajał się dopiero od szczytu **+8%** (stały `crypto_breakeven_trigger_pct=8`) ≈ **1,7R**,
+- trailing uzbrajał się od **+9,6%** (2R).
+
+Więc pozycja, która urosła na zielono o **+2…+8%** i zawróciła, **nie miała ŻADNEJ ochrony
+zysku** (ani breakeven, ani trailing) — jechała aż do twardego stopu −4,8%. Dokładnie
+„z zielonej na −5%”. To nie był błąd wykonania (wyjścia działały), tylko **zbyt późny próg**.
+
+**Fix (`breakeven_trigger_r`, sprzężony ze stopem):** breakeven uzbraja się teraz od
+**+1R = 1×(vol-skalowany stop)**, proporcjonalnie do zmienności monety:
+- spokojna moneta (stop 4%) → breakeven od **+4%** szczytu (było +8% — martwa strefa O POŁOWĘ mniejsza),
+- zmienna moneta (stop 18%) → breakeven od **+18%** (proporcjonalnie, bez whipsawu na szumie).
+
+Dodatkowo `crypto_breakeven_lock_pct=0.5`: zamknięcie na **~+0,5%** zamiast dokładnie na
+wejściu, żeby po prowizji Krakena (~0,5% w obie strony) wyjść **faktycznie na zero**, nie na
+stracie na samych opłatach — wprost „wyjście na zero”, o które prosił właściciel. Knoby bazowe
+neutralne (`breakeven_trigger_r=0` → akcje/stary stały próg bez zmian). Panel pozycji pokazuje
+teraz stan **„zysk chroniony breakevenem”** zamiast gołego „czekam”.
+
+**Druga skarga — „Po co to się wyświetla?”** Panel LEJEK WEJŚCIA mówił *„Zero prób wejścia
+w 7 dni — silnik nie znalazł ani jednego kandydata (… nie bramki niżej)”*, choć `ocen: 51`.
+To było **mylące/nieprawdziwe**: filtr wykonalności (ordermin×cena Krakena) odrzucał ocenionych
+kandydatów **CICHO, zanim** stali się zalogowaną próbą BUY (żeby nie spamować logu „€3,81 < €4,24”)
+→ lejek ich nie widział → fałszywie raportował „brak sygnału”. Prawda: to **bramka kapitału**
+(konto €120 za małe na min. zlecenie większości par), nie brak sygnału. Fix: (1) nowy kubełek
+lejka **„Za mało kapitału na min. zlecenie Krakena”**, (2) uczciwy nagłówek (nie twierdzi już
+„nie bramki niżej”), (3) throttlowana notka obserwowalności (1×/60 min) — lejek pokazuje
+prawdziwą bramkę bez spamu. Zero dotknięcia ścieżki handlu.
+
+Testy **589/589**, ruff czysto. To usunięcie strukturalnej luki ochrony zysku + uczciwość
+panelu, nie curve-fit pod wynik. Obserwujemy, czy odsetek „zielona→strata” spada.
+
 ### Tydzień 6 — 2026-11-15 (silnik WZNOWIONY, księgi uzgodnione, czysta era — ale 0 wejść: BTC w bessie)
 **Przełom tygodnia: silnik znów żyje.** Właściciel 11-11 uzgodnił księgi z brokerem
 (re-sync phantomów — **residual $0**, rozjazd $226k rozwiązany) i odblokował silnik;

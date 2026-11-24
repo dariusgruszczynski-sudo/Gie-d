@@ -1139,6 +1139,43 @@ def test_breakeven_ratchet_winner_not_becoming_loser(settings):
     assert kind == "breakeven" and pct == 100.0
 
 
+def test_breakeven_coupled_arms_at_1r_closes_dead_zone(settings):
+    """2026-11-24: próg breakeven SPRZĘŻONY ze stopem (breakeven_trigger_r * stop = 1R).
+    Zamyka "martwą strefę": pozycja krypto, która urosła ~+1R na zielono i zawróciła,
+    wychodzi na breakeven zamiast jechać aż do stopu -5%."""
+    s = settings.model_copy(update={
+        "breakeven_trigger_r": 1.0, "breakeven_lock_pct": 0.5,
+        "breakeven_trigger_pct": 8.0, "trend_exit_ma_period": 0, "hard_take_profit_pct": 0.0,
+    })
+    # stop 5% -> 1R = +5%. Szczyt 105.2 (+5.2% >= 5 -> uzbrojone), cena 100.3 (+0.3% <= lock 0.5).
+    reason, pct, kind = trading_engine._decide_mechanical_exit(s, "SOL", 100.0, 100.3, 105.2, stop_pct=5.0)
+    assert kind == "breakeven" and pct == 100.0
+
+    # STARE zachowanie (stały próg +8%, bez sprzężenia): ten sam szczyt +5.2% NIE uzbrajał
+    # breakevenu -> pozycja jechała do stopu. To właśnie była skarga użytkownika.
+    old = settings.model_copy(update={
+        "breakeven_trigger_r": 0.0, "breakeven_lock_pct": 0.0,
+        "breakeven_trigger_pct": 8.0, "trend_exit_ma_period": 0, "hard_take_profit_pct": 0.0,
+    })
+    assert trading_engine._decide_mechanical_exit(old, "SOL", 100.0, 100.3, 105.2, stop_pct=5.0)[2] != "breakeven"
+
+
+def test_breakeven_lock_covers_fees_and_respects_arm(settings):
+    """Lock zamyka minimalnie NAD wejściem (pokrycie prowizji ~0 netto), ale dopiero po
+    uzbrojeniu (szczyt >= 1R); bez szczytu nie rusza."""
+    s = settings.model_copy(update={
+        "breakeven_trigger_r": 1.0, "breakeven_lock_pct": 0.5,
+        "breakeven_trigger_pct": 0.0, "trend_exit_ma_period": 0, "hard_take_profit_pct": 0.0,
+        "partial_take_profit_enabled": False,
+    })
+    # Uzbrojone (szczyt +6% >= 5), cena +0.4% <= lock 0.5 -> wyjście.
+    assert trading_engine._decide_mechanical_exit(s, "SOL", 100.0, 100.4, 106.0, stop_pct=5.0)[2] == "breakeven"
+    # Uzbrojone, ale cena wciąż +0.8% (> lock) -> jeszcze NIE breakeven.
+    assert trading_engine._decide_mechanical_exit(s, "SOL", 100.0, 100.8, 106.0, stop_pct=5.0)[2] != "breakeven"
+    # Szczyt tylko +3% (< 1R=5) -> nieuzbrojone, mimo że cena przy wejściu.
+    assert trading_engine._decide_mechanical_exit(s, "SOL", 100.0, 100.2, 103.0, stop_pct=5.0)[2] != "breakeven"
+
+
 def test_trend_invalidation_exit_below_ma(settings):
     """Ulepszenie 3: zamknięcie pod średnią trendu -> wyjście (trend się złamał),
     zanim zadziała szeroki stop."""
@@ -2577,6 +2614,26 @@ def test_describe_position_plan_trailing_protected_when_armed(settings):
     plan = trading_engine.describe_position_plan(s, basis=100.0, price=108.0, peak=110.0)
     assert plan["action"] == "trailing_protected"
     assert "trailingiem" in plan["note"]
+
+
+def test_describe_position_plan_breakeven_protected_after_pullback(settings):
+    """Pozycja była wyraźnie na plusie (szczyt >= 1R), potem cofnęła się pod partial/
+    trailing — panel mówi, że zysk jest CHRONIONY breakevenem (zamknięcie na ~zero),
+    a nie że po prostu 'czekamy'. To wprost odpowiada na skargę 'z zielonej na -5%'."""
+    s = settings.model_copy(update={
+        "stop_loss_pct": 5.0, "reward_risk_ratio": 2.0, "partial_take_profit_r": 1.5,
+        "breakeven_trigger_r": 1.0, "trailing_stop_enabled": True, "partial_take_profit_enabled": True,
+    })
+    # stop 5% -> be_arm 1R = +5%. Szczyt 106 (+6% >= 5 -> chroniony), cena 101 (+1%, pod partial 7.5% i tp_arm 10%).
+    plan = trading_engine.describe_position_plan(s, basis=100.0, price=101.0, peak=106.0)
+    assert plan["action"] == "breakeven_protected"
+    assert plan["breakeven_arm_pct"] == 5.0
+    assert "chroniony" in plan["note"]
+
+    # Bez sprzężenia (be_r=0, stały próg 0) breakeven się nie uzbraja -> zwykły hold.
+    off = s.model_copy(update={"breakeven_trigger_r": 0.0, "breakeven_trigger_pct": 0.0})
+    plan_off = trading_engine.describe_position_plan(off, basis=100.0, price=101.0, peak=106.0)
+    assert plan_off["action"] == "hold"
 
 
 def test_compute_portfolio_split_uses_live_db_whitelist(db_session, settings):
