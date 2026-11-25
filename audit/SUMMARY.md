@@ -1,4 +1,4 @@
-# Audyt GielDarek — 2026-11-25T16:25:50Z
+# Audyt GielDarek — 2026-11-25T16:32:21Z
 
 **Wdrożenie:** kod 1f593b3 (zbud. 2026-11-24T18:10Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
