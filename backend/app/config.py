@@ -180,14 +180,14 @@ class Settings(BaseSettings):
     # płynność i handluj TOP-K. To jest przewaga „ręka na pulsie 24/7": bot sam
     # podstawia to, co realnie rośnie, zamiast obracać tych samych przegranych altów.
     crypto_scanner_enabled: bool = True
-    # Ile najsilniejszych par w uniwersum handlowym. 2026-10-24: 8 -> 20. top_k to
-    # tylko PULA KANDYDATÓW do rankingu — faktyczne pozycje i tak ogranicza
-    # crypto_max_concurrent_positions (7) + cap ekspozycji + sizing korelacyjny.
-    # top_k=8 na 7 slotów to prawie brak wyboru (7 z 8); przy ~15 punktowanych
-    # parach Alpaki podbicie do 20 = „rankinguj cały dostępny rynek, trzymaj
-    # najlepsze 7". Nie zwiększa ryzyka/koncentracji, poszerza wybór. Cap max_scan=40.
-    crypto_scanner_top_k: int = 20
-    crypto_scanner_max_scan: int = 40             # górny limit par do skanu/cykl (throttling API)
+    # Ile najsilniejszych par w uniwersum handlowym (OBSERWOWANE monety). 2026-11-25:
+    # 20 -> 40 (polecenie właściciela). top_k to tylko PULA KANDYDATÓW do rankingu —
+    # faktyczne pozycje i tak ogranicza crypto_max_concurrent_positions + cap ekspozycji
+    # + sizing. Stare 20 kalibrowane pod mikro-giełdę Alpaki (~15 punktowanych par);
+    # Kraken spot EUR ma DUŻO więcej płynnych par, więc 40 = „rankinguj szerszy rynek,
+    # trzymaj najlepsze kilka". Nie zwiększa ryzyka/koncentracji, poszerza wybór setupów.
+    crypto_scanner_top_k: int = 40
+    crypto_scanner_max_scan: int = 80             # górny limit par do skanu/cykl (throttle API); 2× top_k, żeby ranking miał z czego wybierać 40 najlepszych. Cache 60 min trzyma koszt w ryzach.
     crypto_scanner_momentum_days: int = 30        # okno momentum rankingu
     # #3 filtr płynności (śr. dzienny obrót $). Historia: 5_000_000 -> 5_000 (audyt:
     # Alpaca to mikro-giełda, mediana par ~$6k, BTC ~$247k/d). 2026-10-24: 5_000 ->
