@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-11-25T16:32:21Z
+# Audyt GielDarek — 2026-11-25T19:11:08Z
 
-**Wdrożenie:** kod 1f593b3 (zbud. 2026-11-24T18:10Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod e04b5c2 (zbud. 2026-11-25T18:09Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 0 zamknięć · trafność —% · zrealizowany $0.0
 **7 dni:** 0 zamknięć · —% · $0.0   |   **30 dni:** 0 · —% · $0.0
@@ -15,7 +15,7 @@
 ## Przecieki per symbol (najgorsze)
 
 ## Wejścia vs limit
-- cap 0/dzień · max w dniu 4 · dni z limitem 4 · hamuje: true
+- cap 0/dzień · max w dniu 5 · dni z limitem 4 · hamuje: true
 
 ## Opus-kontroler (co REALNIE zmienił)
 - włączony: false · ostatni przebieg: 2026-09-11 · baza wiedzy: 29 wpisów
@@ -23,7 +23,7 @@
 - próg pewności — baza (env): 0.6 · progresja +0.03/pozycję do sufitu 0.9
 
 ## Dziennik decyzji — dlaczego (NIE) handluje
-- ostatnie 59 decyzji · wykonanych: 16 · odrzuconych: 43
+- ostatnie 62 decyzji · wykonanych: 19 · odrzuconych: 43
 
 **Najczęstsze powody odrzucenia (top):**
 - 17× — Spadek od szczytu konta przekroczony: -100.0% (limit 55.0%, szczyt $840,728.19)
@@ -36,6 +36,9 @@
 - 1× — Rozjazd rekoncyliacji: baza vs broker różni się o $35 (głównie NIGHT/EUR: $12) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
 
 **Ostatnie 20 decyzji:**
+- 2026-11-25T18:54:49.541408 BLUR/EUR BUY conf=0.6 trig=news_event ✅WYKONANE
+- 2026-11-25T18:25:04.614569 LINK/EUR BUY conf=0.6 trig=price_move ✅WYKONANE
+- 2026-11-25T18:25:00.012856 XTZ/EUR BUY conf=0.6 trig=price_move ✅WYKONANE
 - 2026-11-25T10:55:52.449868 MOODENG/EUR BUY conf=0.6 trig=news_event ✅WYKONANE
 - 2026-11-25T10:40:53.068492 MOODENG/EUR BUY conf=0.6 trig=news_event ⛔ Filtr spreadu: MOODENG/EUR ma spread 1.97% > próg 0.80% — zbyt cienki rynek, sam spread zjadłby przewagę; wejście pominięte (wyjścia/stopy działają bez zmian)
 - 2026-11-25T10:25:53.487813 MOODENG/EUR BUY conf=0.6 trig=news_event ⛔ Filtr spreadu: MOODENG/EUR ma spread 4.04% > próg 0.80% — zbyt cienki rynek, sam spread zjadłby przewagę; wejście pominięte (wyjścia/stopy działają bez zmian)
@@ -53,6 +56,3 @@
 - 2026-11-24T05:45:38.869386 ATOM/EUR BUY conf=0.6 trig=news_event ⛔ Zlecenie niewykonane: Rozmiar ATOM/EUR = €3.81 < min. zlecenia Krakena (~€4.24) po limitach koncentracji/płynności — pomijam (za mały kawałek na to konto)
 - 2026-11-24T01:45:43.820938 ATOM/EUR BUY conf=0.6 trig=news_event ⛔ Zlecenie niewykonane: Rozmiar ATOM/EUR = €3.81 < min. zlecenia Krakena (~€4.18) po limitach koncentracji/płynności — pomijam (za mały kawałek na to konto)
 - 2026-11-24T01:30:38.584519 ATOM/EUR BUY conf=0.6 trig=news_event ⛔ Zlecenie niewykonane: Rozmiar ATOM/EUR = €3.81 < min. zlecenia Krakena (~€4.15) po limitach koncentracji/płynności — pomijam (za mały kawałek na to konto)
-- 2026-11-24T00:30:43.805486 ATOM/EUR BUY conf=0.6 trig=news_event ⛔ Zlecenie niewykonane: Rozmiar ATOM/EUR = €3.81 < min. zlecenia Krakena (~€4.13) po limitach koncentracji/płynności — pomijam (za mały kawałek na to konto)
-- 2026-11-23T21:15:35.441546 VVV/EUR SELL conf=1.0 trig=price_move ✅WYKONANE
-- 2026-11-23T20:51:51.849216 — HOLD conf=0.6 trig=manual ⛔ Rozjazd rekoncyliacji: baza vs broker różni się o $35 (głównie NIGHT/EUR: $12) — handel wstrzymany (księgi nie zgadzają się z brokerem; NIE blacklista monet; rozwiąż desync: reset papierowego konta albo re-sync ledgera, potem Wznów)
