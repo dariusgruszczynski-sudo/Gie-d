@@ -99,3 +99,30 @@ def test_funnel_accepts_orm_like_objects():
 
     f = entry_funnel([D("BUY", False, "Zbyt niska pewność: 0.3 < 0.5"), D("BUY", True, None)])
     assert f.entered == 1 and f.blocked == 1 and f.top_gate.key == "conviction"
+
+
+def test_funnel_handles_tradeaction_enum_orm():
+    """REGRESJA: żywy endpoint czyta obiekty ORM, gdzie `action` to enum TradeAction
+    (str, Enum). str(enum) daje 'TradeAction.HOLD' != 'HOLD', więc stary kod liczył
+    WSZYSTKO jako 0 (objaw właściciela: ocen=53, a bez sygnału/chciał/weszło/zdławione=0).
+    Karmimy PRAWDZIWYMI enumami i sprawdzamy, że liczniki działają."""
+    from app.models import TradeAction
+
+    class D:
+        def __init__(self, action, executed, reason):
+            self.action, self.executed, self.rejection_reason = action, executed, reason
+
+    rows = [
+        D(TradeAction.HOLD, False, None),                 # bez sygnału
+        D(TradeAction.HOLD, False, None),
+        D(TradeAction.BUY, True, None),                   # weszło
+        D(TradeAction.BUY, False, "Filtr konfluencji: brak sygnału"),  # zdławione
+        D(TradeAction.SELL, True, None),                  # wyjście
+    ]
+    f = entry_funnel(rows)
+    assert f.evaluated == 5
+    assert f.holds == 2          # NIE 0 — to był bug
+    assert f.buy_attempts == 2
+    assert f.entered == 1
+    assert f.blocked == 1
+    assert f.exits == 1

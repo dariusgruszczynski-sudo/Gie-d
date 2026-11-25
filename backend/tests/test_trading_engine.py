@@ -986,6 +986,47 @@ def test_partial_tp_promoted_to_full_when_below_broker_min(db_session, settings)
     assert "zamykam CAŁOŚĆ" in exits[0].decision.reasoning
 
 
+def test_kraken_sell_error_sets_reason_and_survives_cycle(db_session, settings):
+    """REGRESJA (bug QNT 23 Nov, 7× zacięty SELL): błąd giełdy Kraken na SPRZEDAŻY to
+    KrakenError(RuntimeError), a pętla wyjść łapała tylko (ValueError, AlpacaAPIError).
+    Bez łapania KrakenError: decyzja bez rejection_reason (puste „bez powodu") I wyjątek
+    wywalał całą pętlę (pozycja nie mogła się domknąć, próba co cykl bez diagnozy).
+    Teraz: powód ZAPISANY, pętla NIE wywala się, wyjście odłożone do następnego cyklu."""
+    from app.services import risk_manager
+    from app.services.kraken_client import KrakenError
+
+    s = settings.model_copy(update={
+        "crypto_enabled": True, "crypto_venue": "kraken", "quote_currency": "EUR",
+        "min_hold_minutes": 0, "stop_loss_pct": 4.0, "stop_loss_vol_mult": 0.0,
+        "trailing_stop_enabled": True, "hard_take_profit_pct": 0.0,
+        "partial_take_profit_enabled": False,
+    })
+    st = risk_manager.get_state(db_session)
+    st.crypto_paused = False; st.is_paused = False; st.is_halted = False
+    db_session.commit()
+
+    class _KrakenSellBoom(_FakeKrakenExec):
+        def place_order_for_session(self, symbol, side, **kw):
+            if side.upper() == "SELL":
+                raise KrakenError("AddOrder: ['EOrder:Insufficient funds']")
+            return super().place_order_for_session(symbol, side, **kw)
+
+    broker = _KrakenSellBoom(prices={"QNT/EUR": 150.0}, balances={"EUR": 100.0}, min_notional=2.65, equity=119.0)
+    trading_engine.execute_manual_trade(db_session, s, broker, symbol="QNT/EUR", side="BUY", quantity=0.05, venue="crypto", whitelist=["QNT/EUR"])
+    broker.prices["QNT/EUR"] = 140.0  # -6.7% < stop 4% -> mechaniczny stop chce SPRZEDAĆ
+
+    portfolio = trading_engine.compute_portfolio(db_session, s, broker, venue="crypto", whitelist=["QNT/EUR"])
+    # NIE wywala się (dawniej KrakenError leciał niezłapany i zabijał cykl):
+    exits = trading_engine.check_take_profit_stop_loss(db_session, s, broker, portfolio, venue="crypto", always_open=True, whitelist=["QNT/EUR"])
+    assert exits == []  # sprzedaż się nie udała -> brak wykonanego wyjścia
+    # Decyzja MA powód (koniec „bez powodu"):
+    from app.models import Decision
+    dec = db_session.query(Decision).filter(Decision.action == "SELL").order_by(Decision.id.desc()).first()
+    assert dec is not None and not dec.executed
+    assert dec.rejection_reason and "Wyjście niewykonalne" in dec.rejection_reason
+    assert "Insufficient funds" in dec.rejection_reason
+
+
 def test_fixed_take_profit_sells_when_price_rises(db_session, settings):
     fixed = settings.model_copy(update={"trailing_stop_enabled": False})
     broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})

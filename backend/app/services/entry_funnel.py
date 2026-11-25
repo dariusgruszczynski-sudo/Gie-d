@@ -111,16 +111,28 @@ class EntryFunnel:
         }
 
 
+def _action_str(a: object) -> str:
+    """Normalizuje pole `action` do GOŁEGO stringa ('BUY'/'SELL'/'HOLD').
+
+    KRYTYCZNE: TradeAction to (str, Enum), więc str(TradeAction.HOLD) daje
+    'TradeAction.HOLD', NIE 'HOLD' (Enum.__str__). Żywy endpoint czyta obiekty ORM,
+    gdzie action to enum -> stary str(action).upper() dawał 'TRADEACTION.HOLD' i NIC
+    nie matchowało HOLD/BUY/SELL -> wszystkie liczniki lejka = 0 (tylko 'ocen' ≠ 0).
+    Testy tego nie łapały, bo karmią dictami (JSON ma już string). Bierzemy .value
+    dla enuma; string zwykły (dict/JSON) nie ma .value -> zostaje sobą."""
+    return str(getattr(a, "value", a) or "").upper()
+
+
 def _norm(d: object) -> tuple[str, bool, str | None]:
     """Wyciąga (action, executed, rejection_reason) z dicta albo z obiektu ORM."""
     if isinstance(d, dict):
         return (
-            str(d.get("action") or "").upper(),
+            _action_str(d.get("action")),
             bool(d.get("executed")),
             d.get("rejection_reason"),
         )
     return (
-        str(getattr(d, "action", "") or "").upper(),
+        _action_str(getattr(d, "action", "")),
         bool(getattr(d, "executed", False)),
         getattr(d, "rejection_reason", None),
     )

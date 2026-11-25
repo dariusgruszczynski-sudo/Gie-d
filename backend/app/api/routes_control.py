@@ -14,6 +14,7 @@ from app.serialization import serialize
 from app.services import audit, push_notifier, reconciliation, risk_manager
 from app.services.alpaca_client import AlpacaAPIError, AlpacaClient
 from app.services.claude_advisor import ClaudeAdvisor
+from app.services.kraken_client import KrakenError
 from app.services.market_context import MarketContextClient
 from app.services.news_client import NewsClient
 from app.services.strategy_profiles import effective_settings
@@ -219,7 +220,7 @@ def sell_all(symbol: str, venue: str = "alpaca", db: Session = Depends(get_db), 
     sym = symbol.upper()
     try:
         balances = broker.get_account_balances()
-    except AlpacaAPIError as exc:
+    except (AlpacaAPIError, KrakenError) as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
     qty = float(balances.get(sym, 0.0) or 0.0)
     if qty <= 0:
@@ -230,7 +231,7 @@ def sell_all(symbol: str, venue: str = "alpaca", db: Session = Depends(get_db), 
         trade = execute_manual_trade(
             db, settings, broker, symbol=sym, side="SELL", quantity=qty, venue=venue, whitelist=wl
         )
-    except (ValueError, AlpacaAPIError) as exc:
+    except (ValueError, AlpacaAPIError, KrakenError) as exc:
         audit.record(db, "sell-all", detail=f"{sym} venue={venue} FAILED", request=request, outcome="error")
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
     audit.record(db, "sell-all", detail=f"{sym} qty={qty:g} venue={venue}", request=request)
@@ -494,7 +495,7 @@ def manual_trade(
             venue=req.venue,
             whitelist=whitelist,
         )
-    except (ValueError, AlpacaAPIError) as exc:
+    except (ValueError, AlpacaAPIError, KrakenError) as exc:
         audit.record(db, "manual-trade", detail=f"{req.side} {symbol} venue={req.venue} FAILED",
                      request=request, outcome="error")
         raise HTTPException(status_code=400, detail=str(exc)) from exc

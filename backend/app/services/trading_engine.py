@@ -25,6 +25,7 @@ from app.services import (
 )
 from app.services.alpaca_client import AlpacaAPIError
 from app.services.claude_advisor import ClaudeAdvisor
+from app.services.kraken_client import KrakenError
 from app.services.market_context import MarketContextClient
 from app.services.market_hours import SessionInfo
 from app.services.news_client import NewsClient
@@ -1694,13 +1695,17 @@ def check_take_profit_stop_loss(
                 session=session,
                 venue=venue,
             )
-        except (ValueError, AlpacaAPIError) as exc:
+        except (ValueError, AlpacaAPIError, KrakenError) as exc:
             # A SELL can still fail for other reasons (broker hiccup, a
             # rounding/qty rejection, ...), so the real exception text is
             # surfaced instead of a one-size-fits-all guess. Don't crash the
             # cycle (that would silently skip every other position's exit too
             # and kill the Claude leg) -- log it, mark the decision, keep
             # tracking the peak, and let this exit retry next cycle.
+            # KrakenError (RuntimeError) MUSI tu być: bez niego błąd giełdy Kraken na
+            # SPRZEDAŻY leciał niezłapany -> decyzja bez rejection_reason (puste „bez
+            # powodu" w logu) I wyjątek wywalał całą pętlę wyjść (ZACIĘTY STOP: pozycja
+            # nie mogła się domknąć, próba co cykl bez diagnozy — bug QNT 23 Nov, 7×).
             logger.warning("Mechaniczne wyjście %s nie powiodło się, odłożone", symbol, exc_info=True)
             decision.rejection_reason = f"Wyjście niewykonalne: {exc}"
             db.commit()
@@ -2340,9 +2345,12 @@ def _process_decision(
             session=session_info.session if session_info is not None else market_hours.REGULAR,
             venue=venue,
         )
-    except (ValueError, AlpacaAPIError) as exc:
+    except (ValueError, AlpacaAPIError, KrakenError) as exc:
         # e.g. a computed order size that rounds to zero, or a broker
         # rejection. Record why instead of crashing the whole scheduled cycle.
+        # KrakenError MUSI tu być (jak przy wyjściu): bez niego błąd giełdy Kraken na
+        # KUPNIE leciał niezłapany -> decyzja „bez powodu" + wywalona reszta cyklu
+        # (blank-reason failed BUY: TRX/TAO/HYPE 23 Nov). Teraz: powód zapisany, cykl żyje.
         logger.warning("Wykonanie zlecenia %s nieudane, pomijam", decision_data.symbol, exc_info=True)
         decision.rejection_reason = f"Zlecenie niewykonane: {exc}"
         db.commit()
