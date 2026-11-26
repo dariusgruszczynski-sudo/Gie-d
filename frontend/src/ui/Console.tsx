@@ -126,7 +126,13 @@ export function PosRow({ p, plan, note, onChanged }: { p: Pos; plan?: PositionPl
   async function sell() {
     if (!window.confirm(`Sprzedać CAŁĄ pozycję ${p.asset} (~${money(p.value)})? Zamknięcie pozycji.`)) return;
     setBusy(true);
-    try { await api.sellAll(p.asset, p.venue); onChanged?.(); } finally { setBusy(false); }
+    try {
+      await api.sellAll(p.asset, p.venue);
+      onChanged?.();
+    } catch (e) {
+      // NIE połykaj błędu — bez tego user klikał „Sprzedaj" i nic się nie działo bez powodu.
+      window.alert(`Nie udało się zamknąć ${p.asset}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally { setBusy(false); }
   }
   return (
     <div className="gd-pos-row">
@@ -316,7 +322,12 @@ export function PositionCard({ p, plan, bypassPct, marketOpen = true, onChanged,
       : `\n\nDostaniesz ~${money(p.value)}.`;
     if (!window.confirm(`Sprzedać CAŁĄ pozycję ${p.asset}?${eff}\n\nZamknięcie pozycji.`)) return;
     setBusy(true);
-    try { await api.sellAll(p.asset, p.venue); onChanged?.(); } finally { setBusy(false); }
+    try {
+      await api.sellAll(p.asset, p.venue);
+      onChanged?.();
+    } catch (e) {
+      window.alert(`Nie udało się zamknąć ${p.asset}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally { setBusy(false); }
   }
 
   return (
