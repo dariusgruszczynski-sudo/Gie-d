@@ -114,6 +114,9 @@ def test_kraken_small_account_limits_2026_11_24():
     assert s.crypto_profit_lock_min_pct == 3.0               # uzbrój gdy szczyt >= +3%
     assert s.crypto_profit_lock_giveback_pct == 1.5          # sprzedaj po cofnięciu 1.5% od szczytu
     assert s.profit_lock_min_pct == 0.0                      # akcje: wyłączone
+    # Bezpiecznik podłogi konta (#4): poniżej €100 wstrzymaj NOWE wejścia (wyjścia biegną).
+    assert s.crypto_account_floor_usd == 100.0
+    assert s.account_floor_usd == 0.0                        # akcje/baza: wyłączone
 
 
 def test_kraken_small_account_simplifications_2026_11_24():

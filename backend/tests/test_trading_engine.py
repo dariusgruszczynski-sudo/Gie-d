@@ -1027,6 +1027,42 @@ def test_kraken_sell_error_sets_reason_and_survives_cycle(db_session, settings):
     assert "Insufficient funds" in dec.rejection_reason
 
 
+def test_account_floor_blocks_new_entries_but_not_exits(db_session, settings, monkeypatch):
+    """Bezpiecznik #4 (decyzja właściciela): poniżej podłogi konta auto-deploy NIE robi
+    nowych wejść (deploy/piramida/rotacja), ale WYJŚCIA biegną dalej osobno — kluczowe,
+    bo spadające pozycje muszą się domykać (inaczej niż halt, który zamraża wszystko)."""
+    import types
+
+    from app.models import Decision, TriggerType
+    from app.services import risk_manager
+
+    st = risk_manager.get_state(db_session)
+    st.crypto_paused = False; st.is_paused = False; st.is_halted = False
+    db_session.commit()
+    s = settings.model_copy(update={
+        "crypto_enabled": True, "crypto_venue": "kraken", "quote_currency": "EUR",
+        "crypto_account_floor_usd": 100.0, "auto_deploy_enabled": True,
+    })
+    # equity €90 <= podłoga €100 -> poniżej podłogi.
+    monkeypatch.setattr(trading_engine, "account_total_value", lambda *a, **k: 90.0)
+    broker = _FakeKrakenExec(prices={"SOL/EUR": 150.0}, balances={"EUR": 50.0}, min_notional=2.65, equity=90.0)
+    tc = types.SimpleNamespace(approved=True, reason="")
+    pf = {"usdt_balance": 50.0, "prices": {"SOL/EUR": 150.0}, "total_value_usdt": 90.0}
+
+    execs, _pf = trading_engine._run_auto_deploy(
+        db_session, s, broker, market_data={"SOL/EUR": {"price": 150.0, "technical": {}}},
+        portfolio=pf, veto_sell=set(), regime={}, regime_gate_on=False, defensive_list=[],
+        earnings_days={}, performance_context={}, trade_check=tc, tradable=True,
+        session_info=None, trigger_reason=TriggerType.SCHEDULED_DAILY, venue="crypto",
+        symbols=["SOL/EUR"], edge_payoff=None,
+    )
+    assert execs == []  # zero nowych wejść poniżej podłogi
+    assert len(broker.orders) == 0  # nic nie poszło na brokera
+    # notka o podłodze zalogowana (widoczna w panelu/lejku).
+    dec = db_session.query(Decision).filter(Decision.rejection_reason.like("%Podłoga konta%")).first()
+    assert dec is not None
+
+
 def test_fixed_take_profit_sells_when_price_rises(db_session, settings):
     fixed = settings.model_copy(update={"trailing_stop_enabled": False})
     broker = FakeAlpaca(prices={"SPY": 100.0, "QQQ": 400.0}, balances={"USD": 1000.0, "SPY": 0.0, "QQQ": 0.0})

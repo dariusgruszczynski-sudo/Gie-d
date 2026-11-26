@@ -368,6 +368,14 @@ class Settings(BaseSettings):
     crypto_daily_loss_limit_pct: float = 30.0
     crypto_weekly_loss_limit_pct: float = 40.0
     crypto_max_drawdown_halt_pct: float = 55.0
+    # BEZPIECZNIK PODŁOGI KONTA (#4, decyzja właściciela 2026-11-26): gdy equity spadnie
+    # do/poniżej tej kwoty (EUR), WSTRZYMAJ nowe wejścia do przeglądu — budżet nauki na
+    # żywym koncie jest ograniczony tą liczbą. KLUCZOWE: to blokada samych WEJŚĆ, NIE halt
+    # (halt zamraża też wyjścia — patrz check_take_profit_stop_loss). Wyjścia biegną dalej,
+    # więc spadające pozycje nadal się domykają. Nielepkie: gdy konto odbije, wejścia wracają.
+    # 0 = wyłączone. Start €120, podłoga €100 = ~-17% na eksperyment.
+    account_floor_usd: float = 0.0          # akcje/baza: wyłączone
+    crypto_account_floor_usd: float = 100.0
 
     # --- 5 ULEPSZEŃ STRATEGII (trend-following, strona WYJŚĆ/RYZYKA — nie
     # restrykcyjne weta wejść; backtest pokazał, że nadmiar filtrów wejścia szkodzi).

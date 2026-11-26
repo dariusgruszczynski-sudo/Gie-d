@@ -2828,9 +2828,41 @@ def _run_auto_deploy(
         fresh["usdt_balance"] = min(fresh.get("usdt_balance", 0.0), max(0.0, cycle_free0 - net_committed))
         return fresh
 
+    # BEZPIECZNIK PODŁOGI KONTA (#4 — budżet eksperymentu, decyzja właściciela): gdy equity
+    # spadło do/poniżej podłogi, WSTRZYMAJ nowe wejścia (deploy + piramidowanie) do przeglądu.
+    # KLUCZOWE: to blokada samych WEJŚĆ — WYJŚCIA biegną osobno (check_take_profit_stop_loss),
+    # więc spadające pozycje NADAL się domykają (inaczej niż halt, który zamraża wszystko).
+    # Nielepkie: gdy konto odbije powyżej podłogi, wejścia wracają same.
+    _floor = (getattr(settings, "crypto_account_floor_usd", 0.0) if venue == "crypto"
+              else getattr(settings, "account_floor_usd", 0.0))
+    below_floor = _floor > 0 and account_total_value(db, settings, pf, venue) <= _floor
+    if below_floor:
+        now = datetime.now(UTC)
+        last = _afford_block_logged_at.get(f"floor:{venue}")
+        if last is None or (now - last) >= timedelta(minutes=_AFFORD_BLOCK_THROTTLE_MIN):
+            _afford_block_logged_at[f"floor:{venue}"] = now
+            try:
+                db.add(Decision(
+                    symbol=None, action=TradeAction.HOLD, size_pct=0.0, confidence=0.0,
+                    reasoning=(
+                        f"Podłoga konta (budżet eksperymentu €{_floor:.0f}): equity ≤ podłoga — NOWE "
+                        "wejścia wstrzymane do przeglądu strategii. Wyjścia (stop/trailing/breakeven/"
+                        "profit-lock) DZIAŁAJĄ dalej — spadające pozycje nadal się domykają. Wejścia "
+                        "wrócą same, gdy konto odbije powyżej podłogi."
+                    ),
+                    market_data_snapshot="{}", news_snapshot="[]", market_context_snapshot="{}",
+                    triggered_by=TriggerType.SCHEDULED_DAILY, executed=False,
+                    rejection_reason=f"Podłoga konta €{_floor:.0f} — nowe wejścia wstrzymane (bezpiecznik #4)",
+                    venue=venue,
+                ))
+                db.commit()
+            except Exception:  # notka nie może wywalić cyklu
+                db.rollback()
+                logger.warning("Nie udało się zalogować notki o podłodze konta", exc_info=True)
+
     # (1) DEPLOY leżącej gotówki w najlepsze setupy.
     tried: set[str] = set()
-    while venue_allocation_room(db, settings, pf, venue) >= settings.auto_deploy_min_cash_usd and (
+    while not below_floor and venue_allocation_room(db, settings, pf, venue) >= settings.auto_deploy_min_cash_usd and (
         settings.max_concurrent_positions <= 0
         or count_open_positions(pf, settings, symbols) < settings.max_concurrent_positions
     ):
@@ -2890,7 +2922,7 @@ def _run_auto_deploy(
     # cena robi nowe wybicie (Donchian) ORAZ łączna pozycja < pyramid_max_position_pct
     # konta. Dokładka do już trzymanej jest zwolniona z limitu równoległych pozycji
     # (patrz _process_decision). Liczba dokładek ograniczona naturalnie sufitem notional.
-    if getattr(settings, "pyramid_enabled", False):
+    if not below_floor and getattr(settings, "pyramid_enabled", False):
         acct_total = account_total_value(db, settings, pf, venue)
         min_gain = getattr(settings, "pyramid_min_gain_pct", 0.0)
         max_pos_pct = getattr(settings, "pyramid_max_position_pct", 0.0)
@@ -2918,8 +2950,9 @@ def _run_auto_deploy(
                 acct_total = account_total_value(db, settings, pf, venue)
 
     # (2) ROTACJA: przy braku gotówki wymień najsłabszą trzymaną na wyraźnie lepszą.
+    # Poniżej podłogi konta rotacja też STOI — kupno nowej nogi to nowe wejście.
     rotations = 0
-    while rotations < settings.auto_deploy_max_rotations_per_cycle:
+    while not below_floor and rotations < settings.auto_deploy_max_rotations_per_cycle:
         if venue_allocation_room(db, settings, pf, venue) >= settings.auto_deploy_min_cash_usd:
             break  # jest gotówka — to nie sytuacja na rotację, dokłada ją krok (1)
         held = _held_symbols(pf, settings, symbols)
