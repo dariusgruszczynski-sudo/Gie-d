@@ -68,6 +68,7 @@ _CRYPTO_OVERRIDES = {
     "crypto_breakeven_lock_pct": "breakeven_lock_pct",
     "crypto_profit_lock_min_pct": "profit_lock_min_pct",
     "crypto_profit_lock_giveback_pct": "profit_lock_giveback_pct",
+    "crypto_contrarian_entry_enabled": "contrarian_entry_enabled",
     "crypto_ratchet_trigger_pct": "ratchet_trigger_pct",
     "crypto_ratchet_trail_mult": "ratchet_trail_mult",
     "crypto_trend_exit_ma_period": "trend_exit_ma_period",

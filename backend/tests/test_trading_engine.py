@@ -3053,3 +3053,22 @@ def test_crypto_entry_spread_pct():
     assert trading_engine._crypto_entry_spread_pct(_QuoteBroker(None), "BTC/EUR") is None
     assert trading_engine._crypto_entry_spread_pct(_QuoteBroker((101.0, 100.0)), "BTC/EUR") is None
     assert trading_engine._crypto_entry_spread_pct(_QuoteBroker(RuntimeError("x")), "BTC/EUR") is None
+
+
+def test_contrarian_entry_vetoes_overbought(settings):
+    """#1 (do backtestu): wariant kontrariański NIE goni szczytu — wetuje wejście przy
+    RSI>max (wykupienie), a punktuje RSI w strefie cofnięcia. Momentum (domyślny) wchodzi
+    przy RSI 85. Gated: domyślnie OFF, więc żywy bot bez zmian."""
+    from app.services import signals
+    mom = settings  # momentum (domyślny)
+    con = settings.model_copy(update={"contrarian_entry_enabled": True,
+                                      "contrarian_rsi_min": 40.0, "contrarian_rsi_max": 65.0})
+    hot = {"sma50_vs_sma200_1h": "above", "macd_signal": "bullish", "rsi_14": 85}
+    dip = {"sma50_vs_sma200_1h": "above", "macd_signal": "bullish", "rsi_14": 52}
+    # Momentum kupuje wykupiony szczyt (to przegrywa na żywo):
+    assert signals.entry_confluence(mom, hot).ok is True
+    # Kontrarian WETUJE wykupienie, ale kupuje cofnięcie:
+    assert signals.entry_confluence(con, hot).ok is False
+    assert signals.entry_confluence(con, dip).ok is True
+    # Domyślnie OFF (żywy bot bez zmian):
+    assert settings.contrarian_entry_enabled is False

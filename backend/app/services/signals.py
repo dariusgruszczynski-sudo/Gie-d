@@ -52,13 +52,28 @@ def entry_confluence(settings: Settings, technical: dict) -> EntrySignal:
     if macd in ("bullish", "bullish_cross"):
         score += 1
         reasons.append(f"MACD {macd}")
+    contrarian = getattr(settings, "contrarian_entry_enabled", False)
+    rsi_hi = getattr(settings, "contrarian_rsi_max", 65.0)
+    rsi_lo = getattr(settings, "contrarian_rsi_min", 40.0)
     if rsi is not None:
-        if rsi >= 45:
-            score += 1
-            reasons.append(f"RSI {rsi} (momentum)")
-        elif rsi < 35:
-            score += 1
-            reasons.append(f"RSI {rsi} (wyprzedanie/odbicie)")
+        if contrarian:
+            # ANTY-CHASE (#1): punkt TYLKO za RSI w strefie COFNIĘCIA [lo,hi] — nie
+            # nagradzamy wykupienia (RSI>hi), bo to kupowanie szczytu (8% trafności na żywo).
+            if rsi_lo <= rsi <= rsi_hi:
+                score += 1
+                reasons.append(f"RSI {rsi} (cofnięcie w trendzie)")
+        else:
+            if rsi >= 45:
+                score += 1
+                reasons.append(f"RSI {rsi} (momentum)")
+            elif rsi < 35:
+                score += 1
+                reasons.append(f"RSI {rsi} (wyprzedanie/odbicie)")
 
     ok = score >= settings.entry_min_score
+    # ANTY-CHASE twarde weto: w trybie kontrariańskim NIE wchodzimy przy wykupieniu,
+    # choćby reszta grała — to wprost test hipotezy „nie gonić szczytu".
+    if contrarian and rsi is not None and rsi > rsi_hi:
+        ok = False
+        reasons.append(f"WETO: RSI {rsi} > {rsi_hi} (wykupienie — nie gonię szczytu)")
     return EntrySignal(ok=ok, score=score, reasons=reasons)

@@ -74,6 +74,16 @@ jobs:
           set -o pipefail
           python scripts/run_backtest.py --venue crypto --years "${YEARS}" 2>&1 | tee ../mechanisms.txt
 
+      - name: Backtest — WEJŚCIE KONTRARIAŃSKIE (#1: kup cofnięcie, nie goń szczytu)
+        working-directory: backend
+        env:
+          # Test hipotezy: obecne wejście kupuje momentum też przy RSI 75-88 (szczyt) ->
+          # 8% trafności na żywo. Kontrarian: punkt RSI tylko w strefie cofnięcia + weto wykupienia.
+          CRYPTO_CONTRARIAN_ENTRY_ENABLED: "true"
+        run: |
+          set -o pipefail
+          python scripts/run_backtest.py --venue crypto --years "${YEARS}" 2>&1 | tee ../contrarian.txt
+
       - name: Sweep — frontiera ekspozycji (gdy wybrany)
         if: ${{ (inputs.sweep || 'true') == 'true' }}
         working-directory: backend
@@ -133,6 +143,21 @@ jobs:
             echo '```'; cat baseline.txt; echo '```'
             echo "## Pełny wynik — Z mechanizmami"
             echo '```'; cat mechanisms.txt; echo '```'
+            if [ -f contrarian.txt ]; then
+              echo "## #1 — WEJŚCIE KONTRARIAŃSKIE (momentum→cofnięcie) vs Z mechanizmami"
+              echo
+              echo "| Metryka | Z mechanizmami (momentum) | Kontrariańskie |"
+              echo "|---|---|---|"
+              crow() { printf '| %s | %s | %s |\n' "$1" "$(pick mechanisms.txt "$2")" "$(pick contrarian.txt "$2")"; }
+              crow "Trafność %" "win_rate_pct"
+              crow "Expectancy (R)" "expectancy_R"
+              crow "Zwrot %" "total_return_pct"
+              crow "Alpha %" "alpha_pct"
+              crow "Max drawdown %" "max_drawdown_pct"
+              crow "Wejść" "entries"
+              echo
+              echo '```'; cat contrarian.txt; echo '```'
+            fi
             if [ -f walkforward.txt ]; then
               echo "## Walk-forward — out-of-sample (czy przewaga trzyma się w czasie)"
               echo '```'; cat walkforward.txt; echo '```'

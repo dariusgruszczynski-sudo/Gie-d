@@ -741,6 +741,15 @@ class Settings(BaseSettings):
     # Razem z anty-lewarowym guardem w _run_auto_deploy (licznik netto wydanej
     # gotówki) — wejścia selektywne i niezlewarowane. Wybór właściciela.
     crypto_entry_min_score: int = 2  # 2026-10-19: 1→2 (wniosek #5) — wymagamy ≥2/3 konfluencji (RSI/MACD/SMA), koniec handlu szumem.
+    # WEJŚCIE KONTRARIAŃSKIE (#1, do BACKTESTU — domyślnie OFF, żywy bot bez zmian).
+    # Hipoteza: obecna konfluencja DODAJE punkt za RSI>=45, więc kupuje momentum RÓWNIEŻ
+    # przy wykupieniu (RSI 75-88 = szczyt) -> na żywo 8% trafności (kupno górek). Wariant
+    # kontrariański: punkt RSI tylko w strefie COFNIĘCIA [min,max] i TWARDE weto, gdy RSI
+    # > max (nie gonimy szczytu). Włączany env CONTRARIAN_ENTRY_ENABLED=true na backteście.
+    contrarian_entry_enabled: bool = False
+    crypto_contrarian_entry_enabled: bool = False
+    contrarian_rsi_min: float = 40.0
+    contrarian_rsi_max: float = 65.0
     # --- Ilościowa auto-degradacja setupów (Tier 1) -------------------------
     # Once a ticker has >= auto_demote_min_trades CLOSED trades on a venue with
     # negative realized P&L and a sub-par win rate, block opening fresh
