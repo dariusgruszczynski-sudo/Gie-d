@@ -222,7 +222,12 @@ def sell_all(symbol: str, venue: str = "alpaca", db: Session = Depends(get_db), 
         balances = broker.get_account_balances()
     except (AlpacaAPIError, KrakenError) as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
-    qty = float(balances.get(sym, 0.0) or 0.0)
+    # KRYTYCZNE (bug: ręczne zamykanie pozycji Kraken): salda Krakena są kluczowane po
+    # BAZIE ("LINK"), a panel wysyła pełną parę ("LINK/EUR"). Lookup po parze dawał qty=0
+    # -> 404 „brak pozycji" na KAŻDEJ pozycji Kraken, czyli przycisk Sprzedaj nie działał.
+    # Alpaca używa samego tickera bez "/", więc base==sym i nic się nie zmienia.
+    base = sym.split("/")[0]
+    qty = float(balances.get(base, balances.get(sym, 0.0)) or 0.0)
     if qty <= 0:
         raise HTTPException(status_code=404, detail=f"Brak pozycji {sym} do sprzedania.")
     # Allow selling a held name even if it's off the trading whitelist (adopted).

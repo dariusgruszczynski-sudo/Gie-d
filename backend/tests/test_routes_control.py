@@ -20,6 +20,25 @@ def test_sell_all_sells_exact_held_qty(db_session, settings, monkeypatch):
     assert broker.balances["XLE"] < 1e-9  # position fully closed
 
 
+def test_sell_all_kraken_base_keyed_balance(db_session, settings, monkeypatch):
+    """REGRESJA (bug: ręczne zamykanie pozycji Kraken nie działało): Kraken kluczuje
+    salda po BAZIE ('LINK'), a panel wysyła pełną parę ('LINK/EUR'). Lookup po parze
+    dawał qty=0 -> 404 „brak pozycji" na KAŻDEJ pozycji Kraken. Teraz czyta po bazie."""
+    from tests.test_trading_engine import _FakeKrakenExec
+
+    broker = _FakeKrakenExec(prices={"LINK/EUR": 8.0}, balances={"EUR": 50.0, "LINK": 1.57},
+                             min_notional=2.65, equity=100.0)
+    monkeypatch.setattr(routes_control, "_broker_for", lambda venue, s: (broker, s.crypto_symbols, True))
+    cs = settings.model_copy(update={"crypto_enabled": True, "crypto_venue": "kraken", "quote_currency": "EUR"})
+
+    trade = routes_control.sell_all(symbol="LINK/EUR", venue="crypto", db=db_session, settings=cs)
+
+    assert trade["symbol"] == "LINK/EUR"
+    assert trade["side"] == "SELL"
+    assert abs(trade["quantity"] - 1.57) < 1e-6   # pełna posiadana ilość (czytana po bazie)
+    assert broker.balances["LINK"] < 1e-6          # pozycja domknięta
+
+
 def test_sell_all_404_when_nothing_held(db_session, settings, monkeypatch):
     broker = FakeAlpaca(prices={"XLE": 56.0}, balances={"USD": 100.0})
     monkeypatch.setattr(routes_control, "_broker_for", lambda venue, s: (broker, s.whitelist_symbols, False))
