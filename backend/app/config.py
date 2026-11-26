@@ -195,7 +195,16 @@ class Settings(BaseSettings):
     # wokół progu). $2k to już tylko PODŁOGA NA PYŁ (odcina ogon $220-$1k), uniwersum
     # stabilnie ~20+ par. Nie odblokowuje zakupów (o tym decydują bramki + rynek) —
     # stabilizuje i poszerza pulę kandydatów. (Obrót z wolumenu venue Alpaki.)
-    crypto_scanner_min_dollar_vol_usd: float = 2_000.0
+    # 2026-11-26 (#1/#2 — NAJWAŻNIEJSZA zmiana, backtest 499 par/298k barów/2 lata):
+    # $2k było dla mikro-giełdy Alpaki. Na Krakenie EUR to był KORZEŃ strat — wpuszczał
+    # niepłynne alty/memy (MOODENG/PROS/BLUR), które na żywo traciły. Backtest: ta sama
+    # strategia = −44% na 499 par vs +52% na płynnych ($200k+). Każdy rozsądny próg
+    # ($50k-$5M) zamienia stratę w zysk. $200k = optimum (68% traf, +0.44R, +52%, maxDD 9%).
+    crypto_scanner_min_dollar_vol_usd: float = 200_000.0
+    # #3 ENTRY-VETO płynności: twarde weto wejścia, gdy znany dolarowy obrót coina < progu
+    # — łapie news-pompy mikrocapów, które omijają skaner (dynamiczne uniwersum z newsów).
+    crypto_min_entry_dollar_vol_usd: float = 200_000.0
+    min_entry_dollar_vol_usd: float = 0.0          # akcje/baza: wyłączone
     crypto_scanner_rs_vs_btc: bool = True         # #2 ranking po SILE WZGLĘDEM BTC (altseason), nie gołym zwrocie
     # Cache rankingu (audyt: efektywność). Momentum 30-dniowe prawie nie zmienia się
     # w 15 min, a bez cache skaner pobierał ~40 dziennych świec KAŻDY cykl. Trzymamy
@@ -264,7 +273,7 @@ class Settings(BaseSettings):
     # (kupujesz po ask, zaraz warte bid). 0 = wyłączone (fail-open). Dotyczy
     # tylko NOWYCH wejść; wyjścia (stopy/cele) nigdy nie są blokowane. Brak danych
     # tickera => nie blokujemy (fail-open, nie dławimy na chwilowym braku kwot).
-    crypto_max_entry_spread_pct: float = 0.8
+    crypto_max_entry_spread_pct: float = 0.5  # 2026-11-26 (#7): 0.8->0.5. Cieńsze alty mają szeroki spread, który zjada zwrot; zacieśnione po audycie (strategia żyje z płynnych, a tam spread i tak wąski).
     # mech#2 — ZLECENIA MARKETABLE-LIMIT NA WEJŚCIU (Kraken, żywa kasa). Zamiast
     # czystego market (pełny poślizg) wejście składamy jako limit przez księgę o
     # bufor %: wypełnia się od razu, ale NIE gorzej niż limit => twardy sufit
@@ -467,7 +476,7 @@ class Settings(BaseSettings):
     # jest NADAL chroniony przez crypto_btc_core_mode (alty blokowane, gdy BTC pod
     # trendem) + anty-lewar + cap 20% + płynność + stopy. Luzujemy filtr bessy, NIE
     # zabezpieczenia. Reversyjne: ustaw z powrotem True, by wrócić do „gotówka w bessie".
-    crypto_regime_filter_enabled: bool = False
+    crypto_regime_filter_enabled: bool = True  # 2026-11-26 (#8): OFF->ON. Backtest (próg $200k): reżim ON = 76% traf / +0.64R vs 68% / +0.44R (OFF). Siedź w gotówce gdy BTC pod trendem — wyższa jakość per-trade, ochrona w bessie.
     crypto_regime_filter_symbol: str = "BTC/USD"
     crypto_regime_filter_timeframe: str = "1d"
     crypto_regime_filter_ma_period: int = 100  # 2026-10-08: 200→100, żeby risk-on łapał szybciej (bot ma handlować i uczyć się, nie wisieć w gotówce)

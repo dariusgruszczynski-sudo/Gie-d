@@ -2695,6 +2695,20 @@ def _run_auto_deploy(
             return False  # już trzymana
         if regime_gate_on and regime.get("regime") == "risk_off" and sym not in defensive_list:
             return False
+        # #3 ENTRY-VETO PŁYNNOŚCI (backtest 499 par: strategia żyje z PŁYNNYCH coinów,
+        # tonie na niepłynnych altach/memach z newsów). Twarde weto, gdy ZNANY dolarowy
+        # obrót < progu — łapie news-pompy mikrocapów omijające filtr skanera. Brak danych
+        # obrotu = weto (handlujemy tylko coiny z POTWIERDZONĄ płynnością). 0 = wyłączone.
+        min_dv = getattr(settings, "min_entry_dollar_vol_usd", 0.0) or 0.0
+        if min_dv > 0 and venue == "crypto":
+            dv_map = pf.get("dollar_vol")
+            if dv_map is None:
+                try:
+                    dv_map = (json.loads(getattr(risk_manager.get_state(db), "crypto_scanner_universe_json", "") or "{}") or {}).get("dollar_vol") or {}
+                except (TypeError, ValueError):
+                    dv_map = {}
+            if float((dv_map or {}).get(sym, 0.0) or 0.0) < min_dv:
+                return False
         md = market_data.get(sym) or {}
         price = pf["prices"].get(sym) or md.get("price") or 0.0
         # #6 POTWIERDZENIE WYŻSZEJ RAMY: wejście tylko, gdy rama nadrzędna też w

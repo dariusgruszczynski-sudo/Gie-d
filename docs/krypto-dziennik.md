@@ -126,6 +126,25 @@ trailing od **+6%** (było +8%). Monety dzikie skalują się proporcjonalnie (be
 szumie). Testy **591/591**, ruff czysto. Świadomy wybór „raczej zablokuj zysk niż oddaj” —
 kosztem okazjonalnego wcześniejszego wyjścia z runnera; obserwujemy na żywych danych.
 
+### Wpis — 2026-11-26 (WDROŻONE 10 propozycji — próg płynności $200k rdzeniem)
+Właściciel: „wdrażaj 10 wszystkie". Przed wdrożeniem ZWALIDOWANE backtestem (499 par, 2 lata):
+
+**#1 Próg płynności (NAJWAŻNIEJSZE):** `crypto_scanner_min_dollar_vol_usd` $2k→$200k. Backtest
+po medianowym dolarowym obrocie: $0=−44%, $50k=+37%, **$200k=+52% (68% traf, +0.44R, maxDD 9%)**,
+$500k=+18%, $5M=+2%. Każdy próg zamienia stratę w zysk — płynność to zmienna dominująca.
+**#2** biała lista majorów — subsumowane przez #1 (próg zawęża uniwersum do ~27 płynnych).
+**#3** entry-veto płynności (`crypto_min_entry_dollar_vol_usd=$200k`) — twarde weto w eligible_new,
+łapie news-pompy mikrocapów omijające skaner (MOODENG/PROS/BLUR). **#4** kontrarian ON (wcześniej).
+**#5** bramki bez luzowania (dowód: bez nich −90%). **#6** cap zlecenia vs obrót — już aktywny
+(`crypto_max_order_vs_dollar_vol_mult=0.25`). **#7** spread-gate 0.8→0.5. **#8** reżim ON —
+backtest ($200k): 76% traf/+0.64R vs 68%/+0.44R (OFF). **#9** rewalidacja 6 lat na prodzie =
+następny krok (mój test 2 lata dzienne). **#10** podłoga €100 (wcześniej).
+
+**Pełny pakiet w backteście ($200k + kontrarian + reżim ON): 76% trafności, +0.64R, +44% zwrot,
++84% alpha vs BTC, maxDD 9%.** Z −44%/−76% (cały rynek) na +44% (płynne) — ta sama mechanika,
+inne uniwersum. Caveat: 2 lata/~29 zamknięć, świece dzienne proxy; obserwujemy żywo, podłoga €100
+chroni. Testy 600/600.
+
 ### Wpis — 2026-11-26 (WIELKI BACKTEST 5270 trejdów — UNIWERSUM to wszystko)
 Właściciel: „przeprowadź 100000 transakcji bez pominięcia niczego, wnioski + 10 propozycji".
 Odpalone na CAŁYM rynku Kraken EUR: **499 par, 298 813 barów dziennych (~2 lata), 5 270 realnych
