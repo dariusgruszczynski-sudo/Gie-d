@@ -227,9 +227,34 @@ def sell_all(symbol: str, venue: str = "alpaca", db: Session = Depends(get_db), 
     # -> 404 „brak pozycji" na KAŻDEJ pozycji Kraken, czyli przycisk Sprzedaj nie działał.
     # Alpaca używa samego tickera bez "/", więc base==sym i nic się nie zmienia.
     base = sym.split("/")[0]
-    qty = float(balances.get(base, balances.get(sym, 0.0)) or 0.0)
+    # Lookup ODPORNY: po bazie, po parze ORAZ po znormalizowanym tickerze Kraken
+    # (różne kody aktywów). Bez tego pozycja z nietypowym kodem (np. WBT) dawała
+    # fałszywe „brak pozycji". Case-insensitive.
+    def _qty_for(bals: dict) -> float:
+        try:
+            from app.services.kraken_client import from_kraken_asset
+        except Exception:  # noqa: BLE001
+            from_kraken_asset = lambda x: x  # noqa: E731
+        want = {base.upper(), sym.upper(), from_kraken_asset(base).upper()}
+        for k, v in (bals or {}).items():
+            ku = str(k).upper()
+            if ku in want or from_kraken_asset(str(k)).upper() == base.upper():
+                try:
+                    q = float(v or 0.0)
+                except (TypeError, ValueError):
+                    q = 0.0
+                if q > 0:
+                    return q
+        return 0.0
+    qty = _qty_for(balances)
     if qty <= 0:
-        raise HTTPException(status_code=404, detail=f"Brak pozycji {sym} do sprzedania.")
+        # Najczęściej: pozycja została już zamknięta automatycznie (stop/profit-lock)
+        # między odświeżeniem panelu a kliknięciem — panel jest nieświeży. Mów to wprost,
+        # zamiast sugerować błąd.
+        raise HTTPException(
+            status_code=404,
+            detail=f"{sym}: brak tej pozycji na Krakenie (prawdopodobnie już zamknięta automatycznie) — odśwież panel.",
+        )
     # Allow selling a held name even if it's off the trading whitelist (adopted).
     wl = list(dict.fromkeys(list(whitelist or []) + [sym]))
     try:
