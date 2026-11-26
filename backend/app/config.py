@@ -747,7 +747,13 @@ class Settings(BaseSettings):
     # kontrariański: punkt RSI tylko w strefie COFNIĘCIA [min,max] i TWARDE weto, gdy RSI
     # > max (nie gonimy szczytu). Włączany env CONTRARIAN_ENTRY_ENABLED=true na backteście.
     contrarian_entry_enabled: bool = False
-    crypto_contrarian_entry_enabled: bool = False
+    # 2026-11-26: WŁĄCZONE na podstawie backtestu (2 lata danych Krakena, dzienne, 14 par
+    # EUR, ta sama mechanika wejść/wyjść): kontrarian vs momentum = trafność 65% vs 51%,
+    # expectancy +0.38R vs −0.07R, zwrot +23% vs −22%, maxDD 7.6% vs 38%. Momentum kupował
+    # RÓWNIEŻ wykupienie (RSI 75-88 = szczyt) -> 8% trafności na żywo. Caveat: próbka 2 lata/
+    # ~26 zamknięć (nie 6 lat/50), świece dzienne jako proxy — obserwujemy żywy wynik; rewert
+    # = False. Downside ograniczony podłogą konta (#4, €100).
+    crypto_contrarian_entry_enabled: bool = True
     contrarian_rsi_min: float = 40.0
     contrarian_rsi_max: float = 65.0
     # --- Ilościowa auto-degradacja setupów (Tier 1) -------------------------

@@ -126,6 +126,30 @@ trailing od **+6%** (było +8%). Monety dzikie skalują się proporcjonalnie (be
 szumie). Testy **591/591**, ruff czysto. Świadomy wybór „raczej zablokuj zysk niż oddaj” —
 kosztem okazjonalnego wcześniejszego wyjścia z runnera; obserwujemy na żywych danych.
 
+### Wpis — 2026-11-26 (BACKTEST: wejście kontrariańskie bije momentum — włączone)
+Właściciel: „napraw wejścia (#1)". Diagnoza: `entry_confluence` dodaje punkt za RSI ≥ 45,
+więc kupuje momentum RÓWNIEŻ przy wykupieniu (RSI 75-88 = szczyt) → 8% trafności na żywo
+(kupowanie górek). Zbudowany wariant kontrariański: punkt RSI tylko w strefie cofnięcia
+[40,65] + twarde weto gdy RSI > 65 (nie gonić szczytu).
+
+**Backtest (Kraken osiągalny przez proxy — Yahoo nie; 2 lata dziennych, 14 par EUR, ta sama
+mechanika wejść/wyjść co live):**
+
+| Metryka | MOMENTUM (obecne) | KONTRARIAN |
+|---|---|---|
+| Trafność | 51,5% | **65,4%** |
+| Expectancy | −0,068R (traci) | **+0,38R (zarabia)** |
+| Zwrot | −21,9% | **+23,1%** |
+| Alpha vs BTC | +17,9% | **+62,9%** |
+| Max drawdown | 38,5% | **7,6%** |
+| Wejść | 109 | 29 (selektywniej) |
+
+Kontrarian zamienia stratną strategię w zyskowną, z 5× niższym drawdownem. **Włączone**
+(`crypto_contrarian_entry_enabled=True`). Przebija stary wpis „RSI-veto pogarszało" (tamto
+6 lat i samo veto; to pełny pullback+veto na danych 2 lat). **Caveat uczciwy:** próbka 2 lata/
+~26 zamknięć (nie 6 lat/≥50), świece dzienne jako proxy dla silnika 1h → obserwujemy żywy
+wynik, rewert = flaga False. Downside ograniczony podłogą konta (#4, €100). Testy 599/599.
+
 ### Wpis — 2026-11-26 (dwa bugi wyjścia: ręczne zamykanie + profit-lock)
 Skarga właściciela: *„nie działa ręczne zamykanie pozycji, pewnie automat też nie łapie
 zysku w 'zysk do wzięcia'”*.

@@ -117,6 +117,9 @@ def test_kraken_small_account_limits_2026_11_24():
     # Bezpiecznik podłogi konta (#4): poniżej €100 wstrzymaj NOWE wejścia (wyjścia biegną).
     assert s.crypto_account_floor_usd == 100.0
     assert s.account_floor_usd == 0.0                        # akcje/baza: wyłączone
+    # Wejście kontrariańskie (#1): WŁĄCZONE dla krypto po backteście (65% vs 51% trafności).
+    assert s.crypto_contrarian_entry_enabled is True
+    assert s.contrarian_entry_enabled is False               # akcje/baza: bez zmian (momentum)
 
 
 def test_kraken_small_account_simplifications_2026_11_24():
