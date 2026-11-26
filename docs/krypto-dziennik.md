@@ -126,6 +126,27 @@ trailing od **+6%** (było +8%). Monety dzikie skalują się proporcjonalnie (be
 szumie). Testy **591/591**, ruff czysto. Świadomy wybór „raczej zablokuj zysk niż oddaj” —
 kosztem okazjonalnego wcześniejszego wyjścia z runnera; obserwujemy na żywych danych.
 
+### Wpis — 2026-11-26 (WIELKI BACKTEST 5270 trejdów — UNIWERSUM to wszystko)
+Właściciel: „przeprowadź 100000 transakcji bez pominięcia niczego, wnioski + 10 propozycji".
+Odpalone na CAŁYM rynku Kraken EUR: **499 par, 298 813 barów dziennych (~2 lata), 5 270 realnych
+transakcji** (Kraken limituje historię do 720 barów/parę, więc skala idzie szerokością; literalne
+100k wymagałoby handlu śmieciem, co test pokazuje = −90%).
+
+**NAJWAŻNIEJSZE: uniwersum to zmienna dominująca.** Ta sama strategia kontrariańska:
+- 14 płynnych majorów: 65% trafności, +0,38R, **+23%**, maxDD 7,6%
+- 499 cały rynek (z altami): 43% trafności, −0,15R, **−44%**, maxDD 58%
+
+Różnica +23% vs −44% to WYŁĄCZNIE uniwersum. Bot krwawi, bo handluje niepłynnymi altami
+(MOODENG/PROS/BLUR — news-pompy), nie dlatego, że logika jest zepsuta. Na płynnych majorach
+strategia DZIAŁA. Próg płynności skanera (`crypto_scanner_min_dollar_vol_usd=2000` = $2k/dzień)
+jest katastrofalnie za niski — wpuszcza mikro-płynny śmieć.
+
+**Robustness #1:** kontrarian > momentum TRZYMA się na 5270 trejdach (−44% vs −67%, 43% vs 40%,
+niższy DD wszędzie) — włączenie #1 było słuszne RELATYWNIE, ale nie czyni strategii wygraną na
+szerokim rynku. **Bramki wejścia (breakout/ADX/min_score) są krytyczne** — bez nich −90%/93% DD.
+**Regime:** ochrona w 2025 (+22% alpha vs BTC), krwawienie w 2026 (−20% alpha). 10 propozycji
+w notatkach sesji; kluczowa #1: drastycznie podnieść próg płynności (handluj majorami, nie altami).
+
 ### Wpis — 2026-11-26 (BACKTEST: wejście kontrariańskie bije momentum — włączone)
 Właściciel: „napraw wejścia (#1)". Diagnoza: `entry_confluence` dodaje punkt za RSI ≥ 45,
 więc kupuje momentum RÓWNIEŻ przy wykupieniu (RSI 75-88 = szczyt) → 8% trafności na żywo
