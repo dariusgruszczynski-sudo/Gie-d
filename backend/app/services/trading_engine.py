@@ -1358,6 +1358,22 @@ def _decide_mechanical_exit(
             "breakeven",
         )
 
+    # PROFIT-LOCK (decyzja właściciela „A"): gdy pozycja była realnie na plusie
+    # (szczyt >= profit_lock_min_pct) i cofnęła się od szczytu o giveback%, a WCIĄŻ
+    # jest na plusie -> BIERZEMY ZYSK, zamiast czekać aż breakeven odda go do zera
+    # albo trailing (który rusza dopiero od +tp_arm). Domyka „martwą strefę" +3%..+6%
+    # i realizuje to, co panel obiecuje przez „zysk do wzięcia". 0 = wyłączone.
+    pl_arm = getattr(settings, "profit_lock_min_pct", 0.0)
+    pl_give = getattr(settings, "profit_lock_giveback_pct", 0.0)
+    if pl_arm > 0 and pl_give > 0 and peak_gain_pct >= pl_arm and change_pct > 0 and peak > 0:
+        if price <= peak * (1 - pl_give / 100.0):
+            return (
+                f"Profit-lock: {base} +{change_pct:.1f}% — biorę zysk po cofnięciu "
+                f"{pl_give:.1f}% od szczytu +{peak_gain_pct:.1f}% (nie oddaję do zera)",
+                100.0,
+                "profit_lock",
+            )
+
     # Hard take-profit floor: bank a STRONG gain outright even with trailing on,
     # so a big move doesn't fully round-trip while the trailing waits to arm.
     if settings.hard_take_profit_pct > 0 and change_pct >= settings.hard_take_profit_pct:
@@ -1629,7 +1645,7 @@ def check_take_profit_stop_loss(
             and gain_pct >= settings.min_hold_profit_bypass_pct
         )
         if (
-            kind not in ("stop", "delisted", "adopted_trailing", "manual_stop", "manual_tp")
+            kind not in ("stop", "delisted", "adopted_trailing", "manual_stop", "manual_tp", "profit_lock")
             and not profit_bypass
             and _within_min_hold(db, symbol, settings, venue=venue)
         ):

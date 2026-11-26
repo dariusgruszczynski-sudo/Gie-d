@@ -1201,6 +1201,28 @@ def test_breakeven_coupled_arms_at_1r_closes_dead_zone(settings):
     assert trading_engine._decide_mechanical_exit(old, "SOL", 100.0, 100.3, 105.2, stop_pct=5.0)[2] != "breakeven"
 
 
+def test_profit_lock_banks_gain_on_giveback(settings):
+    """Decyzja właściciela „A": gdy pozycja była na plusie (szczyt >= profit_lock_min_pct)
+    i cofnie się od szczytu o giveback%, a WCIĄŻ jest na plusie -> bierzemy zysk, zamiast
+    czekać aż breakeven odda go do zera. Domyka dziurę +3%..+6% i realizuje „zysk do wzięcia"."""
+    s = settings.model_copy(update={
+        "profit_lock_min_pct": 3.0, "profit_lock_giveback_pct": 1.5,
+        "trend_exit_ma_period": 0, "hard_take_profit_pct": 15.0,
+        "partial_take_profit_enabled": False, "breakeven_trigger_r": 0.75, "breakeven_lock_pct": 0.5,
+    })
+    # szczyt 105 (+5% >= 3), cena 103.4 (cofnięcie 1.5% od szczytu), wciąż +3.4% -> profit-lock.
+    assert trading_engine._decide_mechanical_exit(s, "SOL", 100.0, 103.4, 105.0, stop_pct=4.0)[2] == "profit_lock"
+    # szczyt tylko +2% (< arm 3) -> nieuzbrojone, trzymaj.
+    assert trading_engine._decide_mechanical_exit(s, "SOL", 100.0, 101.0, 102.0, stop_pct=4.0)[2] is None
+    # cena wciąż na szczycie (brak cofnięcia) -> trzymaj (pozwól biec).
+    assert trading_engine._decide_mechanical_exit(s, "SOL", 100.0, 105.0, 105.0, stop_pct=4.0)[2] is None
+    # cofnięcie aż do wejścia -> to breakeven, nie profit-lock (profit-lock tylko gdy +).
+    assert trading_engine._decide_mechanical_exit(s, "SOL", 100.0, 100.2, 105.0, stop_pct=4.0)[2] == "breakeven"
+    # wyłączone (akcje: min_pct=0) -> brak profit-lock.
+    off = s.model_copy(update={"profit_lock_min_pct": 0.0})
+    assert trading_engine._decide_mechanical_exit(off, "SOL", 100.0, 103.4, 105.0, stop_pct=4.0)[2] != "profit_lock"
+
+
 def test_breakeven_lock_covers_fees_and_respects_arm(settings):
     """Lock zamyka minimalnie NAD wejściem (pokrycie prowizji ~0 netto), ale dopiero po
     uzbrojeniu (szczyt >= 1R); bez szczytu nie rusza."""

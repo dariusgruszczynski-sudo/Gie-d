@@ -392,6 +392,18 @@ class Settings(BaseSettings):
     crypto_breakeven_trigger_r: float = 0.75  # 2026-11-24: 1.0->0.75. Uzbrój breakeven już na +0.75R (szczyt >= 0.75×stop), żeby MNIEJSZY zielony ruch był chroniony (skarga „sprzedaje za późno / z zielonej na stratę"). Niżej groziłby whipsaw na szumie.
     breakeven_lock_pct: float = 0.0        # akcje: wyjście dokładnie na wejściu
     crypto_breakeven_lock_pct: float = 0.5   # krypto: zamknij na ~+0.5% (pokrycie prowizji)
+    # (1b) PROFIT-LOCK (2026-11-26, decyzja właściciela „A"): gdy pozycja była realnie
+    #   na plusie (szczyt >= profit_lock_min_pct) i cofnie się od szczytu o
+    #   profit_lock_giveback_pct, BIERZEMY ZYSK (sprzedaż 100%, póki wciąż na plusie) —
+    #   zamiast czekać aż breakeven odda go do zera albo trailing (który rusza dopiero
+    #   od +6%). To domyka „martwą strefę" +3%..+6%, w której dotąd nic nie bankowało
+    #   zysku — i wprost realizuje to, co panel obiecuje przez „zysk do wzięcia".
+    #   0 = wyłączone (akcje bez zmian). min_pct zestrojony z min_hold_profit_bypass_pct,
+    #   żeby panel i silnik mówiły to samo.
+    profit_lock_min_pct: float = 0.0
+    crypto_profit_lock_min_pct: float = 3.0
+    profit_lock_giveback_pct: float = 0.0
+    crypto_profit_lock_giveback_pct: float = 1.5
     # (2) Winner ratchet: po dużym biegu (>= trigger%) zacieśnij trailing (×mult),
     #     żeby zablokować więcej zysku z silnego trendu.
     ratchet_trigger_pct: float = 0.0

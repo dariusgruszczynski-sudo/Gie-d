@@ -126,7 +126,25 @@ trailing od **+6%** (było +8%). Monety dzikie skalują się proporcjonalnie (be
 szumie). Testy **591/591**, ruff czysto. Świadomy wybór „raczej zablokuj zysk niż oddaj” —
 kosztem okazjonalnego wcześniejszego wyjścia z runnera; obserwujemy na żywych danych.
 
-### Wpis — 2026-11-24 (strategia pod NOWE realia — tnij relikty $600k/Alpaca)
+### Wpis — 2026-11-26 (dwa bugi wyjścia: ręczne zamykanie + profit-lock)
+Skarga właściciela: *„nie działa ręczne zamykanie pozycji, pewnie automat też nie łapie
+zysku w 'zysk do wzięcia'”*.
+
+**Bug 1 (potwierdzony, naprawiony):** endpoint `/sell-all` czytał saldo przez
+`balances.get("LINK/EUR")`, a Kraken kluczuje salda po **bazie** (`"LINK"`). Lookup po
+parze → qty=0 → **404 na KAŻDEJ pozycji Kraken** → przycisk Sprzedaj nigdy nie działał.
+Relikt po Alpace. Fix: lookup po bazie + test regresyjny.
+
+**Bug 2 (rozjazd panel↔silnik, naprawiony przez „A"):** automat mechanicznie DZIAŁAŁ
+(rekoncyliacja się zgadzała, realne sprzedaże wychodziły), ALE panel pokazywał „zysk do
+wzięcia" od +3% i obiecywał realizację „przy pierwszym cofnięciu", a silnik nie miał takiej
+reguły — wychodził dopiero breakeven (powrót do zera), trailing (+6%) albo hard-TP (+15%).
+Dziura +3%..+6% nie bankowała zysku (pogłębiona po wyłączeniu partial-TP). Właściciel wybrał
+**„A" — niech silnik faktycznie bierze zysk**: nowy **profit-lock** (`crypto_profit_lock_min_pct=3`,
+`giveback=1.5`) — gdy szczyt ≥ +3% i cena cofnie się 1.5% od szczytu, a wciąż na plusie →
+sprzedaj, bankuj. Realizuje to, co panel obiecuje. Akcje nietknięte (min_pct=0). Testy 597.
+
+
 Polecenie właściciela: *„analizuj strategię pod nowe realia, nie trzymaj się staroci”*.
 Audyt wykazał mechanikę projektowaną pod **$600k paper / Alpaca / szeroki portfel**, która
 na **€120 realnych na Krakenie** jest martwa albo szkodzi. Wdrożone (wybór właściciela 2+3+4+5):

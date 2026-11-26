@@ -110,6 +110,10 @@ def test_kraken_small_account_limits_2026_11_24():
     assert s.crypto_reward_risk_ratio == 1.5                 # trailing uzbraja na +1.5R (było +2R)
     assert s.crypto_breakeven_trigger_r == 0.75              # breakeven na +0.75R (było +1R)
     assert s.crypto_breakeven_lock_pct == 0.5                # zamknięcie ~+0.5% (netto zero po prowizji)
+    # Profit-lock (decyzja „A"): bankuj zysk po cofnięciu od szczytu (dziura +3%..+6%).
+    assert s.crypto_profit_lock_min_pct == 3.0               # uzbrój gdy szczyt >= +3%
+    assert s.crypto_profit_lock_giveback_pct == 1.5          # sprzedaj po cofnięciu 1.5% od szczytu
+    assert s.profit_lock_min_pct == 0.0                      # akcje: wyłączone
 
 
 def test_kraken_small_account_simplifications_2026_11_24():
