@@ -263,3 +263,24 @@ def test_place_order_for_session_conforms_shape():
     r = c.place_order_for_session("ETH", "sell", quantity=0.02, validate=False)
     assert isinstance(r, KrakenOrderResult)
     assert r.order_id == "OZZZ" and r.quantity == 0.02
+
+
+def test_place_order_warms_pair_cache_for_unknown_pair(monkeypatch):
+    """REGRESJA (bug: „nieznana para dla ADA/EUR" przy ręcznym zamykaniu): cache par
+    (_DYN_PAIRS) bywa ZIMNY w procesie API -> to_kraken_pair spada na 7 zahardkodowanych
+    i pozycja spoza nich (ADA) nie daje się zamknąć. place_order dogrzewa mapę i ponawia."""
+    import app.services.kraken_client as kc
+
+    monkeypatch.setattr(kc, "_DYN_PAIRS", {})      # zimny cache
+    assert kc.to_kraken_pair("ADA/EUR") is None     # ADA nie w 7 zahardkodowanych
+
+    def fake_t(method, url, headers, body):
+        if "AddOrder" in url:
+            return {"result": {"txid": ["OABC-1"]}}
+        return {"error": ["x"]}
+    c = kc.KrakenClient(key="k", secret="aGVsbG8=", transport=fake_t, live_trading=True)
+    # dogrzewanie wpisuje ADAEUR do mapy (jak realne list_crypto_symbols z AssetPairs):
+    monkeypatch.setattr(c, "list_crypto_symbols", lambda: kc._DYN_PAIRS.update({"ADA": "ADAEUR"}))
+
+    resp = c.place_order("ADA/EUR", "sell", 10.0, validate=False)
+    assert resp.get("txid") == ["OABC-1"]           # para rozwiązana po dogrzaniu -> zlecenie poszło

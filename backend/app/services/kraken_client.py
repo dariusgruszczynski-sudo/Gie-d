@@ -309,6 +309,18 @@ class KrakenClient:
         uprawnieniem 'Create Orders'). side: 'buy'|'sell'."""
         pair = to_kraken_pair(symbol)
         if not pair:
+            # Cache par (_DYN_PAIRS) bywa ZIMNY w procesie API (scanner grzeje go w
+            # procesie schedulera). Wtedy to_kraken_pair spada na 7 zahardkodowanych par
+            # i ręczne zamknięcie np. ADA/EUR pada „nieznana para". Dogrzej mapę z
+            # publicznego AssetPairs (cały rynek EUR) i spróbuj ponownie.
+            try:
+                self.list_crypto_symbols()
+            except Exception:  # noqa: BLE001 — dogrzewanie nie może wywalić zlecenia
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Nie udało się dogrzać mapy par Kraken dla %s", symbol, exc_info=True)
+            pair = to_kraken_pair(symbol)
+        if not pair:
             raise KrakenError(f"nieznana para dla {symbol}")
         data: dict = {
             "pair": pair, "type": side.lower(), "ordertype": ordertype,
@@ -432,6 +444,13 @@ class KrakenClient:
         fill po bieżącej cenie (paper-on-Kraken), bez realnego zlecenia."""
         if validate is None:
             validate = not self._live
+        # Dogrzej mapę par, gdy zimna (proces API) — inaczej get_price i place_order
+        # spadają na 7 zahardkodowanych par i np. ADA/EUR nie daje się zamknąć / cena=0.
+        if to_kraken_pair(symbol) is None:
+            try:
+                self.list_crypto_symbols()
+            except Exception:  # noqa: BLE001 — dogrzewanie nie może wywalić zlecenia
+                pass
         price = self.get_price(symbol) or 0.0
         if quantity is not None:
             qty = abs(quantity)
