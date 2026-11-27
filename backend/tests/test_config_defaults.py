@@ -115,8 +115,11 @@ def test_kraken_small_account_limits_2026_11_24():
     assert s.crypto_profit_lock_giveback_pct == 1.5          # sprzedaj po cofnięciu 1.5% od szczytu
     assert s.profit_lock_min_pct == 0.0                      # akcje: wyłączone
     # Bezpiecznik podłogi konta (#4): poniżej €100 wstrzymaj NOWE wejścia (wyjścia biegną).
-    assert s.crypto_account_floor_usd == 100.0
-    assert s.account_floor_usd == 0.0                        # akcje/baza: wyłączone
+    # Podłoga DYNAMICZNA: −18% od szczytu konta (skaluje się z wpłatami), nie stała kwota.
+    assert s.crypto_account_floor_pct == 18.0
+    assert s.crypto_account_floor_usd == 0.0                 # stała kwota OFF — dynamiczna przejmuje
+    assert s.account_floor_pct == 0.0                        # akcje/baza: wyłączone
+    assert s.account_floor_usd == 0.0
     # Wejście kontrariańskie (#1): WŁĄCZONE dla krypto po backteście (65% vs 51% trafności).
     assert s.crypto_contrarian_entry_enabled is True
     # Pakiet 10 propozycji (backtest 499 par): płynność to zmienna dominująca.

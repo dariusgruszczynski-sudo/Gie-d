@@ -382,9 +382,15 @@ class Settings(BaseSettings):
     # żywym koncie jest ograniczony tą liczbą. KLUCZOWE: to blokada samych WEJŚĆ, NIE halt
     # (halt zamraża też wyjścia — patrz check_take_profit_stop_loss). Wyjścia biegną dalej,
     # więc spadające pozycje nadal się domykają. Nielepkie: gdy konto odbije, wejścia wracają.
-    # 0 = wyłączone. Start €120, podłoga €100 = ~-17% na eksperyment.
-    account_floor_usd: float = 0.0          # akcje/baza: wyłączone
-    crypto_account_floor_usd: float = 100.0
+    # 2026-11-27: PODŁOGA DYNAMICZNA (decyzja właściciela). Zamiast stałej kwoty —
+    # procent PONIŻEJ SZCZYTU konta (peak_account_value, przesuwany o wpłaty przez
+    # record_deposit). Skaluje się sama: dorzucenie €100 podnosi szczyt -> podłoga rośnie
+    # bez ręcznego resetu. floor = max(abs_usd, peak × (1 − pct/100)). pct=0 -> tylko stała
+    # kwota (stare zachowanie); abs_usd=0 -> czysto dynamiczna. Przy €220 i 18% podłoga ≈ €180.
+    account_floor_usd: float = 0.0           # akcje/baza: stała kwota wyłączona
+    crypto_account_floor_usd: float = 0.0    # krypto: stała kwota OFF — używamy dynamicznej
+    account_floor_pct: float = 0.0           # akcje/baza: dynamiczna wyłączona
+    crypto_account_floor_pct: float = 18.0   # krypto: wstrzymaj wejścia przy −18% od szczytu konta
 
     # --- 5 ULEPSZEŃ STRATEGII (trend-following, strona WYJŚĆ/RYZYKA — nie
     # restrykcyjne weta wejść; backtest pokazał, że nadmiar filtrów wejścia szkodzi).

@@ -2847,9 +2847,23 @@ def _run_auto_deploy(
     # KLUCZOWE: to blokada samych WEJŚĆ — WYJŚCIA biegną osobno (check_take_profit_stop_loss),
     # więc spadające pozycje NADAL się domykają (inaczej niż halt, który zamraża wszystko).
     # Nielepkie: gdy konto odbije powyżej podłogi, wejścia wracają same.
-    _floor = (getattr(settings, "crypto_account_floor_usd", 0.0) if venue == "crypto"
-              else getattr(settings, "account_floor_usd", 0.0))
-    below_floor = _floor > 0 and account_total_value(db, settings, pf, venue) <= _floor
+    # DYNAMICZNA PODŁOGA: % poniżej SZCZYTU konta (peak_account_value, przesuwany o wpłaty
+    # przez record_deposit). Skaluje się sama — dorzucenie €100 podnosi szczyt -> podłoga
+    # rośnie bez ręcznego resetu. Plus opcjonalny absolutny hard-min (max z obu). 0 = off.
+    if venue == "crypto":
+        _abs_floor = getattr(settings, "crypto_account_floor_usd", 0.0) or 0.0
+        _floor_pct = getattr(settings, "crypto_account_floor_pct", 0.0) or 0.0
+    else:
+        _abs_floor = getattr(settings, "account_floor_usd", 0.0) or 0.0
+        _floor_pct = getattr(settings, "account_floor_pct", 0.0) or 0.0
+    _acct_now = account_total_value(db, settings, pf, venue)
+    _floor = _abs_floor
+    if _floor_pct > 0:
+        _peak = getattr(risk_manager.get_state(db), "peak_account_value", 0.0) or 0.0
+        if _peak <= 0:
+            _peak = _acct_now
+        _floor = max(_floor, _peak * (1.0 - _floor_pct / 100.0))
+    below_floor = _floor > 0 and _acct_now <= _floor
     if below_floor:
         now = datetime.now(UTC)
         last = _afford_block_logged_at.get(f"floor:{venue}")
@@ -2859,14 +2873,14 @@ def _run_auto_deploy(
                 db.add(Decision(
                     symbol=None, action=TradeAction.HOLD, size_pct=0.0, confidence=0.0,
                     reasoning=(
-                        f"Podłoga konta (budżet eksperymentu €{_floor:.0f}): equity ≤ podłoga — NOWE "
-                        "wejścia wstrzymane do przeglądu strategii. Wyjścia (stop/trailing/breakeven/"
-                        "profit-lock) DZIAŁAJĄ dalej — spadające pozycje nadal się domykają. Wejścia "
-                        "wrócą same, gdy konto odbije powyżej podłogi."
+                        f"Podłoga konta (dynamiczna, −{_floor_pct:.0f}% od szczytu = €{_floor:.0f}): "
+                        f"equity €{_acct_now:.0f} ≤ podłoga — NOWE wejścia wstrzymane do przeglądu. "
+                        "Wyjścia (stop/trailing/breakeven/profit-lock) DZIAŁAJĄ dalej — spadające "
+                        "pozycje nadal się domykają. Wejścia wrócą same, gdy konto odbije powyżej podłogi."
                     ),
                     market_data_snapshot="{}", news_snapshot="[]", market_context_snapshot="{}",
                     triggered_by=TriggerType.SCHEDULED_DAILY, executed=False,
-                    rejection_reason=f"Podłoga konta €{_floor:.0f} — nowe wejścia wstrzymane (bezpiecznik #4)",
+                    rejection_reason=f"Podłoga konta €{_floor:.0f} (dyn. −{_floor_pct:.0f}% od szczytu) — wejścia wstrzymane (#4)",
                     venue=venue,
                 ))
                 db.commit()

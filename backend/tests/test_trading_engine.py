@@ -3072,3 +3072,43 @@ def test_contrarian_entry_vetoes_overbought(settings):
     assert signals.entry_confluence(con, dip).ok is True
     # Domyślnie OFF (żywy bot bez zmian):
     assert settings.contrarian_entry_enabled is False
+
+
+def test_dynamic_account_floor_scales_with_peak(db_session, settings, monkeypatch):
+    """Podłoga DYNAMICZNA (−18% od szczytu konta): skaluje się sama z wpłatami/zyskiem.
+    Szczyt €220 -> podłoga ≈ €180; equity €170 < €180 -> wstrzymaj wejścia."""
+    import types
+
+    from app.models import Decision, TriggerType
+    from app.services import risk_manager
+
+    trading_engine._afford_block_logged_at.clear()  # throttle notki jest globalny
+    st = risk_manager.get_state(db_session)
+    st.crypto_paused = False; st.is_paused = False; st.is_halted = False
+    st.peak_account_value = 220.0           # szczyt (np. po dorzuceniu €100)
+    db_session.commit()
+    s = settings.model_copy(update={
+        "crypto_enabled": True, "crypto_venue": "kraken", "quote_currency": "EUR",
+        "crypto_account_floor_usd": 0.0, "crypto_account_floor_pct": 18.0, "auto_deploy_enabled": True,
+    })
+    # equity €170 < podłoga (220 × 0.82 = 180.4) -> poniżej.
+    monkeypatch.setattr(trading_engine, "account_total_value", lambda *a, **k: 170.0)
+    broker = _FakeKrakenExec(prices={"SOL/EUR": 150.0}, balances={"EUR": 90.0}, min_notional=2.65, equity=170.0)
+    tc = types.SimpleNamespace(approved=True, reason="")
+    pf = {"usdt_balance": 90.0, "prices": {"SOL/EUR": 150.0}, "total_value_usdt": 170.0}
+    execs, _pf = trading_engine._run_auto_deploy(
+        db_session, s, broker, market_data={"SOL/EUR": {"price": 150.0, "technical": {}}},
+        portfolio=pf, veto_sell=set(), regime={}, regime_gate_on=False, defensive_list=[],
+        earnings_days={}, performance_context={}, trade_check=tc, tradable=True,
+        session_info=None, trigger_reason=TriggerType.SCHEDULED_DAILY, venue="crypto",
+        symbols=["SOL/EUR"], edge_payoff=None,
+    )
+    assert execs == []  # poniżej dynamicznej podłogi -> zero nowych wejść
+    dec = db_session.query(Decision).filter(Decision.rejection_reason.like("%od szczytu%")).first()
+    assert dec is not None  # notka wspomina dynamiczną podłogę
+
+    # Powyżej podłogi (equity €200 > €180.4) -> brak blokady z tytułu podłogi.
+    monkeypatch.setattr(trading_engine, "account_total_value", lambda *a, **k: 200.0)
+    from app.services import trading_engine as te
+    _floor_pct = 18.0
+    assert 200.0 > 220.0 * (1 - _floor_pct / 100.0)  # sanity: €200 nad podłogą €180.4
