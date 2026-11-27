@@ -123,8 +123,8 @@ def test_kraken_small_account_limits_2026_11_24():
     # Wejście kontrariańskie (#1): WŁĄCZONE dla krypto po backteście (65% vs 51% trafności).
     assert s.crypto_contrarian_entry_enabled is True
     # Pakiet 10 propozycji (backtest 499 par): płynność to zmienna dominująca.
-    assert s.crypto_scanner_min_dollar_vol_usd == 200_000.0   # #1 próg płynności (był $2k)
-    assert s.crypto_min_entry_dollar_vol_usd == 200_000.0     # #3 entry-veto płynności
+    assert s.crypto_scanner_min_dollar_vol_usd == 50_000.0    # 2026-11-27: 200k->50k (auto, backtest: 58 par +57% vs 27 par +42%)
+    assert s.crypto_min_entry_dollar_vol_usd == 50_000.0      # #3 entry-veto płynności (zgodny z progiem skanera)
     assert s.min_entry_dollar_vol_usd == 0.0                  # akcje/baza: wyłączone
     assert s.crypto_regime_filter_enabled is True             # #8 reżim ON
     assert s.crypto_max_entry_spread_pct == 0.5               # #7 zacieśniony spread-gate

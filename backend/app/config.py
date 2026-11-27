@@ -198,12 +198,14 @@ class Settings(BaseSettings):
     # 2026-11-26 (#1/#2 — NAJWAŻNIEJSZA zmiana, backtest 499 par/298k barów/2 lata):
     # $2k było dla mikro-giełdy Alpaki. Na Krakenie EUR to był KORZEŃ strat — wpuszczał
     # niepłynne alty/memy (MOODENG/PROS/BLUR), które na żywo traciły. Backtest: ta sama
-    # strategia = −44% na 499 par vs +52% na płynnych ($200k+). Każdy rozsądny próg
-    # ($50k-$5M) zamienia stratę w zysk. $200k = optimum (68% traf, +0.44R, +52%, maxDD 9%).
-    crypto_scanner_min_dollar_vol_usd: float = 200_000.0
+    # strategia = −44% na 499 par vs zysk na płynnych. 2026-11-27 (AUTO, po dostrojeniu
+    # profit-locka): $200k->$50k. Przy ciaśniejszym profit-locku szersze uniwersum WYGRYWA:
+    # 58 par ($50k) = +57% / maxDD 8.5% vs 27 par ($200k) = +42% / 8.5%. $20k dawał +60%,
+    # ale maxDD skakał do 15% — za daleko. $50k to szczyt zwrotu przed wzrostem ryzyka.
+    crypto_scanner_min_dollar_vol_usd: float = 50_000.0
     # #3 ENTRY-VETO płynności: twarde weto wejścia, gdy znany dolarowy obrót coina < progu
     # — łapie news-pompy mikrocapów, które omijają skaner (dynamiczne uniwersum z newsów).
-    crypto_min_entry_dollar_vol_usd: float = 200_000.0
+    crypto_min_entry_dollar_vol_usd: float = 50_000.0
     min_entry_dollar_vol_usd: float = 0.0          # akcje/baza: wyłączone
     crypto_scanner_rs_vs_btc: bool = True         # #2 ranking po SILE WZGLĘDEM BTC (altseason), nie gołym zwrocie
     # Cache rankingu (audyt: efektywność). Momentum 30-dniowe prawie nie zmienia się
