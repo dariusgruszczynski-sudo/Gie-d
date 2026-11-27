@@ -1,6 +1,6 @@
-# Audyt GielDarek — 2026-11-27T21:01:42Z
+# Audyt GielDarek — 2026-11-27T21:54:30Z
 
-**Wdrożenie:** kod 3204e7c (zbud. 2026-11-27T20:19Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
+**Wdrożenie:** kod 2036d22 (zbud. 2026-11-27T21:50Z) · duże zakłady (conviction): true · sufit ryzyka 6.0%
 
 **Od zmiany strategii (tylko akcje):** 0 zamknięć · trafność —% · zrealizowany $0.0
 **7 dni:** 0 zamknięć · —% · $0.0   |   **30 dni:** 0 · —% · $0.0
@@ -26,9 +26,13 @@
 - ostatnie 120 decyzji · wykonanych: 15 · odrzuconych: 105
 
 **Najczęstsze powody odrzucenia (top):**
-- 105× — Limit nowych wejść na dziś osiągnięty (5) — nowe BUY wstrzymane do jutra (anty-churn)
+- 103× — Limit nowych wejść na dziś osiągnięty (5) — nowe BUY wstrzymane do jutra (anty-churn)
+- 2× — brak powodu
 
 **Ostatnie 20 decyzji:**
+- 2026-11-27T21:40:53.757675 — HOLD conf=0.6 trig=manual ⛔ ?
+- 2026-11-27T21:29:30.481671 — HOLD conf=0.6 trig=manual ⛔ ?
+- 2026-11-27T21:22:42.116132 ADA/EUR SELL conf=1.0 trig=price_move ✅WYKONANE
 - 2026-11-27T04:54:31.119511 BCH/EUR SELL conf=1.0 trig=price_move ✅WYKONANE
 - 2026-11-26T22:16:38.192081 WBT/EUR SELL conf=1.0 trig=manual ✅WYKONANE
 - 2026-11-26T21:53:09.713856 RENDER/EUR BUY conf=0.6 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (5) — nowe BUY wstrzymane do jutra (anty-churn)
@@ -46,6 +50,3 @@
 - 2026-11-26T20:09:59.110601 HBAR/EUR BUY conf=0.6 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (5) — nowe BUY wstrzymane do jutra (anty-churn)
 - 2026-11-26T19:54:49.439536 JUP/EUR BUY conf=0.6 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (5) — nowe BUY wstrzymane do jutra (anty-churn)
 - 2026-11-26T19:54:49.416630 RENDER/EUR BUY conf=0.6 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (5) — nowe BUY wstrzymane do jutra (anty-churn)
-- 2026-11-26T19:54:49.391114 AKT/EUR BUY conf=0.6 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (5) — nowe BUY wstrzymane do jutra (anty-churn)
-- 2026-11-26T19:39:49.609813 JUP/EUR BUY conf=0.6 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (5) — nowe BUY wstrzymane do jutra (anty-churn)
-- 2026-11-26T19:24:49.086758 JUP/EUR BUY conf=0.6 trig=news_event ⛔ Limit nowych wejść na dziś osiągnięty (5) — nowe BUY wstrzymane do jutra (anty-churn)
