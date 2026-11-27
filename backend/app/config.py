@@ -424,9 +424,14 @@ class Settings(BaseSettings):
     #   0 = wyłączone (akcje bez zmian). min_pct zestrojony z min_hold_profit_bypass_pct,
     #   żeby panel i silnik mówiły to samo.
     profit_lock_min_pct: float = 0.0
-    crypto_profit_lock_min_pct: float = 3.0
+    # 2026-11-27 (AUTO-dostrojenie, backtest 27 płynnych par): arm 3.0->1.0, giveback
+    # 1.5->1.0. Łapanie MNIEJSZYCH plusów podnosi trafność 76%->83% (mniej zielona→
+    # czerwona — skarga właściciela), przy tym samym zwrocie (+42% vs +44%) i niższym DD
+    # (8.5% vs 9.2%). Ten sam licznik trejdów — więcej wychodzi na małym plusie, nie na
+    # minusie. giveback 1.0% bezpieczny pod żywy silnik intraday. Rewert: 3.0/1.5.
+    crypto_profit_lock_min_pct: float = 1.0
     profit_lock_giveback_pct: float = 0.0
-    crypto_profit_lock_giveback_pct: float = 1.5
+    crypto_profit_lock_giveback_pct: float = 1.0
     # (2) Winner ratchet: po dużym biegu (>= trigger%) zacieśnij trailing (×mult),
     #     żeby zablokować więcej zysku z silnego trendu.
     ratchet_trigger_pct: float = 0.0

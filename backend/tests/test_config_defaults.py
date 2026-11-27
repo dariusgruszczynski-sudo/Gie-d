@@ -111,8 +111,8 @@ def test_kraken_small_account_limits_2026_11_24():
     assert s.crypto_breakeven_trigger_r == 0.75              # breakeven na +0.75R (było +1R)
     assert s.crypto_breakeven_lock_pct == 0.5                # zamknięcie ~+0.5% (netto zero po prowizji)
     # Profit-lock (decyzja „A"): bankuj zysk po cofnięciu od szczytu (dziura +3%..+6%).
-    assert s.crypto_profit_lock_min_pct == 3.0               # uzbrój gdy szczyt >= +3%
-    assert s.crypto_profit_lock_giveback_pct == 1.5          # sprzedaj po cofnięciu 1.5% od szczytu
+    assert s.crypto_profit_lock_min_pct == 1.0               # 2026-11-27: 3->1 (auto, backtest 76%->83% traf)
+    assert s.crypto_profit_lock_giveback_pct == 1.0          # 2026-11-27: 1.5->1.0
     assert s.profit_lock_min_pct == 0.0                      # akcje: wyłączone
     # Bezpiecznik podłogi konta (#4): poniżej €100 wstrzymaj NOWE wejścia (wyjścia biegną).
     # Podłoga DYNAMICZNA: −18% od szczytu konta (skaluje się z wpłatami), nie stała kwota.
