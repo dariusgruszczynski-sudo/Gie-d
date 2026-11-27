@@ -140,6 +140,23 @@ function ManualSection({ status, onChanged }: { status: StatusResponse; onChange
   );
 }
 
+function DepositSection({ onChanged }: { onChanged: () => void }) {
+  const a = useAction();
+  const [amount, setAmount] = useState("100");
+  return (
+    <div className="cr-sec">
+      <h4>Wpłata / wypłata konta</h4>
+      <p className="hint">Zarejestruj dopłatę lub wypłatę środków. Wpłata NIE liczy się jako zysk bota i podnosi szczyt konta → dynamiczna podłoga bezpiecznika rośnie. Kwota ujemna = wypłata.</p>
+      <div className="cr-field"><label>Kwota EUR</label><input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} /></div>
+      <button className="cr-btn primary block" disabled={a.busy === "dep" || !Number(amount)}
+        onClick={() => { const amt = Number(amount); if (window.confirm(`Zarejestrować ${amt >= 0 ? "wpłatę" : "wypłatę"} €${Math.abs(amt)}? To przesuwa szczyt i punkty odniesienia konta.`)) a.run("dep", () => api.recordDeposit(amt).then(onChanged), "Zarejestrowano"); }}>
+        Zarejestruj
+      </button>
+      {a.msg && <div className={`cr-msg ${a.msg.ok ? "ok" : "err"}`}>{a.msg.t}</div>}
+    </div>
+  );
+}
+
 function DrySection({ status }: { status: StatusResponse }) {
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<DryRunResponse | null>(null);
@@ -288,6 +305,7 @@ export function SterDrawer({ status, onChanged, onClose }: { status: StatusRespo
           <ConnectKrakenSection onChanged={onChanged} />
           <PanicSection onChanged={onChanged} />
           <ManualSection status={status} onChanged={onChanged} />
+          <DepositSection onChanged={onChanged} />
           <DrySection status={status} />
           <LimitsSection status={status} />
           <button className="cr-drawer-back" onClick={onClose}>← Wróć do pulpitu</button>

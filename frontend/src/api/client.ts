@@ -424,6 +424,10 @@ export const api = {
     apiFetch<{ push_mode: string; message: string }>(`/api/control/set-push-mode?mode=${mode}`, { method: "POST" }),
   setPlan: (monthlyDeposit: number, goal: number) =>
     apiFetch<{ monthly_deposit: number; goal: number }>(`/api/control/set-plan?monthly_deposit=${monthlyDeposit}&goal=${goal}`, { method: "POST" }),
+  // Zarejestruj zewnętrzną wpłatę/wypłatę (kwota ujemna = wypłata). Przesuwa szczyt
+  // i baseliny o kwotę -> wpłata NIE liczy się jako zysk bota, a dynamiczna podłoga rośnie.
+  recordDeposit: (amount: number) =>
+    apiFetch<{ deposits_usd_lifetime: number }>(`/api/control/record-deposit?amount=${amount}`, { method: "POST" }),
   setWidgetMetric: (metric: "total" | "day" | "account" | "positions") =>
     apiFetch<{ widget_metric: string }>(`/api/control/set-widget-metric?metric=${metric}`, { method: "POST" }),
   setExitOverride: (symbol: string, stopPct: number, takeProfitPct: number) =>
